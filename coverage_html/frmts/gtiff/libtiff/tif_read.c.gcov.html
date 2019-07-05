@@ -1,0 +1,1717 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/gtiff/libtiff/tif_read.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">frmts/gtiff/libtiff</a> - tif_read.c<span style="font-size: 80%;"> (source / <a href="tif_read.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">407</td>
+            <td class="headerCovTableEntry">652</td>
+            <td class="headerCovTableEntryLo">62.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">24</td>
+            <td class="headerCovTableEntry">28</td>
+            <td class="headerCovTableEntryMed">85.7 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright (c) 1988-1997 Sam Leffler
+<span class="lineNum">       3 </span>            :  * Copyright (c) 1991-1997 Silicon Graphics, Inc.
+<span class="lineNum">       4 </span>            :  *
+<span class="lineNum">       5 </span>            :  * Permission to use, copy, modify, distribute, and sell this software and 
+<span class="lineNum">       6 </span>            :  * its documentation for any purpose is hereby granted without fee, provided
+<span class="lineNum">       7 </span>            :  * that (i) the above copyright notices and this permission notice appear in
+<span class="lineNum">       8 </span>            :  * all copies of the software and related documentation, and (ii) the names of
+<span class="lineNum">       9 </span>            :  * Sam Leffler and Silicon Graphics may not be used in any advertising or
+<span class="lineNum">      10 </span>            :  * publicity relating to the software without the specific, prior written
+<span class="lineNum">      11 </span>            :  * permission of Sam Leffler and Silicon Graphics.
+<span class="lineNum">      12 </span>            :  * 
+<span class="lineNum">      13 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS-IS&quot; AND WITHOUT WARRANTY OF ANY KIND, 
+<span class="lineNum">      14 </span>            :  * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
+<span class="lineNum">      15 </span>            :  * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  
+<span class="lineNum">      16 </span>            :  * 
+<span class="lineNum">      17 </span>            :  * IN NO EVENT SHALL SAM LEFFLER OR SILICON GRAPHICS BE LIABLE FOR
+<span class="lineNum">      18 </span>            :  * ANY SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND,
+<span class="lineNum">      19 </span>            :  * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+<span class="lineNum">      20 </span>            :  * WHETHER OR NOT ADVISED OF THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF 
+<span class="lineNum">      21 </span>            :  * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE 
+<span class="lineNum">      22 </span>            :  * OF THIS SOFTWARE.
+<span class="lineNum">      23 </span>            :  */
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : /*
+<span class="lineNum">      26 </span>            :  * TIFF Library.
+<span class="lineNum">      27 </span>            :  * Scanline-oriented Read Support
+<span class="lineNum">      28 </span>            :  */
+<span class="lineNum">      29 </span>            : #include &quot;tiffiop.h&quot;
+<span class="lineNum">      30 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : #define TIFF_SIZE_T_MAX ((size_t) ~ ((size_t)0))
+<span class="lineNum">      33 </span>            : #define TIFF_TMSIZE_T_MAX (tmsize_t)(TIFF_SIZE_T_MAX &gt;&gt; 1)
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : int TIFFFillStrip(TIFF* tif, uint32 strip);
+<span class="lineNum">      36 </span>            : int TIFFFillTile(TIFF* tif, uint32 tile);
+<span class="lineNum">      37 </span>            : static int TIFFStartStrip(TIFF* tif, uint32 strip);
+<span class="lineNum">      38 </span>            : static int TIFFStartTile(TIFF* tif, uint32 tile);
+<span class="lineNum">      39 </span>            : static int TIFFCheckRead(TIFF*, int);
+<span class="lineNum">      40 </span>            : static tmsize_t
+<span class="lineNum">      41 </span>            : TIFFReadRawStrip1(TIFF* tif, uint32 strip, void* buf, tmsize_t size,const char* module);
+<span class="lineNum">      42 </span>            : static tmsize_t
+<span class="lineNum">      43 </span>            : TIFFReadRawTile1(TIFF* tif, uint32 tile, void* buf, tmsize_t size, const char* module);
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : #define NOSTRIP ((uint32)(-1))       /* undefined state */
+<span class="lineNum">      46 </span>            : #define NOTILE ((uint32)(-1))         /* undefined state */
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : #define INITIAL_THRESHOLD (1024 * 1024)
+<span class="lineNum">      49 </span>            : #define THRESHOLD_MULTIPLIER 10
+<span class="lineNum">      50 </span>            : #define MAX_THRESHOLD (THRESHOLD_MULTIPLIER * THRESHOLD_MULTIPLIER * THRESHOLD_MULTIPLIER * INITIAL_THRESHOLD)
+<span class="lineNum">      51 </span>            : 
+<a name="52"><span class="lineNum">      52 </span>            : /* Read 'size' bytes in tif_rawdata buffer starting at offset 'rawdata_offset'</a>
+<span class="lineNum">      53 </span>            :  * Returns 1 in case of success, 0 otherwise. */
+<span class="lineNum">      54 </span><span class="lineCov">       8102 : static int TIFFReadAndRealloc( TIFF* tif, tmsize_t size,</span>
+<span class="lineNum">      55 </span>            :                                tmsize_t rawdata_offset,
+<span class="lineNum">      56 </span>            :                                int is_strip, uint32 strip_or_tile,
+<span class="lineNum">      57 </span>            :                                const char* module )
+<span class="lineNum">      58 </span>            : {
+<span class="lineNum">      59 </span>            : #if SIZEOF_SIZE_T == 8
+<span class="lineNum">      60 </span><span class="lineCov">       8102 :         tmsize_t threshold = INITIAL_THRESHOLD;</span>
+<span class="lineNum">      61 </span>            : #endif
+<span class="lineNum">      62 </span><span class="lineCov">       8102 :         tmsize_t already_read = 0;</span>
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            :         /* On 64 bit processes, read first a maximum of 1 MB, then 10 MB, etc */
+<span class="lineNum">      65 </span>            :         /* so as to avoid allocating too much memory in case the file is too */
+<span class="lineNum">      66 </span>            :         /* short. We could ask for the file size, but this might be */
+<span class="lineNum">      67 </span>            :         /* expensive with some I/O layers (think of reading a gzipped file) */
+<span class="lineNum">      68 </span>            :         /* Restrict to 64 bit processes, so as to avoid reallocs() */
+<span class="lineNum">      69 </span>            :         /* on 32 bit processes where virtual memory is scarce.  */
+<span class="lineNum">      70 </span><span class="lineCov">      24280 :         while( already_read &lt; size )</span>
+<span class="lineNum">      71 </span>            :         {
+<span class="lineNum">      72 </span>            :             tmsize_t bytes_read;
+<span class="lineNum">      73 </span><span class="lineCov">       8104 :             tmsize_t to_read = size - already_read;</span>
+<span class="lineNum">      74 </span>            : #if SIZEOF_SIZE_T == 8
+<span class="lineNum">      75 </span><span class="lineCov">       8107 :             if( to_read &gt;= threshold &amp;&amp; threshold &lt; MAX_THRESHOLD &amp;&amp;</span>
+<span class="lineNum">      76 </span><span class="lineCov">          3 :                 already_read + to_read + rawdata_offset &gt; tif-&gt;tif_rawdatasize )</span>
+<span class="lineNum">      77 </span>            :             {
+<span class="lineNum">      78 </span><span class="lineCov">          3 :                 to_read = threshold;</span>
+<span class="lineNum">      79 </span><span class="lineCov">          3 :                 threshold *= THRESHOLD_MULTIPLIER;</span>
+<span class="lineNum">      80 </span>            :             }
+<span class="lineNum">      81 </span>            : #endif
+<span class="lineNum">      82 </span><span class="lineCov">       8104 :             if (already_read + to_read + rawdata_offset &gt; tif-&gt;tif_rawdatasize) {</span>
+<span class="lineNum">      83 </span>            :                 uint8* new_rawdata;
+<span class="lineNum">      84 </span><span class="lineCov">        802 :                 assert((tif-&gt;tif_flags &amp; TIFF_MYBUFFER) != 0);</span>
+<span class="lineNum">      85 </span><span class="lineCov">        802 :                 tif-&gt;tif_rawdatasize = (tmsize_t)TIFFroundup_64(</span>
+<span class="lineNum">      86 </span>            :                         (uint64)already_read + to_read + rawdata_offset, 1024);
+<span class="lineNum">      87 </span><span class="lineCov">        802 :                 if (tif-&gt;tif_rawdatasize==0) {</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :                     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">      89 </span>            :                                 &quot;Invalid buffer size&quot;);
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :                     return 0;</span>
+<span class="lineNum">      91 </span>            :                 }
+<span class="lineNum">      92 </span><span class="lineCov">       1604 :                 new_rawdata = (uint8*) _TIFFrealloc(</span>
+<span class="lineNum">      93 </span><span class="lineCov">        802 :                                 tif-&gt;tif_rawdata, tif-&gt;tif_rawdatasize);</span>
+<span class="lineNum">      94 </span><span class="lineCov">        802 :                 if( new_rawdata == 0 )</span>
+<span class="lineNum">      95 </span>            :                 {
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :                     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">      97 </span>            :                         &quot;No space for data buffer at scanline %lu&quot;,
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :                         (unsigned long) tif-&gt;tif_row);</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :                     _TIFFfree(tif-&gt;tif_rawdata);</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :                     tif-&gt;tif_rawdata = 0;</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :                     tif-&gt;tif_rawdatasize = 0;</span>
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :                     return 0;</span>
+<span class="lineNum">     103 </span>            :                 }
+<span class="lineNum">     104 </span><span class="lineCov">        802 :                 tif-&gt;tif_rawdata = new_rawdata;</span>
+<span class="lineNum">     105 </span>            :             }
+<span class="lineNum">     106 </span><span class="lineCov">       8104 :             if( tif-&gt;tif_rawdata == NULL )</span>
+<span class="lineNum">     107 </span>            :             {
+<span class="lineNum">     108 </span>            :                 /* should not happen in practice but helps CoverityScan */
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :                 return 0;</span>
+<span class="lineNum">     110 </span>            :             }
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span><span class="lineCov">       8104 :             bytes_read = TIFFReadFile(tif,</span>
+<span class="lineNum">     113 </span>            :                 tif-&gt;tif_rawdata + rawdata_offset + already_read, to_read);
+<span class="lineNum">     114 </span><span class="lineCov">       8105 :             already_read += bytes_read;</span>
+<span class="lineNum">     115 </span><span class="lineCov">       8105 :             if (bytes_read != to_read) {</span>
+<span class="lineNum">     116 </span><span class="lineCov">         29 :                 memset( tif-&gt;tif_rawdata + rawdata_offset + already_read, 0,</span>
+<span class="lineNum">     117 </span><span class="lineCov">         29 :                         tif-&gt;tif_rawdatasize - rawdata_offset - already_read );</span>
+<span class="lineNum">     118 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">     119 </span>            :                 if( is_strip )
+<span class="lineNum">     120 </span>            :                 {
+<span class="lineNum">     121 </span>            :                     TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     122 </span>            :                         &quot;Read error at scanline %lu; got %I64u bytes, &quot;
+<span class="lineNum">     123 </span>            :                         &quot;expected %I64u&quot;,
+<span class="lineNum">     124 </span>            :                                         (unsigned long) tif-&gt;tif_row,
+<span class="lineNum">     125 </span>            :                                         (unsigned __int64) already_read,
+<span class="lineNum">     126 </span>            :                                         (unsigned __int64) size);
+<span class="lineNum">     127 </span>            :                 }
+<span class="lineNum">     128 </span>            :                 else
+<span class="lineNum">     129 </span>            :                 {
+<span class="lineNum">     130 </span>            :                     TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     131 </span>            :                         &quot;Read error at row %lu, col %lu, tile %lu; &quot;
+<span class="lineNum">     132 </span>            :                         &quot;got %I64u bytes, expected %I64u&quot;,
+<span class="lineNum">     133 </span>            :                                         (unsigned long) tif-&gt;tif_row,
+<span class="lineNum">     134 </span>            :                                         (unsigned long) tif-&gt;tif_col,
+<span class="lineNum">     135 </span>            :                                         (unsigned long) strip_or_tile,
+<span class="lineNum">     136 </span>            :                                         (unsigned __int64) already_read,
+<span class="lineNum">     137 </span>            :                                         (unsigned __int64) size);
+<span class="lineNum">     138 </span>            :                 }
+<span class="lineNum">     139 </span>            : #else
+<span class="lineNum">     140 </span><span class="lineCov">         29 :                 if( is_strip )</span>
+<span class="lineNum">     141 </span>            :                 {
+<span class="lineNum">     142 </span><span class="lineCov">          4 :                     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     143 </span>            :                         &quot;Read error at scanline %lu; got %llu bytes, &quot;
+<span class="lineNum">     144 </span>            :                         &quot;expected %llu&quot;,
+<span class="lineNum">     145 </span><span class="lineCov">          2 :                                         (unsigned long) tif-&gt;tif_row,</span>
+<span class="lineNum">     146 </span>            :                                         (unsigned long long) already_read,
+<span class="lineNum">     147 </span>            :                                         (unsigned long long) size);
+<span class="lineNum">     148 </span>            :                 }
+<span class="lineNum">     149 </span>            :                 else
+<span class="lineNum">     150 </span>            :                 {
+<span class="lineNum">     151 </span><span class="lineCov">         81 :                     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     152 </span>            :                         &quot;Read error at row %lu, col %lu, tile %lu; &quot;
+<span class="lineNum">     153 </span>            :                         &quot;got %llu bytes, expected %llu&quot;,
+<span class="lineNum">     154 </span><span class="lineCov">         27 :                                         (unsigned long) tif-&gt;tif_row,</span>
+<span class="lineNum">     155 </span><span class="lineCov">         27 :                                         (unsigned long) tif-&gt;tif_col,</span>
+<span class="lineNum">     156 </span>            :                                         (unsigned long) strip_or_tile,
+<span class="lineNum">     157 </span>            :                                         (unsigned long long) already_read,
+<span class="lineNum">     158 </span>            :                                         (unsigned long long) size);
+<span class="lineNum">     159 </span>            :                 }
+<span class="lineNum">     160 </span>            : #endif
+<span class="lineNum">     161 </span><span class="lineCov">         29 :                 return 0;</span>
+<span class="lineNum">     162 </span>            :             }
+<span class="lineNum">     163 </span>            :         }
+<span class="lineNum">     164 </span><span class="lineCov">       8074 :         return 1;</span>
+<span class="lineNum">     165 </span>            : }
+<span class="lineNum">     166 </span>            : 
+<a name="167"><span class="lineNum">     167 </span>            : </a>
+<span class="lineNum">     168 </span>            : static int
+<span class="lineNum">     169 </span><span class="lineCov">         59 : TIFFFillStripPartial( TIFF *tif, int strip, tmsize_t read_ahead, int restart )</span>
+<span class="lineNum">     170 </span>            : {
+<span class="lineNum">     171 </span>            :   static const char module[] = &quot;TIFFFillStripPartial&quot;;
+<span class="lineNum">     172 </span><span class="lineCov">         59 :   register TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">     173 </span>            :         tmsize_t unused_data;
+<span class="lineNum">     174 </span>            :         uint64 read_offset;
+<span class="lineNum">     175 </span>            :         tmsize_t to_read;
+<span class="lineNum">     176 </span>            :         tmsize_t read_ahead_mod;
+<span class="lineNum">     177 </span>            :         /* tmsize_t bytecountm; */
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            :         /*
+<span class="lineNum">     180 </span>            :          * Expand raw data buffer, if needed, to hold data
+<span class="lineNum">     181 </span>            :          * strip coming from file (perhaps should set upper
+<span class="lineNum">     182 </span>            :          * bound on the size of a buffer we'll use?).
+<span class="lineNum">     183 </span>            :          */
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            :         /* bytecountm=(tmsize_t) TIFFGetStrileByteCount(tif, strip); */
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            :         /* Not completely sure where the * 2 comes from, but probably for */
+<span class="lineNum">     188 </span>            :         /* an exponentional growth strategy of tif_rawdatasize */
+<span class="lineNum">     189 </span><span class="lineCov">         59 :         if( read_ahead &lt; TIFF_TMSIZE_T_MAX / 2 )</span>
+<span class="lineNum">     190 </span><span class="lineCov">         59 :                 read_ahead_mod = read_ahead * 2;</span>
+<span class="lineNum">     191 </span>            :         else
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :                 read_ahead_mod = read_ahead;</span>
+<span class="lineNum">     193 </span><span class="lineCov">         59 :         if (read_ahead_mod &gt; tif-&gt;tif_rawdatasize) {</span>
+<span class="lineNum">     194 </span><span class="lineCov">         34 :                 assert( restart );</span>
+<span class="lineNum">     195 </span>            :                 
+<span class="lineNum">     196 </span><span class="lineCov">         34 :                 tif-&gt;tif_curstrip = NOSTRIP;</span>
+<span class="lineNum">     197 </span><span class="lineCov">         34 :                 if ((tif-&gt;tif_flags &amp; TIFF_MYBUFFER) == 0) {</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :                         TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     199 </span>            :                                      &quot;Data buffer too small to hold part of strip %lu&quot;,
+<span class="lineNum">     200 </span>            :                                      (unsigned long) strip);
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :                         return (0);</span>
+<span class="lineNum">     202 </span>            :                 }
+<span class="lineNum">     203 </span>            :         }
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineCov">         59 :         if( restart )</span>
+<span class="lineNum">     206 </span>            :         {
+<span class="lineNum">     207 </span><span class="lineCov">         34 :                 tif-&gt;tif_rawdataloaded = 0;</span>
+<span class="lineNum">     208 </span><span class="lineCov">         34 :                 tif-&gt;tif_rawdataoff = 0;</span>
+<span class="lineNum">     209 </span>            :         }
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span>            :         /*
+<span class="lineNum">     212 </span>            :         ** If we are reading more data, move any unused data to the
+<span class="lineNum">     213 </span>            :         ** start of the buffer.
+<span class="lineNum">     214 </span>            :         */
+<span class="lineNum">     215 </span><span class="lineCov">         59 :         if( tif-&gt;tif_rawdataloaded &gt; 0 )</span>
+<span class="lineNum">     216 </span><span class="lineCov">         23 :                 unused_data = tif-&gt;tif_rawdataloaded - (tif-&gt;tif_rawcp - tif-&gt;tif_rawdata);</span>
+<span class="lineNum">     217 </span>            :         else
+<span class="lineNum">     218 </span><span class="lineCov">         36 :                 unused_data = 0;</span>
+<span class="lineNum">     219 </span>            :         
+<span class="lineNum">     220 </span><span class="lineCov">         59 :         if( unused_data &gt; 0 )</span>
+<span class="lineNum">     221 </span>            :         {
+<span class="lineNum">     222 </span><span class="lineCov">         23 :     assert((tif-&gt;tif_flags&amp;TIFF_BUFFERMMAP)==0);</span>
+<span class="lineNum">     223 </span><span class="lineCov">         23 :                 memmove( tif-&gt;tif_rawdata, tif-&gt;tif_rawcp, unused_data );</span>
+<span class="lineNum">     224 </span>            :         }
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span>            :         /*
+<span class="lineNum">     227 </span>            :         ** Seek to the point in the file where more data should be read.
+<span class="lineNum">     228 </span>            :         */
+<span class="lineNum">     229 </span><span class="lineCov">        118 :         read_offset = TIFFGetStrileOffset(tif, strip)</span>
+<span class="lineNum">     230 </span><span class="lineCov">         59 :                 + tif-&gt;tif_rawdataoff + tif-&gt;tif_rawdataloaded;</span>
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span><span class="lineCov">         59 :         if (!SeekOK(tif, read_offset)) {</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :                 TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     234 </span>            :                              &quot;Seek error at scanline %lu, strip %lu&quot;,
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :                              (unsigned long) tif-&gt;tif_row, (unsigned long) strip);</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :                 return 0;</span>
+<span class="lineNum">     237 </span>            :         }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :         /*
+<span class="lineNum">     240 </span>            :         ** How much do we want to read?
+<span class="lineNum">     241 </span>            :         */
+<span class="lineNum">     242 </span><span class="lineCov">         59 :         if( read_ahead_mod &gt; tif-&gt;tif_rawdatasize )</span>
+<span class="lineNum">     243 </span><span class="lineCov">         34 :                 to_read = read_ahead_mod - unused_data;</span>
+<span class="lineNum">     244 </span>            :         else
+<span class="lineNum">     245 </span><span class="lineCov">         25 :                 to_read = tif-&gt;tif_rawdatasize - unused_data;</span>
+<span class="lineNum">     246 </span><span class="lineCov">        118 :         if( (uint64) to_read &gt; TIFFGetStrileByteCount(tif, strip)</span>
+<span class="lineNum">     247 </span><span class="lineCov">         59 :             - tif-&gt;tif_rawdataoff - tif-&gt;tif_rawdataloaded )</span>
+<span class="lineNum">     248 </span>            :         {
+<span class="lineNum">     249 </span><span class="lineCov">         66 :                 to_read = (tmsize_t) TIFFGetStrileByteCount(tif, strip)</span>
+<span class="lineNum">     250 </span><span class="lineCov">         33 :                         - tif-&gt;tif_rawdataoff - tif-&gt;tif_rawdataloaded;</span>
+<span class="lineNum">     251 </span>            :         }
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span><span class="lineCov">         59 :   assert((tif-&gt;tif_flags&amp;TIFF_BUFFERMMAP)==0);</span>
+<span class="lineNum">     254 </span><span class="lineCov">         59 :         if( !TIFFReadAndRealloc( tif, to_read, unused_data,</span>
+<span class="lineNum">     255 </span>            :                                  1, /* is_strip */
+<span class="lineNum">     256 </span>            :                                  0, /* strip_or_tile */
+<span class="lineNum">     257 </span>            :                                  module) )
+<span class="lineNum">     258 </span>            :         {
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :                 return 0;</span>
+<span class="lineNum">     260 </span>            :         }
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span><span class="lineCov">         59 :         tif-&gt;tif_rawdataoff = tif-&gt;tif_rawdataoff + tif-&gt;tif_rawdataloaded - unused_data ;</span>
+<span class="lineNum">     263 </span><span class="lineCov">         59 :         tif-&gt;tif_rawdataloaded = unused_data + to_read;</span>
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span><span class="lineCov">         59 :         tif-&gt;tif_rawcc = tif-&gt;tif_rawdataloaded;</span>
+<span class="lineNum">     266 </span><span class="lineCov">         59 :         tif-&gt;tif_rawcp = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">     267 </span>            :                         
+<span class="lineNum">     268 </span><span class="lineCov">         59 :         if (!isFillOrder(tif, td-&gt;td_fillorder) &amp;&amp;</span>
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :             (tif-&gt;tif_flags &amp; TIFF_NOBITREV) == 0) {</span>
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :     assert((tif-&gt;tif_flags&amp;TIFF_BUFFERMMAP)==0);</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :                 TIFFReverseBits(tif-&gt;tif_rawdata + unused_data, to_read );</span>
+<span class="lineNum">     272 </span>            :   }
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            :         /*
+<span class="lineNum">     275 </span>            :         ** When starting a strip from the beginning we need to
+<span class="lineNum">     276 </span>            :         ** restart the decoder.
+<span class="lineNum">     277 </span>            :         */
+<span class="lineNum">     278 </span><span class="lineCov">         59 :         if( restart )</span>
+<span class="lineNum">     279 </span>            :         {
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span>            : #ifdef JPEG_SUPPORT
+<span class="lineNum">     282 </span>            :             /* A bit messy since breaks the codec abstraction. Ultimately */
+<span class="lineNum">     283 </span>            :             /* there should be a function pointer for that, but it seems */
+<span class="lineNum">     284 </span>            :             /* only JPEG is affected. */
+<span class="lineNum">     285 </span>            :             /* For JPEG, if there are multiple scans (can generally be known */
+<span class="lineNum">     286 </span>            :             /* with the  read_ahead used), we need to read the whole strip */
+<span class="lineNum">     287 </span><span class="lineCov">         36 :             if( tif-&gt;tif_dir.td_compression==COMPRESSION_JPEG &amp;&amp;</span>
+<span class="lineNum">     288 </span><span class="lineCov">          2 :                 (uint64)tif-&gt;tif_rawcc &lt; TIFFGetStrileByteCount(tif, strip) )</span>
+<span class="lineNum">     289 </span>            :             {
+<span class="lineNum">     290 </span><span class="lineCov">          2 :                 if( TIFFJPEGIsFullStripRequired(tif) )</span>
+<span class="lineNum">     291 </span>            :                 {
+<span class="lineNum">     292 </span><span class="lineCov">          2 :                     return TIFFFillStrip(tif, strip);</span>
+<span class="lineNum">     293 </span>            :                 }
+<span class="lineNum">     294 </span>            :             }
+<span class="lineNum">     295 </span>            : #endif
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span><span class="lineCov">         32 :             return TIFFStartStrip(tif, strip);</span>
+<span class="lineNum">     298 </span>            :         }
+<span class="lineNum">     299 </span>            :         else
+<span class="lineNum">     300 </span>            :         {
+<span class="lineNum">     301 </span><span class="lineCov">         25 :                 return 1;</span>
+<span class="lineNum">     302 </span>            :         }
+<span class="lineNum">     303 </span>            : }
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span>            : /*
+<span class="lineNum">     306 </span>            :  * Seek to a random row+sample in a file.
+<span class="lineNum">     307 </span>            :  *
+<span class="lineNum">     308 </span>            :  * Only used by TIFFReadScanline, and is only used on
+<span class="lineNum">     309 </span>            :  * strip organized files.  We do some tricky stuff to try
+<span class="lineNum">     310 </span>            :  * and avoid reading the whole compressed raw data for big
+<span class="lineNum">     311 </span>            :  * strips.
+<a name="312"><span class="lineNum">     312 </span>            :  */</a>
+<span class="lineNum">     313 </span>            : static int
+<span class="lineNum">     314 </span><span class="lineCov">     153234 : TIFFSeek(TIFF* tif, uint32 row, uint16 sample )</span>
+<span class="lineNum">     315 </span>            : {
+<span class="lineNum">     316 </span><span class="lineCov">     153234 :   register TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">     317 </span>            :   uint32 strip;
+<span class="lineNum">     318 </span>            :         int    whole_strip;
+<span class="lineNum">     319 </span><span class="lineCov">     153234 :   tmsize_t read_ahead = 0;</span>
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span>            :         /*
+<span class="lineNum">     322 </span>            :         ** Establish what strip we are working from.
+<span class="lineNum">     323 </span>            :         */
+<span class="lineNum">     324 </span><span class="lineCov">     153234 :   if (row &gt;= td-&gt;td_imagelength) {  /* out of range */</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, tif-&gt;tif_name,</span>
+<span class="lineNum">     326 </span>            :         &quot;%lu: Row out of range, max %lu&quot;,
+<span class="lineNum">     327 </span>            :         (unsigned long) row,
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :         (unsigned long) td-&gt;td_imagelength);</span>
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">     330 </span>            :   }
+<span class="lineNum">     331 </span><span class="lineCov">     153234 :   if (td-&gt;td_planarconfig == PLANARCONFIG_SEPARATE) {</span>
+<span class="lineNum">     332 </span><span class="lineCov">      64244 :     if (sample &gt;= td-&gt;td_samplesperpixel) {</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, tif-&gt;tif_name,</span>
+<span class="lineNum">     334 </span>            :           &quot;%lu: Sample out of range, max %lu&quot;,
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :           (unsigned long) sample, (unsigned long) td-&gt;td_samplesperpixel);</span>
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     337 </span>            :     }
+<span class="lineNum">     338 </span><span class="lineCov">      64244 :     strip = (uint32)sample*td-&gt;td_stripsperimage + row/td-&gt;td_rowsperstrip;</span>
+<span class="lineNum">     339 </span>            :   } else
+<span class="lineNum">     340 </span><span class="lineCov">      88990 :     strip = row / td-&gt;td_rowsperstrip;</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span>            :         /*
+<span class="lineNum">     343 </span>            :          * Do we want to treat this strip as one whole chunk or
+<span class="lineNum">     344 </span>            :          * read it a few lines at a time?
+<span class="lineNum">     345 </span>            :          */
+<span class="lineNum">     346 </span>            : #if defined(CHUNKY_STRIP_READ_SUPPORT)
+<span class="lineNum">     347 </span><span class="lineCov">     306468 :         whole_strip = TIFFGetStrileByteCount(tif, strip) &lt; 10</span>
+<span class="lineNum">     348 </span><span class="lineCov">     153234 :                 || isMapped(tif);</span>
+<span class="lineNum">     349 </span><span class="lineCov">     306468 :         if( td-&gt;td_compression == COMPRESSION_LERC ||</span>
+<span class="lineNum">     350 </span><span class="lineCov">     153234 :             td-&gt;td_compression == COMPRESSION_JBIG )</span>
+<span class="lineNum">     351 </span>            :         {
+<span class="lineNum">     352 </span>            :             /* Ideally plugins should have a way to declare they don't support
+<span class="lineNum">     353 </span>            :              * chunk strip */
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :             whole_strip = 1;</span>
+<span class="lineNum">     355 </span>            :         }
+<span class="lineNum">     356 </span>            : #else
+<span class="lineNum">     357 </span>            :         whole_strip = 1;
+<span class="lineNum">     358 </span>            : #endif
+<span class="lineNum">     359 </span>            :         
+<span class="lineNum">     360 </span><span class="lineCov">     153234 :         if( !whole_strip )</span>
+<span class="lineNum">     361 </span>            :         {
+<span class="lineNum">     362 </span>            :                 /* 16 is for YCbCr mode where we may need to read 16 */
+<span class="lineNum">     363 </span>            :                 /* lines at a time to get a decompressed line, and 5000 */
+<span class="lineNum">     364 </span>            :                 /* is some constant value, for example for JPEG tables */
+<span class="lineNum">     365 </span><span class="lineCov">     306466 :                 if( tif-&gt;tif_scanlinesize &lt; TIFF_TMSIZE_T_MAX / 16 &amp;&amp;</span>
+<span class="lineNum">     366 </span><span class="lineCov">     153233 :                     tif-&gt;tif_scanlinesize * 16 &lt; TIFF_TMSIZE_T_MAX - 5000 )</span>
+<span class="lineNum">     367 </span>            :                 {
+<span class="lineNum">     368 </span><span class="lineCov">     153233 :                         read_ahead = tif-&gt;tif_scanlinesize * 16 + 5000;</span>
+<span class="lineNum">     369 </span>            :                 }
+<span class="lineNum">     370 </span>            :                 else
+<span class="lineNum">     371 </span>            :                 {
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :                         read_ahead = tif-&gt;tif_scanlinesize;</span>
+<span class="lineNum">     373 </span>            :                 }
+<span class="lineNum">     374 </span>            :         }
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span>            :         /*
+<span class="lineNum">     377 </span>            :          * If we haven't loaded this strip, do so now, possibly
+<span class="lineNum">     378 </span>            :          * only reading the first part.
+<span class="lineNum">     379 </span>            :          */
+<span class="lineNum">     380 </span><span class="lineCov">     153234 :   if (strip != tif-&gt;tif_curstrip) {  /* different strip, refill */</span>
+<span class="lineNum">     381 </span>            :                 
+<span class="lineNum">     382 </span><span class="lineCov">         35 :                 if( whole_strip )</span>
+<span class="lineNum">     383 </span>            :                 {
+<span class="lineNum">     384 </span><span class="lineCov">          1 :                         if (!TIFFFillStrip(tif, strip))</span>
+<span class="lineNum">     385 </span><span class="lineCov">          1 :                                 return (0);</span>
+<span class="lineNum">     386 </span>            :                 }
+<span class="lineNum">     387 </span>            :                 else
+<span class="lineNum">     388 </span>            :                 {
+<span class="lineNum">     389 </span><span class="lineCov">         34 :                         if( !TIFFFillStripPartial(tif,strip,read_ahead,1) )</span>
+<span class="lineNum">     390 </span><span class="lineCov">          2 :                                 return 0;</span>
+<span class="lineNum">     391 </span>            :                 }
+<span class="lineNum">     392 </span>            :   }
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span>            :         /*
+<span class="lineNum">     395 </span>            :         ** If we already have some data loaded, do we need to read some more?
+<span class="lineNum">     396 </span>            :         */
+<span class="lineNum">     397 </span><span class="lineCov">     153199 :         else if( !whole_strip )</span>
+<span class="lineNum">     398 </span>            :         {
+<span class="lineNum">     399 </span><span class="lineCov">     153199 :                 if( ((tif-&gt;tif_rawdata + tif-&gt;tif_rawdataloaded) - tif-&gt;tif_rawcp) &lt; read_ahead </span>
+<span class="lineNum">     400 </span><span class="lineCov">     148298 :                     &amp;&amp; (uint64) tif-&gt;tif_rawdataoff+tif-&gt;tif_rawdataloaded &lt; TIFFGetStrileByteCount(tif, strip) )</span>
+<span class="lineNum">     401 </span>            :                 {
+<span class="lineNum">     402 </span><span class="lineCov">         25 :                         if( !TIFFFillStripPartial(tif,strip,read_ahead,0) )</span>
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :                                 return 0;</span>
+<span class="lineNum">     404 </span>            :                 }
+<span class="lineNum">     405 </span>            :         }
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span><span class="lineCov">     153231 :         if (row &lt; tif-&gt;tif_row) {</span>
+<span class="lineNum">     408 </span>            :     /*
+<span class="lineNum">     409 </span>            :      * Moving backwards within the same strip: backup
+<span class="lineNum">     410 </span>            :      * to the start and then decode forward (below).
+<span class="lineNum">     411 </span>            :      *
+<span class="lineNum">     412 </span>            :      * NB: If you're planning on lots of random access within a
+<span class="lineNum">     413 </span>            :      * strip, it's better to just read and decode the entire
+<span class="lineNum">     414 </span>            :      * strip, and then access the decoded data in a random fashion.
+<span class="lineNum">     415 </span>            :      */
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span><span class="lineCov">         25 :                 if( tif-&gt;tif_rawdataoff != 0 )</span>
+<span class="lineNum">     418 </span>            :                 {
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :                         if( !TIFFFillStripPartial(tif,strip,read_ahead,1) )</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :                                 return 0;</span>
+<span class="lineNum">     421 </span>            :                 }
+<span class="lineNum">     422 </span>            :                 else
+<span class="lineNum">     423 </span>            :                 {
+<span class="lineNum">     424 </span><span class="lineCov">         25 :                         if (!TIFFStartStrip(tif, strip))</span>
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :                                 return (0);</span>
+<span class="lineNum">     426 </span>            :                 }
+<span class="lineNum">     427 </span>            :   }
+<span class="lineNum">     428 </span>            :         
+<span class="lineNum">     429 </span><span class="lineCov">     153231 :   if (row != tif-&gt;tif_row) {</span>
+<span class="lineNum">     430 </span>            :     /*
+<span class="lineNum">     431 </span>            :      * Seek forward to the desired row.
+<span class="lineNum">     432 </span>            :      */
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span>            :                 /* TODO: Will this really work with partial buffers? */
+<span class="lineNum">     435 </span>            :                 
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :     if (!(*tif-&gt;tif_seek)(tif, row - tif-&gt;tif_row))</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :     tif-&gt;tif_row = row;</span>
+<span class="lineNum">     439 </span>            :   }
+<span class="lineNum">     440 </span>            : 
+<span class="lineNum">     441 </span><span class="lineCov">     153231 :   return (1);</span>
+<span class="lineNum">     442 </span>            : }
+<a name="443"><span class="lineNum">     443 </span>            : </a>
+<span class="lineNum">     444 </span>            : int
+<span class="lineNum">     445 </span><span class="lineCov">     153234 : TIFFReadScanline(TIFF* tif, void* buf, uint32 row, uint16 sample)</span>
+<span class="lineNum">     446 </span>            : {
+<span class="lineNum">     447 </span>            :   int e;
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineCov">     153234 :   if (!TIFFCheckRead(tif, 0))</span>
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :     return (-1);</span>
+<span class="lineNum">     451 </span><span class="lineCov">     153234 :   if( (e = TIFFSeek(tif, row, sample)) != 0) {</span>
+<span class="lineNum">     452 </span>            :     /*
+<span class="lineNum">     453 </span>            :      * Decompress desired row into user buffer.
+<span class="lineNum">     454 </span>            :      */
+<span class="lineNum">     455 </span><span class="lineCov">     153231 :     e = (*tif-&gt;tif_decoderow)</span>
+<span class="lineNum">     456 </span><span class="lineCov">     153231 :         (tif, (uint8*) buf, tif-&gt;tif_scanlinesize, sample);  </span>
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            :     /* we are now poised at the beginning of the next row */
+<span class="lineNum">     459 </span><span class="lineCov">     153231 :     tif-&gt;tif_row = row + 1;</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineCov">     153231 :     if (e)</span>
+<span class="lineNum">     462 </span><span class="lineCov">     153229 :       (*tif-&gt;tif_postdecode)(tif, (uint8*) buf,</span>
+<span class="lineNum">     463 </span>            :           tif-&gt;tif_scanlinesize);  
+<span class="lineNum">     464 </span>            :   }
+<span class="lineNum">     465 </span><span class="lineCov">     153234 :   return (e &gt; 0 ? 1 : -1);</span>
+<span class="lineNum">     466 </span>            : }
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span>            : /*
+<span class="lineNum">     469 </span>            :  * Calculate the strip size according to the number of
+<span class="lineNum">     470 </span>            :  * rows in the strip (check for truncated last strip on any
+<a name="471"><span class="lineNum">     471 </span>            :  * of the separations).</a>
+<span class="lineNum">     472 </span>            :  */
+<span class="lineNum">     473 </span><span class="lineCov">    2034959 : static tmsize_t TIFFReadEncodedStripGetStripSize(TIFF* tif, uint32 strip, uint16* pplane)</span>
+<span class="lineNum">     474 </span>            : {
+<span class="lineNum">     475 </span>            :   static const char module[] = &quot;TIFFReadEncodedStrip&quot;;
+<span class="lineNum">     476 </span><span class="lineCov">    2034959 :   TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">     477 </span>            :   uint32 rowsperstrip;
+<span class="lineNum">     478 </span>            :   uint32 stripsperplane;
+<span class="lineNum">     479 </span>            :   uint32 stripinplane;
+<span class="lineNum">     480 </span>            :   uint32 rows;
+<span class="lineNum">     481 </span>            :   tmsize_t stripsize;
+<span class="lineNum">     482 </span><span class="lineCov">    2034959 :   if (!TIFFCheckRead(tif,0))</span>
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :     return((tmsize_t)(-1));</span>
+<span class="lineNum">     484 </span><span class="lineCov">    2034970 :   if (strip&gt;=td-&gt;td_nstrips)</span>
+<span class="lineNum">     485 </span>            :   {
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata,module,</span>
+<span class="lineNum">     487 </span>            :         &quot;%lu: Strip out of range, max %lu&quot;,(unsigned long)strip,
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :         (unsigned long)td-&gt;td_nstrips);</span>
+<span class="lineNum">     489 </span><span class="lineNoCov">          0 :     return((tmsize_t)(-1));</span>
+<span class="lineNum">     490 </span>            :   }
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span><span class="lineCov">    2034970 :   rowsperstrip=td-&gt;td_rowsperstrip;</span>
+<span class="lineNum">     493 </span><span class="lineCov">    2034970 :   if (rowsperstrip&gt;td-&gt;td_imagelength)</span>
+<span class="lineNum">     494 </span><span class="lineCov">         17 :     rowsperstrip=td-&gt;td_imagelength;</span>
+<span class="lineNum">     495 </span><span class="lineCov">    2034970 :   stripsperplane= TIFFhowmany_32_maxuint_compat(td-&gt;td_imagelength, rowsperstrip);</span>
+<span class="lineNum">     496 </span><span class="lineCov">    2034970 :   stripinplane=(strip%stripsperplane);</span>
+<span class="lineNum">     497 </span><span class="lineCov">    2034970 :   if( pplane ) *pplane=(uint16)(strip/stripsperplane);</span>
+<span class="lineNum">     498 </span><span class="lineCov">    2034970 :   rows=td-&gt;td_imagelength-stripinplane*rowsperstrip;</span>
+<span class="lineNum">     499 </span><span class="lineCov">    2034970 :   if (rows&gt;rowsperstrip)</span>
+<span class="lineNum">     500 </span><span class="lineCov">    2027002 :     rows=rowsperstrip;</span>
+<span class="lineNum">     501 </span><span class="lineCov">    2034970 :   stripsize=TIFFVStripSize(tif,rows);</span>
+<span class="lineNum">     502 </span><span class="lineCov">    2034982 :   if (stripsize==0)</span>
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :     return((tmsize_t)(-1));</span>
+<span class="lineNum">     504 </span><span class="lineCov">    2034982 :   return stripsize;</span>
+<span class="lineNum">     505 </span>            : }
+<span class="lineNum">     506 </span>            : 
+<span class="lineNum">     507 </span>            : /*
+<span class="lineNum">     508 </span>            :  * Read a strip of data and decompress the specified
+<span class="lineNum">     509 </span>            :  * amount into the user-supplied buffer.
+<a name="510"><span class="lineNum">     510 </span>            :  */</a>
+<span class="lineNum">     511 </span>            : tmsize_t
+<span class="lineNum">     512 </span><span class="lineCov">    2034906 : TIFFReadEncodedStrip(TIFF* tif, uint32 strip, void* buf, tmsize_t size)</span>
+<span class="lineNum">     513 </span>            : {
+<span class="lineNum">     514 </span>            :   static const char module[] = &quot;TIFFReadEncodedStrip&quot;;
+<span class="lineNum">     515 </span><span class="lineCov">    2034906 :   TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">     516 </span>            :   tmsize_t stripsize;
+<span class="lineNum">     517 </span>            :   uint16 plane;
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span><span class="lineCov">    2034906 :   stripsize=TIFFReadEncodedStripGetStripSize(tif, strip, &amp;plane);</span>
+<span class="lineNum">     520 </span><span class="lineCov">    2034929 :   if (stripsize==((tmsize_t)(-1)))</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :     return((tmsize_t)(-1));</span>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span>            :     /* shortcut to avoid an extra memcpy() */
+<span class="lineNum">     524 </span><span class="lineCov">    2034929 :     if( td-&gt;td_compression == COMPRESSION_NONE &amp;&amp;</span>
+<span class="lineNum">     525 </span><span class="lineCov">    4063192 :         size!=(tmsize_t)(-1) &amp;&amp; size &gt;= stripsize &amp;&amp;</span>
+<span class="lineNum">     526 </span><span class="lineCov">    4063188 :         !isMapped(tif) &amp;&amp;</span>
+<span class="lineNum">     527 </span><span class="lineCov">    2031595 :         ((tif-&gt;tif_flags&amp;TIFF_NOREADRAW)==0) )</span>
+<span class="lineNum">     528 </span>            :     {
+<span class="lineNum">     529 </span><span class="lineCov">    2031595 :         if (TIFFReadRawStrip1(tif, strip, buf, stripsize, module) != stripsize)</span>
+<span class="lineNum">     530 </span><span class="lineCov">         58 :             return ((tmsize_t)(-1));</span>
+<span class="lineNum">     531 </span>            : 
+<span class="lineNum">     532 </span><span class="lineCov">    2031525 :         if (!isFillOrder(tif, td-&gt;td_fillorder) &amp;&amp;</span>
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :             (tif-&gt;tif_flags &amp; TIFF_NOBITREV) == 0)</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :             TIFFReverseBits(buf,stripsize);</span>
+<span class="lineNum">     535 </span>            : 
+<span class="lineNum">     536 </span><span class="lineCov">    2031525 :         (*tif-&gt;tif_postdecode)(tif,buf,stripsize);</span>
+<span class="lineNum">     537 </span><span class="lineCov">    2031515 :         return (stripsize);</span>
+<span class="lineNum">     538 </span>            :     }
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span><span class="lineCov">       3334 :   if ((size!=(tmsize_t)(-1))&amp;&amp;(size&lt;stripsize))</span>
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :     stripsize=size;</span>
+<span class="lineNum">     542 </span><span class="lineCov">       3334 :   if (!TIFFFillStrip(tif,strip))</span>
+<span class="lineNum">     543 </span><span class="lineCov">          9 :     return((tmsize_t)(-1));</span>
+<span class="lineNum">     544 </span><span class="lineCov">       3323 :   if ((*tif-&gt;tif_decodestrip)(tif,buf,stripsize,plane)&lt;=0)</span>
+<span class="lineNum">     545 </span><span class="lineCov">          4 :     return((tmsize_t)(-1));</span>
+<span class="lineNum">     546 </span><span class="lineCov">       3319 :   (*tif-&gt;tif_postdecode)(tif,buf,stripsize);</span>
+<span class="lineNum">     547 </span><span class="lineCov">       3319 :   return(stripsize);</span>
+<span class="lineNum">     548 </span>            : }
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span>            : /* Variant of TIFFReadEncodedStrip() that does 
+<span class="lineNum">     551 </span>            :  * * if *buf == NULL, *buf = _TIFFmalloc(bufsizetoalloc) only after TIFFFillStrip() has
+<span class="lineNum">     552 </span>            :  *   succeeded. This avoid excessive memory allocation in case of truncated
+<span class="lineNum">     553 </span>            :  *   file.
+<span class="lineNum">     554 </span>            :  * * calls regular TIFFReadEncodedStrip() if *buf != NULL
+<a name="555"><span class="lineNum">     555 </span>            :  */</a>
+<span class="lineNum">     556 </span>            : tmsize_t
+<span class="lineNum">     557 </span><span class="lineCov">         53 : _TIFFReadEncodedStripAndAllocBuffer(TIFF* tif, uint32 strip,</span>
+<span class="lineNum">     558 </span>            :                                     void **buf, tmsize_t bufsizetoalloc,
+<span class="lineNum">     559 </span>            :                                     tmsize_t size_to_read)
+<span class="lineNum">     560 </span>            : {
+<span class="lineNum">     561 </span>            :     tmsize_t this_stripsize;
+<span class="lineNum">     562 </span>            :     uint16 plane;
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span><span class="lineCov">         53 :     if( *buf != NULL )</span>
+<span class="lineNum">     565 </span>            :     {
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :         return TIFFReadEncodedStrip(tif, strip, *buf, size_to_read);</span>
+<span class="lineNum">     567 </span>            :     }
+<span class="lineNum">     568 </span>            : 
+<span class="lineNum">     569 </span><span class="lineCov">         53 :     this_stripsize=TIFFReadEncodedStripGetStripSize(tif, strip, &amp;plane);</span>
+<span class="lineNum">     570 </span><span class="lineCov">         53 :     if (this_stripsize==((tmsize_t)(-1)))</span>
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :             return((tmsize_t)(-1));</span>
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span><span class="lineCov">         53 :     if ((size_to_read!=(tmsize_t)(-1))&amp;&amp;(size_to_read&lt;this_stripsize))</span>
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :             this_stripsize=size_to_read;</span>
+<span class="lineNum">     575 </span><span class="lineCov">         53 :     if (!TIFFFillStrip(tif,strip))</span>
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :             return((tmsize_t)(-1));</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineCov">         53 :     *buf = _TIFFmalloc(bufsizetoalloc);</span>
+<span class="lineNum">     579 </span><span class="lineCov">         53 :     if (*buf == NULL) {</span>
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :             TIFFErrorExt(tif-&gt;tif_clientdata, TIFFFileName(tif), &quot;No space for strip buffer&quot;);</span>
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :             return((tmsize_t)(-1));</span>
+<span class="lineNum">     582 </span>            :     }
+<span class="lineNum">     583 </span><span class="lineCov">         53 :     _TIFFmemset(*buf, 0, bufsizetoalloc);</span>
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span><span class="lineCov">         53 :     if ((*tif-&gt;tif_decodestrip)(tif,*buf,this_stripsize,plane)&lt;=0)</span>
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :             return((tmsize_t)(-1));</span>
+<span class="lineNum">     587 </span><span class="lineCov">         53 :     (*tif-&gt;tif_postdecode)(tif,*buf,this_stripsize);</span>
+<span class="lineNum">     588 </span><span class="lineCov">         53 :     return(this_stripsize);</span>
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span>            : }
+<a name="592"><span class="lineNum">     592 </span>            : </a>
+<span class="lineNum">     593 </span>            : static tmsize_t
+<span class="lineNum">     594 </span><span class="lineCov">    2031590 : TIFFReadRawStrip1(TIFF* tif, uint32 strip, void* buf, tmsize_t size,</span>
+<span class="lineNum">     595 </span>            :     const char* module)
+<span class="lineNum">     596 </span>            : {
+<span class="lineNum">     597 </span><span class="lineCov">    2031590 :   assert((tif-&gt;tif_flags&amp;TIFF_NOREADRAW)==0);</span>
+<span class="lineNum">     598 </span><span class="lineCov">    2031590 :   if (!isMapped(tif)) {</span>
+<span class="lineNum">     599 </span>            :     tmsize_t cc;
+<span class="lineNum">     600 </span>            : 
+<span class="lineNum">     601 </span><span class="lineCov">    2031590 :     if (!SeekOK(tif, TIFFGetStrileOffset(tif, strip))) {</span>
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     603 </span>            :           &quot;Seek error at scanline %lu, strip %lu&quot;,
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 :           (unsigned long) tif-&gt;tif_row, (unsigned long) strip);</span>
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :       return ((tmsize_t)(-1));</span>
+<span class="lineNum">     606 </span>            :     }
+<span class="lineNum">     607 </span><span class="lineCov">    2031575 :     cc = TIFFReadFile(tif, buf, size);</span>
+<span class="lineNum">     608 </span><span class="lineCov">    2031590 :     if (cc != size) {</span>
+<span class="lineNum">     609 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">     610 </span>            :       TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     611 </span>            :     &quot;Read error at scanline %lu; got %I64u bytes, expected %I64u&quot;,
+<span class="lineNum">     612 </span>            :              (unsigned long) tif-&gt;tif_row,
+<span class="lineNum">     613 </span>            :              (unsigned __int64) cc,
+<span class="lineNum">     614 </span>            :              (unsigned __int64) size);
+<span class="lineNum">     615 </span>            : #else
+<span class="lineNum">     616 </span><span class="lineCov">        116 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     617 </span>            :     &quot;Read error at scanline %lu; got %llu bytes, expected %llu&quot;,
+<span class="lineNum">     618 </span><span class="lineCov">         58 :              (unsigned long) tif-&gt;tif_row,</span>
+<span class="lineNum">     619 </span>            :              (unsigned long long) cc,
+<span class="lineNum">     620 </span>            :              (unsigned long long) size);
+<span class="lineNum">     621 </span>            : #endif
+<span class="lineNum">     622 </span><span class="lineCov">         58 :       return ((tmsize_t)(-1));</span>
+<span class="lineNum">     623 </span>            :     }
+<span class="lineNum">     624 </span>            :   } else {
+<span class="lineNum">     625 </span><span class="lineNoCov">          0 :     tmsize_t ma = 0;</span>
+<span class="lineNum">     626 </span>            :     tmsize_t n;
+<span class="lineNum">     627 </span><span class="lineNoCov">          0 :     if ((TIFFGetStrileOffset(tif, strip) &gt; (uint64)TIFF_TMSIZE_T_MAX)||</span>
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 :                     ((ma=(tmsize_t)TIFFGetStrileOffset(tif, strip))&gt;tif-&gt;tif_size))</span>
+<span class="lineNum">     629 </span>            :                 {
+<span class="lineNum">     630 </span><span class="lineNoCov">          0 :                     n=0;</span>
+<span class="lineNum">     631 </span>            :                 }
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :                 else if( ma &gt; TIFF_TMSIZE_T_MAX - size )</span>
+<span class="lineNum">     633 </span>            :                 {
+<span class="lineNum">     634 </span><span class="lineNoCov">          0 :                     n=0;</span>
+<span class="lineNum">     635 </span>            :                 }
+<span class="lineNum">     636 </span>            :                 else
+<span class="lineNum">     637 </span>            :                 {
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :                     tmsize_t mb=ma+size;</span>
+<span class="lineNum">     639 </span><span class="lineNoCov">          0 :                     if (mb&gt;tif-&gt;tif_size)</span>
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :                             n=tif-&gt;tif_size-ma;</span>
+<span class="lineNum">     641 </span>            :                     else
+<span class="lineNum">     642 </span><span class="lineNoCov">          0 :                             n=size;</span>
+<span class="lineNum">     643 </span>            :                 }
+<span class="lineNum">     644 </span><span class="lineNoCov">          0 :     if (n!=size) {</span>
+<span class="lineNum">     645 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">     646 </span>            :       TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     647 </span>            :   &quot;Read error at scanline %lu, strip %lu; got %I64u bytes, expected %I64u&quot;,
+<span class="lineNum">     648 </span>            :              (unsigned long) tif-&gt;tif_row,
+<span class="lineNum">     649 </span>            :              (unsigned long) strip,
+<span class="lineNum">     650 </span>            :              (unsigned __int64) n,
+<span class="lineNum">     651 </span>            :              (unsigned __int64) size);
+<span class="lineNum">     652 </span>            : #else
+<span class="lineNum">     653 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     654 </span>            :   &quot;Read error at scanline %lu, strip %lu; got %llu bytes, expected %llu&quot;,
+<span class="lineNum">     655 </span><span class="lineNoCov">          0 :              (unsigned long) tif-&gt;tif_row,</span>
+<span class="lineNum">     656 </span>            :              (unsigned long) strip,
+<span class="lineNum">     657 </span>            :              (unsigned long long) n,
+<span class="lineNum">     658 </span>            :              (unsigned long long) size);
+<span class="lineNum">     659 </span>            : #endif
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 :       return ((tmsize_t)(-1));</span>
+<span class="lineNum">     661 </span>            :     }
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :     _TIFFmemcpy(buf, tif-&gt;tif_base + ma,</span>
+<span class="lineNum">     663 </span>            :           size);
+<span class="lineNum">     664 </span>            :   }
+<span class="lineNum">     665 </span><span class="lineCov">    2031518 :   return (size);</span>
+<span class="lineNum">     666 </span>            : }
+<a name="667"><span class="lineNum">     667 </span>            : </a>
+<span class="lineNum">     668 </span>            : static tmsize_t
+<span class="lineNum">     669 </span><span class="lineCov">       8044 : TIFFReadRawStripOrTile2(TIFF* tif, uint32 strip_or_tile, int is_strip,</span>
+<span class="lineNum">     670 </span>            :                         tmsize_t size, const char* module)
+<span class="lineNum">     671 </span>            : {
+<span class="lineNum">     672 </span><span class="lineCov">       8044 :         assert( !isMapped(tif) );</span>
+<span class="lineNum">     673 </span><span class="lineCov">       8044 :         assert((tif-&gt;tif_flags&amp;TIFF_NOREADRAW)==0);</span>
+<span class="lineNum">     674 </span>            : 
+<span class="lineNum">     675 </span><span class="lineCov">       8044 :         if (!SeekOK(tif, TIFFGetStrileOffset(tif, strip_or_tile))) {</span>
+<span class="lineNum">     676 </span><span class="lineNoCov">          0 :             if( is_strip )</span>
+<span class="lineNum">     677 </span>            :             {
+<span class="lineNum">     678 </span><span class="lineNoCov">          0 :                 TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     679 </span>            :                     &quot;Seek error at scanline %lu, strip %lu&quot;,
+<span class="lineNum">     680 </span><span class="lineNoCov">          0 :                     (unsigned long) tif-&gt;tif_row,</span>
+<span class="lineNum">     681 </span>            :                     (unsigned long) strip_or_tile);
+<span class="lineNum">     682 </span>            :             }
+<span class="lineNum">     683 </span>            :             else
+<span class="lineNum">     684 </span>            :             {
+<span class="lineNum">     685 </span><span class="lineNoCov">          0 :                 TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     686 </span>            :                     &quot;Seek error at row %lu, col %lu, tile %lu&quot;,
+<span class="lineNum">     687 </span><span class="lineNoCov">          0 :                     (unsigned long) tif-&gt;tif_row,</span>
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :                     (unsigned long) tif-&gt;tif_col,</span>
+<span class="lineNum">     689 </span>            :                     (unsigned long) strip_or_tile);
+<span class="lineNum">     690 </span>            :             }
+<span class="lineNum">     691 </span><span class="lineNoCov">          0 :             return ((tmsize_t)(-1));</span>
+<span class="lineNum">     692 </span>            :         }
+<span class="lineNum">     693 </span>            : 
+<span class="lineNum">     694 </span><span class="lineCov">       8044 :         if( !TIFFReadAndRealloc( tif, size, 0, is_strip,</span>
+<span class="lineNum">     695 </span>            :                                  strip_or_tile, module ) )
+<span class="lineNum">     696 </span>            :         {
+<span class="lineNum">     697 </span><span class="lineCov">         29 :             return ((tmsize_t)(-1));</span>
+<span class="lineNum">     698 </span>            :         }
+<span class="lineNum">     699 </span>            : 
+<span class="lineNum">     700 </span><span class="lineCov">       8014 :         return (size);</span>
+<span class="lineNum">     701 </span>            : }
+<span class="lineNum">     702 </span>            : 
+<span class="lineNum">     703 </span>            : /*
+<span class="lineNum">     704 </span>            :  * Read a strip of data from the file.
+<a name="705"><span class="lineNum">     705 </span>            :  */</a>
+<span class="lineNum">     706 </span>            : tmsize_t
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 : TIFFReadRawStrip(TIFF* tif, uint32 strip, void* buf, tmsize_t size)</span>
+<span class="lineNum">     708 </span>            : {
+<span class="lineNum">     709 </span>            :   static const char module[] = &quot;TIFFReadRawStrip&quot;;
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :   TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">     711 </span>            :   uint64 bytecount;
+<span class="lineNum">     712 </span>            :   tmsize_t bytecountm;
+<span class="lineNum">     713 </span>            : 
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :   if (!TIFFCheckRead(tif, 0))</span>
+<span class="lineNum">     715 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :   if (strip &gt;= td-&gt;td_nstrips) {</span>
+<span class="lineNum">     717 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     718 </span>            :          &quot;%lu: Strip out of range, max %lu&quot;,
+<span class="lineNum">     719 </span>            :          (unsigned long) strip,
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :          (unsigned long) td-&gt;td_nstrips);</span>
+<span class="lineNum">     721 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">     722 </span>            :   }
+<span class="lineNum">     723 </span><span class="lineNoCov">          0 :   if (tif-&gt;tif_flags&amp;TIFF_NOREADRAW)</span>
+<span class="lineNum">     724 </span>            :   {
+<span class="lineNum">     725 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     726 </span>            :         &quot;Compression scheme does not support access to raw uncompressed data&quot;);
+<span class="lineNum">     727 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">     728 </span>            :   }
+<span class="lineNum">     729 </span><span class="lineNoCov">          0 :   bytecount = TIFFGetStrileByteCount(tif, strip);</span>
+<span class="lineNum">     730 </span><span class="lineNoCov">          0 :   if ((int64)bytecount &lt;= 0) {</span>
+<span class="lineNum">     731 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">     732 </span>            :     TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     733 </span>            :            &quot;%I64u: Invalid strip byte count, strip %lu&quot;,
+<span class="lineNum">     734 </span>            :            (unsigned __int64) bytecount,
+<span class="lineNum">     735 </span>            :            (unsigned long) strip);
+<span class="lineNum">     736 </span>            : #else
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     738 </span>            :            &quot;%llu: Invalid strip byte count, strip %lu&quot;,
+<span class="lineNum">     739 </span>            :            (unsigned long long) bytecount,
+<span class="lineNum">     740 </span>            :            (unsigned long) strip);
+<span class="lineNum">     741 </span>            : #endif
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">     743 </span>            :   }
+<span class="lineNum">     744 </span><span class="lineNoCov">          0 :   bytecountm = (tmsize_t)bytecount;</span>
+<span class="lineNum">     745 </span><span class="lineNoCov">          0 :   if ((uint64)bytecountm!=bytecount) {</span>
+<span class="lineNum">     746 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module, &quot;Integer overflow&quot;);</span>
+<span class="lineNum">     747 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">     748 </span>            :   }
+<span class="lineNum">     749 </span><span class="lineNoCov">          0 :   if (size != (tmsize_t)(-1) &amp;&amp; size &lt; bytecountm)</span>
+<span class="lineNum">     750 </span><span class="lineNoCov">          0 :     bytecountm = size;</span>
+<span class="lineNum">     751 </span><span class="lineNoCov">          0 :   return (TIFFReadRawStrip1(tif, strip, buf, bytecountm, module));</span>
+<span class="lineNum">     752 </span>            : }
+<span class="lineNum">     753 </span>            : 
+<span class="lineNum">     754 </span>            : /*
+<span class="lineNum">     755 </span>            :  * Read the specified strip and setup for decoding. The data buffer is
+<span class="lineNum">     756 </span>            :  * expanded, as necessary, to hold the strip's data.
+<a name="757"><span class="lineNum">     757 </span>            :  */</a>
+<span class="lineNum">     758 </span>            : int
+<span class="lineNum">     759 </span><span class="lineCov">       3388 : TIFFFillStrip(TIFF* tif, uint32 strip)</span>
+<span class="lineNum">     760 </span>            : {
+<span class="lineNum">     761 </span>            :   static const char module[] = &quot;TIFFFillStrip&quot;;
+<span class="lineNum">     762 </span><span class="lineCov">       3388 :   TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span><span class="lineCov">       3388 :   if ((tif-&gt;tif_flags&amp;TIFF_NOREADRAW)==0)</span>
+<span class="lineNum">     765 </span>            :   {
+<span class="lineNum">     766 </span><span class="lineCov">       3388 :     uint64 bytecount = TIFFGetStrileByteCount(tif, strip);</span>
+<span class="lineNum">     767 </span><span class="lineCov">       3388 :     if ((int64)bytecount &lt;= 0) {</span>
+<span class="lineNum">     768 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">     769 </span>            :       TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     770 </span>            :         &quot;Invalid strip byte count %I64u, strip %lu&quot;,
+<span class="lineNum">     771 </span>            :              (unsigned __int64) bytecount,
+<span class="lineNum">     772 </span>            :              (unsigned long) strip);
+<span class="lineNum">     773 </span>            : #else
+<span class="lineNum">     774 </span><span class="lineCov">          1 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     775 </span>            :         &quot;Invalid strip byte count %llu, strip %lu&quot;,
+<span class="lineNum">     776 </span>            :              (unsigned long long) bytecount,
+<span class="lineNum">     777 </span>            :              (unsigned long) strip);
+<span class="lineNum">     778 </span>            : #endif
+<span class="lineNum">     779 </span><span class="lineCov">          1 :       return (0);</span>
+<span class="lineNum">     780 </span>            :     }
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span>            :     /* To avoid excessive memory allocations: */
+<span class="lineNum">     783 </span>            :     /* Byte count should normally not be larger than a number of */
+<span class="lineNum">     784 </span>            :     /* times the uncompressed size plus some margin */
+<span class="lineNum">     785 </span><span class="lineCov">       3387 :                 if( bytecount &gt; 1024 * 1024 )</span>
+<span class="lineNum">     786 </span>            :                 {
+<span class="lineNum">     787 </span>            :       /* 10 and 4096 are just values that could be adjusted. */
+<span class="lineNum">     788 </span>            :       /* Hopefully they are safe enough for all codecs */
+<span class="lineNum">     789 </span><span class="lineCov">          3 :       tmsize_t stripsize = TIFFStripSize(tif);</span>
+<span class="lineNum">     790 </span><span class="lineCov">          6 :       if( stripsize != 0 &amp;&amp;</span>
+<span class="lineNum">     791 </span><span class="lineCov">          3 :           (bytecount - 4096) / 10 &gt; (uint64)stripsize  )</span>
+<span class="lineNum">     792 </span>            :       {
+<span class="lineNum">     793 </span><span class="lineCov">          1 :         uint64 newbytecount = (uint64)stripsize * 10 + 4096;</span>
+<span class="lineNum">     794 </span><span class="lineCov">          1 :         if( (int64)newbytecount &gt;= 0 )</span>
+<span class="lineNum">     795 </span>            :         {
+<span class="lineNum">     796 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">     797 </span>            :           TIFFWarningExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     798 </span>            :             &quot;Too large strip byte count %I64u, strip %lu. Limiting to %I64u&quot;,
+<span class="lineNum">     799 </span>            :                (unsigned __int64) bytecount,
+<span class="lineNum">     800 </span>            :                (unsigned long) strip,
+<span class="lineNum">     801 </span>            :                (unsigned __int64) newbytecount);
+<span class="lineNum">     802 </span>            : #else
+<span class="lineNum">     803 </span><span class="lineCov">          1 :           TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     804 </span>            :             &quot;Too large strip byte count %llu, strip %lu. Limiting to %llu&quot;,
+<span class="lineNum">     805 </span>            :                (unsigned long long) bytecount,
+<span class="lineNum">     806 </span>            :                (unsigned long) strip,
+<span class="lineNum">     807 </span>            :                (unsigned long long) newbytecount);
+<span class="lineNum">     808 </span>            : #endif
+<span class="lineNum">     809 </span><span class="lineCov">          1 :           bytecount = newbytecount;</span>
+<span class="lineNum">     810 </span>            :         }
+<span class="lineNum">     811 </span>            :       }
+<span class="lineNum">     812 </span>            :     }
+<span class="lineNum">     813 </span>            : 
+<span class="lineNum">     814 </span><span class="lineCov">       3387 :     if (isMapped(tif)) {</span>
+<span class="lineNum">     815 </span>            :       /*
+<span class="lineNum">     816 </span>            :        * We must check for overflow, potentially causing
+<span class="lineNum">     817 </span>            :        * an OOB read. Instead of simple
+<span class="lineNum">     818 </span>            :        *
+<span class="lineNum">     819 </span>            :        *  TIFFGetStrileOffset(tif, strip)+bytecount &gt; tif-&gt;tif_size
+<span class="lineNum">     820 </span>            :        *
+<span class="lineNum">     821 </span>            :        * comparison (which can overflow) we do the following
+<span class="lineNum">     822 </span>            :        * two comparisons:
+<span class="lineNum">     823 </span>            :        */
+<span class="lineNum">     824 </span><span class="lineCov">          8 :       if (bytecount &gt; (uint64)tif-&gt;tif_size ||</span>
+<span class="lineNum">     825 </span><span class="lineCov">          4 :           TIFFGetStrileOffset(tif, strip) &gt; (uint64)tif-&gt;tif_size - bytecount) {</span>
+<span class="lineNum">     826 </span>            :         /*
+<span class="lineNum">     827 </span>            :          * This error message might seem strange, but
+<span class="lineNum">     828 </span>            :          * it's what would happen if a read were done
+<span class="lineNum">     829 </span>            :          * instead.
+<span class="lineNum">     830 </span>            :          */
+<span class="lineNum">     831 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">     832 </span>            :         TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span>            :           &quot;Read error on strip %lu; &quot;
+<span class="lineNum">     835 </span>            :           &quot;got %I64u bytes, expected %I64u&quot;,
+<span class="lineNum">     836 </span>            :           (unsigned long) strip,
+<span class="lineNum">     837 </span>            :           (unsigned __int64) tif-&gt;tif_size - TIFFGetStrileOffset(tif, strip),
+<span class="lineNum">     838 </span>            :           (unsigned __int64) bytecount);
+<span class="lineNum">     839 </span>            : #else
+<span class="lineNum">     840 </span><span class="lineCov">          2 :         TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     841 </span>            : 
+<span class="lineNum">     842 </span>            :           &quot;Read error on strip %lu; &quot;
+<span class="lineNum">     843 </span>            :           &quot;got %llu bytes, expected %llu&quot;,
+<span class="lineNum">     844 </span>            :           (unsigned long) strip,
+<span class="lineNum">     845 </span><span class="lineCov">          2 :           (unsigned long long) tif-&gt;tif_size - TIFFGetStrileOffset(tif, strip),</span>
+<span class="lineNum">     846 </span>            :           (unsigned long long) bytecount);
+<span class="lineNum">     847 </span>            : #endif
+<span class="lineNum">     848 </span><span class="lineCov">          2 :         tif-&gt;tif_curstrip = NOSTRIP;</span>
+<span class="lineNum">     849 </span><span class="lineCov">          2 :         return (0);</span>
+<span class="lineNum">     850 </span>            :       }
+<span class="lineNum">     851 </span>            :     }
+<span class="lineNum">     852 </span>            : 
+<span class="lineNum">     853 </span><span class="lineCov">       3387 :     if (isMapped(tif) &amp;&amp;</span>
+<span class="lineNum">     854 </span><span class="lineCov">          2 :         (isFillOrder(tif, td-&gt;td_fillorder)</span>
+<span class="lineNum">     855 </span><span class="lineNoCov">          0 :         || (tif-&gt;tif_flags &amp; TIFF_NOBITREV))) {</span>
+<span class="lineNum">     856 </span>            :       /*
+<span class="lineNum">     857 </span>            :        * The image is mapped into memory and we either don't
+<span class="lineNum">     858 </span>            :        * need to flip bits or the compression routine is
+<span class="lineNum">     859 </span>            :        * going to handle this operation itself.  In this
+<span class="lineNum">     860 </span>            :        * case, avoid copying the raw data and instead just
+<span class="lineNum">     861 </span>            :        * reference the data from the memory mapped file
+<span class="lineNum">     862 </span>            :        * image.  This assumes that the decompression
+<span class="lineNum">     863 </span>            :        * routines do not modify the contents of the raw data
+<span class="lineNum">     864 </span>            :        * buffer (if they try to, the application will get a
+<span class="lineNum">     865 </span>            :        * fault since the file is mapped read-only).
+<span class="lineNum">     866 </span>            :        */
+<span class="lineNum">     867 </span><span class="lineCov">          2 :       if ((tif-&gt;tif_flags &amp; TIFF_MYBUFFER) &amp;&amp; tif-&gt;tif_rawdata) {</span>
+<span class="lineNum">     868 </span><span class="lineNoCov">          0 :         _TIFFfree(tif-&gt;tif_rawdata);</span>
+<span class="lineNum">     869 </span><span class="lineNoCov">          0 :         tif-&gt;tif_rawdata = NULL;</span>
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :         tif-&gt;tif_rawdatasize = 0;</span>
+<span class="lineNum">     871 </span>            :       }
+<span class="lineNum">     872 </span><span class="lineCov">          2 :       tif-&gt;tif_flags &amp;= ~TIFF_MYBUFFER;</span>
+<span class="lineNum">     873 </span><span class="lineCov">          2 :       tif-&gt;tif_rawdatasize = (tmsize_t)bytecount;</span>
+<span class="lineNum">     874 </span><span class="lineCov">          2 :       tif-&gt;tif_rawdata = tif-&gt;tif_base + (tmsize_t)TIFFGetStrileOffset(tif, strip);</span>
+<span class="lineNum">     875 </span><span class="lineCov">          2 :                         tif-&gt;tif_rawdataoff = 0;</span>
+<span class="lineNum">     876 </span><span class="lineCov">          2 :                         tif-&gt;tif_rawdataloaded = (tmsize_t) bytecount;</span>
+<span class="lineNum">     877 </span>            : 
+<span class="lineNum">     878 </span>            :       /* 
+<span class="lineNum">     879 </span>            :        * When we have tif_rawdata reference directly into the memory mapped file
+<span class="lineNum">     880 </span>            :        * we need to be pretty careful about how we use the rawdata.  It is not
+<span class="lineNum">     881 </span>            :        * a general purpose working buffer as it normally otherwise is.  So we
+<span class="lineNum">     882 </span>            :        * keep track of this fact to avoid using it improperly.
+<span class="lineNum">     883 </span>            :        */
+<span class="lineNum">     884 </span><span class="lineCov">          2 :       tif-&gt;tif_flags |= TIFF_BUFFERMMAP;</span>
+<span class="lineNum">     885 </span>            :     } else {
+<span class="lineNum">     886 </span>            :       /*
+<span class="lineNum">     887 </span>            :        * Expand raw data buffer, if needed, to hold data
+<span class="lineNum">     888 </span>            :        * strip coming from file (perhaps should set upper
+<span class="lineNum">     889 </span>            :        * bound on the size of a buffer we'll use?).
+<span class="lineNum">     890 </span>            :        */
+<span class="lineNum">     891 </span>            :       tmsize_t bytecountm;
+<span class="lineNum">     892 </span><span class="lineCov">       3383 :       bytecountm=(tmsize_t)bytecount;</span>
+<span class="lineNum">     893 </span><span class="lineCov">       3383 :       if ((uint64)bytecountm!=bytecount)</span>
+<span class="lineNum">     894 </span>            :       {
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata,module,&quot;Integer overflow&quot;);</span>
+<span class="lineNum">     896 </span><span class="lineNoCov">          0 :         return(0);</span>
+<span class="lineNum">     897 </span>            :       }
+<span class="lineNum">     898 </span><span class="lineCov">       3383 :       if (bytecountm &gt; tif-&gt;tif_rawdatasize) {</span>
+<span class="lineNum">     899 </span><span class="lineCov">        386 :         tif-&gt;tif_curstrip = NOSTRIP;</span>
+<span class="lineNum">     900 </span><span class="lineCov">        386 :         if ((tif-&gt;tif_flags &amp; TIFF_MYBUFFER) == 0) {</span>
+<span class="lineNum">     901 </span><span class="lineNoCov">          0 :           TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     902 </span>            :               &quot;Data buffer too small to hold strip %lu&quot;,
+<span class="lineNum">     903 </span>            :               (unsigned long) strip);
+<span class="lineNum">     904 </span><span class="lineNoCov">          0 :           return (0);</span>
+<span class="lineNum">     905 </span>            :         }
+<span class="lineNum">     906 </span>            :       }
+<span class="lineNum">     907 </span><span class="lineCov">       3383 :       if (tif-&gt;tif_flags&amp;TIFF_BUFFERMMAP) {</span>
+<span class="lineNum">     908 </span><span class="lineNoCov">          0 :         tif-&gt;tif_curstrip = NOSTRIP;</span>
+<span class="lineNum">     909 </span><span class="lineNoCov">          0 :         tif-&gt;tif_rawdata = NULL;</span>
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :         tif-&gt;tif_rawdatasize = 0;</span>
+<span class="lineNum">     911 </span><span class="lineNoCov">          0 :         tif-&gt;tif_flags &amp;= ~TIFF_BUFFERMMAP;</span>
+<span class="lineNum">     912 </span>            :       }
+<span class="lineNum">     913 </span>            : 
+<span class="lineNum">     914 </span><span class="lineCov">       3383 :       if( isMapped(tif) )</span>
+<span class="lineNum">     915 </span>            :       {
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :         if (bytecountm &gt; tif-&gt;tif_rawdatasize &amp;&amp;</span>
+<span class="lineNum">     917 </span><span class="lineNoCov">          0 :             !TIFFReadBufferSetup(tif, 0, bytecountm))</span>
+<span class="lineNum">     918 </span>            :         {
+<span class="lineNum">     919 </span><span class="lineNoCov">          0 :           return (0);</span>
+<span class="lineNum">     920 </span>            :         }
+<span class="lineNum">     921 </span><span class="lineNoCov">          0 :         if (TIFFReadRawStrip1(tif, strip, tif-&gt;tif_rawdata,</span>
+<span class="lineNum">     922 </span>            :             bytecountm, module) != bytecountm)
+<span class="lineNum">     923 </span>            :         {
+<span class="lineNum">     924 </span><span class="lineNoCov">          0 :           return (0);</span>
+<span class="lineNum">     925 </span>            :         }
+<span class="lineNum">     926 </span>            :       }
+<span class="lineNum">     927 </span>            :       else
+<span class="lineNum">     928 </span>            :       {
+<span class="lineNum">     929 </span><span class="lineCov">       3383 :         if (TIFFReadRawStripOrTile2(tif, strip, 1,</span>
+<span class="lineNum">     930 </span>            :             bytecountm, module) != bytecountm)
+<span class="lineNum">     931 </span>            :         {
+<span class="lineNum">     932 </span><span class="lineCov">          2 :           return (0);</span>
+<span class="lineNum">     933 </span>            :         }
+<span class="lineNum">     934 </span>            :       }
+<span class="lineNum">     935 </span>            : 
+<span class="lineNum">     936 </span>            : 
+<span class="lineNum">     937 </span><span class="lineCov">       3381 :                         tif-&gt;tif_rawdataoff = 0;</span>
+<span class="lineNum">     938 </span><span class="lineCov">       3381 :                         tif-&gt;tif_rawdataloaded = bytecountm;</span>
+<span class="lineNum">     939 </span>            :                         
+<span class="lineNum">     940 </span><span class="lineCov">       3381 :       if (!isFillOrder(tif, td-&gt;td_fillorder) &amp;&amp;</span>
+<span class="lineNum">     941 </span><span class="lineNoCov">          0 :           (tif-&gt;tif_flags &amp; TIFF_NOBITREV) == 0)</span>
+<span class="lineNum">     942 </span><span class="lineNoCov">          0 :         TIFFReverseBits(tif-&gt;tif_rawdata, bytecountm);</span>
+<span class="lineNum">     943 </span>            :                 }
+<span class="lineNum">     944 </span>            :   }
+<span class="lineNum">     945 </span><span class="lineCov">       3383 :   return (TIFFStartStrip(tif, strip));</span>
+<span class="lineNum">     946 </span>            : }
+<span class="lineNum">     947 </span>            : 
+<span class="lineNum">     948 </span>            : /*
+<span class="lineNum">     949 </span>            :  * Tile-oriented Read Support
+<span class="lineNum">     950 </span>            :  * Contributed by Nancy Cam (Silicon Graphics).
+<span class="lineNum">     951 </span>            :  */
+<span class="lineNum">     952 </span>            : 
+<span class="lineNum">     953 </span>            : /*
+<span class="lineNum">     954 </span>            :  * Read and decompress a tile of data.  The
+<span class="lineNum">     955 </span>            :  * tile is selected by the (x,y,z,s) coordinates.
+<a name="956"><span class="lineNum">     956 </span>            :  */</a>
+<span class="lineNum">     957 </span>            : tmsize_t
+<span class="lineNum">     958 </span><span class="lineCov">          2 : TIFFReadTile(TIFF* tif, void* buf, uint32 x, uint32 y, uint32 z, uint16 s)</span>
+<span class="lineNum">     959 </span>            : {
+<span class="lineNum">     960 </span><span class="lineCov">          2 :   if (!TIFFCheckRead(tif, 1) || !TIFFCheckTile(tif, x, y, z, s))</span>
+<span class="lineNum">     961 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">     962 </span><span class="lineCov">          2 :   return (TIFFReadEncodedTile(tif,</span>
+<span class="lineNum">     963 </span>            :       TIFFComputeTile(tif, x, y, z, s), buf, (tmsize_t)(-1)));
+<span class="lineNum">     964 </span>            : }
+<span class="lineNum">     965 </span>            : 
+<span class="lineNum">     966 </span>            : /*
+<span class="lineNum">     967 </span>            :  * Read a tile of data and decompress the specified
+<span class="lineNum">     968 </span>            :  * amount into the user-supplied buffer.
+<a name="969"><span class="lineNum">     969 </span>            :  */</a>
+<span class="lineNum">     970 </span>            : tmsize_t
+<span class="lineNum">     971 </span><span class="lineCov">      40933 : TIFFReadEncodedTile(TIFF* tif, uint32 tile, void* buf, tmsize_t size)</span>
+<span class="lineNum">     972 </span>            : {
+<span class="lineNum">     973 </span>            :   static const char module[] = &quot;TIFFReadEncodedTile&quot;;
+<span class="lineNum">     974 </span><span class="lineCov">      40933 :   TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">     975 </span><span class="lineCov">      40933 :   tmsize_t tilesize = tif-&gt;tif_tilesize;</span>
+<span class="lineNum">     976 </span>            : 
+<span class="lineNum">     977 </span><span class="lineCov">      40933 :   if (!TIFFCheckRead(tif, 1))</span>
+<span class="lineNum">     978 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">     979 </span><span class="lineCov">      40939 :   if (tile &gt;= td-&gt;td_nstrips) {</span>
+<span class="lineNum">     980 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     981 </span>            :         &quot;%lu: Tile out of range, max %lu&quot;,
+<span class="lineNum">     982 </span><span class="lineNoCov">          0 :         (unsigned long) tile, (unsigned long) td-&gt;td_nstrips);</span>
+<span class="lineNum">     983 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">     984 </span>            :   }
+<span class="lineNum">     985 </span>            : 
+<span class="lineNum">     986 </span>            :     /* shortcut to avoid an extra memcpy() */
+<span class="lineNum">     987 </span><span class="lineCov">      40939 :     if( td-&gt;td_compression == COMPRESSION_NONE &amp;&amp;</span>
+<span class="lineNum">     988 </span><span class="lineCov">      74754 :         size!=(tmsize_t)(-1) &amp;&amp; size &gt;= tilesize &amp;&amp;</span>
+<span class="lineNum">     989 </span><span class="lineCov">      72551 :         !isMapped(tif) &amp;&amp;</span>
+<span class="lineNum">     990 </span><span class="lineCov">      36276 :         ((tif-&gt;tif_flags&amp;TIFF_NOREADRAW)==0) )</span>
+<span class="lineNum">     991 </span>            :     {
+<span class="lineNum">     992 </span><span class="lineCov">      36276 :         if (TIFFReadRawTile1(tif, tile, buf, tilesize, module) != tilesize)</span>
+<span class="lineNum">     993 </span><span class="lineCov">          2 :             return ((tmsize_t)(-1));</span>
+<span class="lineNum">     994 </span>            : 
+<span class="lineNum">     995 </span><span class="lineCov">      36266 :         if (!isFillOrder(tif, td-&gt;td_fillorder) &amp;&amp;</span>
+<span class="lineNum">     996 </span><span class="lineNoCov">          0 :             (tif-&gt;tif_flags &amp; TIFF_NOBITREV) == 0)</span>
+<span class="lineNum">     997 </span><span class="lineNoCov">          0 :             TIFFReverseBits(buf,tilesize);</span>
+<span class="lineNum">     998 </span>            : 
+<span class="lineNum">     999 </span><span class="lineCov">      36266 :         (*tif-&gt;tif_postdecode)(tif,buf,tilesize);</span>
+<span class="lineNum">    1000 </span><span class="lineCov">      36262 :         return (tilesize);</span>
+<span class="lineNum">    1001 </span>            :     }
+<span class="lineNum">    1002 </span>            : 
+<span class="lineNum">    1003 </span><span class="lineCov">       4663 :   if (size == (tmsize_t)(-1))</span>
+<span class="lineNum">    1004 </span><span class="lineCov">          2 :     size = tilesize;</span>
+<span class="lineNum">    1005 </span><span class="lineCov">       4661 :   else if (size &gt; tilesize)</span>
+<span class="lineNum">    1006 </span><span class="lineNoCov">          0 :     size = tilesize;</span>
+<span class="lineNum">    1007 </span><span class="lineCov">       9293 :   if (TIFFFillTile(tif, tile) &amp;&amp; (*tif-&gt;tif_decodetile)(tif,</span>
+<span class="lineNum">    1008 </span><span class="lineCov">       4630 :       (uint8*) buf, size, (uint16)(tile/td-&gt;td_stripsperimage))) {</span>
+<span class="lineNum">    1009 </span><span class="lineCov">       4632 :     (*tif-&gt;tif_postdecode)(tif, (uint8*) buf, size);</span>
+<span class="lineNum">    1010 </span><span class="lineCov">       4632 :     return (size);</span>
+<span class="lineNum">    1011 </span>            :   } else
+<span class="lineNum">    1012 </span><span class="lineCov">         31 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1013 </span>            : }
+<span class="lineNum">    1014 </span>            : 
+<span class="lineNum">    1015 </span>            : /* Variant of TIFFReadTile() that does 
+<span class="lineNum">    1016 </span>            :  * * if *buf == NULL, *buf = _TIFFmalloc(bufsizetoalloc) only after TIFFFillTile() has
+<span class="lineNum">    1017 </span>            :  *   succeeded. This avoid excessive memory allocation in case of truncated
+<span class="lineNum">    1018 </span>            :  *   file.
+<span class="lineNum">    1019 </span>            :  * * calls regular TIFFReadEncodedTile() if *buf != NULL
+<a name="1020"><span class="lineNum">    1020 </span>            :  */</a>
+<span class="lineNum">    1021 </span>            : tmsize_t
+<span class="lineNum">    1022 </span><span class="lineCov">          4 : _TIFFReadTileAndAllocBuffer(TIFF* tif,</span>
+<span class="lineNum">    1023 </span>            :                             void **buf, tmsize_t bufsizetoalloc,
+<span class="lineNum">    1024 </span>            :                             uint32 x, uint32 y, uint32 z, uint16 s)
+<span class="lineNum">    1025 </span>            : {
+<span class="lineNum">    1026 </span><span class="lineCov">          4 :     if (!TIFFCheckRead(tif, 1) || !TIFFCheckTile(tif, x, y, z, s))</span>
+<span class="lineNum">    1027 </span><span class="lineNoCov">          0 :             return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1028 </span><span class="lineCov">          4 :     return (_TIFFReadEncodedTileAndAllocBuffer(tif,</span>
+<span class="lineNum">    1029 </span>            :                                                TIFFComputeTile(tif, x, y, z, s),
+<span class="lineNum">    1030 </span>            :                                                buf, bufsizetoalloc,
+<span class="lineNum">    1031 </span>            :                                                (tmsize_t)(-1)));
+<span class="lineNum">    1032 </span>            : }
+<span class="lineNum">    1033 </span>            : 
+<span class="lineNum">    1034 </span>            : /* Variant of TIFFReadEncodedTile() that does 
+<span class="lineNum">    1035 </span>            :  * * if *buf == NULL, *buf = _TIFFmalloc(bufsizetoalloc) only after TIFFFillTile() has
+<span class="lineNum">    1036 </span>            :  *   succeeded. This avoid excessive memory allocation in case of truncated
+<span class="lineNum">    1037 </span>            :  *   file.
+<span class="lineNum">    1038 </span>            :  * * calls regular TIFFReadEncodedTile() if *buf != NULL
+<a name="1039"><span class="lineNum">    1039 </span>            :  */</a>
+<span class="lineNum">    1040 </span>            : tmsize_t
+<span class="lineNum">    1041 </span><span class="lineCov">          4 : _TIFFReadEncodedTileAndAllocBuffer(TIFF* tif, uint32 tile,</span>
+<span class="lineNum">    1042 </span>            :                                     void **buf, tmsize_t bufsizetoalloc,
+<span class="lineNum">    1043 </span>            :                                     tmsize_t size_to_read)
+<span class="lineNum">    1044 </span>            : {
+<span class="lineNum">    1045 </span>            :     static const char module[] = &quot;_TIFFReadEncodedTileAndAllocBuffer&quot;;
+<span class="lineNum">    1046 </span><span class="lineCov">          4 :     TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">    1047 </span><span class="lineCov">          4 :     tmsize_t tilesize = tif-&gt;tif_tilesize;</span>
+<span class="lineNum">    1048 </span>            : 
+<span class="lineNum">    1049 </span><span class="lineCov">          4 :     if( *buf != NULL )</span>
+<span class="lineNum">    1050 </span>            :     {
+<span class="lineNum">    1051 </span><span class="lineNoCov">          0 :         return TIFFReadEncodedTile(tif, tile, *buf, size_to_read);</span>
+<span class="lineNum">    1052 </span>            :     }
+<span class="lineNum">    1053 </span>            : 
+<span class="lineNum">    1054 </span><span class="lineCov">          4 :     if (!TIFFCheckRead(tif, 1))</span>
+<span class="lineNum">    1055 </span><span class="lineNoCov">          0 :             return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1056 </span><span class="lineCov">          4 :     if (tile &gt;= td-&gt;td_nstrips) {</span>
+<span class="lineNum">    1057 </span><span class="lineNoCov">          0 :             TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1058 </span>            :                 &quot;%lu: Tile out of range, max %lu&quot;,
+<span class="lineNum">    1059 </span><span class="lineNoCov">          0 :                 (unsigned long) tile, (unsigned long) td-&gt;td_nstrips);</span>
+<span class="lineNum">    1060 </span><span class="lineNoCov">          0 :             return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1061 </span>            :     }
+<span class="lineNum">    1062 </span>            : 
+<span class="lineNum">    1063 </span><span class="lineCov">          4 :     if (!TIFFFillTile(tif,tile))</span>
+<span class="lineNum">    1064 </span><span class="lineCov">          1 :             return((tmsize_t)(-1));</span>
+<span class="lineNum">    1065 </span>            : 
+<span class="lineNum">    1066 </span><span class="lineCov">          3 :     *buf = _TIFFmalloc(bufsizetoalloc);</span>
+<span class="lineNum">    1067 </span><span class="lineCov">          3 :     if (*buf == NULL) {</span>
+<span class="lineNum">    1068 </span><span class="lineNoCov">          0 :             TIFFErrorExt(tif-&gt;tif_clientdata, TIFFFileName(tif),</span>
+<span class="lineNum">    1069 </span>            :                          &quot;No space for tile buffer&quot;);
+<span class="lineNum">    1070 </span><span class="lineNoCov">          0 :             return((tmsize_t)(-1));</span>
+<span class="lineNum">    1071 </span>            :     }
+<span class="lineNum">    1072 </span><span class="lineCov">          3 :     _TIFFmemset(*buf, 0, bufsizetoalloc);</span>
+<span class="lineNum">    1073 </span>            : 
+<span class="lineNum">    1074 </span><span class="lineCov">          3 :     if (size_to_read == (tmsize_t)(-1))</span>
+<span class="lineNum">    1075 </span><span class="lineCov">          3 :         size_to_read = tilesize;</span>
+<span class="lineNum">    1076 </span><span class="lineNoCov">          0 :     else if (size_to_read &gt; tilesize)</span>
+<span class="lineNum">    1077 </span><span class="lineNoCov">          0 :         size_to_read = tilesize;</span>
+<span class="lineNum">    1078 </span><span class="lineCov">          6 :     if( (*tif-&gt;tif_decodetile)(tif,</span>
+<span class="lineNum">    1079 </span><span class="lineCov">          3 :         (uint8*) *buf, size_to_read, (uint16)(tile/td-&gt;td_stripsperimage))) {</span>
+<span class="lineNum">    1080 </span><span class="lineCov">          3 :         (*tif-&gt;tif_postdecode)(tif, (uint8*) *buf, size_to_read);</span>
+<span class="lineNum">    1081 </span><span class="lineCov">          3 :         return (size_to_read);</span>
+<span class="lineNum">    1082 </span>            :     } else
+<span class="lineNum">    1083 </span><span class="lineNoCov">          0 :         return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1084 </span>            : }
+<a name="1085"><span class="lineNum">    1085 </span>            : </a>
+<span class="lineNum">    1086 </span>            : static tmsize_t
+<span class="lineNum">    1087 </span><span class="lineCov">      36273 : TIFFReadRawTile1(TIFF* tif, uint32 tile, void* buf, tmsize_t size, const char* module)</span>
+<span class="lineNum">    1088 </span>            : {
+<span class="lineNum">    1089 </span><span class="lineCov">      36273 :   assert((tif-&gt;tif_flags&amp;TIFF_NOREADRAW)==0);</span>
+<span class="lineNum">    1090 </span><span class="lineCov">      36273 :   if (!isMapped(tif)) {</span>
+<span class="lineNum">    1091 </span>            :     tmsize_t cc;
+<span class="lineNum">    1092 </span>            : 
+<span class="lineNum">    1093 </span><span class="lineCov">      36273 :     if (!SeekOK(tif, TIFFGetStrileOffset(tif, tile))) {</span>
+<span class="lineNum">    1094 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1095 </span>            :           &quot;Seek error at row %lu, col %lu, tile %lu&quot;,
+<span class="lineNum">    1096 </span><span class="lineNoCov">          0 :           (unsigned long) tif-&gt;tif_row,</span>
+<span class="lineNum">    1097 </span><span class="lineNoCov">          0 :           (unsigned long) tif-&gt;tif_col,</span>
+<span class="lineNum">    1098 </span>            :           (unsigned long) tile);
+<span class="lineNum">    1099 </span><span class="lineNoCov">          0 :       return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1100 </span>            :     }
+<span class="lineNum">    1101 </span><span class="lineCov">      36270 :     cc = TIFFReadFile(tif, buf, size);</span>
+<span class="lineNum">    1102 </span><span class="lineCov">      36276 :     if (cc != size) {</span>
+<span class="lineNum">    1103 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">    1104 </span>            :       TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">    1105 </span>            :   &quot;Read error at row %lu, col %lu; got %I64u bytes, expected %I64u&quot;,
+<span class="lineNum">    1106 </span>            :              (unsigned long) tif-&gt;tif_row,
+<span class="lineNum">    1107 </span>            :              (unsigned long) tif-&gt;tif_col,
+<span class="lineNum">    1108 </span>            :              (unsigned __int64) cc,
+<span class="lineNum">    1109 </span>            :              (unsigned __int64) size);
+<span class="lineNum">    1110 </span>            : #else
+<span class="lineNum">    1111 </span><span class="lineCov">          6 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1112 </span>            :   &quot;Read error at row %lu, col %lu; got %llu bytes, expected %llu&quot;,
+<span class="lineNum">    1113 </span><span class="lineCov">          2 :              (unsigned long) tif-&gt;tif_row,</span>
+<span class="lineNum">    1114 </span><span class="lineCov">          2 :              (unsigned long) tif-&gt;tif_col,</span>
+<span class="lineNum">    1115 </span>            :              (unsigned long long) cc,
+<span class="lineNum">    1116 </span>            :              (unsigned long long) size);
+<span class="lineNum">    1117 </span>            : #endif
+<span class="lineNum">    1118 </span><span class="lineCov">          2 :       return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1119 </span>            :     }
+<span class="lineNum">    1120 </span>            :   } else {
+<span class="lineNum">    1121 </span>            :     tmsize_t ma,mb;
+<span class="lineNum">    1122 </span>            :     tmsize_t n;
+<span class="lineNum">    1123 </span><span class="lineNoCov">          0 :     ma=(tmsize_t)TIFFGetStrileOffset(tif, tile);</span>
+<span class="lineNum">    1124 </span><span class="lineNoCov">          0 :     mb=ma+size;</span>
+<span class="lineNum">    1125 </span><span class="lineNoCov">          0 :     if ((TIFFGetStrileOffset(tif, tile) &gt; (uint64)TIFF_TMSIZE_T_MAX)||(ma&gt;tif-&gt;tif_size))</span>
+<span class="lineNum">    1126 </span><span class="lineNoCov">          0 :       n=0;</span>
+<span class="lineNum">    1127 </span><span class="lineNoCov">          0 :     else if ((mb&lt;ma)||(mb&lt;size)||(mb&gt;tif-&gt;tif_size))</span>
+<span class="lineNum">    1128 </span><span class="lineNoCov">          0 :       n=tif-&gt;tif_size-ma;</span>
+<span class="lineNum">    1129 </span>            :     else
+<span class="lineNum">    1130 </span><span class="lineNoCov">          0 :       n=size;</span>
+<span class="lineNum">    1131 </span><span class="lineNoCov">          0 :     if (n!=size) {</span>
+<span class="lineNum">    1132 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">    1133 </span>            :       TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">    1134 </span>            : &quot;Read error at row %lu, col %lu, tile %lu; got %I64u bytes, expected %I64u&quot;,
+<span class="lineNum">    1135 </span>            :              (unsigned long) tif-&gt;tif_row,
+<span class="lineNum">    1136 </span>            :              (unsigned long) tif-&gt;tif_col,
+<span class="lineNum">    1137 </span>            :              (unsigned long) tile,
+<span class="lineNum">    1138 </span>            :              (unsigned __int64) n,
+<span class="lineNum">    1139 </span>            :              (unsigned __int64) size);
+<span class="lineNum">    1140 </span>            : #else
+<span class="lineNum">    1141 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1142 </span>            : &quot;Read error at row %lu, col %lu, tile %lu; got %llu bytes, expected %llu&quot;,
+<span class="lineNum">    1143 </span><span class="lineNoCov">          0 :              (unsigned long) tif-&gt;tif_row,</span>
+<span class="lineNum">    1144 </span><span class="lineNoCov">          0 :              (unsigned long) tif-&gt;tif_col,</span>
+<span class="lineNum">    1145 </span>            :              (unsigned long) tile,
+<span class="lineNum">    1146 </span>            :              (unsigned long long) n,
+<span class="lineNum">    1147 </span>            :              (unsigned long long) size);
+<span class="lineNum">    1148 </span>            : #endif
+<span class="lineNum">    1149 </span><span class="lineNoCov">          0 :       return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1150 </span>            :     }
+<span class="lineNum">    1151 </span><span class="lineNoCov">          0 :     _TIFFmemcpy(buf, tif-&gt;tif_base + ma, size);</span>
+<span class="lineNum">    1152 </span>            :   }
+<span class="lineNum">    1153 </span><span class="lineCov">      36267 :   return (size);</span>
+<span class="lineNum">    1154 </span>            : }
+<span class="lineNum">    1155 </span>            : 
+<span class="lineNum">    1156 </span>            : /*
+<span class="lineNum">    1157 </span>            :  * Read a tile of data from the file.
+<a name="1158"><span class="lineNum">    1158 </span>            :  */</a>
+<span class="lineNum">    1159 </span>            : tmsize_t
+<span class="lineNum">    1160 </span><span class="lineNoCov">          0 : TIFFReadRawTile(TIFF* tif, uint32 tile, void* buf, tmsize_t size)</span>
+<span class="lineNum">    1161 </span>            : {
+<span class="lineNum">    1162 </span>            :   static const char module[] = &quot;TIFFReadRawTile&quot;;
+<span class="lineNum">    1163 </span><span class="lineNoCov">          0 :   TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">    1164 </span>            :   uint64 bytecount64;
+<span class="lineNum">    1165 </span>            :   tmsize_t bytecountm;
+<span class="lineNum">    1166 </span>            : 
+<span class="lineNum">    1167 </span><span class="lineNoCov">          0 :   if (!TIFFCheckRead(tif, 1))</span>
+<span class="lineNum">    1168 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1169 </span><span class="lineNoCov">          0 :   if (tile &gt;= td-&gt;td_nstrips) {</span>
+<span class="lineNum">    1170 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1171 </span>            :         &quot;%lu: Tile out of range, max %lu&quot;,
+<span class="lineNum">    1172 </span><span class="lineNoCov">          0 :         (unsigned long) tile, (unsigned long) td-&gt;td_nstrips);</span>
+<span class="lineNum">    1173 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1174 </span>            :   }
+<span class="lineNum">    1175 </span><span class="lineNoCov">          0 :   if (tif-&gt;tif_flags&amp;TIFF_NOREADRAW)</span>
+<span class="lineNum">    1176 </span>            :   {
+<span class="lineNum">    1177 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1178 </span>            :     &quot;Compression scheme does not support access to raw uncompressed data&quot;);
+<span class="lineNum">    1179 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1180 </span>            :   }
+<span class="lineNum">    1181 </span><span class="lineNoCov">          0 :   bytecount64 = TIFFGetStrileByteCount(tif, tile);</span>
+<span class="lineNum">    1182 </span><span class="lineNoCov">          0 :   if (size != (tmsize_t)(-1) &amp;&amp; (uint64)size &lt; bytecount64)</span>
+<span class="lineNum">    1183 </span><span class="lineNoCov">          0 :     bytecount64 = (uint64)size;</span>
+<span class="lineNum">    1184 </span><span class="lineNoCov">          0 :   bytecountm = (tmsize_t)bytecount64;</span>
+<span class="lineNum">    1185 </span><span class="lineNoCov">          0 :   if ((uint64)bytecountm!=bytecount64)</span>
+<span class="lineNum">    1186 </span>            :   {
+<span class="lineNum">    1187 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata,module,&quot;Integer overflow&quot;);</span>
+<span class="lineNum">    1188 </span><span class="lineNoCov">          0 :     return ((tmsize_t)(-1));</span>
+<span class="lineNum">    1189 </span>            :   }
+<span class="lineNum">    1190 </span><span class="lineNoCov">          0 :   return (TIFFReadRawTile1(tif, tile, buf, bytecountm, module));</span>
+<span class="lineNum">    1191 </span>            : }
+<span class="lineNum">    1192 </span>            : 
+<span class="lineNum">    1193 </span>            : /*
+<span class="lineNum">    1194 </span>            :  * Read the specified tile and setup for decoding. The data buffer is
+<span class="lineNum">    1195 </span>            :  * expanded, as necessary, to hold the tile's data.
+<a name="1196"><span class="lineNum">    1196 </span>            :  */</a>
+<span class="lineNum">    1197 </span>            : int
+<span class="lineNum">    1198 </span><span class="lineCov">       4667 : TIFFFillTile(TIFF* tif, uint32 tile)</span>
+<span class="lineNum">    1199 </span>            : {
+<span class="lineNum">    1200 </span>            :   static const char module[] = &quot;TIFFFillTile&quot;;
+<span class="lineNum">    1201 </span><span class="lineCov">       4667 :   TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">    1202 </span>            : 
+<span class="lineNum">    1203 </span><span class="lineCov">       4667 :   if ((tif-&gt;tif_flags&amp;TIFF_NOREADRAW)==0)</span>
+<span class="lineNum">    1204 </span>            :   {
+<span class="lineNum">    1205 </span><span class="lineCov">       4665 :     uint64 bytecount = TIFFGetStrileByteCount(tif, tile);</span>
+<span class="lineNum">    1206 </span><span class="lineCov">       4665 :     if ((int64)bytecount &lt;= 0) {</span>
+<span class="lineNum">    1207 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">    1208 </span>            :       TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">    1209 </span>            :         &quot;%I64u: Invalid tile byte count, tile %lu&quot;,
+<span class="lineNum">    1210 </span>            :              (unsigned __int64) bytecount,
+<span class="lineNum">    1211 </span>            :              (unsigned long) tile);
+<span class="lineNum">    1212 </span>            : #else
+<span class="lineNum">    1213 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1214 </span>            :         &quot;%llu: Invalid tile byte count, tile %lu&quot;,
+<span class="lineNum">    1215 </span>            :              (unsigned long long) bytecount,
+<span class="lineNum">    1216 </span>            :              (unsigned long) tile);
+<span class="lineNum">    1217 </span>            : #endif
+<span class="lineNum">    1218 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">    1219 </span>            :     }
+<span class="lineNum">    1220 </span>            : 
+<span class="lineNum">    1221 </span>            :     /* To avoid excessive memory allocations: */
+<span class="lineNum">    1222 </span>            :     /* Byte count should normally not be larger than a number of */
+<span class="lineNum">    1223 </span>            :     /* times the uncompressed size plus some margin */
+<span class="lineNum">    1224 </span><span class="lineCov">       4665 :                 if( bytecount &gt; 1024 * 1024 )</span>
+<span class="lineNum">    1225 </span>            :                 {
+<span class="lineNum">    1226 </span>            :       /* 10 and 4096 are just values that could be adjusted. */
+<span class="lineNum">    1227 </span>            :       /* Hopefully they are safe enough for all codecs */
+<span class="lineNum">    1228 </span><span class="lineCov">          2 :       tmsize_t stripsize = TIFFTileSize(tif);</span>
+<span class="lineNum">    1229 </span><span class="lineCov">          4 :       if( stripsize != 0 &amp;&amp;</span>
+<span class="lineNum">    1230 </span><span class="lineCov">          2 :           (bytecount - 4096) / 10 &gt; (uint64)stripsize  )</span>
+<span class="lineNum">    1231 </span>            :       {
+<span class="lineNum">    1232 </span><span class="lineCov">          1 :         uint64 newbytecount = (uint64)stripsize * 10 + 4096;</span>
+<span class="lineNum">    1233 </span><span class="lineCov">          1 :         if( (int64)newbytecount &gt;= 0 )</span>
+<span class="lineNum">    1234 </span>            :         {
+<span class="lineNum">    1235 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">    1236 </span>            :           TIFFWarningExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">    1237 </span>            :             &quot;Too large tile byte count %I64u, tile %lu. Limiting to %I64u&quot;,
+<span class="lineNum">    1238 </span>            :                (unsigned __int64) bytecount,
+<span class="lineNum">    1239 </span>            :                (unsigned long) tile,
+<span class="lineNum">    1240 </span>            :                (unsigned __int64) newbytecount);
+<span class="lineNum">    1241 </span>            : #else
+<span class="lineNum">    1242 </span><span class="lineCov">          1 :           TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1243 </span>            :             &quot;Too large tile byte count %llu, tile %lu. Limiting to %llu&quot;,
+<span class="lineNum">    1244 </span>            :                (unsigned long long) bytecount,
+<span class="lineNum">    1245 </span>            :                (unsigned long) tile,
+<span class="lineNum">    1246 </span>            :                (unsigned long long) newbytecount);
+<span class="lineNum">    1247 </span>            : #endif
+<span class="lineNum">    1248 </span><span class="lineCov">          1 :           bytecount = newbytecount;</span>
+<span class="lineNum">    1249 </span>            :         }
+<span class="lineNum">    1250 </span>            :       }
+<span class="lineNum">    1251 </span>            :     }
+<span class="lineNum">    1252 </span>            : 
+<span class="lineNum">    1253 </span><span class="lineCov">       4665 :     if (isMapped(tif)) {</span>
+<span class="lineNum">    1254 </span>            :       /*
+<span class="lineNum">    1255 </span>            :        * We must check for overflow, potentially causing
+<span class="lineNum">    1256 </span>            :        * an OOB read. Instead of simple
+<span class="lineNum">    1257 </span>            :        *
+<span class="lineNum">    1258 </span>            :        *  TIFFGetStrileOffset(tif, tile)+bytecount &gt; tif-&gt;tif_size
+<span class="lineNum">    1259 </span>            :        *
+<span class="lineNum">    1260 </span>            :        * comparison (which can overflow) we do the following
+<span class="lineNum">    1261 </span>            :        * two comparisons:
+<span class="lineNum">    1262 </span>            :        */
+<span class="lineNum">    1263 </span><span class="lineCov">          8 :       if (bytecount &gt; (uint64)tif-&gt;tif_size ||</span>
+<span class="lineNum">    1264 </span><span class="lineCov">          4 :           TIFFGetStrileOffset(tif, tile) &gt; (uint64)tif-&gt;tif_size - bytecount) {</span>
+<span class="lineNum">    1265 </span><span class="lineCov">          2 :         tif-&gt;tif_curtile = NOTILE;</span>
+<span class="lineNum">    1266 </span><span class="lineCov">          2 :         return (0);</span>
+<span class="lineNum">    1267 </span>            :       }
+<span class="lineNum">    1268 </span>            :     }
+<span class="lineNum">    1269 </span>            : 
+<span class="lineNum">    1270 </span><span class="lineCov">       4665 :     if (isMapped(tif) &amp;&amp;</span>
+<span class="lineNum">    1271 </span><span class="lineCov">          2 :         (isFillOrder(tif, td-&gt;td_fillorder)</span>
+<span class="lineNum">    1272 </span><span class="lineNoCov">          0 :          || (tif-&gt;tif_flags &amp; TIFF_NOBITREV))) {</span>
+<span class="lineNum">    1273 </span>            :       /*
+<span class="lineNum">    1274 </span>            :        * The image is mapped into memory and we either don't
+<span class="lineNum">    1275 </span>            :        * need to flip bits or the compression routine is
+<span class="lineNum">    1276 </span>            :        * going to handle this operation itself.  In this
+<span class="lineNum">    1277 </span>            :        * case, avoid copying the raw data and instead just
+<span class="lineNum">    1278 </span>            :        * reference the data from the memory mapped file
+<span class="lineNum">    1279 </span>            :        * image.  This assumes that the decompression
+<span class="lineNum">    1280 </span>            :        * routines do not modify the contents of the raw data
+<span class="lineNum">    1281 </span>            :        * buffer (if they try to, the application will get a
+<span class="lineNum">    1282 </span>            :        * fault since the file is mapped read-only).
+<span class="lineNum">    1283 </span>            :        */
+<span class="lineNum">    1284 </span><span class="lineCov">          2 :       if ((tif-&gt;tif_flags &amp; TIFF_MYBUFFER) &amp;&amp; tif-&gt;tif_rawdata) {</span>
+<span class="lineNum">    1285 </span><span class="lineNoCov">          0 :         _TIFFfree(tif-&gt;tif_rawdata);</span>
+<span class="lineNum">    1286 </span><span class="lineNoCov">          0 :         tif-&gt;tif_rawdata = NULL;</span>
+<span class="lineNum">    1287 </span><span class="lineNoCov">          0 :         tif-&gt;tif_rawdatasize = 0;</span>
+<span class="lineNum">    1288 </span>            :       }
+<span class="lineNum">    1289 </span><span class="lineCov">          2 :       tif-&gt;tif_flags &amp;= ~TIFF_MYBUFFER;</span>
+<span class="lineNum">    1290 </span>            : 
+<span class="lineNum">    1291 </span><span class="lineCov">          2 :       tif-&gt;tif_rawdatasize = (tmsize_t)bytecount;</span>
+<span class="lineNum">    1292 </span><span class="lineCov">          2 :       tif-&gt;tif_rawdata =</span>
+<span class="lineNum">    1293 </span><span class="lineCov">          2 :         tif-&gt;tif_base + (tmsize_t)TIFFGetStrileOffset(tif, tile);</span>
+<span class="lineNum">    1294 </span><span class="lineCov">          2 :                         tif-&gt;tif_rawdataoff = 0;</span>
+<span class="lineNum">    1295 </span><span class="lineCov">          2 :                         tif-&gt;tif_rawdataloaded = (tmsize_t) bytecount;</span>
+<span class="lineNum">    1296 </span><span class="lineCov">          2 :       tif-&gt;tif_flags |= TIFF_BUFFERMMAP;</span>
+<span class="lineNum">    1297 </span>            :     } else {
+<span class="lineNum">    1298 </span>            :       /*
+<span class="lineNum">    1299 </span>            :        * Expand raw data buffer, if needed, to hold data
+<span class="lineNum">    1300 </span>            :        * tile coming from file (perhaps should set upper
+<span class="lineNum">    1301 </span>            :        * bound on the size of a buffer we'll use?).
+<span class="lineNum">    1302 </span>            :        */
+<span class="lineNum">    1303 </span>            :       tmsize_t bytecountm;
+<span class="lineNum">    1304 </span><span class="lineCov">       4661 :       bytecountm=(tmsize_t)bytecount;</span>
+<span class="lineNum">    1305 </span><span class="lineCov">       4661 :       if ((uint64)bytecountm!=bytecount)</span>
+<span class="lineNum">    1306 </span>            :       {
+<span class="lineNum">    1307 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata,module,&quot;Integer overflow&quot;);</span>
+<span class="lineNum">    1308 </span><span class="lineNoCov">          0 :         return(0);</span>
+<span class="lineNum">    1309 </span>            :       }
+<span class="lineNum">    1310 </span><span class="lineCov">       4661 :       if (bytecountm &gt; tif-&gt;tif_rawdatasize) {</span>
+<span class="lineNum">    1311 </span><span class="lineCov">        399 :         tif-&gt;tif_curtile = NOTILE;</span>
+<span class="lineNum">    1312 </span><span class="lineCov">        399 :         if ((tif-&gt;tif_flags &amp; TIFF_MYBUFFER) == 0) {</span>
+<span class="lineNum">    1313 </span><span class="lineNoCov">          0 :           TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1314 </span>            :               &quot;Data buffer too small to hold tile %lu&quot;,
+<span class="lineNum">    1315 </span>            :               (unsigned long) tile);
+<span class="lineNum">    1316 </span><span class="lineNoCov">          0 :           return (0);</span>
+<span class="lineNum">    1317 </span>            :         }
+<span class="lineNum">    1318 </span>            :       }
+<span class="lineNum">    1319 </span><span class="lineCov">       4661 :       if (tif-&gt;tif_flags&amp;TIFF_BUFFERMMAP) {</span>
+<span class="lineNum">    1320 </span><span class="lineNoCov">          0 :         tif-&gt;tif_curtile = NOTILE;</span>
+<span class="lineNum">    1321 </span><span class="lineNoCov">          0 :         tif-&gt;tif_rawdata = NULL;</span>
+<span class="lineNum">    1322 </span><span class="lineNoCov">          0 :         tif-&gt;tif_rawdatasize = 0;</span>
+<span class="lineNum">    1323 </span><span class="lineNoCov">          0 :         tif-&gt;tif_flags &amp;= ~TIFF_BUFFERMMAP;</span>
+<span class="lineNum">    1324 </span>            :       }
+<span class="lineNum">    1325 </span>            : 
+<span class="lineNum">    1326 </span><span class="lineCov">       4661 :       if( isMapped(tif) )</span>
+<span class="lineNum">    1327 </span>            :       {
+<span class="lineNum">    1328 </span><span class="lineNoCov">          0 :         if (bytecountm &gt; tif-&gt;tif_rawdatasize &amp;&amp;</span>
+<span class="lineNum">    1329 </span><span class="lineNoCov">          0 :             !TIFFReadBufferSetup(tif, 0, bytecountm))</span>
+<span class="lineNum">    1330 </span>            :         {
+<span class="lineNum">    1331 </span><span class="lineNoCov">          0 :           return (0);</span>
+<span class="lineNum">    1332 </span>            :         }
+<span class="lineNum">    1333 </span><span class="lineNoCov">          0 :         if (TIFFReadRawTile1(tif, tile, tif-&gt;tif_rawdata,</span>
+<span class="lineNum">    1334 </span>            :             bytecountm, module) != bytecountm)
+<span class="lineNum">    1335 </span>            :         {
+<span class="lineNum">    1336 </span><span class="lineNoCov">          0 :           return (0);</span>
+<span class="lineNum">    1337 </span>            :         }
+<span class="lineNum">    1338 </span>            :       }
+<span class="lineNum">    1339 </span>            :       else
+<span class="lineNum">    1340 </span>            :       {
+<span class="lineNum">    1341 </span><span class="lineCov">       4661 :         if (TIFFReadRawStripOrTile2(tif, tile, 0,</span>
+<span class="lineNum">    1342 </span>            :             bytecountm, module) != bytecountm)
+<span class="lineNum">    1343 </span>            :         {
+<span class="lineNum">    1344 </span><span class="lineCov">         27 :           return (0);</span>
+<span class="lineNum">    1345 </span>            :         }
+<span class="lineNum">    1346 </span>            :       }
+<span class="lineNum">    1347 </span>            : 
+<span class="lineNum">    1348 </span>            : 
+<span class="lineNum">    1349 </span><span class="lineCov">       4633 :                         tif-&gt;tif_rawdataoff = 0;</span>
+<span class="lineNum">    1350 </span><span class="lineCov">       4633 :                         tif-&gt;tif_rawdataloaded = bytecountm;</span>
+<span class="lineNum">    1351 </span>            :                         
+<span class="lineNum">    1352 </span><span class="lineCov">       9267 :       if (tif-&gt;tif_rawdata != NULL &amp;&amp;</span>
+<span class="lineNum">    1353 </span><span class="lineCov">       4634 :                             !isFillOrder(tif, td-&gt;td_fillorder) &amp;&amp;</span>
+<span class="lineNum">    1354 </span><span class="lineNoCov">          0 :           (tif-&gt;tif_flags &amp; TIFF_NOBITREV) == 0)</span>
+<span class="lineNum">    1355 </span><span class="lineNoCov">          0 :         TIFFReverseBits(tif-&gt;tif_rawdata,</span>
+<span class="lineNum">    1356 </span>            :                                                 tif-&gt;tif_rawdataloaded);
+<span class="lineNum">    1357 </span>            :     }
+<span class="lineNum">    1358 </span>            :   }
+<span class="lineNum">    1359 </span><span class="lineCov">       4637 :   return (TIFFStartTile(tif, tile));</span>
+<span class="lineNum">    1360 </span>            : }
+<span class="lineNum">    1361 </span>            : 
+<span class="lineNum">    1362 </span>            : /*
+<span class="lineNum">    1363 </span>            :  * Setup the raw data buffer in preparation for
+<span class="lineNum">    1364 </span>            :  * reading a strip of raw data.  If the buffer
+<span class="lineNum">    1365 </span>            :  * is specified as zero, then a buffer of appropriate
+<span class="lineNum">    1366 </span>            :  * size is allocated by the library.  Otherwise,
+<span class="lineNum">    1367 </span>            :  * the client must guarantee that the buffer is
+<span class="lineNum">    1368 </span>            :  * large enough to hold any individual strip of
+<span class="lineNum">    1369 </span>            :  * raw data.
+<a name="1370"><span class="lineNum">    1370 </span>            :  */</a>
+<span class="lineNum">    1371 </span>            : int
+<span class="lineNum">    1372 </span><span class="lineNoCov">          0 : TIFFReadBufferSetup(TIFF* tif, void* bp, tmsize_t size)</span>
+<span class="lineNum">    1373 </span>            : {
+<span class="lineNum">    1374 </span>            :   static const char module[] = &quot;TIFFReadBufferSetup&quot;;
+<span class="lineNum">    1375 </span>            : 
+<span class="lineNum">    1376 </span><span class="lineNoCov">          0 :   assert((tif-&gt;tif_flags&amp;TIFF_NOREADRAW)==0);</span>
+<span class="lineNum">    1377 </span><span class="lineNoCov">          0 :   tif-&gt;tif_flags &amp;= ~TIFF_BUFFERMMAP;</span>
+<span class="lineNum">    1378 </span>            : 
+<span class="lineNum">    1379 </span><span class="lineNoCov">          0 :   if (tif-&gt;tif_rawdata) {</span>
+<span class="lineNum">    1380 </span><span class="lineNoCov">          0 :     if (tif-&gt;tif_flags &amp; TIFF_MYBUFFER)</span>
+<span class="lineNum">    1381 </span><span class="lineNoCov">          0 :       _TIFFfree(tif-&gt;tif_rawdata);</span>
+<span class="lineNum">    1382 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawdata = NULL;</span>
+<span class="lineNum">    1383 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawdatasize = 0;</span>
+<span class="lineNum">    1384 </span>            :   }
+<span class="lineNum">    1385 </span><span class="lineNoCov">          0 :   if (bp) {</span>
+<span class="lineNum">    1386 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawdatasize = size;</span>
+<span class="lineNum">    1387 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawdata = (uint8*) bp;</span>
+<span class="lineNum">    1388 </span><span class="lineNoCov">          0 :     tif-&gt;tif_flags &amp;= ~TIFF_MYBUFFER;</span>
+<span class="lineNum">    1389 </span>            :   } else {
+<span class="lineNum">    1390 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawdatasize = (tmsize_t)TIFFroundup_64((uint64)size, 1024);</span>
+<span class="lineNum">    1391 </span><span class="lineNoCov">          0 :     if (tif-&gt;tif_rawdatasize==0) {</span>
+<span class="lineNum">    1392 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1393 </span>            :          &quot;Invalid buffer size&quot;);
+<span class="lineNum">    1394 </span><span class="lineNoCov">          0 :         return (0);</span>
+<span class="lineNum">    1395 </span>            :     }
+<span class="lineNum">    1396 </span>            :     /* Initialize to zero to avoid uninitialized buffers in case of */
+<span class="lineNum">    1397 </span>            :                 /* short reads (http://bugzilla.maptools.org/show_bug.cgi?id=2651) */
+<span class="lineNum">    1398 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawdata = (uint8*) _TIFFcalloc(1, tif-&gt;tif_rawdatasize);</span>
+<span class="lineNum">    1399 </span><span class="lineNoCov">          0 :     tif-&gt;tif_flags |= TIFF_MYBUFFER;</span>
+<span class="lineNum">    1400 </span>            :   }
+<span class="lineNum">    1401 </span><span class="lineNoCov">          0 :   if (tif-&gt;tif_rawdata == NULL) {</span>
+<span class="lineNum">    1402 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1403 </span>            :         &quot;No space for data buffer at scanline %lu&quot;,
+<span class="lineNum">    1404 </span><span class="lineNoCov">          0 :         (unsigned long) tif-&gt;tif_row);</span>
+<span class="lineNum">    1405 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawdatasize = 0;</span>
+<span class="lineNum">    1406 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">    1407 </span>            :   }
+<span class="lineNum">    1408 </span><span class="lineNoCov">          0 :   return (1);</span>
+<span class="lineNum">    1409 </span>            : }
+<span class="lineNum">    1410 </span>            : 
+<span class="lineNum">    1411 </span>            : /*
+<span class="lineNum">    1412 </span>            :  * Set state to appear as if a
+<span class="lineNum">    1413 </span>            :  * strip has just been read in.
+<a name="1414"><span class="lineNum">    1414 </span>            :  */</a>
+<span class="lineNum">    1415 </span>            : static int
+<span class="lineNum">    1416 </span><span class="lineCov">       3444 : TIFFStartStrip(TIFF* tif, uint32 strip)</span>
+<span class="lineNum">    1417 </span>            : {
+<span class="lineNum">    1418 </span><span class="lineCov">       3444 :   TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">    1419 </span>            : 
+<span class="lineNum">    1420 </span><span class="lineCov">       3444 :   if ((tif-&gt;tif_flags &amp; TIFF_CODERSETUP) == 0) {</span>
+<span class="lineNum">    1421 </span><span class="lineCov">        363 :     if (!(*tif-&gt;tif_setupdecode)(tif))</span>
+<span class="lineNum">    1422 </span><span class="lineCov">          1 :       return (0);</span>
+<span class="lineNum">    1423 </span><span class="lineCov">        362 :     tif-&gt;tif_flags |= TIFF_CODERSETUP;</span>
+<span class="lineNum">    1424 </span>            :   }
+<span class="lineNum">    1425 </span><span class="lineCov">       3443 :   tif-&gt;tif_curstrip = strip;</span>
+<span class="lineNum">    1426 </span><span class="lineCov">       3443 :   tif-&gt;tif_row = (strip % td-&gt;td_stripsperimage) * td-&gt;td_rowsperstrip;</span>
+<span class="lineNum">    1427 </span><span class="lineCov">       3443 :         tif-&gt;tif_flags &amp;= ~TIFF_BUF4WRITE;</span>
+<span class="lineNum">    1428 </span>            : 
+<span class="lineNum">    1429 </span><span class="lineCov">       3443 :   if (tif-&gt;tif_flags&amp;TIFF_NOREADRAW)</span>
+<span class="lineNum">    1430 </span>            :   {
+<span class="lineNum">    1431 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawcp = NULL;</span>
+<span class="lineNum">    1432 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawcc = 0;  </span>
+<span class="lineNum">    1433 </span>            :   }
+<span class="lineNum">    1434 </span>            :   else
+<span class="lineNum">    1435 </span>            :   {
+<span class="lineNum">    1436 </span><span class="lineCov">       3443 :     tif-&gt;tif_rawcp = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">    1437 </span><span class="lineCov">       3443 :     if( tif-&gt;tif_rawdataloaded &gt; 0 )</span>
+<span class="lineNum">    1438 </span><span class="lineCov">       3443 :       tif-&gt;tif_rawcc = tif-&gt;tif_rawdataloaded;</span>
+<span class="lineNum">    1439 </span>            :     else
+<span class="lineNum">    1440 </span><span class="lineNoCov">          0 :       tif-&gt;tif_rawcc = (tmsize_t)TIFFGetStrileByteCount(tif, strip);</span>
+<span class="lineNum">    1441 </span>            :   }
+<span class="lineNum">    1442 </span><span class="lineCov">       6886 :   return ((*tif-&gt;tif_predecode)(tif,</span>
+<span class="lineNum">    1443 </span><span class="lineCov">       3443 :       (uint16)(strip / td-&gt;td_stripsperimage)));</span>
+<span class="lineNum">    1444 </span>            : }
+<span class="lineNum">    1445 </span>            : 
+<span class="lineNum">    1446 </span>            : /*
+<span class="lineNum">    1447 </span>            :  * Set state to appear as if a
+<span class="lineNum">    1448 </span>            :  * tile has just been read in.
+<a name="1449"><span class="lineNum">    1449 </span>            :  */</a>
+<span class="lineNum">    1450 </span>            : static int
+<span class="lineNum">    1451 </span><span class="lineCov">       4772 : TIFFStartTile(TIFF* tif, uint32 tile)</span>
+<span class="lineNum">    1452 </span>            : {
+<span class="lineNum">    1453 </span>            :         static const char module[] = &quot;TIFFStartTile&quot;;
+<span class="lineNum">    1454 </span><span class="lineCov">       4772 :   TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">    1455 </span>            :         uint32 howmany32;
+<span class="lineNum">    1456 </span>            : 
+<span class="lineNum">    1457 </span><span class="lineCov">       4772 :   if ((tif-&gt;tif_flags &amp; TIFF_CODERSETUP) == 0) {</span>
+<span class="lineNum">    1458 </span><span class="lineCov">        529 :     if (!(*tif-&gt;tif_setupdecode)(tif))</span>
+<span class="lineNum">    1459 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">    1460 </span><span class="lineCov">        529 :     tif-&gt;tif_flags |= TIFF_CODERSETUP;</span>
+<span class="lineNum">    1461 </span>            :   }
+<span class="lineNum">    1462 </span><span class="lineCov">       4772 :   tif-&gt;tif_curtile = tile;</span>
+<span class="lineNum">    1463 </span><span class="lineCov">       4772 :         howmany32=TIFFhowmany_32(td-&gt;td_imagewidth, td-&gt;td_tilewidth);</span>
+<span class="lineNum">    1464 </span><span class="lineCov">       4772 :         if (howmany32 == 0) {</span>
+<span class="lineNum">    1465 </span><span class="lineNoCov">          0 :                  TIFFErrorExt(tif-&gt;tif_clientdata,module,&quot;Zero tiles&quot;);</span>
+<span class="lineNum">    1466 </span><span class="lineNoCov">          0 :                 return 0;</span>
+<span class="lineNum">    1467 </span>            :         }
+<span class="lineNum">    1468 </span><span class="lineCov">       4772 :   tif-&gt;tif_row = (tile % howmany32) * td-&gt;td_tilelength;</span>
+<span class="lineNum">    1469 </span><span class="lineCov">       4772 :         howmany32=TIFFhowmany_32(td-&gt;td_imagelength, td-&gt;td_tilelength);</span>
+<span class="lineNum">    1470 </span><span class="lineCov">       4772 :         if (howmany32 == 0) {</span>
+<span class="lineNum">    1471 </span><span class="lineNoCov">          0 :                 TIFFErrorExt(tif-&gt;tif_clientdata,module,&quot;Zero tiles&quot;);</span>
+<span class="lineNum">    1472 </span><span class="lineNoCov">          0 :                 return 0;</span>
+<span class="lineNum">    1473 </span>            :         }
+<span class="lineNum">    1474 </span><span class="lineCov">       4772 :   tif-&gt;tif_col = (tile % howmany32) * td-&gt;td_tilewidth;</span>
+<span class="lineNum">    1475 </span><span class="lineCov">       4772 :         tif-&gt;tif_flags &amp;= ~TIFF_BUF4WRITE;</span>
+<span class="lineNum">    1476 </span><span class="lineCov">       4772 :   if (tif-&gt;tif_flags&amp;TIFF_NOREADRAW)</span>
+<span class="lineNum">    1477 </span>            :   {
+<span class="lineNum">    1478 </span><span class="lineCov">          2 :     tif-&gt;tif_rawcp = NULL;</span>
+<span class="lineNum">    1479 </span><span class="lineCov">          2 :     tif-&gt;tif_rawcc = 0;</span>
+<span class="lineNum">    1480 </span>            :   }
+<span class="lineNum">    1481 </span>            :   else
+<span class="lineNum">    1482 </span>            :   {
+<span class="lineNum">    1483 </span><span class="lineCov">       4770 :     tif-&gt;tif_rawcp = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">    1484 </span><span class="lineCov">       4770 :     if( tif-&gt;tif_rawdataloaded &gt; 0 )</span>
+<span class="lineNum">    1485 </span><span class="lineCov">       4770 :       tif-&gt;tif_rawcc = tif-&gt;tif_rawdataloaded;</span>
+<span class="lineNum">    1486 </span>            :     else
+<span class="lineNum">    1487 </span><span class="lineNoCov">          0 :       tif-&gt;tif_rawcc = (tmsize_t)TIFFGetStrileByteCount(tif, tile);</span>
+<span class="lineNum">    1488 </span>            :   }
+<span class="lineNum">    1489 </span><span class="lineCov">       9544 :   return ((*tif-&gt;tif_predecode)(tif,</span>
+<span class="lineNum">    1490 </span><span class="lineCov">       4772 :       (uint16)(tile/td-&gt;td_stripsperimage)));</span>
+<span class="lineNum">    1491 </span>            : }
+<a name="1492"><span class="lineNum">    1492 </span>            : </a>
+<span class="lineNum">    1493 </span>            : static int
+<span class="lineNum">    1494 </span><span class="lineCov">    2229140 : TIFFCheckRead(TIFF* tif, int tiles)</span>
+<span class="lineNum">    1495 </span>            : {
+<span class="lineNum">    1496 </span><span class="lineCov">    2229140 :   if (tif-&gt;tif_mode == O_WRONLY) {</span>
+<span class="lineNum">    1497 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, tif-&gt;tif_name, &quot;File not open for reading&quot;);</span>
+<span class="lineNum">    1498 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">    1499 </span>            :   }
+<span class="lineNum">    1500 </span><span class="lineCov">    2229140 :   if (tiles ^ isTiled(tif)) {</span>
+<span class="lineNum">    1501 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, tif-&gt;tif_name, tiles ?</span>
+<span class="lineNum">    1502 </span>            :         &quot;Can not read tiles from a striped image&quot; :
+<span class="lineNum">    1503 </span>            :         &quot;Can not read scanlines from a tiled image&quot;);
+<span class="lineNum">    1504 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">    1505 </span>            :   }
+<span class="lineNum">    1506 </span><span class="lineCov">    2229140 :   return (1);</span>
+<span class="lineNum">    1507 </span>            : }
+<span class="lineNum">    1508 </span>            : 
+<span class="lineNum">    1509 </span>            : /* Use the provided input buffer (inbuf, insize) and decompress it into
+<span class="lineNum">    1510 </span>            :  * (outbuf, outsize).
+<span class="lineNum">    1511 </span>            :  * This function replaces the use of TIFFReadEncodedStrip()/TIFFReadEncodedTile()
+<span class="lineNum">    1512 </span>            :  * when the user can provide the buffer for the input data, for example when
+<span class="lineNum">    1513 </span>            :  * he wants to avoid libtiff to read the strile offset/count values from the
+<span class="lineNum">    1514 </span>            :  * [Strip|Tile][Offsets/ByteCounts] array.
+<span class="lineNum">    1515 </span>            :  * inbuf content must be writable (if bit reversal is needed)
+<a name="1516"><span class="lineNum">    1516 </span>            :  * Returns 1 in case of success, 0 otherwise.</a>
+<span class="lineNum">    1517 </span>            :  */
+<span class="lineNum">    1518 </span><span class="lineCov">        139 : int      TIFFReadFromUserBuffer(TIFF* tif, uint32 strile,</span>
+<span class="lineNum">    1519 </span>            :                                 void* inbuf, tmsize_t insize,
+<span class="lineNum">    1520 </span>            :                                 void* outbuf, tmsize_t outsize)
+<span class="lineNum">    1521 </span>            : {
+<span class="lineNum">    1522 </span>            :     static const char module[] = &quot;TIFFReadFromUserBuffer&quot;;
+<span class="lineNum">    1523 </span><span class="lineCov">        139 :     TIFFDirectory *td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">    1524 </span><span class="lineCov">        139 :     int ret = 1;</span>
+<span class="lineNum">    1525 </span><span class="lineCov">        139 :     uint32 old_tif_flags = tif-&gt;tif_flags;</span>
+<span class="lineNum">    1526 </span><span class="lineCov">        139 :     tmsize_t old_rawdatasize = tif-&gt;tif_rawdatasize;</span>
+<span class="lineNum">    1527 </span><span class="lineCov">        139 :     void* old_rawdata = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">    1528 </span>            : 
+<span class="lineNum">    1529 </span><span class="lineCov">        139 :     if (tif-&gt;tif_mode == O_WRONLY) {</span>
+<span class="lineNum">    1530 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, tif-&gt;tif_name, &quot;File not open for reading&quot;);</span>
+<span class="lineNum">    1531 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">    1532 </span>            :     }
+<span class="lineNum">    1533 </span><span class="lineCov">        139 :     if (tif-&gt;tif_flags&amp;TIFF_NOREADRAW)</span>
+<span class="lineNum">    1534 </span>            :     {
+<span class="lineNum">    1535 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">    1536 </span>            :                 &quot;Compression scheme does not support access to raw uncompressed data&quot;);
+<span class="lineNum">    1537 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">    1538 </span>            :     }
+<span class="lineNum">    1539 </span>            : 
+<span class="lineNum">    1540 </span><span class="lineCov">        139 :     tif-&gt;tif_flags &amp;= ~TIFF_MYBUFFER;</span>
+<span class="lineNum">    1541 </span><span class="lineCov">        139 :     tif-&gt;tif_flags |= TIFF_BUFFERMMAP;</span>
+<span class="lineNum">    1542 </span><span class="lineCov">        139 :     tif-&gt;tif_rawdatasize = insize;</span>
+<span class="lineNum">    1543 </span><span class="lineCov">        139 :     tif-&gt;tif_rawdata = inbuf;</span>
+<span class="lineNum">    1544 </span><span class="lineCov">        139 :     tif-&gt;tif_rawdataoff = 0;</span>
+<span class="lineNum">    1545 </span><span class="lineCov">        139 :     tif-&gt;tif_rawdataloaded = insize;</span>
+<span class="lineNum">    1546 </span>            : 
+<span class="lineNum">    1547 </span><span class="lineCov">        139 :     if (!isFillOrder(tif, td-&gt;td_fillorder) &amp;&amp;</span>
+<span class="lineNum">    1548 </span><span class="lineNoCov">          0 :         (tif-&gt;tif_flags &amp; TIFF_NOBITREV) == 0)</span>
+<span class="lineNum">    1549 </span>            :     {
+<span class="lineNum">    1550 </span><span class="lineNoCov">          0 :         TIFFReverseBits(inbuf, insize);</span>
+<span class="lineNum">    1551 </span>            :     }
+<span class="lineNum">    1552 </span>            : 
+<span class="lineNum">    1553 </span><span class="lineCov">        139 :     if( TIFFIsTiled(tif) )</span>
+<span class="lineNum">    1554 </span>            :     {
+<span class="lineNum">    1555 </span><span class="lineCov">        270 :         if( !TIFFStartTile(tif, strile) ||</span>
+<span class="lineNum">    1556 </span><span class="lineCov">        270 :             !(*tif-&gt;tif_decodetile)(tif, (uint8*) outbuf, outsize, </span>
+<span class="lineNum">    1557 </span><span class="lineCov">        135 :                                     (uint16)(strile/td-&gt;td_stripsperimage)) )</span>
+<span class="lineNum">    1558 </span>            :         {
+<span class="lineNum">    1559 </span><span class="lineNoCov">          0 :             ret = 0;</span>
+<span class="lineNum">    1560 </span>            :         }
+<span class="lineNum">    1561 </span>            :     }
+<span class="lineNum">    1562 </span>            :     else
+<span class="lineNum">    1563 </span>            :     {
+<span class="lineNum">    1564 </span><span class="lineCov">          4 :         uint32 rowsperstrip=td-&gt;td_rowsperstrip;</span>
+<span class="lineNum">    1565 </span>            :         uint32 stripsperplane;
+<span class="lineNum">    1566 </span><span class="lineCov">          4 :         if (rowsperstrip&gt;td-&gt;td_imagelength)</span>
+<span class="lineNum">    1567 </span><span class="lineNoCov">          0 :             rowsperstrip=td-&gt;td_imagelength;</span>
+<span class="lineNum">    1568 </span><span class="lineCov">          4 :         stripsperplane= TIFFhowmany_32_maxuint_compat(td-&gt;td_imagelength, rowsperstrip);</span>
+<span class="lineNum">    1569 </span><span class="lineCov">          8 :         if( !TIFFStartStrip(tif, strile) ||</span>
+<span class="lineNum">    1570 </span><span class="lineCov">          8 :             !(*tif-&gt;tif_decodestrip)(tif, (uint8*) outbuf, outsize, </span>
+<span class="lineNum">    1571 </span><span class="lineCov">          4 :                                      (uint16)(strile/stripsperplane)) )</span>
+<span class="lineNum">    1572 </span>            :         {
+<span class="lineNum">    1573 </span><span class="lineNoCov">          0 :             ret = 0;</span>
+<span class="lineNum">    1574 </span>            :         }
+<span class="lineNum">    1575 </span>            :     }
+<span class="lineNum">    1576 </span><span class="lineCov">        139 :     if( ret )</span>
+<span class="lineNum">    1577 </span>            :     {
+<span class="lineNum">    1578 </span><span class="lineCov">        139 :         (*tif-&gt;tif_postdecode)(tif, (uint8*) outbuf, outsize);</span>
+<span class="lineNum">    1579 </span>            :     }
+<span class="lineNum">    1580 </span>            : 
+<span class="lineNum">    1581 </span><span class="lineCov">        139 :     if (!isFillOrder(tif, td-&gt;td_fillorder) &amp;&amp;</span>
+<span class="lineNum">    1582 </span><span class="lineNoCov">          0 :         (tif-&gt;tif_flags &amp; TIFF_NOBITREV) == 0)</span>
+<span class="lineNum">    1583 </span>            :     {
+<span class="lineNum">    1584 </span><span class="lineNoCov">          0 :         TIFFReverseBits(inbuf, insize);</span>
+<span class="lineNum">    1585 </span>            :     }
+<span class="lineNum">    1586 </span>            : 
+<span class="lineNum">    1587 </span><span class="lineCov">        139 :     tif-&gt;tif_flags = old_tif_flags;</span>
+<span class="lineNum">    1588 </span><span class="lineCov">        139 :     tif-&gt;tif_rawdatasize = old_rawdatasize;</span>
+<span class="lineNum">    1589 </span><span class="lineCov">        139 :     tif-&gt;tif_rawdata = old_rawdata;</span>
+<span class="lineNum">    1590 </span><span class="lineCov">        139 :     tif-&gt;tif_rawdataoff = 0;</span>
+<span class="lineNum">    1591 </span><span class="lineCov">        139 :     tif-&gt;tif_rawdataloaded = 0;</span>
+<span class="lineNum">    1592 </span>            : 
+<span class="lineNum">    1593 </span><span class="lineCov">        139 :     return ret;</span>
+<span class="lineNum">    1594 </span>            : }
+<a name="1595"><span class="lineNum">    1595 </span>            : </a>
+<span class="lineNum">    1596 </span>            : void
+<span class="lineNum">    1597 </span><span class="lineCov">    2358160 : _TIFFNoPostDecode(TIFF* tif, uint8* buf, tmsize_t cc)</span>
+<span class="lineNum">    1598 </span>            : {
+<span class="lineNum">    1599 </span>            :     (void) tif; (void) buf; (void) cc;
+<span class="lineNum">    1600 </span><span class="lineCov">    2358160 : }</span>
+<a name="1601"><span class="lineNum">    1601 </span>            : </a>
+<span class="lineNum">    1602 </span>            : void
+<span class="lineNum">    1603 </span><span class="lineCov">       1936 : _TIFFSwab16BitData(TIFF* tif, uint8* buf, tmsize_t cc)</span>
+<span class="lineNum">    1604 </span>            : {
+<span class="lineNum">    1605 </span>            :     (void) tif;
+<span class="lineNum">    1606 </span><span class="lineCov">       1936 :     assert((cc &amp; 1) == 0);</span>
+<span class="lineNum">    1607 </span><span class="lineCov">       1936 :     TIFFSwabArrayOfShort((uint16*) buf, cc/2);</span>
+<span class="lineNum">    1608 </span><span class="lineCov">       1936 : }</span>
+<a name="1609"><span class="lineNum">    1609 </span>            : </a>
+<span class="lineNum">    1610 </span>            : void
+<span class="lineNum">    1611 </span><span class="lineNoCov">          0 : _TIFFSwab24BitData(TIFF* tif, uint8* buf, tmsize_t cc)</span>
+<span class="lineNum">    1612 </span>            : {
+<span class="lineNum">    1613 </span>            :     (void) tif;
+<span class="lineNum">    1614 </span><span class="lineNoCov">          0 :     assert((cc % 3) == 0);</span>
+<span class="lineNum">    1615 </span><span class="lineNoCov">          0 :     TIFFSwabArrayOfTriples((uint8*) buf, cc/3);</span>
+<span class="lineNum">    1616 </span><span class="lineNoCov">          0 : }</span>
+<a name="1617"><span class="lineNum">    1617 </span>            : </a>
+<span class="lineNum">    1618 </span>            : void
+<span class="lineNum">    1619 </span><span class="lineCov">        106 : _TIFFSwab32BitData(TIFF* tif, uint8* buf, tmsize_t cc)</span>
+<span class="lineNum">    1620 </span>            : {
+<span class="lineNum">    1621 </span>            :     (void) tif;
+<span class="lineNum">    1622 </span><span class="lineCov">        106 :     assert((cc &amp; 3) == 0);</span>
+<span class="lineNum">    1623 </span><span class="lineCov">        106 :     TIFFSwabArrayOfLong((uint32*) buf, cc/4);</span>
+<span class="lineNum">    1624 </span><span class="lineCov">        106 : }</span>
+<a name="1625"><span class="lineNum">    1625 </span>            : </a>
+<span class="lineNum">    1626 </span>            : void
+<span class="lineNum">    1627 </span><span class="lineCov">          4 : _TIFFSwab64BitData(TIFF* tif, uint8* buf, tmsize_t cc)</span>
+<span class="lineNum">    1628 </span>            : {
+<span class="lineNum">    1629 </span>            :     (void) tif;
+<span class="lineNum">    1630 </span><span class="lineCov">          4 :     assert((cc &amp; 7) == 0);</span>
+<span class="lineNum">    1631 </span><span class="lineCov">          4 :     TIFFSwabArrayOfDouble((double*) buf, cc/8);</span>
+<span class="lineNum">    1632 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">    1633 </span>            : 
+<span class="lineNum">    1634 </span>            : /* vim: set ts=8 sts=8 sw=8 noet: */
+<span class="lineNum">    1635 </span>            : /*
+<span class="lineNum">    1636 </span>            :  * Local Variables:
+<span class="lineNum">    1637 </span>            :  * mode: c
+<span class="lineNum">    1638 </span>            :  * c-basic-offset: 8
+<span class="lineNum">    1639 </span>            :  * fill-column: 78
+<span class="lineNum">    1640 </span>            :  * End:
+<span class="lineNum">    1641 </span>            :  */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

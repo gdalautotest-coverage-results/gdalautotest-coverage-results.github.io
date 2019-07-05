@@ -1,0 +1,346 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/wms/gdalhttp.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/wms</a> - gdalhttp.cpp<span style="font-size: 80%;"> (source / <a href="gdalhttp.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">106</td>
+            <td class="headerCovTableEntry">131</td>
+            <td class="headerCovTableEntryMed">80.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  WMS Client Driver
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of Dataset and RasterBand classes for WMS
+<span class="lineNum">       5 </span>            :  *           and other similar services.
+<span class="lineNum">       6 </span>            :  * Author:   Adam Nowacki, nowak@xpam.de
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  ******************************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2007, Adam Nowacki
+<span class="lineNum">      10 </span>            :  * Copyright (c) 2007-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      11 </span>            :  * Copyright (c) 2016, Lucian Plesea
+<span class="lineNum">      12 </span>            :  *
+<span class="lineNum">      13 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      14 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      15 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      16 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      17 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      18 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      21 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      22 </span>            :  *
+<span class="lineNum">      23 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      24 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      25 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      26 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      27 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      28 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      29 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      30 </span>            :  ****************************************************************************/
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : #include &quot;wmsdriver.h&quot;
+<span class="lineNum">      33 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : /* CURLINFO_RESPONSE_CODE was known as CURLINFO_HTTP_CODE in libcurl 7.10.7 and earlier */
+<span class="lineNum">      38 </span>            : #if LIBCURL_VERSION_NUM &lt; 0x070a07
+<span class="lineNum">      39 </span>            : #define CURLINFO_RESPONSE_CODE CURLINFO_HTTP_CODE
+<a name="40"><span class="lineNum">      40 </span>            : #endif</a>
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span><span class="lineCov">          7 : static size_t CPLHTTPWriteFunc(void *buffer, size_t count, size_t nmemb, void *req) {</span>
+<span class="lineNum">      43 </span><span class="lineCov">          7 :     WMSHTTPRequest *psRequest = reinterpret_cast&lt;WMSHTTPRequest *&gt;(req);</span>
+<span class="lineNum">      44 </span><span class="lineCov">          7 :     size_t size = count * nmemb;</span>
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span><span class="lineCov">          7 :     if (size == 0) return 0;</span>
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span><span class="lineCov">          7 :     const size_t required_size = psRequest-&gt;nDataLen + size + 1;</span>
+<span class="lineNum">      49 </span><span class="lineCov">          7 :     if (required_size &gt; psRequest-&gt;nDataAlloc) {</span>
+<span class="lineNum">      50 </span><span class="lineCov">          5 :         size_t new_size = required_size * 2;</span>
+<span class="lineNum">      51 </span><span class="lineCov">          5 :         if (new_size &lt; 512) new_size = 512;</span>
+<span class="lineNum">      52 </span><span class="lineCov">          5 :         psRequest-&gt;nDataAlloc = new_size;</span>
+<span class="lineNum">      53 </span><span class="lineCov">          5 :         GByte * pabyNewData = reinterpret_cast&lt;GByte *&gt;(VSIRealloc(psRequest-&gt;pabyData, new_size));</span>
+<span class="lineNum">      54 </span><span class="lineCov">          5 :         if (pabyNewData == nullptr) {</span>
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :             VSIFree(psRequest-&gt;pabyData);</span>
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :             psRequest-&gt;pabyData = nullptr;</span>
+<span class="lineNum">      57 </span>            :             psRequest-&gt;Error.Printf(&quot;Out of memory allocating %u bytes for HTTP data buffer.&quot;,
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :                 static_cast&lt;unsigned int&gt;(new_size));</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :             psRequest-&gt;nDataAlloc = 0;</span>
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :             psRequest-&gt;nDataLen = 0;</span>
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :             return 0;</span>
+<span class="lineNum">      62 </span>            :         }
+<span class="lineNum">      63 </span><span class="lineCov">          5 :         psRequest-&gt;pabyData = pabyNewData;</span>
+<span class="lineNum">      64 </span>            :     }
+<span class="lineNum">      65 </span><span class="lineCov">          7 :     memcpy(psRequest-&gt;pabyData + psRequest-&gt;nDataLen, buffer, size);</span>
+<span class="lineNum">      66 </span><span class="lineCov">          7 :     psRequest-&gt;nDataLen += size;</span>
+<span class="lineNum">      67 </span><span class="lineCov">          7 :     psRequest-&gt;pabyData[psRequest-&gt;nDataLen] = 0;</span>
+<span class="lineNum">      68 </span><span class="lineCov">          7 :     return nmemb;</span>
+<span class="lineNum">      69 </span>            : }
+<a name="70"><span class="lineNum">      70 </span>            : </a>
+<span class="lineNum">      71 </span>            : // Builds a curl request
+<span class="lineNum">      72 </span><span class="lineCov">         17 : void WMSHTTPInitializeRequest(WMSHTTPRequest *psRequest) {</span>
+<span class="lineNum">      73 </span><span class="lineCov">         17 :     psRequest-&gt;nStatus = 0;</span>
+<span class="lineNum">      74 </span><span class="lineCov">         17 :     psRequest-&gt;pabyData = nullptr;</span>
+<span class="lineNum">      75 </span><span class="lineCov">         17 :     psRequest-&gt;nDataLen = 0;</span>
+<span class="lineNum">      76 </span><span class="lineCov">         17 :     psRequest-&gt;nDataAlloc = 0;</span>
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span><span class="lineCov">         17 :     psRequest-&gt;m_curl_handle = curl_easy_init();</span>
+<span class="lineNum">      79 </span><span class="lineCov">         17 :     if (psRequest-&gt;m_curl_handle == nullptr) {</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :         CPLError(CE_Fatal, CPLE_AppDefined, &quot;CPLHTTPInitializeRequest(): Unable to create CURL handle.&quot;);</span>
+<span class="lineNum">      81 </span>            :         // This should return somehow?
+<span class="lineNum">      82 </span>            :     }
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span><span class="lineCov">         17 :     if (!psRequest-&gt;Range.empty())</span>
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :         curl_easy_setopt(psRequest-&gt;m_curl_handle, CURLOPT_RANGE, psRequest-&gt;Range.c_str());</span>
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span><span class="lineCov">         17 :     curl_easy_setopt(psRequest-&gt;m_curl_handle, CURLOPT_WRITEDATA, psRequest);</span>
+<span class="lineNum">      88 </span><span class="lineCov">         17 :     curl_easy_setopt(psRequest-&gt;m_curl_handle, CURLOPT_WRITEFUNCTION, CPLHTTPWriteFunc);</span>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineCov">         17 :     psRequest-&gt;m_curl_error.resize(CURL_ERROR_SIZE + 1);</span>
+<span class="lineNum">      91 </span><span class="lineCov">         17 :     curl_easy_setopt(psRequest-&gt;m_curl_handle, CURLOPT_ERRORBUFFER, &amp;psRequest-&gt;m_curl_error[0]);</span>
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            :     psRequest-&gt;m_headers = static_cast&lt;struct curl_slist*&gt;(
+<span class="lineNum">      94 </span><span class="lineCov">         17 :             CPLHTTPSetOptions(psRequest-&gt;m_curl_handle, psRequest-&gt;URL.c_str(), psRequest-&gt;options));</span>
+<span class="lineNum">      95 </span><span class="lineCov">         17 :     if( psRequest-&gt;m_headers != nullptr )</span>
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :         curl_easy_setopt(psRequest-&gt;m_curl_handle, CURLOPT_HTTPHEADER,</span>
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :                          psRequest-&gt;m_headers);</span>
+<span class="lineNum">      98 </span>            : 
+<a name="99"><span class="lineNum">      99 </span><span class="lineCov">         17 : }</span></a>
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span><span class="lineCov">         34 : WMSHTTPRequest::~WMSHTTPRequest() {</span>
+<span class="lineNum">     102 </span><span class="lineCov">         17 :     if (m_curl_handle != nullptr)</span>
+<span class="lineNum">     103 </span><span class="lineCov">         17 :         curl_easy_cleanup(m_curl_handle);</span>
+<span class="lineNum">     104 </span><span class="lineCov">         17 :     if( m_headers != nullptr )</span>
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :         curl_slist_free_all(m_headers);</span>
+<span class="lineNum">     106 </span><span class="lineCov">         17 :     if (pabyData != nullptr)</span>
+<span class="lineNum">     107 </span><span class="lineCov">         13 :         CPLFree(pabyData);</span>
+<span class="lineNum">     108 </span><span class="lineCov">         17 : }</span>
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span>            : //
+<span class="lineNum">     111 </span>            : // Like CPLHTTPFetch, but multiple requests in parallel
+<a name="112"><span class="lineNum">     112 </span>            : // By default it uses 5 connections</a>
+<span class="lineNum">     113 </span>            : //
+<span class="lineNum">     114 </span><span class="lineCov">         17 : CPLErr WMSHTTPFetchMulti(WMSHTTPRequest *pasRequest, int nRequestCount) {</span>
+<span class="lineNum">     115 </span><span class="lineCov">         17 :     CPLErr ret = CE_None;</span>
+<span class="lineNum">     116 </span><span class="lineCov">         17 :     CURLM *curl_multi = nullptr;</span>
+<span class="lineNum">     117 </span>            :     int still_running;
+<span class="lineNum">     118 </span>            :     int max_conn;
+<span class="lineNum">     119 </span>            :     int i, conn_i;
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span><span class="lineCov">         17 :     CPLAssert(nRequestCount &gt;= 0);</span>
+<span class="lineNum">     122 </span><span class="lineCov">         17 :     if (nRequestCount == 0)</span>
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span><span class="lineCov">         17 :     const char *max_conn_opt = CSLFetchNameValue(const_cast&lt;char **&gt;(pasRequest-&gt;options), &quot;MAXCONN&quot;);</span>
+<span class="lineNum">     126 </span><span class="lineCov">         17 :     max_conn = (max_conn_opt == nullptr) ? 5 : MAX(1, MIN(atoi(max_conn_opt), 1000));</span>
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span>            :     // If the first url starts with vsimem, assume all do and defer to CPLHTTPFetch
+<span class="lineNum">     129 </span><span class="lineCov">         30 :     if( STARTS_WITH(pasRequest[0].URL.c_str(), &quot;/vsimem/&quot;) &amp;&amp;</span>
+<span class="lineNum">     130 </span>            :         /* Disabled by default for potential security issues */
+<span class="lineNum">     131 </span><span class="lineCov">         13 :         CPLTestBool(CPLGetConfigOption(&quot;CPL_CURL_ENABLE_VSIMEM&quot;, &quot;FALSE&quot;)) )</span>
+<span class="lineNum">     132 </span>            :     {
+<span class="lineNum">     133 </span><span class="lineCov">         20 :         for(i = 0; i&lt; nRequestCount;i++)</span>
+<span class="lineNum">     134 </span>            :         {
+<span class="lineNum">     135 </span><span class="lineCov">         10 :             CPLHTTPResult* psResult = CPLHTTPFetch(pasRequest[i].URL.c_str(),</span>
+<span class="lineNum">     136 </span><span class="lineCov">         20 :                                                     const_cast&lt;char**&gt;(pasRequest[i].options));</span>
+<span class="lineNum">     137 </span><span class="lineCov">         10 :             pasRequest[i].pabyData = psResult-&gt;pabyData;</span>
+<span class="lineNum">     138 </span><span class="lineCov">         10 :             pasRequest[i].nDataLen = psResult-&gt;nDataLen;</span>
+<span class="lineNum">     139 </span><span class="lineCov">         10 :             pasRequest[i].Error = psResult-&gt;pszErrBuf ? psResult-&gt;pszErrBuf : &quot;&quot;;</span>
+<span class="lineNum">     140 </span>            :             // Conventions are different between this module and cpl_http...
+<span class="lineNum">     141 </span><span class="lineCov">         11 :             if( psResult-&gt;pszErrBuf != nullptr &amp;&amp;</span>
+<span class="lineNum">     142 </span><span class="lineCov">          1 :                 strcmp(psResult-&gt;pszErrBuf, &quot;HTTP error code : 404&quot;) == 0 )</span>
+<span class="lineNum">     143 </span><span class="lineCov">          1 :                 pasRequest[i].nStatus = 404;</span>
+<span class="lineNum">     144 </span>            :             else
+<span class="lineNum">     145 </span><span class="lineCov">          9 :                 pasRequest[i].nStatus = 200;</span>
+<span class="lineNum">     146 </span><span class="lineCov">         10 :             pasRequest[i].ContentType = psResult-&gt;pszContentType ? psResult-&gt;pszContentType : &quot;&quot;;</span>
+<span class="lineNum">     147 </span>            :             // took ownership of content, we're done with the rest
+<span class="lineNum">     148 </span><span class="lineCov">         10 :             psResult-&gt;pabyData = nullptr;</span>
+<span class="lineNum">     149 </span><span class="lineCov">         10 :             psResult-&gt;nDataLen = 0;</span>
+<span class="lineNum">     150 </span><span class="lineCov">         10 :             CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">     151 </span>            :         }
+<span class="lineNum">     152 </span><span class="lineCov">         10 :         return CE_None;</span>
+<span class="lineNum">     153 </span>            :     }
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span><span class="lineCov">          7 :     curl_multi = curl_multi_init();</span>
+<span class="lineNum">     156 </span><span class="lineCov">          7 :     if (curl_multi == nullptr) {</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :         CPLError(CE_Fatal, CPLE_AppDefined, &quot;CPLHTTPFetchMulti(): Unable to create CURL multi-handle.&quot;);</span>
+<span class="lineNum">     158 </span>            :     }
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            :     // add at most max_conn requests
+<span class="lineNum">     161 </span><span class="lineCov">         14 :     for (conn_i = 0; conn_i &lt; std::min(nRequestCount, max_conn); ++conn_i) {</span>
+<span class="lineNum">     162 </span><span class="lineCov">          7 :         WMSHTTPRequest *const psRequest = &amp;pasRequest[conn_i];</span>
+<span class="lineNum">     163 </span>            :         CPLDebug(&quot;HTTP&quot;, &quot;Requesting [%d/%d] %s&quot;, conn_i + 1, nRequestCount,
+<span class="lineNum">     164 </span><span class="lineCov">          7 :             pasRequest[conn_i].URL.c_str());</span>
+<span class="lineNum">     165 </span><span class="lineCov">          7 :         curl_multi_add_handle(curl_multi, psRequest-&gt;m_curl_handle);</span>
+<span class="lineNum">     166 </span>            :     }
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span><span class="lineCov">          7 :     void* old_handler = CPLHTTPIgnoreSigPipe();</span>
+<span class="lineNum">     169 </span><span class="lineCov">          7 :     while (curl_multi_perform(curl_multi, &amp;still_running) == CURLM_CALL_MULTI_PERFORM);</span>
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span><span class="lineCov">       7268 :     while (still_running || (conn_i != nRequestCount)) {</span>
+<span class="lineNum">     172 </span>            :         struct timeval timeout;
+<span class="lineNum">     173 </span>            :         fd_set fdread, fdwrite, fdexcep;
+<span class="lineNum">     174 </span>            :         int maxfd;
+<span class="lineNum">     175 </span>            :         CURLMsg *msg;
+<span class="lineNum">     176 </span>            :         int msgs_in_queue;
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span><span class="lineCov">       7254 :         do {</span>
+<span class="lineNum">     179 </span><span class="lineCov">       7254 :             msg = curl_multi_info_read(curl_multi, &amp;msgs_in_queue);</span>
+<span class="lineNum">     180 </span><span class="lineCov">       7254 :             if (msg != nullptr) {</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :                 if (msg-&gt;msg == CURLMSG_DONE) {</span>
+<span class="lineNum">     182 </span>            :                     // transfer completed, add more handles if available
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :                     if (conn_i &lt; nRequestCount) {</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :                         WMSHTTPRequest *const psRequest = &amp;pasRequest[conn_i];</span>
+<span class="lineNum">     185 </span>            :                         CPLDebug(&quot;HTTP&quot;, &quot;Requesting [%d/%d] %s&quot;, conn_i + 1,
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :                                     nRequestCount, pasRequest[conn_i].URL.c_str());</span>
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :                         curl_multi_add_handle(curl_multi, psRequest-&gt;m_curl_handle);</span>
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :                         ++conn_i;</span>
+<span class="lineNum">     189 </span>            :                     }
+<span class="lineNum">     190 </span>            :                 }
+<span class="lineNum">     191 </span>            :             }
+<span class="lineNum">     192 </span>            :         } while (msg != nullptr);
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span><span class="lineCov">       7254 :         FD_ZERO(&amp;fdread);</span>
+<span class="lineNum">     195 </span><span class="lineCov">       7254 :         FD_ZERO(&amp;fdwrite);</span>
+<span class="lineNum">     196 </span><span class="lineCov">       7254 :         FD_ZERO(&amp;fdexcep);</span>
+<span class="lineNum">     197 </span><span class="lineCov">       7254 :         curl_multi_fdset(curl_multi, &amp;fdread, &amp;fdwrite, &amp;fdexcep, &amp;maxfd);</span>
+<span class="lineNum">     198 </span><span class="lineCov">       7254 :         if( maxfd &gt;= 0 )</span>
+<span class="lineNum">     199 </span>            :         {
+<span class="lineNum">     200 </span><span class="lineCov">         21 :             timeout.tv_sec = 0;</span>
+<span class="lineNum">     201 </span><span class="lineCov">         21 :             timeout.tv_usec = 100000;</span>
+<span class="lineNum">     202 </span><span class="lineCov">         21 :             if( select(maxfd + 1, &amp;fdread, &amp;fdwrite, &amp;fdexcep, &amp;timeout) &lt; 0 )</span>
+<span class="lineNum">     203 </span>            :             {
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :                 CPLError(CE_Failure, CPLE_AppDefined, &quot;select() failed&quot;);</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     206 </span>            :             }
+<span class="lineNum">     207 </span>            :         }
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span>            : #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+<span class="lineNum">     210 </span>            :         if( CPLTestBool(CPLGetConfigOption(&quot;GDAL_WMS_ABORT_CURL_REQUEST&quot;,  &quot;NO&quot;)) )
+<span class="lineNum">     211 </span>            :         {
+<span class="lineNum">     212 </span>            :             // oss-fuzz has no network interface and apparently this causes
+<span class="lineNum">     213 </span>            :             // endless loop here. There might be a better/more general way of
+<span class="lineNum">     214 </span>            :             // detecting this, and avoid this oss-fuzz specific trick, but
+<span class="lineNum">     215 </span>            :             // for now that's good enough.
+<span class="lineNum">     216 </span>            :             break;
+<span class="lineNum">     217 </span>            :         }
+<span class="lineNum">     218 </span>            : #endif
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span><span class="lineCov">       7254 :         while (curl_multi_perform(curl_multi, &amp;still_running) == CURLM_CALL_MULTI_PERFORM);</span>
+<span class="lineNum">     221 </span>            :     }
+<span class="lineNum">     222 </span><span class="lineCov">          7 :     CPLHTTPRestoreSigPipeHandler(old_handler);</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span><span class="lineCov">          7 :     if (conn_i != nRequestCount) { // something gone really really wrong</span>
+<span class="lineNum">     225 </span>            :         // oddly built libcurl or perhaps absence of network interface
+<span class="lineNum">     226 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :                  &quot;CPLHTTPFetchMulti(): conn_i != nRequestCount, this should never happen ...&quot;);</span>
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :         nRequestCount = conn_i;</span>
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :         ret = CE_Failure;</span>
+<span class="lineNum">     230 </span>            :     }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span><span class="lineCov">         14 :     for (i = 0; i &lt; nRequestCount; ++i) {</span>
+<span class="lineNum">     233 </span><span class="lineCov">          7 :         WMSHTTPRequest *const psRequest = &amp;pasRequest[i];</span>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            :         long response_code;
+<span class="lineNum">     236 </span><span class="lineCov">          7 :         curl_easy_getinfo(psRequest-&gt;m_curl_handle, CURLINFO_RESPONSE_CODE, &amp;response_code);</span>
+<span class="lineNum">     237 </span><span class="lineCov">          7 :         psRequest-&gt;nStatus = static_cast&lt;int&gt;(response_code);</span>
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span><span class="lineCov">          7 :         char *content_type = nullptr;</span>
+<span class="lineNum">     240 </span><span class="lineCov">          7 :         curl_easy_getinfo(psRequest-&gt;m_curl_handle, CURLINFO_CONTENT_TYPE, &amp;content_type);</span>
+<span class="lineNum">     241 </span><span class="lineCov">          7 :         psRequest-&gt;ContentType = content_type ? content_type : &quot;&quot;;</span>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineCov">          7 :         if (psRequest-&gt;Error.empty())</span>
+<span class="lineNum">     244 </span><span class="lineCov">          7 :             psRequest-&gt;Error = &amp;psRequest-&gt;m_curl_error[0];</span>
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            :         /* In the case of a file:// URL, curl will return a status == 0, so if there's no */
+<span class="lineNum">     247 </span>            :         /* error returned, patch the status code to be 200, as it would be for http:// */
+<span class="lineNum">     248 </span><span class="lineCov">          7 :         if (psRequest-&gt;nStatus == 0 &amp;&amp; psRequest-&gt;Error.empty() &amp;&amp; STARTS_WITH(psRequest-&gt;URL.c_str(), &quot;file://&quot;))</span>
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :             psRequest-&gt;nStatus = 200;</span>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            :         // If there is an error with no error message, use the content if it is text
+<span class="lineNum">     252 </span><span class="lineCov">         14 :         if (psRequest-&gt;Error.empty()</span>
+<span class="lineNum">     253 </span><span class="lineCov">          4 :             &amp;&amp; psRequest-&gt;nStatus != 0</span>
+<span class="lineNum">     254 </span><span class="lineCov">          4 :             &amp;&amp; psRequest-&gt;nStatus != 200</span>
+<span class="lineNum">     255 </span><span class="lineCov">          1 :             &amp;&amp; strstr(psRequest-&gt;ContentType, &quot;text&quot;)</span>
+<span class="lineNum">     256 </span><span class="lineCov">          8 :             &amp;&amp; psRequest-&gt;pabyData != nullptr )</span>
+<span class="lineNum">     257 </span><span class="lineCov">          1 :             psRequest-&gt;Error = reinterpret_cast&lt;const char *&gt;(psRequest-&gt;pabyData);</span>
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span>            :         CPLDebug(&quot;HTTP&quot;, &quot;Request [%d] %s : status = %d, content type = %s, error = %s&quot;,
+<span class="lineNum">     260 </span>            :                  i, psRequest-&gt;URL.c_str(), psRequest-&gt;nStatus,
+<span class="lineNum">     261 </span><span class="lineCov">         11 :                  !psRequest-&gt;ContentType.empty() ? psRequest-&gt;ContentType.c_str() : &quot;(null)&quot;,</span>
+<span class="lineNum">     262 </span><span class="lineCov">         18 :                  !psRequest-&gt;Error.empty() ? psRequest-&gt;Error.c_str() : &quot;(null)&quot;);</span>
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span><span class="lineCov">          7 :         curl_multi_remove_handle(curl_multi, pasRequest-&gt;m_curl_handle);</span>
+<span class="lineNum">     265 </span>            :     }
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span><span class="lineCov">          7 :     curl_multi_cleanup(curl_multi);</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineCov">          7 :     return ret;</span>
+<span class="lineNum">     270 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

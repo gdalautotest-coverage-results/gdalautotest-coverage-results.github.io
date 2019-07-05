@@ -1,0 +1,674 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/pcidsk/sdk/core/sysvirtualfile.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">frmts/pcidsk/sdk/core</a> - sysvirtualfile.cpp<span style="font-size: 80%;"> (source / <a href="sysvirtualfile.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">123</td>
+            <td class="headerCovTableEntry">221</td>
+            <td class="headerCovTableEntryLo">55.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntryMed">85.7 %</td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Purpose:  Implementation of the SysVirtualFile class.
+<span class="lineNum">       4 </span>            :  *
+<span class="lineNum">       5 </span>            :  * This class is used to manage access to a single virtual file stored in
+<span class="lineNum">       6 </span>            :  * SysBData segments based on a block map stored in the SysBMDir segment 
+<span class="lineNum">       7 </span>            :  * (and managed by SysBlockMap class). 
+<span class="lineNum">       8 </span>            :  *
+<span class="lineNum">       9 </span>            :  * The virtual files are allocated in 8K chunks (block_size) in segments.
+<span class="lineNum">      10 </span>            :  * To minimize IO requests, other overhead, we keep one such 8K block in
+<span class="lineNum">      11 </span>            :  * our working cache for the virtual file stream.  
+<span class="lineNum">      12 </span>            :  *
+<span class="lineNum">      13 </span>            :  * This class is primarily used by the CTiledChannel class for access to 
+<span class="lineNum">      14 </span>            :  * tiled images.
+<span class="lineNum">      15 </span>            :  * 
+<span class="lineNum">      16 </span>            :  ******************************************************************************
+<span class="lineNum">      17 </span>            :  * Copyright (c) 2009
+<span class="lineNum">      18 </span>            :  * PCI Geomatics, 50 West Wilmot Street, Richmond Hill, Ont, Canada
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      21 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      22 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      23 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      24 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      25 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      26 </span>            :  *
+<span class="lineNum">      27 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      28 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      29 </span>            :  *
+<span class="lineNum">      30 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      31 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      32 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      33 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      34 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      35 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      36 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      37 </span>            :  ****************************************************************************/
+<span class="lineNum">      38 </span>            : #include &quot;pcidsk_config.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;pcidsk_types.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;pcidsk_buffer.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;pcidsk_exception.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;pcidsk_utils.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;core/sysvirtualfile.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;core/cpcidskfile.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;core/mutexholder.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;segment/sysblockmap.h&quot;
+<span class="lineNum">      47 </span>            : #include &lt;cassert&gt;
+<span class="lineNum">      48 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      49 </span>            : #include &lt;cstdio&gt;
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : using namespace PCIDSK;
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : const int SysVirtualFile::block_size = SYSVIRTUALFILE_BLOCKSIZE;
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : /************************************************************************/
+<span class="lineNum">      57 </span>            : /*                           SysVirtualFile()                           */
+<a name="58"><span class="lineNum">      58 </span>            : /************************************************************************/</a>
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span><span class="lineCov">         16 : SysVirtualFile::SysVirtualFile( CPCIDSKFile *fileIn, int start_block, </span>
+<span class="lineNum">      61 </span>            :                                 uint64 image_length, 
+<span class="lineNum">      62 </span>            :                                 SysBlockMap *sysblockmapIn,
+<span class="lineNum">      63 </span><span class="lineCov">         16 :                                 int image_indexIn )</span>
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            : {
+<span class="lineNum">      66 </span><span class="lineCov">         16 :     io_handle = nullptr;</span>
+<span class="lineNum">      67 </span><span class="lineCov">         16 :     io_mutex = nullptr;</span>
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span><span class="lineCov">         16 :     file_length = image_length;</span>
+<span class="lineNum">      70 </span><span class="lineCov">         16 :     this-&gt;file = fileIn;</span>
+<span class="lineNum">      71 </span><span class="lineCov">         16 :     this-&gt;sysblockmap = sysblockmapIn;</span>
+<span class="lineNum">      72 </span><span class="lineCov">         16 :     this-&gt;image_index = image_indexIn;</span>
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span><span class="lineCov">         16 :     loaded_block = -1;</span>
+<span class="lineNum">      75 </span><span class="lineCov">         16 :     loaded_block_dirty = false;</span>
+<span class="lineNum">      76 </span>            :     
+<span class="lineNum">      77 </span><span class="lineCov">         16 :     last_bm_index = -1;</span>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineCov">         16 :     next_bm_entry_to_load = start_block;</span>
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span><span class="lineCov">         16 :     regular_blocks = false;</span>
+<span class="lineNum">      82 </span><span class="lineCov">         16 :     blocks_loaded = 0;</span>
+<span class="lineNum">      83 </span><span class="lineCov">         16 : }</span>
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            : /************************************************************************/
+<span class="lineNum">      86 </span>            : /*                          ~SysVirtualFile()                           */
+<a name="87"><span class="lineNum">      87 </span>            : /************************************************************************/</a>
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span><span class="lineCov">         32 : SysVirtualFile::~SysVirtualFile()</span>
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span>            : {
+<span class="lineNum">      92 </span>            :     try
+<span class="lineNum">      93 </span>            :     {
+<span class="lineNum">      94 </span><span class="lineCov">         16 :         Synchronize();</span>
+<span class="lineNum">      95 </span>            :     }
+<span class="lineNum">      96 </span>            :     catch( const PCIDSKException&amp; e )
+<span class="lineNum">      97 </span>            :     {
+<span class="lineNum">      98 </span>            :         fprintf(stderr, &quot;Exception in ~SysVirtualFile(): %s&quot;, e.what()); // ok
+<span class="lineNum">      99 </span>            :     }
+<span class="lineNum">     100 </span><span class="lineCov">         16 : }</span>
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            : /************************************************************************/
+<span class="lineNum">     103 </span>            : /*                            Synchronize()                             */
+<a name="104"><span class="lineNum">     104 </span>            : /************************************************************************/</a>
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span><span class="lineCov">         38 : void SysVirtualFile::Synchronize()</span>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            : {
+<span class="lineNum">     109 </span><span class="lineCov">         38 :     FlushDirtyBlock();</span>
+<span class="lineNum">     110 </span><span class="lineCov">         38 : }</span>
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            : /************************************************************************/
+<span class="lineNum">     113 </span>            : /*                          GetBlockSegment()                           */
+<a name="114"><span class="lineNum">     114 </span>            : /************************************************************************/</a>
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span><span class="lineCov">         26 : uint16 SysVirtualFile::GetBlockSegment( int requested_block )</span>
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span>            : {
+<span class="lineNum">     119 </span><span class="lineCov">         26 :     if( requested_block &lt; 0 )</span>
+<span class="lineNum">     120 </span>            :         return (uint16)ThrowPCIDSKException(0, &quot;SysVirtualFile::GetBlockSegment(%d) - illegal request.&quot;,
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :                               requested_block );</span>
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span><span class="lineCov">         26 :     if( requested_block &gt;= blocks_loaded )</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :         LoadBMEntriesTo( requested_block );</span>
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span><span class="lineCov">         26 :     if( regular_blocks )</span>
+<span class="lineNum">     127 </span>            :         // regular blocks are all in one segment.
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :         return xblock_segment[0];</span>
+<span class="lineNum">     129 </span>            :     else
+<span class="lineNum">     130 </span><span class="lineCov">         26 :         return xblock_segment[requested_block];</span>
+<span class="lineNum">     131 </span>            : }
+<span class="lineNum">     132 </span>            : 
+<span class="lineNum">     133 </span>            : /************************************************************************/
+<span class="lineNum">     134 </span>            : /*                       GetBlockIndexInSegment()                       */
+<a name="135"><span class="lineNum">     135 </span>            : /************************************************************************/</a>
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span><span class="lineCov">         26 : int SysVirtualFile::GetBlockIndexInSegment( int requested_block )</span>
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span>            : {
+<span class="lineNum">     140 </span><span class="lineCov">         26 :     if( requested_block &lt; 0 )</span>
+<span class="lineNum">     141 </span>            :         return ThrowPCIDSKException(0, &quot;SysVirtualFile::GetBlockIndexInSegment(%d) - illegal request.&quot;,
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :                               requested_block );</span>
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span><span class="lineCov">         26 :     if( requested_block &gt;= blocks_loaded )</span>
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :         LoadBMEntriesTo( requested_block );</span>
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span><span class="lineCov">         26 :     if( regular_blocks )</span>
+<span class="lineNum">     148 </span>            :         // regular blocks all follow the first block in order.
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :         return xblock_index[0] + requested_block;</span>
+<span class="lineNum">     150 </span>            :     else
+<span class="lineNum">     151 </span><span class="lineCov">         26 :         return xblock_index[requested_block];</span>
+<span class="lineNum">     152 </span>            : }
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            : /************************************************************************/
+<span class="lineNum">     156 </span>            : /*                            SetBlockInfo()                            */
+<a name="157"><span class="lineNum">     157 </span>            : /************************************************************************/</a>
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span><span class="lineCov">         17 : void SysVirtualFile::SetBlockInfo( int requested_block,</span>
+<span class="lineNum">     160 </span>            :                                    uint16 new_block_segment, 
+<span class="lineNum">     161 </span>            :                                    int new_block_index )
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            : {
+<span class="lineNum">     164 </span><span class="lineCov">         17 :     if( requested_block &lt; 0 )</span>
+<span class="lineNum">     165 </span>            :         return ThrowPCIDSKException( &quot;SysVirtualFile::SetBlockSegment(%d) - illegal request.&quot;,
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :                               requested_block );</span>
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            :     // this should always be the case.
+<span class="lineNum">     169 </span><span class="lineCov">         17 :     assert( requested_block == blocks_loaded );</span>
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span>            :     // Initialization case.
+<span class="lineNum">     172 </span><span class="lineCov">         17 :     if( requested_block == 0 &amp;&amp; blocks_loaded == 0 )</span>
+<span class="lineNum">     173 </span>            :     {
+<span class="lineNum">     174 </span><span class="lineCov">         16 :         xblock_segment.push_back( new_block_segment );</span>
+<span class="lineNum">     175 </span><span class="lineCov">         16 :         xblock_index.push_back( new_block_index );</span>
+<span class="lineNum">     176 </span><span class="lineCov">         16 :         blocks_loaded = 1;</span>
+<span class="lineNum">     177 </span><span class="lineCov">         16 :         return;</span>
+<span class="lineNum">     178 </span>            :     }
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span><span class="lineCov">          1 :     if( !regular_blocks )</span>
+<span class="lineNum">     181 </span>            :     {
+<span class="lineNum">     182 </span><span class="lineCov">          1 :         xblock_segment.push_back( new_block_segment );</span>
+<span class="lineNum">     183 </span><span class="lineCov">          1 :         xblock_index.push_back( new_block_index );</span>
+<span class="lineNum">     184 </span><span class="lineCov">          1 :         blocks_loaded++;</span>
+<span class="lineNum">     185 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     186 </span>            :     }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span>            :     // Are things still regular?
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :     if( new_block_segment == xblock_segment[0]</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :         &amp;&amp; new_block_index == xblock_index[0] + requested_block )</span>
+<span class="lineNum">     191 </span>            :     {
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :         blocks_loaded++;</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     194 </span>            :     }
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            :     // Ah, we see they are now irregular.  We need to build up the
+<span class="lineNum">     197 </span>            :     // segment/index arrays and proceed to populate them.
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :     Debug( file-&gt;GetInterfaces()-&gt;Debug,</span>
+<span class="lineNum">     199 </span>            :            &quot;SysVirtualFile - Discovered stream is irregular.  &quot;
+<span class="lineNum">     200 </span>            :            &quot;%d/%d follows %d/%d at block %d.\n&quot;,
+<span class="lineNum">     201 </span>            :            new_block_segment, new_block_index,
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :            xblock_segment[0], xblock_index[0], </span>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :            requested_block );</span>
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :     regular_blocks = false;</span>
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :     while( (int) xblock_segment.size() &lt; blocks_loaded )</span>
+<span class="lineNum">     207 </span>            :     {
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :         xblock_segment.push_back( xblock_segment[0] );</span>
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :         xblock_index.push_back( xblock_index.back()+1 );</span>
+<span class="lineNum">     210 </span>            :     }
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :     xblock_segment.push_back( new_block_segment );</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :     xblock_index.push_back( new_block_index );</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :     blocks_loaded++;</span>
+<span class="lineNum">     215 </span>            : }
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            : /************************************************************************/
+<span class="lineNum">     218 </span>            : /*                            WriteToFile()                             */
+<span class="lineNum">     219 </span>            : /************************************************************************/
+<a name="220"><span class="lineNum">     220 </span>            : </a>
+<span class="lineNum">     221 </span>            : void 
+<span class="lineNum">     222 </span><span class="lineCov">         20 : SysVirtualFile::WriteToFile( const void *buffer, uint64 offset, uint64 size )</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            : {
+<span class="lineNum">     225 </span><span class="lineCov">         20 :     uint64 buffer_offset = 0;</span>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineCov">         20 :     if(io_handle == nullptr || io_mutex == nullptr)</span>
+<span class="lineNum">     228 </span><span class="lineCov">          4 :         file-&gt;GetIODetails( &amp;io_handle, &amp;io_mutex );</span>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineCov">         20 :     MutexHolder oMutex(*io_mutex);</span>
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span><span class="lineCov">         61 :     while( buffer_offset &lt; size )</span>
+<span class="lineNum">     233 </span>            :     {
+<span class="lineNum">     234 </span><span class="lineCov">         21 :         int request_block = (int) ((offset + buffer_offset) / block_size);</span>
+<span class="lineNum">     235 </span><span class="lineCov">         21 :         int offset_in_block = (int) ((offset + buffer_offset) % block_size);</span>
+<span class="lineNum">     236 </span><span class="lineCov">         21 :         int amount_to_copy = block_size - offset_in_block;</span>
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span><span class="lineCov">         21 :         if (offset_in_block != 0 || (size - buffer_offset) &lt; (uint64)block_size) {</span>
+<span class="lineNum">     239 </span>            :             // we need to read in the block for update
+<span class="lineNum">     240 </span><span class="lineCov">         21 :             LoadBlock( request_block );</span>
+<span class="lineNum">     241 </span><span class="lineCov">         21 :             if( amount_to_copy &gt; (int) (size - buffer_offset) )</span>
+<span class="lineNum">     242 </span><span class="lineCov">         20 :                 amount_to_copy = (int) (size - buffer_offset);</span>
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span>            :             // fill in the block
+<span class="lineNum">     245 </span><span class="lineCov">         21 :             memcpy( block_data + offset_in_block,</span>
+<span class="lineNum">     246 </span>            :                     ((uint8 *) buffer) + buffer_offset,
+<span class="lineNum">     247 </span><span class="lineCov">         42 :                     amount_to_copy );</span>
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span><span class="lineCov">         21 :             loaded_block_dirty = true;</span>
+<span class="lineNum">     250 </span>            :         } else {
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :             int num_full_blocks = (int) ((size - buffer_offset) / block_size);</span>
+<span class="lineNum">     252 </span>            :             
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :             WriteBlocks(request_block, num_full_blocks, (uint8*)buffer + buffer_offset);</span>
+<span class="lineNum">     254 </span>            :             
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :             amount_to_copy = num_full_blocks * block_size;</span>
+<span class="lineNum">     256 </span>            :         }
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineCov">         21 :         buffer_offset += amount_to_copy;</span>
+<span class="lineNum">     259 </span>            :     }
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span><span class="lineCov">         20 :     if( offset+size &gt; file_length )</span>
+<span class="lineNum">     262 </span>            :     {
+<span class="lineNum">     263 </span><span class="lineCov">         12 :         file_length = offset+size;</span>
+<span class="lineNum">     264 </span><span class="lineCov">         12 :         sysblockmap-&gt;SetVirtualFileSize( image_index, file_length );</span>
+<span class="lineNum">     265 </span><span class="lineCov">         20 :     }</span>
+<span class="lineNum">     266 </span><span class="lineCov">         20 : }</span>
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span>            : /************************************************************************/
+<span class="lineNum">     269 </span>            : /*                            ReadFromFile()                            */
+<a name="270"><span class="lineNum">     270 </span>            : /************************************************************************/</a>
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span><span class="lineCov">         37 : void SysVirtualFile::ReadFromFile( void *buffer, uint64 offset, uint64 size )</span>
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            : {
+<span class="lineNum">     275 </span><span class="lineCov">         37 :     if(io_handle == nullptr || io_mutex == nullptr)</span>
+<span class="lineNum">     276 </span><span class="lineCov">         12 :         file-&gt;GetIODetails( &amp;io_handle, &amp;io_mutex );</span>
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span><span class="lineCov">         37 :     MutexHolder oMutex(*io_mutex);</span>
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span><span class="lineCov">         37 :     uint64 buffer_offset = 0;</span>
+<span class="lineNum">     281 </span>            : #if 0
+<span class="lineNum">     282 </span>            :     printf(&quot;Requesting region at %llu of size %llu\n&quot;, offset, size);/*ok*/
+<span class="lineNum">     283 </span>            : #endif
+<span class="lineNum">     284 </span><span class="lineCov">        112 :     while( buffer_offset &lt; size )</span>
+<span class="lineNum">     285 </span>            :     {
+<span class="lineNum">     286 </span><span class="lineCov">         38 :         int request_block = (int) ((offset + buffer_offset) / block_size);</span>
+<span class="lineNum">     287 </span><span class="lineCov">         38 :         int offset_in_block = (int) ((offset + buffer_offset) % block_size);</span>
+<span class="lineNum">     288 </span><span class="lineCov">         38 :         int amount_to_copy = block_size - offset_in_block;</span>
+<span class="lineNum">     289 </span>            :         
+<span class="lineNum">     290 </span>            : 
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span><span class="lineCov">         38 :         if (offset_in_block != 0 || (size - buffer_offset) &lt; (uint64)block_size) {</span>
+<span class="lineNum">     293 </span>            :             // Deal with the case where we need to load a partial block. Hopefully
+<span class="lineNum">     294 </span>            :             // this doesn't happen often
+<span class="lineNum">     295 </span><span class="lineCov">         38 :             LoadBlock( request_block );</span>
+<span class="lineNum">     296 </span><span class="lineCov">         38 :             if( amount_to_copy &gt; (int) (size - buffer_offset) )</span>
+<span class="lineNum">     297 </span><span class="lineCov">         37 :                 amount_to_copy = (int) (size - buffer_offset);</span>
+<span class="lineNum">     298 </span><span class="lineCov">         38 :             memcpy( ((uint8 *) buffer) + buffer_offset,</span>
+<span class="lineNum">     299 </span><span class="lineCov">         76 :                     block_data + offset_in_block, amount_to_copy );</span>
+<span class="lineNum">     300 </span>            :         } else {
+<span class="lineNum">     301 </span>            :             // Use the bulk loading of blocks. First, compute the range
+<span class="lineNum">     302 </span>            :             // of full blocks we need to load
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :             int num_full_blocks = (int) ((size - buffer_offset)/block_size);</span>
+<span class="lineNum">     304 </span>            :             
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :             LoadBlocks(request_block, num_full_blocks, ((uint8*)buffer) + buffer_offset);</span>
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :             amount_to_copy = num_full_blocks * block_size;</span>
+<span class="lineNum">     307 </span>            :         }
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span><span class="lineCov">         38 :         buffer_offset += amount_to_copy;</span>
+<span class="lineNum">     311 </span><span class="lineCov">         37 :     }</span>
+<span class="lineNum">     312 </span><span class="lineCov">         37 : }</span>
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            : /************************************************************************/
+<span class="lineNum">     315 </span>            : /*                             LoadBlock()                              */
+<span class="lineNum">     316 </span>            : /************************************************************************/
+<span class="lineNum">     317 </span>            : /**
+<span class="lineNum">     318 </span>            :  * Loads the requested_block block from the system virtual file. Extends
+<a name="319"><span class="lineNum">     319 </span>            :  * the file if necessary</a>
+<span class="lineNum">     320 </span>            :  */
+<span class="lineNum">     321 </span><span class="lineCov">         59 : void SysVirtualFile::LoadBlock( int requested_block )</span>
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            : {
+<span class="lineNum">     324 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     325 </span>            : /*      Do we already have this block?                                  */
+<span class="lineNum">     326 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     327 </span><span class="lineCov">         59 :     if( requested_block == loaded_block )</span>
+<span class="lineNum">     328 </span><span class="lineCov">         39 :         return;</span>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     331 </span>            : /*      Do we need to grow the virtual file by one block?               */
+<span class="lineNum">     332 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     333 </span><span class="lineCov">         20 :     GrowVirtualFile(requested_block);</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     336 </span>            : /*      Does this block exist in the virtual file?                      */
+<span class="lineNum">     337 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     338 </span><span class="lineCov">         20 :     if( requested_block &lt; 0 || requested_block &gt;= blocks_loaded )</span>
+<span class="lineNum">     339 </span>            :         return ThrowPCIDSKException( &quot;SysVirtualFile::LoadBlock(%d) - block out of range.&quot;,
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :                               requested_block );</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     343 </span>            : /*      Do we have a dirty block loaded that needs to be saved?         */
+<span class="lineNum">     344 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     345 </span><span class="lineCov">         20 :     FlushDirtyBlock();</span>
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     348 </span>            : /*      Load the requested block.                                       */
+<span class="lineNum">     349 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     350 </span><span class="lineCov">         20 :     LoadBMEntriesTo( requested_block );</span>
+<span class="lineNum">     351 </span>            :     PCIDSKSegment *data_seg_obj =
+<span class="lineNum">     352 </span><span class="lineCov">         20 :         file-&gt;GetSegment( GetBlockSegment( requested_block ) );</span>
+<span class="lineNum">     353 </span><span class="lineCov">         20 :     if( data_seg_obj == nullptr )</span>
+<span class="lineNum">     354 </span>            :         return ThrowPCIDSKException( &quot;SysVirtualFile::LoadBlock(%d) - no segment found&quot;,
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :                                      requested_block );</span>
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span>            :     data_seg_obj-&gt;ReadFromFile( block_data,
+<span class="lineNum">     358 </span><span class="lineCov">         20 :                                 block_size * (uint64) GetBlockIndexInSegment( requested_block ),</span>
+<span class="lineNum">     359 </span><span class="lineCov">         40 :                                 block_size );</span>
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span><span class="lineCov">         20 :     loaded_block = requested_block;</span>
+<span class="lineNum">     362 </span><span class="lineCov">         20 :     loaded_block_dirty = false;</span>
+<span class="lineNum">     363 </span>            : }
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            : /************************************************************************/
+<span class="lineNum">     366 </span>            : /*                         FlushDirtyBlock()                            */
+<span class="lineNum">     367 </span>            : /************************************************************************/
+<span class="lineNum">     368 </span>            : /**
+<a name="369"><span class="lineNum">     369 </span>            :  * If the block currently loaded is dirty, flush it to the file</a>
+<span class="lineNum">     370 </span>            :  */
+<span class="lineNum">     371 </span><span class="lineCov">         58 : void SysVirtualFile::FlushDirtyBlock(void)</span>
+<span class="lineNum">     372 </span>            : {
+<span class="lineNum">     373 </span><span class="lineCov">         58 :     if (loaded_block_dirty) {</span>
+<span class="lineNum">     374 </span><span class="lineCov">          6 :         if(io_handle == nullptr || io_mutex == nullptr)</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :             file-&gt;GetIODetails( &amp;io_handle, &amp;io_mutex );</span>
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineCov">          6 :         MutexHolder oMutex(*io_mutex);</span>
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            :         PCIDSKSegment *data_seg_obj =
+<span class="lineNum">     380 </span><span class="lineCov">          6 :             file-&gt;GetSegment( GetBlockSegment( loaded_block ) );</span>
+<span class="lineNum">     381 </span>            :         
+<span class="lineNum">     382 </span>            :         data_seg_obj-&gt;WriteToFile( block_data,
+<span class="lineNum">     383 </span><span class="lineCov">          6 :                                    block_size * (uint64) GetBlockIndexInSegment( loaded_block ),</span>
+<span class="lineNum">     384 </span><span class="lineCov">         12 :                                    block_size );</span>
+<span class="lineNum">     385 </span><span class="lineCov">          6 :         loaded_block_dirty = false;</span>
+<span class="lineNum">     386 </span>            :     }
+<span class="lineNum">     387 </span><span class="lineCov">         58 : }</span>
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span>            : /************************************************************************/
+<a name="390"><span class="lineNum">     390 </span>            : /*                          GrowVirtualFile()                           */</a>
+<span class="lineNum">     391 </span>            : /************************************************************************/
+<span class="lineNum">     392 </span><span class="lineCov">         20 : void SysVirtualFile::GrowVirtualFile(std::ptrdiff_t requested_block)</span>
+<span class="lineNum">     393 </span>            : {
+<span class="lineNum">     394 </span><span class="lineCov">         20 :     LoadBMEntriesTo( static_cast&lt;int&gt;(requested_block) );</span>
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">         20 :     if( requested_block == blocks_loaded )</span>
+<span class="lineNum">     397 </span>            :     {
+<span class="lineNum">     398 </span><span class="lineCov">          5 :         if(io_handle == nullptr || io_mutex == nullptr)</span>
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :             file-&gt;GetIODetails( &amp;io_handle, &amp;io_mutex );</span>
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span><span class="lineCov">          5 :         MutexHolder oMutex(*io_mutex);</span>
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            :         int new_seg;
+<span class="lineNum">     404 </span>            :         int offset;
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span>            :         offset = 
+<span class="lineNum">     407 </span><span class="lineCov">          5 :             sysblockmap-&gt;GrowVirtualFile( image_index, last_bm_index, new_seg);</span>
+<span class="lineNum">     408 </span><span class="lineCov">          5 :         SetBlockInfo( static_cast&lt;int&gt;(requested_block), (uint16) new_seg, offset );</span>
+<span class="lineNum">     409 </span>            :     }
+<span class="lineNum">     410 </span><span class="lineCov">         20 : }</span>
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            : /************************************************************************/
+<span class="lineNum">     413 </span>            : /*                            WriteBlocks()                             */
+<span class="lineNum">     414 </span>            : /************************************************************************/
+<span class="lineNum">     415 </span>            : /**
+<span class="lineNum">     416 </span>            :  * \brief Writes a group of blocks
+<span class="lineNum">     417 </span>            :  * Attempts to create a group of blocks (if the SysVirtualFile
+<span class="lineNum">     418 </span>            :  * is not already large enough to hold them) and then write them
+<a name="419"><span class="lineNum">     419 </span>            :  * out contiguously</a>
+<span class="lineNum">     420 </span>            :  */
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 : void SysVirtualFile::WriteBlocks(int first_block,</span>
+<span class="lineNum">     422 </span>            :                                  int block_count,
+<span class="lineNum">     423 </span>            :                                  void* const buffer)
+<span class="lineNum">     424 </span>            : {
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :     if(io_handle == nullptr || io_mutex == nullptr)</span>
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :         file-&gt;GetIODetails( &amp;io_handle, &amp;io_mutex );</span>
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :     MutexHolder oMutex(*io_mutex);</span>
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :     FlushDirtyBlock();</span>
+<span class="lineNum">     431 </span>            :     // Iterate through all the blocks to be written, first, then
+<span class="lineNum">     432 </span>            :     // grow the virtual file
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :     for (unsigned int i = 0; i &lt;= (unsigned int) block_count; i++) {</span>
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :         GrowVirtualFile(first_block + i);</span>
+<span class="lineNum">     435 </span>            :     }
+<span class="lineNum">     436 </span>            :     
+<span class="lineNum">     437 </span>            :     // Using a similar algorithm to the LoadBlocks() function,
+<span class="lineNum">     438 </span>            :     // attempt to coalesce writes
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :     std::size_t buffer_off = 0;</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :     std::size_t blocks_written = 0;</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     std::size_t current_first_block = first_block;</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :     while (blocks_written &lt; (std::size_t) block_count) {</span>
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :         LoadBMEntriesTo( static_cast&lt;int&gt;(current_first_block+1) );</span>
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :         unsigned int cur_segment = GetBlockSegment( static_cast&lt;int&gt;(current_first_block) );</span>
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :         unsigned int cur_block = static_cast&lt;unsigned int&gt;(current_first_block);</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :         while (cur_block &lt; (unsigned int)block_count + first_block &amp;&amp;</span>
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :                (unsigned int) GetBlockSegment(cur_block + 1) == cur_segment)</span>
+<span class="lineNum">     449 </span>            :         {
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :             cur_block++;</span>
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :             LoadBMEntriesTo( static_cast&lt;int&gt;(current_first_block+1) );</span>
+<span class="lineNum">     452 </span>            :         }
+<span class="lineNum">     453 </span>            :         
+<span class="lineNum">     454 </span>            :         // Find largest span of contiguous blocks we can write
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :         uint64 write_start = GetBlockIndexInSegment(static_cast&lt;int&gt;(current_first_block));</span>
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :         uint64 write_cur = write_start * block_size;</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :         unsigned int count_to_write = 1;</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :         while (write_cur + block_size ==</span>
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :                (uint64)GetBlockIndexInSegment(static_cast&lt;int&gt;(count_to_write + current_first_block - 1)) * block_size &amp;&amp;</span>
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :             count_to_write &lt; (cur_block - current_first_block))</span>
+<span class="lineNum">     461 </span>            :         {
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :             write_cur += block_size;</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :             count_to_write++;</span>
+<span class="lineNum">     464 </span>            :         }
+<span class="lineNum">     465 </span>            :         
+<span class="lineNum">     466 </span>            :         PCIDSKSegment *data_seg_obj =
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 :             file-&gt;GetSegment( cur_segment );</span>
+<span class="lineNum">     468 </span>            :         
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :         std::size_t bytes_to_write = count_to_write * block_size;</span>
+<span class="lineNum">     470 </span>            :         
+<span class="lineNum">     471 </span>            :         data_seg_obj-&gt;WriteToFile((uint8*)buffer + buffer_off,
+<span class="lineNum">     472 </span>            :                                   block_size * write_start,
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :                                   bytes_to_write);</span>
+<span class="lineNum">     474 </span>            :     
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :         buffer_off += bytes_to_write;</span>
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :         blocks_written += count_to_write;</span>
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :         current_first_block += count_to_write;</span>
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span>            : /************************************************************************/
+<span class="lineNum">     482 </span>            : /*                             LoadBlocks()                             */
+<span class="lineNum">     483 </span>            : /************************************************************************/
+<span class="lineNum">     484 </span>            : /**
+<span class="lineNum">     485 </span>            :  * \brief Load a group of blocks
+<span class="lineNum">     486 </span>            :  * Attempts to coalesce reading of groups of blocks into a single
+<span class="lineNum">     487 </span>            :  * filesystem I/O operation. Does not cache the loaded block, nor
+<span class="lineNum">     488 </span>            :  * does it modify the state of the SysVirtualFile, other than to
+<a name="489"><span class="lineNum">     489 </span>            :  * flush the loaded block if it is dirty.</a>
+<span class="lineNum">     490 </span>            :  */
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 : void SysVirtualFile::LoadBlocks(int requested_block_start,</span>
+<span class="lineNum">     492 </span>            :                                 int requested_block_count,
+<span class="lineNum">     493 </span>            :                                 void* const buffer)
+<span class="lineNum">     494 </span>            : {
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :     if(io_handle == nullptr || io_mutex == nullptr)</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :         file-&gt;GetIODetails( &amp;io_handle, &amp;io_mutex );</span>
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :     MutexHolder oMutex(*io_mutex);</span>
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :     FlushDirtyBlock();</span>
+<span class="lineNum">     501 </span>            : 
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 :     unsigned int blocks_read = 0;</span>
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :     unsigned int current_start = requested_block_start;</span>
+<span class="lineNum">     504 </span>            :     
+<span class="lineNum">     505 </span><span class="lineNoCov">          0 :     std::size_t buffer_off = 0;</span>
+<span class="lineNum">     506 </span>            :     
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :     while (blocks_read &lt; (unsigned int)requested_block_count) {</span>
+<span class="lineNum">     508 </span>            :         // Coalesce blocks that are in the same segment
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :         LoadBMEntriesTo( current_start+1 );</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :         unsigned int cur_segment = GetBlockSegment(current_start); // segment of current</span>
+<span class="lineNum">     511 </span>            :                 // first block
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :         unsigned int cur_block = current_start; // starting block ID</span>
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :         while (cur_block &lt; (unsigned int)requested_block_count + requested_block_start &amp;&amp;</span>
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :                GetBlockSegment(cur_block + 1) == cur_segment) {</span>
+<span class="lineNum">     515 </span>            :             // this block is in the same segment as the previous one we
+<span class="lineNum">     516 </span>            :             // wanted to read.
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :             cur_block++;</span>
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 :             LoadBMEntriesTo( cur_block+1 );</span>
+<span class="lineNum">     519 </span>            :         }
+<span class="lineNum">     520 </span>            :         
+<span class="lineNum">     521 </span>            :         // now attempt to determine if the region of blocks (from current_start
+<span class="lineNum">     522 </span>            :         // to cur_block are contiguous
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 :         uint64 read_start = GetBlockIndexInSegment(current_start);</span>
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :         uint64 read_cur = read_start * block_size;</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :         unsigned int count_to_read = 1; // we'll read at least one block</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :         while (read_cur + block_size ==</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :                (uint64)GetBlockIndexInSegment(count_to_read + current_start) * block_size &amp;&amp; // compare count of blocks * offset with stored offset</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :             count_to_read &lt; (cur_block - current_start) ) // make sure we don't try to read more blocks than we determined fell in</span>
+<span class="lineNum">     529 </span>            :                                                             // this segment
+<span class="lineNum">     530 </span>            :         {
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :             read_cur += block_size;</span>
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :             count_to_read++;</span>
+<span class="lineNum">     533 </span>            :         }
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span>            : #if 0
+<span class="lineNum">     536 </span>            :         // Check if we need to grow the virtual file for each of these blocks
+<span class="lineNum">     537 </span>            :         for (unsigned int i = 0 ; i &lt; count_to_read; i++) {
+<span class="lineNum">     538 </span>            :             GrowVirtualFile(i + current_start);
+<span class="lineNum">     539 </span>            :         }
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span>            :         printf(&quot;Coalescing the read of %d blocks\n&quot;, count_to_read);/*ok*/
+<span class="lineNum">     542 </span>            : #endif
+<span class="lineNum">     543 </span>            : 
+<span class="lineNum">     544 </span>            :         // Perform the actual read
+<span class="lineNum">     545 </span>            :         PCIDSKSegment *data_seg_obj =
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :             file-&gt;GetSegment( cur_segment );</span>
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :         std::size_t data_size = block_size * count_to_read;</span>
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span>            : #if 0
+<span class="lineNum">     551 </span>            :         printf(&quot;Reading %d bytes at offset %d in buffer\n&quot;, data_size, buffer_off);/*ok*/
+<span class="lineNum">     552 </span>            : #endif
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :         data_seg_obj-&gt;ReadFromFile( ((uint8*)buffer) + buffer_off,</span>
+<span class="lineNum">     555 </span>            :                                     block_size * read_start,
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 :                                     data_size );</span>
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span><span class="lineNoCov">          0 :         buffer_off += data_size; // increase buffer offset</span>
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            :         // Increment the current start by the number of blocks we just read
+<span class="lineNum">     561 </span><span class="lineNoCov">          0 :         current_start += count_to_read;</span>
+<span class="lineNum">     562 </span><span class="lineNoCov">          0 :         blocks_read += count_to_read;</span>
+<span class="lineNum">     563 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span>            : /************************************************************************/
+<span class="lineNum">     567 </span>            : /*                           LoadBMEntryTo()                            */
+<span class="lineNum">     568 </span>            : /*                                                                      */
+<span class="lineNum">     569 </span>            : /*      We load the blockmap &quot;as needed&quot;.  This method fills in         */
+<span class="lineNum">     570 </span>            : /*      blockmap entries up to the target block, if not already         */
+<span class="lineNum">     571 </span>            : /*      loaded.  Passing in a target block_index of -1 loads the        */
+<span class="lineNum">     572 </span>            : /*      whole blockmap.  It is harmless to request more blocks than     */
+<span class="lineNum">     573 </span>            : /*      are available.                                                  */
+<a name="574"><span class="lineNum">     574 </span>            : /************************************************************************/</a>
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineCov">         40 : void SysVirtualFile::LoadBMEntriesTo( int target_index )</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span>            : {
+<span class="lineNum">     579 </span><span class="lineCov">         40 :     if( target_index &gt; 0 )</span>
+<span class="lineNum">     580 </span>            :     {
+<span class="lineNum">     581 </span><span class="lineCov">          4 :         target_index += 200 - (target_index%200);</span>
+<span class="lineNum">     582 </span>            :     }
+<span class="lineNum">     583 </span>            :     
+<span class="lineNum">     584 </span><span class="lineCov">         92 :     while( (target_index == -1 || blocks_loaded &lt;= target_index ) </span>
+<span class="lineNum">     585 </span><span class="lineCov">         20 :            &amp;&amp; next_bm_entry_to_load != -1 )</span>
+<span class="lineNum">     586 </span>            :     {
+<span class="lineNum">     587 </span>            :         uint16 segment;
+<span class="lineNum">     588 </span>            :         int    block;
+<span class="lineNum">     589 </span>            :        
+<span class="lineNum">     590 </span><span class="lineCov">         12 :         last_bm_index = next_bm_entry_to_load;</span>
+<span class="lineNum">     591 </span>            :         next_bm_entry_to_load = 
+<span class="lineNum">     592 </span>            :             sysblockmap-&gt;GetNextBlockMapEntry( 
+<span class="lineNum">     593 </span><span class="lineCov">         12 :                 next_bm_entry_to_load, segment, block );</span>
+<span class="lineNum">     594 </span>            : 
+<span class="lineNum">     595 </span><span class="lineCov">         12 :         SetBlockInfo( blocks_loaded, segment, block );</span>
+<span class="lineNum">     596 </span>            :     }
+<span class="lineNum">     597 </span><span class="lineCov">         40 : }</span>
+<span class="lineNum">     598 </span>            : 
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

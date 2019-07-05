@@ -1,0 +1,337 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - gcore/gdalhashsetbandblockcache.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">gcore</a> - gdalhashsetbandblockcache.cpp<span style="font-size: 80%;"> (source / <a href="gdalhashsetbandblockcache.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">69</td>
+            <td class="headerCovTableEntry">74</td>
+            <td class="headerCovTableEntryHi">93.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL Core
+<span class="lineNum">       4 </span>            :  * Purpose:  Store cached blocks in a hash set
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys dot org&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2010, Tamas Szekeres
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2015, Even Rouault &lt;even dot rouault at spatialys dot org&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      34 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      35 </span>            : #include &lt;set&gt;
+<span class="lineNum">      36 </span>            : #include &lt;vector&gt;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #include &quot;cpl_config.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_multiproc.h&quot;
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : /* ******************************************************************** */
+<span class="lineNum">      47 </span>            : /*                        GDALHashSetBandBlockCache                     */
+<span class="lineNum">      48 </span>            : /* ******************************************************************** */
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : class GDALHashSetBandBlockCache final : public GDALAbstractBandBlockCache
+<span class="lineNum">      51 </span>            : {
+<span class="lineNum">      52 </span>            :     struct BlockComparator
+<span class="lineNum">      53 </span>            :     {
+<span class="lineNum">      54 </span>            :         // Do not change this comparator, because this order is assumed by
+<a name="55"><span class="lineNum">      55 </span>            :         // tests like tiff_write_133 for flushing from top to bottom, left</a>
+<span class="lineNum">      56 </span>            :         // to right.
+<span class="lineNum">      57 </span><span class="lineCov">  175805355 :         bool operator() (const GDALRasterBlock* const&amp; lhs,</span>
+<span class="lineNum">      58 </span>            :                          const GDALRasterBlock* const&amp; rhs) const
+<span class="lineNum">      59 </span>            :         {
+<span class="lineNum">      60 </span><span class="lineCov">  175805355 :             if( lhs-&gt;GetYOff() &lt; rhs-&gt;GetYOff() )</span>
+<span class="lineNum">      61 </span><span class="lineCov">   87093029 :                 return true;</span>
+<span class="lineNum">      62 </span><span class="lineCov">   88713332 :             if( lhs-&gt;GetYOff() &gt; rhs-&gt;GetYOff() )</span>
+<span class="lineNum">      63 </span><span class="lineCov">   79989667 :                 return false;</span>
+<span class="lineNum">      64 </span><span class="lineCov">    8723747 :             return lhs-&gt;GetXOff() &lt; rhs-&gt;GetXOff();</span>
+<span class="lineNum">      65 </span>            :         }
+<span class="lineNum">      66 </span>            :     };
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :     std::set&lt;GDALRasterBlock*, BlockComparator&gt; m_oSet{};
+<span class="lineNum">      69 </span>            :     CPLLock        *hLock = nullptr;
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            :     CPL_DISALLOW_COPY_ASSIGN(GDALHashSetBandBlockCache)
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span>            :   public:
+<span class="lineNum">      74 </span>            :     explicit GDALHashSetBandBlockCache( GDALRasterBand* poBand );
+<span class="lineNum">      75 </span>            :     ~GDALHashSetBandBlockCache() override;
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span>            :     bool Init() override;
+<span class="lineNum">      78 </span>            :     bool IsInitOK() override;
+<span class="lineNum">      79 </span>            :     CPLErr FlushCache() override;
+<span class="lineNum">      80 </span>            :     CPLErr AdoptBlock( GDALRasterBlock * ) override;
+<span class="lineNum">      81 </span>            :     GDALRasterBlock *TryGetLockedBlockRef( int nXBlockOff,
+<span class="lineNum">      82 </span>            :                                            int nYBlockYOff ) override;
+<span class="lineNum">      83 </span>            :     CPLErr UnreferenceBlock( GDALRasterBlock* poBlock ) override;
+<span class="lineNum">      84 </span>            :     CPLErr FlushBlock( int nXBlockOff, int nYBlockOff,
+<span class="lineNum">      85 </span>            :                        int bWriteDirtyBlock ) override;
+<span class="lineNum">      86 </span>            : };
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span>            : /************************************************************************/
+<span class="lineNum">      89 </span>            : /*                     GDALHashSetBandBlockCacheCreate()                */
+<a name="90"><span class="lineNum">      90 </span>            : /************************************************************************/</a>
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span><span class="lineCov">         57 : GDALAbstractBandBlockCache* GDALHashSetBandBlockCacheCreate(</span>
+<span class="lineNum">      93 </span>            :     GDALRasterBand* poBand )
+<span class="lineNum">      94 </span>            : {
+<span class="lineNum">      95 </span><span class="lineCov">         57 :     return new GDALHashSetBandBlockCache(poBand);</span>
+<span class="lineNum">      96 </span>            : }
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            : /************************************************************************/
+<span class="lineNum">      99 </span>            : /*                       GDALHashSetBandBlockCache()                    */
+<a name="100"><span class="lineNum">     100 </span>            : /************************************************************************/</a>
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span><span class="lineCov">         57 : GDALHashSetBandBlockCache::GDALHashSetBandBlockCache(</span>
+<span class="lineNum">     103 </span>            :     GDALRasterBand* poBandIn ) :
+<span class="lineNum">     104 </span>            :     GDALAbstractBandBlockCache(poBandIn),
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span><span class="lineCov">         57 :     hLock(CPLCreateLock(LOCK_ADAPTIVE_MUTEX))</span>
+<span class="lineNum">     107 </span><span class="lineCov">         57 : {}</span>
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span>            : /************************************************************************/
+<span class="lineNum">     110 </span>            : /*                      ~GDALHashSetBandBlockCache()                    */
+<a name="111"><span class="lineNum">     111 </span>            : /************************************************************************/</a>
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span><span class="lineCov">        171 : GDALHashSetBandBlockCache::~GDALHashSetBandBlockCache()</span>
+<span class="lineNum">     114 </span>            : {
+<span class="lineNum">     115 </span><span class="lineCov">         57 :     FlushCache();</span>
+<span class="lineNum">     116 </span><span class="lineCov">         57 :     CPLDestroyLock(hLock);</span>
+<span class="lineNum">     117 </span><span class="lineCov">        114 : }</span>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span>            : /************************************************************************/
+<span class="lineNum">     120 </span>            : /*                                  Init()                              */
+<a name="121"><span class="lineNum">     121 </span>            : /************************************************************************/</a>
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span><span class="lineCov">         57 : bool GDALHashSetBandBlockCache::Init()</span>
+<span class="lineNum">     124 </span>            : {
+<span class="lineNum">     125 </span><span class="lineCov">         57 :     return true;</span>
+<span class="lineNum">     126 </span>            : }
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span>            : /************************************************************************/
+<span class="lineNum">     129 </span>            : /*                             IsInitOK()                               */
+<a name="130"><span class="lineNum">     130 </span>            : /************************************************************************/</a>
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span><span class="lineCov">    6025776 : bool GDALHashSetBandBlockCache::IsInitOK()</span>
+<span class="lineNum">     133 </span>            : {
+<span class="lineNum">     134 </span><span class="lineCov">    6025776 :     return true;</span>
+<span class="lineNum">     135 </span>            : }
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span>            : /************************************************************************/
+<span class="lineNum">     138 </span>            : /*                            AdoptBlock()                              */
+<a name="139"><span class="lineNum">     139 </span>            : /************************************************************************/</a>
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span><span class="lineCov">    2063005 : CPLErr GDALHashSetBandBlockCache::AdoptBlock( GDALRasterBlock * poBlock )</span>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            : {
+<span class="lineNum">     144 </span><span class="lineCov">    2063005 :     FreeDanglingBlocks();</span>
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span><span class="lineCov">    2063006 :     CPLLockHolderOptionalLockD( hLock );</span>
+<span class="lineNum">     147 </span><span class="lineCov">    2063006 :     m_oSet.insert(poBlock);</span>
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span><span class="lineCov">    2063002 :     return CE_None;</span>
+<span class="lineNum">     150 </span>            : }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            : /************************************************************************/
+<span class="lineNum">     153 </span>            : /*                            FlushCache()                              */
+<a name="154"><span class="lineNum">     154 </span>            : /************************************************************************/</a>
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span><span class="lineCov">        187 : CPLErr GDALHashSetBandBlockCache::FlushCache()</span>
+<span class="lineNum">     157 </span>            : {
+<span class="lineNum">     158 </span><span class="lineCov">        187 :     FreeDanglingBlocks();</span>
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span><span class="lineCov">        187 :     CPLErr eGlobalErr = poBand-&gt;eFlushBlockErr;</span>
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span><span class="lineCov">        187 :     std::set&lt;GDALRasterBlock*, BlockComparator&gt; oOldSet;</span>
+<span class="lineNum">     163 </span>            :     {
+<span class="lineNum">     164 </span><span class="lineCov">        187 :         CPLLockHolderOptionalLockD( hLock );</span>
+<span class="lineNum">     165 </span><span class="lineCov">        187 :         oOldSet = std::move(m_oSet);</span>
+<span class="lineNum">     166 </span>            :     }
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span><span class="lineCov">        187 :     StartDirtyBlockFlushingLog();</span>
+<span class="lineNum">     169 </span><span class="lineCov">    1761034 :     for( auto&amp; poBlock: oOldSet )</span>
+<span class="lineNum">     170 </span>            :     {
+<span class="lineNum">     171 </span><span class="lineCov">    1760847 :         if( poBlock-&gt;DropLockForRemovalFromStorage() )</span>
+<span class="lineNum">     172 </span>            :         {
+<span class="lineNum">     173 </span><span class="lineCov">    1760847 :             CPLErr eErr = CE_None;</span>
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span><span class="lineCov">    1760847 :             if( eGlobalErr == CE_None &amp;&amp; poBlock-&gt;GetDirty() )</span>
+<span class="lineNum">     176 </span>            :             {
+<span class="lineNum">     177 </span><span class="lineCov">       1188 :                 UpdateDirtyBlockFlushingLog();</span>
+<span class="lineNum">     178 </span><span class="lineCov">       1188 :                 eErr = poBlock-&gt;Write();</span>
+<span class="lineNum">     179 </span>            :             }
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span><span class="lineCov">    1760847 :             delete poBlock;</span>
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span><span class="lineCov">    1760847 :             if( eErr != CE_None )</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :                 eGlobalErr = eErr;</span>
+<span class="lineNum">     185 </span>            :         }
+<span class="lineNum">     186 </span>            :     }
+<span class="lineNum">     187 </span><span class="lineCov">        187 :     EndDirtyBlockFlushingLog();</span>
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span><span class="lineCov">        187 :     WaitKeepAliveCounter();</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineCov">        187 :     return( eGlobalErr );</span>
+<span class="lineNum">     192 </span>            : }
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            : /************************************************************************/
+<span class="lineNum">     195 </span>            : /*                        UnreferenceBlock()                            */
+<a name="196"><span class="lineNum">     196 </span>            : /************************************************************************/</a>
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span><span class="lineCov">     302155 : CPLErr GDALHashSetBandBlockCache::UnreferenceBlock( GDALRasterBlock* poBlock )</span>
+<span class="lineNum">     199 </span>            : {
+<span class="lineNum">     200 </span><span class="lineCov">     302155 :     UnreferenceBlockBase();</span>
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span><span class="lineCov">     302155 :     CPLLockHolderOptionalLockD( hLock );</span>
+<span class="lineNum">     203 </span><span class="lineCov">     302155 :     m_oSet.erase(poBlock);</span>
+<span class="lineNum">     204 </span><span class="lineCov">     302155 :     return CE_None;</span>
+<span class="lineNum">     205 </span>            : }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            : /************************************************************************/
+<span class="lineNum">     208 </span>            : /*                            FlushBlock()                              */
+<a name="209"><span class="lineNum">     209 </span>            : /************************************************************************/</a>
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span><span class="lineCov">          4 : CPLErr GDALHashSetBandBlockCache::FlushBlock( int nXBlockOff, int nYBlockOff,</span>
+<span class="lineNum">     212 </span>            :                                               int bWriteDirtyBlock )
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            : {
+<span class="lineNum">     215 </span><span class="lineCov">          4 :     GDALRasterBlock oBlockForLookup(nXBlockOff, nYBlockOff);</span>
+<span class="lineNum">     216 </span><span class="lineCov">          4 :     GDALRasterBlock* poBlock = nullptr;</span>
+<span class="lineNum">     217 </span>            :     {
+<span class="lineNum">     218 </span><span class="lineCov">          4 :         CPLLockHolderOptionalLockD( hLock );</span>
+<span class="lineNum">     219 </span><span class="lineCov">          4 :         auto oIter = m_oSet.find(&amp;oBlockForLookup);</span>
+<span class="lineNum">     220 </span><span class="lineCov">          4 :         if( oIter == m_oSet.end() )</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :             return CE_None;</span>
+<span class="lineNum">     222 </span><span class="lineCov">          4 :         poBlock = *oIter;</span>
+<span class="lineNum">     223 </span><span class="lineCov">          4 :         m_oSet.erase(oIter);</span>
+<span class="lineNum">     224 </span>            :     }
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineCov">          4 :     if( !poBlock-&gt;DropLockForRemovalFromStorage() )</span>
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span><span class="lineCov">          4 :     CPLErr eErr = CE_None;</span>
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span><span class="lineCov">          4 :     if( bWriteDirtyBlock &amp;&amp; poBlock-&gt;GetDirty() )</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :         eErr = poBlock-&gt;Write();</span>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineCov">          4 :     delete poBlock;</span>
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span><span class="lineCov">          4 :     return eErr;</span>
+<span class="lineNum">     237 </span>            : }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            : /************************************************************************/
+<span class="lineNum">     240 </span>            : /*                        TryGetLockedBlockRef()                        */
+<a name="241"><span class="lineNum">     241 </span>            : /************************************************************************/</a>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineCov">    3358404 : GDALRasterBlock *GDALHashSetBandBlockCache::TryGetLockedBlockRef(</span>
+<span class="lineNum">     244 </span>            :     int nXBlockOff, int nYBlockOff )
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            : {
+<span class="lineNum">     247 </span><span class="lineCov">    3358404 :     GDALRasterBlock oBlockForLookup(nXBlockOff, nYBlockOff);</span>
+<span class="lineNum">     248 </span>            :     GDALRasterBlock* poBlock;
+<span class="lineNum">     249 </span>            :     {
+<span class="lineNum">     250 </span><span class="lineCov">    3358398 :         CPLLockHolderOptionalLockD( hLock );</span>
+<span class="lineNum">     251 </span><span class="lineCov">    3358417 :         auto oIter = m_oSet.find(&amp;oBlockForLookup);</span>
+<span class="lineNum">     252 </span><span class="lineCov">    3358417 :         if( oIter == m_oSet.end() )</span>
+<span class="lineNum">     253 </span><span class="lineCov">    2062940 :             return nullptr;</span>
+<span class="lineNum">     254 </span><span class="lineCov">    1295475 :         poBlock = *oIter;</span>
+<span class="lineNum">     255 </span>            :     }
+<span class="lineNum">     256 </span><span class="lineCov">    1295475 :     if( !poBlock-&gt;TakeLock()  )</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     258 </span><span class="lineCov">    1295475 :     return poBlock;</span>
+<span class="lineNum">     259 </span>            : }
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span>            : //! @endcond
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

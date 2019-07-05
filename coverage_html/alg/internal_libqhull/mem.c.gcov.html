@@ -1,0 +1,621 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - alg/internal_libqhull/mem.c</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">alg/internal_libqhull</a> - mem.c<span style="font-size: 80%;"> (source / <a href="mem.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">116</td>
+            <td class="headerCovTableEntry">173</td>
+            <td class="headerCovTableEntryLo">67.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntry">10</td>
+            <td class="headerCovTableEntryMed">80.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*&lt;html&gt;&lt;pre&gt;  -&lt;a                             href=&quot;qh-mem.htm&quot;</a>
+<span class="lineNum">       2 </span>            :   &gt;-------------------------------&lt;/a&gt;&lt;a name=&quot;TOP&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">       3 </span>            : 
+<span class="lineNum">       4 </span>            :   mem.c
+<span class="lineNum">       5 </span>            :     memory management routines for qhull
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            :   This is a standalone program.
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            :   To initialize memory:
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            :     qh_meminit(stderr);
+<span class="lineNum">      12 </span>            :     qh_meminitbuffers(qh IStracing, qh_MEMalign, 7, qh_MEMbufsize,qh_MEMinitbuf);
+<span class="lineNum">      13 </span>            :     qh_memsize((int)sizeof(facetT));
+<span class="lineNum">      14 </span>            :     qh_memsize((int)sizeof(facetT));
+<span class="lineNum">      15 </span>            :     ...
+<span class="lineNum">      16 </span>            :     qh_memsetup();
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            :   To free up all memory buffers:
+<span class="lineNum">      19 </span>            :     qh_memfreeshort(&amp;curlong, &amp;totlong);
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            :   if qh_NOmem,
+<span class="lineNum">      22 </span>            :     malloc/free is used instead of mem.c
+<span class="lineNum">      23 </span>            : 
+<span class="lineNum">      24 </span>            :   notes:
+<span class="lineNum">      25 </span>            :     uses Quickfit algorithm (freelists for commonly allocated sizes)
+<span class="lineNum">      26 </span>            :     assumes small sizes for freelists (it discards the tail of memory buffers)
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            :   see:
+<span class="lineNum">      29 </span>            :     qh-mem.htm and mem.h
+<span class="lineNum">      30 </span>            :     global.c (qh_initbuffers) for an example of using mem.c
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            :   Copyright (c) 1993-2012 The Geometry Center.
+<span class="lineNum">      33 </span>            :   $Id: //main/2011/qhull/src/libqhull/mem.c#4 $$Change: 1464 $
+<span class="lineNum">      34 </span>            :   $DateTime: 2012/01/25 22:58:41 $$Author: bbarber $
+<span class="lineNum">      35 </span>            : */
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : #include &quot;mem.h&quot;
+<span class="lineNum">      38 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      39 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      40 </span>            : #include &lt;stdlib.h&gt;
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : #ifndef qhDEFlibqhull
+<span class="lineNum">      43 </span>            : typedef struct ridgeT ridgeT;
+<span class="lineNum">      44 </span>            : typedef struct facetT facetT;
+<span class="lineNum">      45 </span>            : #ifdef _MSC_VER  /* Microsoft Visual C++ -- warning level 4 */
+<span class="lineNum">      46 </span>            : #pragma warning( disable : 4127)  /* conditional expression is constant */
+<span class="lineNum">      47 </span>            : #pragma warning( disable : 4706)  /* assignment within conditional function */
+<span class="lineNum">      48 </span>            : #endif
+<span class="lineNum">      49 </span>            : void    qh_errexit(int exitcode, facetT *, ridgeT *);
+<span class="lineNum">      50 </span>            : void    qh_exit(int exitcode);
+<span class="lineNum">      51 </span>            : void    qh_fprintf(FILE *fp, int msgcode, const char *fmt, ... );
+<span class="lineNum">      52 </span>            : void    qh_free(void *mem);
+<span class="lineNum">      53 </span>            : void   *qh_malloc(size_t size);
+<span class="lineNum">      54 </span>            : #endif
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : /*============ -global data structure ==============
+<span class="lineNum">      57 </span>            :     see mem.h for definition
+<span class="lineNum">      58 </span>            : */
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span>            : qhmemT qhmem= {0,0,0,0,0,0,0,0,0,0,0,
+<span class="lineNum">      61 </span>            :                0,0,0,0,0,0,0,0,0,0,0,
+<span class="lineNum">      62 </span>            :                0,0,0,0,0,0,0};     /* remove &quot;= {0}&quot; if this causes a compiler error */
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : #ifndef qh_NOmem
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            : /*============= internal functions ==============*/
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            : static int qh_intcompare(const void *i, const void *j);
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : /*========== functions in alphabetical order ======== */
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">      73 </span>            :   &gt;-------------------------------&lt;/a&gt;&lt;a name=&quot;intcompare&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            :   qh_intcompare( i, j )
+<a name="76"><span class="lineNum">      76 </span>            :     used by qsort and bsearch to compare two integers</a>
+<span class="lineNum">      77 </span>            : */
+<span class="lineNum">      78 </span><span class="lineCov">         20 : static int qh_intcompare(const void *i, const void *j) {</span>
+<span class="lineNum">      79 </span><span class="lineCov">         20 :   return(*((const int *)i) - *((const int *)j));</span>
+<span class="lineNum">      80 </span>            : } /* intcompare */
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">      84 </span>            :   &gt;--------------------------------&lt;/a&gt;&lt;a name=&quot;memalloc&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            :   qh_memalloc( insize )
+<span class="lineNum">      87 </span>            :     returns object of insize bytes
+<span class="lineNum">      88 </span>            :     qhmem is the global memory structure
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            :   returns:
+<span class="lineNum">      91 </span>            :     pointer to allocated memory
+<span class="lineNum">      92 </span>            :     errors if insufficient memory
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span>            :   notes:
+<span class="lineNum">      95 </span>            :     use explicit type conversion to avoid type warnings on some compilers
+<span class="lineNum">      96 </span>            :     actual object may be larger than insize
+<span class="lineNum">      97 </span>            :     use qh_memalloc_() for inline code for quick allocations
+<span class="lineNum">      98 </span>            :     logs allocations if 'T5'
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            :   design:
+<span class="lineNum">     101 </span>            :     if size &lt; qhmem.LASTsize
+<span class="lineNum">     102 </span>            :       if qhmem.freelists[size] non-empty
+<span class="lineNum">     103 </span>            :         return first object on freelist
+<span class="lineNum">     104 </span>            :       else
+<span class="lineNum">     105 </span>            :         round up request to size of qhmem.freelists[size]
+<span class="lineNum">     106 </span>            :         allocate new allocation buffer if necessary
+<span class="lineNum">     107 </span>            :         allocate object from allocation buffer
+<span class="lineNum">     108 </span>            :     else
+<a name="109"><span class="lineNum">     109 </span>            :       allocate object with qh_malloc() in user.c</a>
+<span class="lineNum">     110 </span>            : */
+<span class="lineNum">     111 </span><span class="lineCov">    1016996 : void *qh_memalloc(int insize) {</span>
+<span class="lineNum">     112 </span>            :   void **freelistp, *newbuffer;
+<span class="lineNum">     113 </span>            :   int idx, size, n;
+<span class="lineNum">     114 </span>            :   int outsize, bufsize;
+<span class="lineNum">     115 </span>            :   void *object;
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span><span class="lineCov">    1016996 :   if (insize&lt;0) {</span>
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :       qh_fprintf(qhmem.ferr, 6235, &quot;qhull error (qh_memalloc): negative request size (%d).  Did int overflow due to high-D?\n&quot;, insize); /* WARN64 */</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :       qh_errexit(qhmem_ERRmem, NULL, NULL);</span>
+<span class="lineNum">     120 </span>            :   }
+<span class="lineNum">     121 </span><span class="lineCov">    1016996 :   if (insize&gt;=0 &amp;&amp; insize &lt;= qhmem.LASTsize) {</span>
+<span class="lineNum">     122 </span><span class="lineCov">     976490 :     idx= qhmem.indextable[insize];</span>
+<span class="lineNum">     123 </span><span class="lineCov">     976490 :     outsize= qhmem.sizetable[idx];</span>
+<span class="lineNum">     124 </span><span class="lineCov">     976490 :     qhmem.totshort += outsize;</span>
+<span class="lineNum">     125 </span><span class="lineCov">     976490 :     freelistp= qhmem.freelists+idx;</span>
+<span class="lineNum">     126 </span><span class="lineCov">     976490 :     if ((object= *freelistp)) {</span>
+<span class="lineNum">     127 </span><span class="lineCov">     604516 :       qhmem.cntquick++;</span>
+<span class="lineNum">     128 </span><span class="lineCov">     604516 :       qhmem.totfree -= outsize;</span>
+<span class="lineNum">     129 </span><span class="lineCov">     604516 :       *freelistp= *((void **)*freelistp);  /* replace freelist with next object */</span>
+<span class="lineNum">     130 </span>            : #ifdef qh_TRACEshort
+<span class="lineNum">     131 </span><span class="lineCov">     604516 :       n= qhmem.cntshort+qhmem.cntquick+qhmem.freeshort;</span>
+<span class="lineNum">     132 </span><span class="lineCov">     604516 :       if (qhmem.IStracing &gt;= 5)</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :           qh_fprintf(qhmem.ferr, 8141, &quot;qh_mem %p n %8d alloc quick: %d bytes (tot %d cnt %d)\n&quot;, object, n, outsize, qhmem.totshort, qhmem.cntshort+qhmem.cntquick-qhmem.freeshort);</span>
+<span class="lineNum">     134 </span>            : #endif
+<span class="lineNum">     135 </span><span class="lineCov">     604516 :       return(object);</span>
+<span class="lineNum">     136 </span>            :     }else {
+<span class="lineNum">     137 </span><span class="lineCov">     371974 :       qhmem.cntshort++;</span>
+<span class="lineNum">     138 </span><span class="lineCov">     371974 :       if (outsize &gt; qhmem .freesize) {</span>
+<span class="lineNum">     139 </span><span class="lineCov">        366 :         qhmem .totdropped += qhmem .freesize;</span>
+<span class="lineNum">     140 </span><span class="lineCov">        366 :         if (!qhmem.curbuffer)</span>
+<span class="lineNum">     141 </span><span class="lineCov">          4 :           bufsize= qhmem.BUFinit;</span>
+<span class="lineNum">     142 </span>            :         else
+<span class="lineNum">     143 </span><span class="lineCov">        362 :           bufsize= qhmem.BUFsize;</span>
+<span class="lineNum">     144 </span><span class="lineCov">        366 :         if (!(newbuffer= qh_malloc((size_t)bufsize))) {</span>
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :           qh_fprintf(qhmem.ferr, 6080, &quot;qhull error (qh_memalloc): insufficient memory to allocate short memory buffer (%d bytes)\n&quot;, bufsize);</span>
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :           qh_errexit(qhmem_ERRmem, NULL, NULL);</span>
+<span class="lineNum">     147 </span>            :         }
+<span class="lineNum">     148 </span>            :         /* newbuffer cannot be NULL since above qh_errexit didn't return */
+<span class="lineNum">     149 </span>            :         /* coverity[var_deref_op] */
+<span class="lineNum">     150 </span><span class="lineCov">        366 :         *((void **)newbuffer)= qhmem.curbuffer;  /* prepend newbuffer to curbuffer</span>
+<span class="lineNum">     151 </span>            :                                                     list */
+<span class="lineNum">     152 </span><span class="lineCov">        366 :         qhmem.curbuffer= newbuffer;</span>
+<span class="lineNum">     153 </span><span class="lineCov">        366 :         size= (sizeof(void **) + qhmem.ALIGNmask) &amp; ~qhmem.ALIGNmask;</span>
+<span class="lineNum">     154 </span><span class="lineCov">        366 :         qhmem.freemem= (void *)((char *)newbuffer+size);</span>
+<span class="lineNum">     155 </span><span class="lineCov">        366 :         qhmem.freesize= bufsize - size;</span>
+<span class="lineNum">     156 </span><span class="lineCov">        366 :         qhmem.totbuffer += bufsize - size; /* easier to check */</span>
+<span class="lineNum">     157 </span>            :         /* Periodically test totbuffer.  It matches at beginning and exit of every call */
+<span class="lineNum">     158 </span><span class="lineCov">        366 :         n = qhmem.totshort + qhmem.totfree + qhmem.totdropped + qhmem.freesize - outsize;</span>
+<span class="lineNum">     159 </span><span class="lineCov">        366 :         if (qhmem.totbuffer != n) {</span>
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :             qh_fprintf(qhmem.ferr, 6212, &quot;qh_memalloc internal error: short totbuffer %d != totshort+totfree... %d\n&quot;, qhmem.totbuffer, n);</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :             qh_errexit(qhmem_ERRmem, NULL, NULL);</span>
+<span class="lineNum">     162 </span>            :         }
+<span class="lineNum">     163 </span>            :       }
+<span class="lineNum">     164 </span><span class="lineCov">     371974 :       object= qhmem.freemem;</span>
+<span class="lineNum">     165 </span><span class="lineCov">     371974 :       qhmem.freemem= (void *)((char *)qhmem.freemem + outsize);</span>
+<span class="lineNum">     166 </span><span class="lineCov">     371974 :       qhmem.freesize -= outsize;</span>
+<span class="lineNum">     167 </span><span class="lineCov">     371974 :       qhmem.totunused += outsize - insize;</span>
+<span class="lineNum">     168 </span>            : #ifdef qh_TRACEshort
+<span class="lineNum">     169 </span><span class="lineCov">     371974 :       n= qhmem.cntshort+qhmem.cntquick+qhmem.freeshort;</span>
+<span class="lineNum">     170 </span><span class="lineCov">     371974 :       if (qhmem.IStracing &gt;= 5)</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :           qh_fprintf(qhmem.ferr, 8140, &quot;qh_mem %p n %8d alloc short: %d bytes (tot %d cnt %d)\n&quot;, object, n, outsize, qhmem.totshort, qhmem.cntshort+qhmem.cntquick-qhmem.freeshort);</span>
+<span class="lineNum">     172 </span>            : #endif
+<span class="lineNum">     173 </span><span class="lineCov">     371974 :       return object;</span>
+<span class="lineNum">     174 </span>            :     }
+<span class="lineNum">     175 </span>            :   }else {                     /* long allocation */
+<span class="lineNum">     176 </span><span class="lineCov">      40506 :     if (!qhmem.indextable) {</span>
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :       qh_fprintf(qhmem.ferr, 6081, &quot;qhull internal error (qh_memalloc): qhmem has not been initialized.\n&quot;);</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :       qh_errexit(qhmem_ERRqhull, NULL, NULL);</span>
+<span class="lineNum">     179 </span>            :     }
+<span class="lineNum">     180 </span><span class="lineCov">      40506 :     outsize= insize;</span>
+<span class="lineNum">     181 </span><span class="lineCov">      40506 :     qhmem .cntlong++;</span>
+<span class="lineNum">     182 </span><span class="lineCov">      40506 :     qhmem .totlong += outsize;</span>
+<span class="lineNum">     183 </span><span class="lineCov">      40506 :     if (qhmem.maxlong &lt; qhmem.totlong)</span>
+<span class="lineNum">     184 </span><span class="lineCov">      10003 :       qhmem.maxlong= qhmem.totlong;</span>
+<span class="lineNum">     185 </span><span class="lineCov">      40506 :     if (!(object= qh_malloc((size_t)outsize))) {</span>
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :       qh_fprintf(qhmem.ferr, 6082, &quot;qhull error (qh_memalloc): insufficient memory to allocate %d bytes\n&quot;, outsize);</span>
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :       qh_errexit(qhmem_ERRmem, NULL, NULL);</span>
+<span class="lineNum">     188 </span>            :     }
+<span class="lineNum">     189 </span><span class="lineCov">      40506 :     if (qhmem.IStracing &gt;= 5)</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :       qh_fprintf(qhmem.ferr, 8057, &quot;qh_mem %p n %8d alloc long: %d bytes (tot %d cnt %d)\n&quot;, object, qhmem.cntlong+qhmem.freelong, outsize, qhmem.totlong, qhmem.cntlong-qhmem.freelong);</span>
+<span class="lineNum">     191 </span>            :   }
+<span class="lineNum">     192 </span><span class="lineCov">      40506 :   return(object);</span>
+<span class="lineNum">     193 </span>            : } /* memalloc */
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">     197 </span>            :   &gt;--------------------------------&lt;/a&gt;&lt;a name=&quot;memfree&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span>            :   qh_memfree( object, insize )
+<span class="lineNum">     200 </span>            :     free up an object of size bytes
+<span class="lineNum">     201 </span>            :     size is insize from qh_memalloc
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span>            :   notes:
+<span class="lineNum">     204 </span>            :     object may be NULL
+<span class="lineNum">     205 </span>            :     type checking warns if using (void **)object
+<span class="lineNum">     206 </span>            :     use qh_memfree_() for quick free's of small objects
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span>            :   design:
+<span class="lineNum">     209 </span>            :     if size &lt;= qhmem.LASTsize
+<span class="lineNum">     210 </span>            :       append object to corresponding freelist
+<span class="lineNum">     211 </span>            :     else
+<a name="212"><span class="lineNum">     212 </span>            :       call qh_free(object)</a>
+<span class="lineNum">     213 </span>            : */
+<span class="lineNum">     214 </span><span class="lineCov">     952187 : void qh_memfree(void *object, int insize) {</span>
+<span class="lineNum">     215 </span>            :   void **freelistp;
+<span class="lineNum">     216 </span>            :   int idx, outsize;
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span><span class="lineCov">     952187 :   if (!object)</span>
+<span class="lineNum">     219 </span><span class="lineCov">    1027029 :     return;</span>
+<span class="lineNum">     220 </span><span class="lineCov">     877345 :   if (insize &lt;= qhmem.LASTsize) {</span>
+<span class="lineNum">     221 </span><span class="lineCov">     836839 :     qhmem .freeshort++;</span>
+<span class="lineNum">     222 </span><span class="lineCov">     836839 :     idx= qhmem.indextable[insize];</span>
+<span class="lineNum">     223 </span><span class="lineCov">     836839 :     outsize= qhmem.sizetable[idx];</span>
+<span class="lineNum">     224 </span><span class="lineCov">     836839 :     qhmem .totfree += outsize;</span>
+<span class="lineNum">     225 </span><span class="lineCov">     836839 :     qhmem .totshort -= outsize;</span>
+<span class="lineNum">     226 </span><span class="lineCov">     836839 :     freelistp= qhmem.freelists + idx;</span>
+<span class="lineNum">     227 </span><span class="lineCov">     836839 :     *((void **)object)= *freelistp;</span>
+<span class="lineNum">     228 </span><span class="lineCov">     836839 :     *freelistp= object;</span>
+<span class="lineNum">     229 </span>            : #ifdef qh_TRACEshort
+<span class="lineNum">     230 </span><span class="lineCov">     836839 :     idx= qhmem.cntshort+qhmem.cntquick+qhmem.freeshort;</span>
+<span class="lineNum">     231 </span><span class="lineCov">     836839 :     if (qhmem.IStracing &gt;= 5)</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :         qh_fprintf(qhmem.ferr, 8142, &quot;qh_mem %p n %8d free short: %d bytes (tot %d cnt %d)\n&quot;, object, idx, outsize, qhmem.totshort, qhmem.cntshort+qhmem.cntquick-qhmem.freeshort);</span>
+<span class="lineNum">     233 </span>            : #endif
+<span class="lineNum">     234 </span>            :   }else {
+<span class="lineNum">     235 </span><span class="lineCov">      40506 :     qhmem .freelong++;</span>
+<span class="lineNum">     236 </span><span class="lineCov">      40506 :     qhmem .totlong -= insize;</span>
+<span class="lineNum">     237 </span><span class="lineCov">      40506 :     if (qhmem.IStracing &gt;= 5)</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :       qh_fprintf(qhmem.ferr, 8058, &quot;qh_mem %p n %8d free long: %d bytes (tot %d cnt %d)\n&quot;, object, qhmem.cntlong+qhmem.freelong, insize, qhmem.totlong, qhmem.cntlong-qhmem.freelong);</span>
+<span class="lineNum">     239 </span><span class="lineCov">      40506 :     qh_free(object);</span>
+<span class="lineNum">     240 </span>            :   }
+<span class="lineNum">     241 </span>            : } /* memfree */
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">     245 </span>            :   &gt;-------------------------------&lt;/a&gt;&lt;a name=&quot;memfreeshort&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            :   qh_memfreeshort( curlong, totlong )
+<span class="lineNum">     248 </span>            :     frees up all short and qhmem memory allocations
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span>            :   returns:
+<span class="lineNum">     251 </span>            :     number and size of current long allocations
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span>            :   see:
+<span class="lineNum">     254 </span>            :     qh_freeqhull(allMem)
+<a name="255"><span class="lineNum">     255 </span>            :     qh_memtotal(curlong, totlong, curshort, totshort, maxlong, totbuffer);</a>
+<span class="lineNum">     256 </span>            : */
+<span class="lineNum">     257 </span><span class="lineCov">          5 : void qh_memfreeshort(int *curlong, int *totlong) {</span>
+<span class="lineNum">     258 </span>            :   void *buffer, *nextbuffer;
+<span class="lineNum">     259 </span>            :   FILE *ferr;
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span><span class="lineCov">          5 :   *curlong= qhmem .cntlong - qhmem .freelong;</span>
+<span class="lineNum">     262 </span><span class="lineCov">          5 :   *totlong= qhmem .totlong;</span>
+<span class="lineNum">     263 </span><span class="lineCov">        371 :   for (buffer= qhmem.curbuffer; buffer; buffer= nextbuffer) {</span>
+<span class="lineNum">     264 </span><span class="lineCov">        366 :     nextbuffer= *((void **) buffer);</span>
+<span class="lineNum">     265 </span><span class="lineCov">        366 :     qh_free(buffer);</span>
+<span class="lineNum">     266 </span>            :   }
+<span class="lineNum">     267 </span><span class="lineCov">          5 :   qhmem.curbuffer= NULL;</span>
+<span class="lineNum">     268 </span><span class="lineCov">          5 :   if (qhmem .LASTsize) {</span>
+<span class="lineNum">     269 </span><span class="lineCov">          4 :     qh_free(qhmem .indextable);</span>
+<span class="lineNum">     270 </span><span class="lineCov">          4 :     qh_free(qhmem .freelists);</span>
+<span class="lineNum">     271 </span><span class="lineCov">          4 :     qh_free(qhmem .sizetable);</span>
+<span class="lineNum">     272 </span>            :   }
+<span class="lineNum">     273 </span><span class="lineCov">          5 :   ferr= qhmem.ferr;</span>
+<span class="lineNum">     274 </span><span class="lineCov">          5 :   memset((char *)&amp;qhmem, 0, sizeof(qhmem));  /* every field is 0, FALSE, NULL */</span>
+<span class="lineNum">     275 </span><span class="lineCov">          5 :   qhmem.ferr= ferr;</span>
+<span class="lineNum">     276 </span><span class="lineCov">          5 : } /* memfreeshort */</span>
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">     280 </span>            :   &gt;--------------------------------&lt;/a&gt;&lt;a name=&quot;meminit&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span>            :   qh_meminit( ferr )
+<a name="283"><span class="lineNum">     283 </span>            :     initialize qhmem and test sizeof( void*)</a>
+<span class="lineNum">     284 </span>            : */
+<span class="lineNum">     285 </span><span class="lineCov">          3 : void qh_meminit(FILE *ferr) {</span>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span><span class="lineCov">          3 :   memset((char *)&amp;qhmem, 0, sizeof(qhmem));  /* every field is 0, FALSE, NULL */</span>
+<span class="lineNum">     288 </span><span class="lineCov">          3 :   qhmem.ferr= ferr;</span>
+<span class="lineNum">     289 </span>            :   if (sizeof(void*) &lt; sizeof(int)) {
+<span class="lineNum">     290 </span>            :     qh_fprintf(ferr, 6083, &quot;qhull internal error (qh_meminit): sizeof(void*) %d &lt; sizeof(int) %d.  qset.c will not work\n&quot;, (int)sizeof(void*), (int)sizeof(int));
+<span class="lineNum">     291 </span>            :     qh_exit(qhmem_ERRqhull);  /* can not use qh_errexit() */
+<span class="lineNum">     292 </span>            :   }
+<span class="lineNum">     293 </span>            :   if (sizeof(void*) &gt; sizeof(ptr_intT)) {
+<span class="lineNum">     294 </span>            :       qh_fprintf(ferr, 6084, &quot;qhull internal error (qh_meminit): sizeof(void*) %d &gt; sizeof(ptr_intT) %d. Change ptr_intT in mem.h to 'long long'\n&quot;, (int)sizeof(void*), (int)sizeof(ptr_intT));
+<span class="lineNum">     295 </span>            :       qh_exit(qhmem_ERRqhull);  /* can not use qh_errexit() */
+<span class="lineNum">     296 </span>            :   }
+<span class="lineNum">     297 </span><span class="lineCov">          3 : } /* meminit */</span>
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">     300 </span>            :   &gt;-------------------------------&lt;/a&gt;&lt;a name=&quot;meminitbuffers&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            :   qh_meminitbuffers( tracelevel, alignment, numsizes, bufsize, bufinit )
+<span class="lineNum">     303 </span>            :     initialize qhmem
+<span class="lineNum">     304 </span>            :     if tracelevel &gt;= 5, trace memory allocations
+<span class="lineNum">     305 </span>            :     alignment= desired address alignment for memory allocations
+<span class="lineNum">     306 </span>            :     numsizes= number of freelists
+<span class="lineNum">     307 </span>            :     bufsize=  size of additional memory buffers for short allocations
+<a name="308"><span class="lineNum">     308 </span>            :     bufinit=  size of initial memory buffer for short allocations</a>
+<span class="lineNum">     309 </span>            : */
+<span class="lineNum">     310 </span><span class="lineCov">          4 : void qh_meminitbuffers(int tracelevel, int alignment, int numsizes, int bufsize, int bufinit) {</span>
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span><span class="lineCov">          4 :   qhmem.IStracing= tracelevel;</span>
+<span class="lineNum">     313 </span><span class="lineCov">          4 :   qhmem.NUMsizes= numsizes;</span>
+<span class="lineNum">     314 </span><span class="lineCov">          4 :   qhmem.BUFsize= bufsize;</span>
+<span class="lineNum">     315 </span><span class="lineCov">          4 :   qhmem.BUFinit= bufinit;</span>
+<span class="lineNum">     316 </span><span class="lineCov">          4 :   qhmem.ALIGNmask= alignment-1;</span>
+<span class="lineNum">     317 </span>            :   if (qhmem.ALIGNmask &amp; ~qhmem.ALIGNmask) {
+<span class="lineNum">     318 </span>            :     qh_fprintf(qhmem.ferr, 6085, &quot;qhull internal error (qh_meminit): memory alignment %d is not a power of 2\n&quot;, alignment);
+<span class="lineNum">     319 </span>            :     qh_errexit(qhmem_ERRqhull, NULL, NULL);
+<span class="lineNum">     320 </span>            :   }
+<span class="lineNum">     321 </span><span class="lineCov">          4 :   qhmem.sizetable= (int *) calloc((size_t)numsizes, sizeof(int));</span>
+<span class="lineNum">     322 </span><span class="lineCov">          4 :   qhmem.freelists= (void **) calloc((size_t)numsizes, sizeof(void *));</span>
+<span class="lineNum">     323 </span><span class="lineCov">          4 :   if (!qhmem.sizetable || !qhmem.freelists) {</span>
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :     qh_fprintf(qhmem.ferr, 6086, &quot;qhull error (qh_meminit): insufficient memory\n&quot;);</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :     qh_errexit(qhmem_ERRmem, NULL, NULL);</span>
+<span class="lineNum">     326 </span>            :   }
+<span class="lineNum">     327 </span><span class="lineCov">          4 :   if (qhmem.IStracing &gt;= 1)</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :     qh_fprintf(qhmem.ferr, 8059, &quot;qh_meminitbuffers: memory initialized with alignment %d\n&quot;, alignment);</span>
+<span class="lineNum">     329 </span><span class="lineCov">          4 : } /* meminitbuffers */</span>
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">     332 </span>            :   &gt;-------------------------------&lt;/a&gt;&lt;a name=&quot;memsetup&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span>            :   qh_memsetup()
+<a name="335"><span class="lineNum">     335 </span>            :     set up memory after running memsize()</a>
+<span class="lineNum">     336 </span>            : */
+<span class="lineNum">     337 </span><span class="lineCov">          4 : void qh_memsetup(void) {</span>
+<span class="lineNum">     338 </span>            :   int k,i;
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span><span class="lineCov">          4 :   qsort(qhmem.sizetable, (size_t)qhmem.TABLEsize, sizeof(int), qh_intcompare);</span>
+<span class="lineNum">     341 </span><span class="lineCov">          4 :   qhmem.LASTsize= qhmem.sizetable[qhmem.TABLEsize-1];</span>
+<span class="lineNum">     342 </span><span class="lineCov">          4 :   if (qhmem .LASTsize &gt;= qhmem .BUFsize || qhmem.LASTsize &gt;= qhmem .BUFinit) {</span>
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :     qh_fprintf(qhmem.ferr, 6087, &quot;qhull error (qh_memsetup): largest mem size %d is &gt;= buffer size %d or initial buffer size %d\n&quot;,</span>
+<span class="lineNum">     344 </span>            :             qhmem .LASTsize, qhmem .BUFsize, qhmem .BUFinit);
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :     qh_errexit(qhmem_ERRmem, NULL, NULL);</span>
+<span class="lineNum">     346 </span>            :   }
+<span class="lineNum">     347 </span><span class="lineCov">          4 :   if (!(qhmem.indextable= (int *)qh_malloc((qhmem.LASTsize+1) * sizeof(int)))) {</span>
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :     qh_fprintf(qhmem.ferr, 6088, &quot;qhull error (qh_memsetup): insufficient memory\n&quot;);</span>
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :     qh_errexit(qhmem_ERRmem, NULL, NULL);</span>
+<span class="lineNum">     350 </span>            :   }
+<span class="lineNum">     351 </span><span class="lineCov">        492 :   for (k=qhmem.LASTsize+1; k--; )</span>
+<span class="lineNum">     352 </span><span class="lineCov">        484 :     qhmem.indextable[k]= k;</span>
+<span class="lineNum">     353 </span><span class="lineCov">          4 :   i= 0;</span>
+<span class="lineNum">     354 </span><span class="lineCov">        488 :   for (k=0; k &lt;= qhmem.LASTsize; k++) {</span>
+<span class="lineNum">     355 </span><span class="lineCov">        484 :     if (qhmem.indextable[k] &lt;= qhmem.sizetable[i])</span>
+<span class="lineNum">     356 </span><span class="lineCov">        472 :       qhmem.indextable[k]= i;</span>
+<span class="lineNum">     357 </span>            :     else
+<span class="lineNum">     358 </span><span class="lineCov">         12 :       qhmem.indextable[k]= ++i;</span>
+<span class="lineNum">     359 </span>            :   }
+<span class="lineNum">     360 </span><span class="lineCov">          4 : } /* memsetup */</span>
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">     363 </span>            :   &gt;-------------------------------&lt;/a&gt;&lt;a name=&quot;memsize&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            :   qh_memsize( size )
+<a name="366"><span class="lineNum">     366 </span>            :     define a free list for this size</a>
+<span class="lineNum">     367 </span>            : */
+<span class="lineNum">     368 </span><span class="lineCov">         28 : void qh_memsize(int size) {</span>
+<span class="lineNum">     369 </span>            :   int k;
+<span class="lineNum">     370 </span>            : 
+<span class="lineNum">     371 </span><span class="lineCov">         28 :   if (qhmem .LASTsize) {</span>
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :     qh_fprintf(qhmem.ferr, 6089, &quot;qhull error (qh_memsize): called after qhmem_setup\n&quot;);</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     qh_errexit(qhmem_ERRqhull, NULL, NULL);</span>
+<span class="lineNum">     374 </span>            :   }
+<span class="lineNum">     375 </span><span class="lineCov">         28 :   size= (size + qhmem.ALIGNmask) &amp; ~qhmem.ALIGNmask;</span>
+<span class="lineNum">     376 </span><span class="lineCov">         96 :   for (k=qhmem.TABLEsize; k--; ) {</span>
+<span class="lineNum">     377 </span><span class="lineCov">         52 :     if (qhmem.sizetable[k] == size)</span>
+<span class="lineNum">     378 </span><span class="lineCov">         40 :       return;</span>
+<span class="lineNum">     379 </span>            :   }
+<span class="lineNum">     380 </span><span class="lineCov">         16 :   if (qhmem.TABLEsize &lt; qhmem.NUMsizes)</span>
+<span class="lineNum">     381 </span><span class="lineCov">         16 :     qhmem.sizetable[qhmem.TABLEsize++]= size;</span>
+<span class="lineNum">     382 </span>            :   else
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :     qh_fprintf(qhmem.ferr, 7060, &quot;qhull warning (memsize): free list table has room for only %d sizes\n&quot;, qhmem.NUMsizes);</span>
+<span class="lineNum">     384 </span>            : } /* memsize */
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">     388 </span>            :   &gt;-------------------------------&lt;/a&gt;&lt;a name=&quot;memstatistics&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span>            :   qh_memstatistics( fp )
+<span class="lineNum">     391 </span>            :     print out memory statistics
+<span class="lineNum">     392 </span>            : 
+<a name="393"><span class="lineNum">     393 </span>            :     Verifies that qhmem.totfree == sum of freelists</a>
+<span class="lineNum">     394 </span>            : */
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 : void qh_memstatistics(FILE *fp) {</span>
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :   int i, count, totfree= 0;</span>
+<span class="lineNum">     397 </span>            :   void *object;
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :   for (i=0; i &lt; qhmem.TABLEsize; i++) {</span>
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :     count=0;</span>
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :     for (object= qhmem .freelists[i]; object; object= *((void **)object))</span>
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :       count++;</span>
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :     totfree += qhmem.sizetable[i] * count;</span>
+<span class="lineNum">     404 </span>            :   }
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :   if (totfree != qhmem .totfree) {</span>
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :       qh_fprintf(qhmem.ferr, 6211, &quot;qh_memstatistics internal error: totfree %d not equal to freelist total %d\n&quot;, qhmem.totfree, totfree);</span>
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :       qh_errexit(qhmem_ERRqhull, NULL, NULL);</span>
+<span class="lineNum">     408 </span>            :   }
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :   qh_fprintf(fp, 9278, &quot;\nmemory statistics:\n\</span>
+<span class="lineNum">     410 </span>            : %7d quick allocations\n\
+<span class="lineNum">     411 </span>            : %7d short allocations\n\
+<span class="lineNum">     412 </span>            : %7d long allocations\n\
+<span class="lineNum">     413 </span>            : %7d short frees\n\
+<span class="lineNum">     414 </span>            : %7d long frees\n\
+<span class="lineNum">     415 </span>            : %7d bytes of short memory in use\n\
+<span class="lineNum">     416 </span>            : %7d bytes of short memory in freelists\n\
+<span class="lineNum">     417 </span>            : %7d bytes of dropped short memory\n\
+<span class="lineNum">     418 </span>            : %7d bytes of unused short memory (estimated)\n\
+<span class="lineNum">     419 </span>            : %7d bytes of long memory allocated (max, except for input)\n\
+<span class="lineNum">     420 </span>            : %7d bytes of long memory in use (in %d pieces)\n\
+<span class="lineNum">     421 </span>            : %7d bytes of short memory buffers (minus links)\n\
+<span class="lineNum">     422 </span>            : %7d bytes per short memory buffer (initially %d bytes)\n&quot;,
+<span class="lineNum">     423 </span>            :            qhmem .cntquick, qhmem .cntshort, qhmem .cntlong,
+<span class="lineNum">     424 </span>            :            qhmem .freeshort, qhmem .freelong,
+<span class="lineNum">     425 </span>            :            qhmem .totshort, qhmem .totfree,
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :            qhmem .totdropped + qhmem .freesize, qhmem .totunused,</span>
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :            qhmem .maxlong, qhmem .totlong, qhmem .cntlong - qhmem .freelong,</span>
+<span class="lineNum">     428 </span>            :            qhmem .totbuffer, qhmem .BUFsize, qhmem .BUFinit);
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :   if (qhmem.cntlarger) {</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :     qh_fprintf(fp, 9279, &quot;%7d calls to qh_setlarger\n%7.2g     average copy size\n&quot;,</span>
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :            qhmem.cntlarger, ((float)qhmem.totlarger)/(float)qhmem.cntlarger);</span>
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :     qh_fprintf(fp, 9280, &quot;  freelists(bytes-&gt;count):&quot;);</span>
+<span class="lineNum">     433 </span>            :   }
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :   for (i=0; i &lt; qhmem.TABLEsize; i++) {</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :     count=0;</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :     for (object= qhmem .freelists[i]; object; object= *((void **)object))</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :       count++;</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :     qh_fprintf(fp, 9281, &quot; %d-&gt;%d&quot;, qhmem.sizetable[i], count);</span>
+<span class="lineNum">     439 </span>            :   }
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :   qh_fprintf(fp, 9282, &quot;\n\n&quot;);</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 : } /* memstatistics */</span>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">     445 </span>            :   &gt;-------------------------------&lt;/a&gt;&lt;a name=&quot;NOmem&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            :   qh_NOmem
+<span class="lineNum">     448 </span>            :     turn off quick-fit memory allocation
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span>            :   notes:
+<span class="lineNum">     451 </span>            :     uses qh_malloc() and qh_free() instead
+<span class="lineNum">     452 </span>            : */
+<span class="lineNum">     453 </span>            : #else /* qh_NOmem */
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span>            : void *qh_memalloc(int insize) {
+<span class="lineNum">     456 </span>            :   void *object;
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            :   if (!(object= qh_malloc((size_t)insize))) {
+<span class="lineNum">     459 </span>            :     qh_fprintf(qhmem.ferr, 6090, &quot;qhull error (qh_memalloc): insufficient memory\n&quot;);
+<span class="lineNum">     460 </span>            :     qh_errexit(qhmem_ERRmem, NULL, NULL);
+<span class="lineNum">     461 </span>            :   }
+<span class="lineNum">     462 </span>            :   qhmem .cntlong++;
+<span class="lineNum">     463 </span>            :   qhmem .totlong += insize;
+<span class="lineNum">     464 </span>            :   if (qhmem.maxlong &lt; qhmem.totlong)
+<span class="lineNum">     465 </span>            :       qhmem.maxlong= qhmem.totlong;
+<span class="lineNum">     466 </span>            :   if (qhmem.IStracing &gt;= 5)
+<span class="lineNum">     467 </span>            :     qh_fprintf(qhmem.ferr, 8060, &quot;qh_mem %p n %8d alloc long: %d bytes (tot %d cnt %d)\n&quot;, object, qhmem.cntlong+qhmem.freelong, insize, qhmem.totlong, qhmem.cntlong-qhmem.freelong);
+<span class="lineNum">     468 </span>            :   return object;
+<span class="lineNum">     469 </span>            : }
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span>            : void qh_memfree(void *object, int insize) {
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span>            :   if (!object)
+<span class="lineNum">     474 </span>            :     return;
+<span class="lineNum">     475 </span>            :   qh_free(object);
+<span class="lineNum">     476 </span>            :   qhmem .freelong++;
+<span class="lineNum">     477 </span>            :   qhmem .totlong -= insize;
+<span class="lineNum">     478 </span>            :   if (qhmem.IStracing &gt;= 5)
+<span class="lineNum">     479 </span>            :     qh_fprintf(qhmem.ferr, 8061, &quot;qh_mem %p n %8d free long: %d bytes (tot %d cnt %d)\n&quot;, object, qhmem.cntlong+qhmem.freelong, insize, qhmem.totlong, qhmem.cntlong-qhmem.freelong);
+<span class="lineNum">     480 </span>            : }
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span>            : void qh_memfreeshort(int *curlong, int *totlong) {
+<span class="lineNum">     483 </span>            :   *totlong= qhmem .totlong;
+<span class="lineNum">     484 </span>            :   *curlong= qhmem .cntlong - qhmem .freelong;
+<span class="lineNum">     485 </span>            :   memset((char *)&amp;qhmem, 0, sizeof(qhmem));  /* every field is 0, FALSE, NULL */
+<span class="lineNum">     486 </span>            : }
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span>            : void qh_meminit(FILE *ferr) {
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span>            :   memset((char *)&amp;qhmem, 0, sizeof(qhmem));  /* every field is 0, FALSE, NULL */
+<span class="lineNum">     491 </span>            :   qhmem.ferr= ferr;
+<span class="lineNum">     492 </span>            :   if (sizeof(void*) &lt; sizeof(int)) {
+<span class="lineNum">     493 </span>            :     qh_fprintf(ferr, 6091, &quot;qhull internal error (qh_meminit): sizeof(void*) %d &lt; sizeof(int) %d.  qset.c will not work\n&quot;, (int)sizeof(void*), (int)sizeof(int));
+<span class="lineNum">     494 </span>            :     qh_errexit(qhmem_ERRqhull, NULL, NULL);
+<span class="lineNum">     495 </span>            :   }
+<span class="lineNum">     496 </span>            : }
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span>            : void qh_meminitbuffers(int tracelevel, int alignment, int numsizes, int bufsize, int bufinit) {
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span>            :   qhmem.IStracing= tracelevel;
+<span class="lineNum">     501 </span>            : }
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span>            : void qh_memsetup(void) {
+<span class="lineNum">     504 </span>            : 
+<span class="lineNum">     505 </span>            : }
+<span class="lineNum">     506 </span>            : 
+<span class="lineNum">     507 </span>            : void qh_memsize(int size) {
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span>            : }
+<span class="lineNum">     510 </span>            : 
+<span class="lineNum">     511 </span>            : void qh_memstatistics(FILE *fp) {
+<span class="lineNum">     512 </span>            : 
+<span class="lineNum">     513 </span>            :   qh_fprintf(fp, 9409, &quot;\nmemory statistics:\n\
+<span class="lineNum">     514 </span>            : %7d long allocations\n\
+<span class="lineNum">     515 </span>            : %7d long frees\n\
+<span class="lineNum">     516 </span>            : %7d bytes of long memory allocated (max, except for input)\n\
+<span class="lineNum">     517 </span>            : %7d bytes of long memory in use (in %d pieces)\n&quot;,
+<span class="lineNum">     518 </span>            :            qhmem .cntlong,
+<span class="lineNum">     519 </span>            :            qhmem .freelong,
+<span class="lineNum">     520 </span>            :            qhmem .maxlong, qhmem .totlong, qhmem .cntlong - qhmem .freelong);
+<span class="lineNum">     521 </span>            : }
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span>            : #endif /* qh_NOmem */
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span>            : /*-&lt;a                             href=&quot;qh-mem.htm#TOC&quot;
+<span class="lineNum">     526 </span>            : &gt;-------------------------------&lt;/a&gt;&lt;a name=&quot;memtotlong&quot;&gt;-&lt;/a&gt;
+<span class="lineNum">     527 </span>            : 
+<span class="lineNum">     528 </span>            :   qh_memtotal( totlong, curlong, totshort, curshort, maxlong, totbuffer )
+<span class="lineNum">     529 </span>            :     Return the total, allocated long and short memory
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span>            :   returns:
+<span class="lineNum">     532 </span>            :     Returns the total current bytes of long and short allocations
+<span class="lineNum">     533 </span>            :     Returns the current count of long and short allocations
+<span class="lineNum">     534 </span>            :     Returns the maximum long memory and total short buffer (minus one link per buffer)
+<a name="535"><span class="lineNum">     535 </span>            :     Does not error (UsingLibQhull.cpp)</a>
+<span class="lineNum">     536 </span>            : */
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 : void qh_memtotal(int *totlong, int *curlong, int *totshort, int *curshort, int *maxlong, int *totbuffer) {</span>
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :     *totlong= qhmem .totlong;</span>
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :     *curlong= qhmem .cntlong - qhmem .freelong;</span>
+<span class="lineNum">     540 </span><span class="lineNoCov">          0 :     *totshort= qhmem .totshort;</span>
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :     *curshort= qhmem .cntshort + qhmem .cntquick - qhmem .freeshort;</span>
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :     *maxlong= qhmem .maxlong;</span>
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :     *totbuffer= qhmem .totbuffer;</span>
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 : } /* memtotlong */</span>
+<span class="lineNum">     545 </span>            : 
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

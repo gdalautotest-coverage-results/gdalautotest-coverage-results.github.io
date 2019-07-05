@@ -1,0 +1,1787 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/pdf/pdfreadvectors.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/pdf</a> - pdfreadvectors.cpp<span style="font-size: 80%;"> (source / <a href="pdfreadvectors.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">648</td>
+            <td class="headerCovTableEntry">819</td>
+            <td class="headerCovTableEntryMed">79.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">23</td>
+            <td class="headerCovTableEntry">24</td>
+            <td class="headerCovTableEntryHi">95.8 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  PDF driver
+<span class="lineNum">       4 </span>            :  * Purpose:  GDALDataset driver for PDF dataset (read vector features)
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2010-2014, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;gdal_pdf.h&quot;
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : #define SQUARE(x) ((x)*(x))
+<span class="lineNum">      32 </span>            : #define EPSILON 1e-5
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : #ifdef HAVE_PDF_READ_SUPPORT
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : /************************************************************************/
+<span class="lineNum">      39 </span>            : /*                        OpenVectorLayers()                            */
+<a name="40"><span class="lineNum">      40 </span>            : /************************************************************************/</a>
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span><span class="lineCov">         32 : int PDFDataset::OpenVectorLayers(GDALPDFDictionary* poPageDict)</span>
+<span class="lineNum">      43 </span>            : {
+<span class="lineNum">      44 </span><span class="lineCov">         32 :     if( bHasLoadedLayers )</span>
+<span class="lineNum">      45 </span><span class="lineCov">         25 :         return TRUE;</span>
+<span class="lineNum">      46 </span><span class="lineCov">          7 :     bHasLoadedLayers = TRUE;</span>
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span><span class="lineCov">          7 :     if( poPageDict == nullptr )</span>
+<span class="lineNum">      49 </span>            :     {
+<span class="lineNum">      50 </span><span class="lineCov">          1 :         poPageDict = poPageObj-&gt;GetDictionary();</span>
+<span class="lineNum">      51 </span><span class="lineCov">          1 :         if ( poPageDict == nullptr )</span>
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">      53 </span>            :     }
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span><span class="lineCov">          7 :     GetCatalog();</span>
+<span class="lineNum">      56 </span><span class="lineCov">          7 :     if( poCatalogObject == nullptr )</span>
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span><span class="lineCov">          7 :     GDALPDFObject* poContents = poPageDict-&gt;Get(&quot;Contents&quot;);</span>
+<span class="lineNum">      60 </span><span class="lineCov">          7 :     if (poContents == nullptr)</span>
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span><span class="lineCov">          7 :     if (poContents-&gt;GetType() != PDFObjectType_Dictionary &amp;&amp;</span>
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :         poContents-&gt;GetType() != PDFObjectType_Array)</span>
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span><span class="lineCov">          7 :     GDALPDFObject* poResources = poPageDict-&gt;Get(&quot;Resources&quot;);</span>
+<span class="lineNum">      68 </span><span class="lineCov">          7 :     if (poResources == nullptr || poResources-&gt;GetType() != PDFObjectType_Dictionary)</span>
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span><span class="lineCov">          7 :     GDALPDFObject* poStructTreeRoot = poCatalogObject-&gt;GetDictionary()-&gt;Get(&quot;StructTreeRoot&quot;);</span>
+<span class="lineNum">      72 </span><span class="lineCov">         20 :     if (CPLTestBool(CPLGetConfigOption(&quot;OGR_PDF_READ_NON_STRUCTURED&quot;, &quot;NO&quot;)) ||</span>
+<span class="lineNum">      73 </span><span class="lineCov">         10 :         poStructTreeRoot == nullptr ||</span>
+<span class="lineNum">      74 </span><span class="lineCov">          3 :         poStructTreeRoot-&gt;GetType() != PDFObjectType_Dictionary)</span>
+<span class="lineNum">      75 </span>            :     {
+<span class="lineNum">      76 </span><span class="lineCov">          4 :         ExploreContentsNonStructured(poContents, poResources);</span>
+<span class="lineNum">      77 </span>            :     }
+<span class="lineNum">      78 </span>            :     else
+<span class="lineNum">      79 </span>            :     {
+<span class="lineNum">      80 </span><span class="lineCov">          3 :         ExploreContents(poContents, poResources);</span>
+<span class="lineNum">      81 </span><span class="lineCov">          3 :         std::set&lt; std::pair&lt;int,int&gt; &gt; aoSetAlreadyVisited;</span>
+<span class="lineNum">      82 </span><span class="lineCov">          3 :         ExploreTree(poStructTreeRoot, aoSetAlreadyVisited, 0);</span>
+<span class="lineNum">      83 </span>            :     }
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span><span class="lineCov">          7 :     CleanupIntermediateResources();</span>
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span><span class="lineCov">          7 :     int bEmptyDS = TRUE;</span>
+<span class="lineNum">      88 </span><span class="lineCov">          7 :     for(int i=0;i&lt;nLayers;i++)</span>
+<span class="lineNum">      89 </span>            :     {
+<span class="lineNum">      90 </span><span class="lineCov">          6 :         if (papoLayers[i]-&gt;GetFeatureCount() != 0)</span>
+<span class="lineNum">      91 </span>            :         {
+<span class="lineNum">      92 </span><span class="lineCov">          6 :             bEmptyDS = FALSE;</span>
+<span class="lineNum">      93 </span><span class="lineCov">          6 :             break;</span>
+<span class="lineNum">      94 </span>            :         }
+<span class="lineNum">      95 </span>            :     }
+<span class="lineNum">      96 </span><span class="lineCov">          7 :     return !bEmptyDS;</span>
+<span class="lineNum">      97 </span>            : }
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span>            : /************************************************************************/
+<span class="lineNum">     100 </span>            : /*                   CleanupIntermediateResources()                     */
+<a name="101"><span class="lineNum">     101 </span>            : /************************************************************************/</a>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span><span class="lineCov">        254 : void PDFDataset::CleanupIntermediateResources()</span>
+<span class="lineNum">     104 </span>            : {
+<span class="lineNum">     105 </span><span class="lineCov">        254 :     std::map&lt;int,OGRGeometry*&gt;::iterator oMapIter = oMapMCID.begin();</span>
+<span class="lineNum">     106 </span><span class="lineCov">        276 :     for( ; oMapIter != oMapMCID.end(); ++oMapIter)</span>
+<span class="lineNum">     107 </span><span class="lineCov">         22 :         delete oMapIter-&gt;second;</span>
+<span class="lineNum">     108 </span><span class="lineCov">        254 :     oMapMCID.erase(oMapMCID.begin(), oMapMCID.end());</span>
+<span class="lineNum">     109 </span><span class="lineCov">        254 : }</span>
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            : /************************************************************************/
+<span class="lineNum">     112 </span>            : /*                          InitMapOperators()                          */
+<span class="lineNum">     113 </span>            : /************************************************************************/
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            : typedef struct
+<span class="lineNum">     116 </span>            : {
+<span class="lineNum">     117 </span>            :     char        szOpName[4];
+<span class="lineNum">     118 </span>            :     int         nArgs;
+<span class="lineNum">     119 </span>            : } PDFOperator;
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            : static const PDFOperator asPDFOperators [] =
+<span class="lineNum">     122 </span>            : {
+<span class="lineNum">     123 </span>            :     { &quot;b&quot;, 0 },
+<span class="lineNum">     124 </span>            :     { &quot;B&quot;, 0 },
+<span class="lineNum">     125 </span>            :     { &quot;b*&quot;, 0 },
+<span class="lineNum">     126 </span>            :     { &quot;B*&quot;, 0 },
+<span class="lineNum">     127 </span>            :     { &quot;BDC&quot;, 2 },
+<span class="lineNum">     128 </span>            :     // BI
+<span class="lineNum">     129 </span>            :     { &quot;BMC&quot;, 1 },
+<span class="lineNum">     130 </span>            :     // BT
+<span class="lineNum">     131 </span>            :     { &quot;BX&quot;, 0 },
+<span class="lineNum">     132 </span>            :     { &quot;c&quot;, 6 },
+<span class="lineNum">     133 </span>            :     { &quot;cm&quot;, 6 },
+<span class="lineNum">     134 </span>            :     { &quot;CS&quot;, 1 },
+<span class="lineNum">     135 </span>            :     { &quot;cs&quot;, 1 },
+<span class="lineNum">     136 </span>            :     { &quot;d&quot;, 1 }, /* we have ignored the first arg */
+<span class="lineNum">     137 </span>            :     // d0
+<span class="lineNum">     138 </span>            :     // d1
+<span class="lineNum">     139 </span>            :     { &quot;Do&quot;, 1 },
+<span class="lineNum">     140 </span>            :     { &quot;DP&quot;, 2 },
+<span class="lineNum">     141 </span>            :     // EI
+<span class="lineNum">     142 </span>            :     { &quot;EMC&quot;, 0 },
+<span class="lineNum">     143 </span>            :     // ET
+<span class="lineNum">     144 </span>            :     { &quot;EX&quot;, 0 },
+<span class="lineNum">     145 </span>            :     { &quot;f&quot;, 0 },
+<span class="lineNum">     146 </span>            :     { &quot;F&quot;, 0 },
+<span class="lineNum">     147 </span>            :     { &quot;f*&quot;, 0 },
+<span class="lineNum">     148 </span>            :     { &quot;G&quot;, 1 },
+<span class="lineNum">     149 </span>            :     { &quot;g&quot;, 1 },
+<span class="lineNum">     150 </span>            :     { &quot;gs&quot;, 1 },
+<span class="lineNum">     151 </span>            :     { &quot;h&quot;, 0 },
+<span class="lineNum">     152 </span>            :     { &quot;i&quot;, 1 },
+<span class="lineNum">     153 </span>            :     // ID
+<span class="lineNum">     154 </span>            :     { &quot;j&quot;, 1 },
+<span class="lineNum">     155 </span>            :     { &quot;J&quot;, 1 },
+<span class="lineNum">     156 </span>            :     { &quot;K&quot;, 4 },
+<span class="lineNum">     157 </span>            :     { &quot;k&quot;, 4 },
+<span class="lineNum">     158 </span>            :     { &quot;l&quot;, 2 },
+<span class="lineNum">     159 </span>            :     { &quot;m&quot;, 2 },
+<span class="lineNum">     160 </span>            :     { &quot;M&quot;, 1 },
+<span class="lineNum">     161 </span>            :     { &quot;MP&quot;, 1 },
+<span class="lineNum">     162 </span>            :     { &quot;n&quot;, 0 },
+<span class="lineNum">     163 </span>            :     { &quot;q&quot;, 0 },
+<span class="lineNum">     164 </span>            :     { &quot;Q&quot;, 0 },
+<span class="lineNum">     165 </span>            :     { &quot;re&quot;, 4 },
+<span class="lineNum">     166 </span>            :     { &quot;RG&quot;, 3 },
+<span class="lineNum">     167 </span>            :     { &quot;rg&quot;, 3 },
+<span class="lineNum">     168 </span>            :     { &quot;ri&quot;, 1 },
+<span class="lineNum">     169 </span>            :     { &quot;s&quot;, 0 },
+<span class="lineNum">     170 </span>            :     { &quot;S&quot;, 0 },
+<span class="lineNum">     171 </span>            :     { &quot;SC&quot;, -1 },
+<span class="lineNum">     172 </span>            :     { &quot;sc&quot;, -1 },
+<span class="lineNum">     173 </span>            :     { &quot;SCN&quot;, -1 },
+<span class="lineNum">     174 </span>            :     { &quot;scn&quot;, -1 },
+<span class="lineNum">     175 </span>            :     { &quot;sh&quot;, 1 },
+<span class="lineNum">     176 </span>            :     // T*
+<span class="lineNum">     177 </span>            :     { &quot;Tc&quot;, 1},
+<span class="lineNum">     178 </span>            :     { &quot;Td&quot;, 2},
+<span class="lineNum">     179 </span>            :     { &quot;TD&quot;, 2},
+<span class="lineNum">     180 </span>            :     { &quot;Tf&quot;, 1},
+<span class="lineNum">     181 </span>            :     { &quot;Tj&quot;, 1},
+<span class="lineNum">     182 </span>            :     { &quot;TJ&quot;, 1},
+<span class="lineNum">     183 </span>            :     { &quot;TL&quot;, 1},
+<span class="lineNum">     184 </span>            :     { &quot;Tm&quot;, 6},
+<span class="lineNum">     185 </span>            :     { &quot;Tr&quot;, 1},
+<span class="lineNum">     186 </span>            :     { &quot;Ts&quot;, 1},
+<span class="lineNum">     187 </span>            :     { &quot;Tw&quot;, 1},
+<span class="lineNum">     188 </span>            :     { &quot;Tz&quot;, 1},
+<span class="lineNum">     189 </span>            :     { &quot;v&quot;, 4 },
+<span class="lineNum">     190 </span>            :     { &quot;w&quot;, 1 },
+<span class="lineNum">     191 </span>            :     { &quot;W&quot;, 0 },
+<span class="lineNum">     192 </span>            :     { &quot;W*&quot;, 0 },
+<span class="lineNum">     193 </span>            :     { &quot;y&quot;, 4 },
+<span class="lineNum">     194 </span>            :     // '
+<span class="lineNum">     195 </span>            :     // &quot;
+<a name="196"><span class="lineNum">     196 </span>            : };</a>
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span><span class="lineCov">        247 : void PDFDataset::InitMapOperators()</span>
+<span class="lineNum">     199 </span>            : {
+<span class="lineNum">     200 </span><span class="lineCov">      15808 :     for(size_t i=0;i&lt;sizeof(asPDFOperators) / sizeof(asPDFOperators[0]); i++)</span>
+<span class="lineNum">     201 </span><span class="lineCov">      15561 :         oMapOperators[asPDFOperators[i].szOpName] = asPDFOperators[i].nArgs;</span>
+<span class="lineNum">     202 </span><span class="lineCov">        247 : }</span>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span>            : /************************************************************************/
+<span class="lineNum">     205 </span>            : /*                           TestCapability()                           */
+<a name="206"><span class="lineNum">     206 </span>            : /************************************************************************/</a>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 : int PDFDataset::TestCapability( CPL_UNUSED const char * pszCap )</span>
+<span class="lineNum">     209 </span>            : {
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :     return FALSE;</span>
+<span class="lineNum">     211 </span>            : }
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span>            : /************************************************************************/
+<span class="lineNum">     214 </span>            : /*                              GetLayer()                              */
+<a name="215"><span class="lineNum">     215 </span>            : /************************************************************************/</a>
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span><span class="lineCov">         10 : OGRLayer *PDFDataset::GetLayer( int iLayer )</span>
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            : {
+<span class="lineNum">     220 </span><span class="lineCov">         10 :     OpenVectorLayers(nullptr);</span>
+<span class="lineNum">     221 </span><span class="lineCov">         10 :     if (iLayer &lt; 0 || iLayer &gt;= nLayers)</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span><span class="lineCov">         10 :     return papoLayers[iLayer];</span>
+<span class="lineNum">     225 </span>            : }
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            : /************************************************************************/
+<span class="lineNum">     228 </span>            : /*                            GetLayerCount()                           */
+<a name="229"><span class="lineNum">     229 </span>            : /************************************************************************/</a>
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span><span class="lineCov">         16 : int PDFDataset::GetLayerCount()</span>
+<span class="lineNum">     232 </span>            : {
+<span class="lineNum">     233 </span><span class="lineCov">         16 :     OpenVectorLayers(nullptr);</span>
+<span class="lineNum">     234 </span><span class="lineCov">         16 :     return nLayers;</span>
+<span class="lineNum">     235 </span>            : }
+<span class="lineNum">     236 </span>            : 
+<span class="lineNum">     237 </span>            : /************************************************************************/
+<span class="lineNum">     238 </span>            : /*                            ExploreTree()                             */
+<a name="239"><span class="lineNum">     239 </span>            : /************************************************************************/</a>
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span><span class="lineCov">          6 : void PDFDataset::ExploreTree(GDALPDFObject* poObj,</span>
+<span class="lineNum">     242 </span>            :                              std::set&lt; std::pair&lt;int,int&gt; &gt; aoSetAlreadyVisited,
+<span class="lineNum">     243 </span>            :                              int nRecLevel)
+<span class="lineNum">     244 </span>            : {
+<span class="lineNum">     245 </span><span class="lineCov">          6 :     if (nRecLevel == 16)</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineCov">          6 :     std::pair&lt;int,int&gt; oObjPair( poObj-&gt;GetRefNum().toInt(), poObj-&gt;GetRefGen() );</span>
+<span class="lineNum">     249 </span><span class="lineCov">          6 :     if( aoSetAlreadyVisited.find( oObjPair ) != aoSetAlreadyVisited.end() )</span>
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     251 </span><span class="lineCov">          6 :     aoSetAlreadyVisited.insert( oObjPair );</span>
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span><span class="lineCov">          6 :     if (poObj-&gt;GetType() != PDFObjectType_Dictionary)</span>
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineCov">          6 :     GDALPDFDictionary* poDict = poObj-&gt;GetDictionary();</span>
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineCov">          6 :     GDALPDFObject* poS = poDict-&gt;Get(&quot;S&quot;);</span>
+<span class="lineNum">     259 </span><span class="lineCov">          6 :     CPLString osS;</span>
+<span class="lineNum">     260 </span><span class="lineCov">          6 :     if (poS != nullptr &amp;&amp; poS-&gt;GetType() == PDFObjectType_Name)</span>
+<span class="lineNum">     261 </span>            :     {
+<span class="lineNum">     262 </span><span class="lineCov">          3 :         osS = poS-&gt;GetName();</span>
+<span class="lineNum">     263 </span>            :     }
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span><span class="lineCov">          6 :     GDALPDFObject* poT = poDict-&gt;Get(&quot;T&quot;);</span>
+<span class="lineNum">     266 </span><span class="lineCov">         12 :     CPLString osT;</span>
+<span class="lineNum">     267 </span><span class="lineCov">          6 :     if (poT != nullptr &amp;&amp; poT-&gt;GetType() == PDFObjectType_String)</span>
+<span class="lineNum">     268 </span>            :     {
+<span class="lineNum">     269 </span><span class="lineCov">          3 :         osT = poT-&gt;GetString();</span>
+<span class="lineNum">     270 </span>            :     }
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span><span class="lineCov">          6 :     GDALPDFObject* poK = poDict-&gt;Get(&quot;K&quot;);</span>
+<span class="lineNum">     273 </span><span class="lineCov">          6 :     if (poK == nullptr)</span>
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span><span class="lineCov">          6 :     if (poK-&gt;GetType() == PDFObjectType_Array)</span>
+<span class="lineNum">     277 </span>            :     {
+<span class="lineNum">     278 </span><span class="lineCov">          6 :         GDALPDFArray* poArray = poK-&gt;GetArray();</span>
+<span class="lineNum">     279 </span><span class="lineCov">         18 :         if (poArray-&gt;GetLength() &gt; 0 &amp;&amp;</span>
+<span class="lineNum">     280 </span><span class="lineCov">         12 :             poArray-&gt;Get(0)-&gt;GetType() == PDFObjectType_Dictionary &amp;&amp;</span>
+<span class="lineNum">     281 </span><span class="lineCov">         18 :             poArray-&gt;Get(0)-&gt;GetDictionary()-&gt;Get(&quot;K&quot;) != nullptr &amp;&amp;</span>
+<span class="lineNum">     282 </span><span class="lineCov">          6 :             poArray-&gt;Get(0)-&gt;GetDictionary()-&gt;Get(&quot;K&quot;)-&gt;GetType() == PDFObjectType_Int)</span>
+<span class="lineNum">     283 </span>            :         {
+<span class="lineNum">     284 </span><span class="lineCov">          3 :             CPLString osLayerName;</span>
+<span class="lineNum">     285 </span><span class="lineCov">          3 :             if (!osT.empty() )</span>
+<span class="lineNum">     286 </span><span class="lineCov">          3 :                 osLayerName = osT;</span>
+<span class="lineNum">     287 </span>            :             else
+<span class="lineNum">     288 </span>            :             {
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :                 if (!osS.empty() )</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :                     osLayerName = osS;</span>
+<span class="lineNum">     291 </span>            :                 else
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :                     osLayerName = CPLSPrintf(&quot;Layer%d&quot;, nLayers + 1);</span>
+<span class="lineNum">     293 </span>            :             }
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span><span class="lineCov">          3 :             auto poSRSOri = GetSpatialRef();</span>
+<span class="lineNum">     296 </span><span class="lineCov">          3 :             OGRSpatialReference* poSRS = poSRSOri ? poSRSOri-&gt;Clone() : nullptr;</span>
+<span class="lineNum">     297 </span>            :             OGRPDFLayer* poLayer =
+<span class="lineNum">     298 </span><span class="lineCov">          3 :                 new OGRPDFLayer(this, osLayerName.c_str(), poSRS, wkbUnknown);</span>
+<span class="lineNum">     299 </span><span class="lineCov">          3 :             if( poSRS )</span>
+<span class="lineNum">     300 </span><span class="lineCov">          3 :                 poSRS-&gt;Release();</span>
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span><span class="lineCov">          3 :             poLayer-&gt;Fill(poArray);</span>
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            :             papoLayers = (OGRLayer**)
+<span class="lineNum">     305 </span><span class="lineCov">          3 :                 CPLRealloc(papoLayers, (nLayers + 1) * sizeof(OGRLayer*));</span>
+<span class="lineNum">     306 </span><span class="lineCov">          3 :             papoLayers[nLayers] = poLayer;</span>
+<span class="lineNum">     307 </span><span class="lineCov">          3 :             nLayers ++;</span>
+<span class="lineNum">     308 </span>            :         }
+<span class="lineNum">     309 </span>            :         else
+<span class="lineNum">     310 </span>            :         {
+<span class="lineNum">     311 </span><span class="lineCov">          6 :             for(int i=0;i&lt;poArray-&gt;GetLength();i++)</span>
+<span class="lineNum">     312 </span><span class="lineCov">          3 :                 ExploreTree(poArray-&gt;Get(i), aoSetAlreadyVisited,</span>
+<span class="lineNum">     313 </span><span class="lineCov">          6 :                             nRecLevel + 1);</span>
+<span class="lineNum">     314 </span>            :         }
+<span class="lineNum">     315 </span>            :     }
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 :     else if (poK-&gt;GetType() == PDFObjectType_Dictionary)</span>
+<span class="lineNum">     317 </span>            :     {
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :         ExploreTree(poK, aoSetAlreadyVisited, nRecLevel + 1);</span>
+<span class="lineNum">     319 </span><span class="lineCov">          6 :     }</span>
+<span class="lineNum">     320 </span>            : }
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span>            : /************************************************************************/
+<span class="lineNum">     323 </span>            : /*                        GetGeometryFromMCID()                         */
+<a name="324"><span class="lineNum">     324 </span>            : /************************************************************************/</a>
+<span class="lineNum">     325 </span>            : 
+<span class="lineNum">     326 </span><span class="lineCov">         47 : OGRGeometry* PDFDataset::GetGeometryFromMCID(int nMCID)</span>
+<span class="lineNum">     327 </span>            : {
+<span class="lineNum">     328 </span><span class="lineCov">         47 :     std::map&lt;int,OGRGeometry*&gt;::iterator oMapIter = oMapMCID.find(nMCID);</span>
+<span class="lineNum">     329 </span><span class="lineCov">         47 :     if (oMapIter != oMapMCID.end())</span>
+<span class="lineNum">     330 </span><span class="lineCov">         23 :         return oMapIter-&gt;second;</span>
+<span class="lineNum">     331 </span>            :     else
+<span class="lineNum">     332 </span><span class="lineCov">         24 :         return nullptr;</span>
+<span class="lineNum">     333 </span>            : }
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span>            : /************************************************************************/
+<span class="lineNum">     336 </span>            : /*                            GraphicState                              */
+<span class="lineNum">     337 </span>            : /************************************************************************/
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            : class GraphicState
+<span class="lineNum">     340 </span>            : {
+<span class="lineNum">     341 </span>            :     public:
+<span class="lineNum">     342 </span>            :         double adfCM[6];
+<span class="lineNum">     343 </span>            :         double adfStrokeColor[3];
+<a name="344"><span class="lineNum">     344 </span>            :         double adfFillColor[3];</a>
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span><span class="lineCov">         79 :         GraphicState()</span>
+<span class="lineNum">     347 </span>            :         {
+<span class="lineNum">     348 </span><span class="lineCov">         79 :             adfCM[0] = 1;</span>
+<span class="lineNum">     349 </span><span class="lineCov">         79 :             adfCM[1] = 0;</span>
+<span class="lineNum">     350 </span><span class="lineCov">         79 :             adfCM[2] = 0;</span>
+<span class="lineNum">     351 </span><span class="lineCov">         79 :             adfCM[3] = 1;</span>
+<span class="lineNum">     352 </span><span class="lineCov">         79 :             adfCM[4] = 0;</span>
+<span class="lineNum">     353 </span><span class="lineCov">         79 :             adfCM[5] = 0;</span>
+<span class="lineNum">     354 </span><span class="lineCov">         79 :             adfStrokeColor[0] = 0.0;</span>
+<span class="lineNum">     355 </span><span class="lineCov">         79 :             adfStrokeColor[1] = 0.0;</span>
+<span class="lineNum">     356 </span><span class="lineCov">         79 :             adfStrokeColor[2] = 0.0;</span>
+<span class="lineNum">     357 </span><span class="lineCov">         79 :             adfFillColor[0] = 1.0;</span>
+<span class="lineNum">     358 </span><span class="lineCov">         79 :             adfFillColor[1] = 1.0;</span>
+<span class="lineNum">     359 </span><span class="lineCov">         79 :             adfFillColor[2] = 1.0;</span>
+<a name="360"><span class="lineNum">     360 </span><span class="lineCov">         79 :         }</span></a>
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span><span class="lineCov">          3 :         void MultiplyBy(double adfMatrix[6])</span>
+<span class="lineNum">     363 </span>            :         {
+<span class="lineNum">     364 </span>            :             /*
+<span class="lineNum">     365 </span>            :             [ a b 0 ]     [ a' b' 0]     [ aa' + bc'       ab' + bd'       0 ]
+<span class="lineNum">     366 </span>            :             [ c d 0 ]  *  [ c' d' 0]  =  [ ca' + dc'       cb' + dd'       0 ]
+<span class="lineNum">     367 </span>            :             [ e f 1 ]     [ e' f' 1]     [ ea' + fc' + e'  eb' + fd' + f'  1 ]
+<span class="lineNum">     368 </span>            :             */
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span><span class="lineCov">          3 :             double a = adfCM[0];</span>
+<span class="lineNum">     371 </span><span class="lineCov">          3 :             double b = adfCM[1];</span>
+<span class="lineNum">     372 </span><span class="lineCov">          3 :             double c = adfCM[2];</span>
+<span class="lineNum">     373 </span><span class="lineCov">          3 :             double d = adfCM[3];</span>
+<span class="lineNum">     374 </span><span class="lineCov">          3 :             double e = adfCM[4];</span>
+<span class="lineNum">     375 </span><span class="lineCov">          3 :             double f = adfCM[5];</span>
+<span class="lineNum">     376 </span><span class="lineCov">          3 :             double ap = adfMatrix[0];</span>
+<span class="lineNum">     377 </span><span class="lineCov">          3 :             double bp = adfMatrix[1];</span>
+<span class="lineNum">     378 </span><span class="lineCov">          3 :             double cp = adfMatrix[2];</span>
+<span class="lineNum">     379 </span><span class="lineCov">          3 :             double dp = adfMatrix[3];</span>
+<span class="lineNum">     380 </span><span class="lineCov">          3 :             double ep = adfMatrix[4];</span>
+<span class="lineNum">     381 </span><span class="lineCov">          3 :             double fp = adfMatrix[5];</span>
+<span class="lineNum">     382 </span><span class="lineCov">          3 :             adfCM[0] = a*ap + b*cp;</span>
+<span class="lineNum">     383 </span><span class="lineCov">          3 :             adfCM[1] = a*bp + b*dp;</span>
+<span class="lineNum">     384 </span><span class="lineCov">          3 :             adfCM[2] = c*ap + d*cp;</span>
+<span class="lineNum">     385 </span><span class="lineCov">          3 :             adfCM[3] = c*bp + d*dp;</span>
+<span class="lineNum">     386 </span><span class="lineCov">          3 :             adfCM[4] = e*ap + f*cp + ep;</span>
+<span class="lineNum">     387 </span><span class="lineCov">          3 :             adfCM[5] = e*bp + f*dp + fp;</span>
+<a name="388"><span class="lineNum">     388 </span><span class="lineCov">          3 :         }</span></a>
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span><span class="lineCov">        293 :         void ApplyMatrix(double adfCoords[2])</span>
+<span class="lineNum">     391 </span>            :         {
+<span class="lineNum">     392 </span><span class="lineCov">        293 :             double x = adfCoords[0];</span>
+<span class="lineNum">     393 </span><span class="lineCov">        293 :             double y = adfCoords[1];</span>
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span><span class="lineCov">        293 :             adfCoords[0] = x * adfCM[0] + y * adfCM[2] + adfCM[4];</span>
+<span class="lineNum">     396 </span><span class="lineCov">        293 :             adfCoords[1] = x * adfCM[1] + y * adfCM[3] + adfCM[5];</span>
+<span class="lineNum">     397 </span><span class="lineCov">        293 :         }</span>
+<span class="lineNum">     398 </span>            : };
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span>            : /************************************************************************/
+<span class="lineNum">     401 </span>            : /*                         PDFCoordsToSRSCoords()                       */
+<a name="402"><span class="lineNum">     402 </span>            : /************************************************************************/</a>
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span><span class="lineCov">        294 : void PDFDataset::PDFCoordsToSRSCoords(double x, double y,</span>
+<span class="lineNum">     405 </span>            :                                             double&amp; X, double &amp;Y)
+<span class="lineNum">     406 </span>            : {
+<span class="lineNum">     407 </span><span class="lineCov">        294 :     x = x / dfPageWidth * nRasterXSize;</span>
+<span class="lineNum">     408 </span><span class="lineCov">        294 :     if( bGeoTransformValid )</span>
+<span class="lineNum">     409 </span><span class="lineCov">        257 :         y = (1 - y / dfPageHeight) * nRasterYSize;</span>
+<span class="lineNum">     410 </span>            :     else
+<span class="lineNum">     411 </span><span class="lineCov">         37 :         y = (y / dfPageHeight) * nRasterYSize;</span>
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span><span class="lineCov">        294 :     X = adfGeoTransform[0] + x * adfGeoTransform[1] + y * adfGeoTransform[2];</span>
+<span class="lineNum">     414 </span><span class="lineCov">        294 :     Y = adfGeoTransform[3] + x * adfGeoTransform[4] + y * adfGeoTransform[5];</span>
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span><span class="lineCov">        294 :     if( fabs(X - (int)floor(X + 0.5)) &lt; 1e-8 )</span>
+<span class="lineNum">     417 </span><span class="lineCov">         61 :         X = (int)floor(X + 0.5);</span>
+<span class="lineNum">     418 </span><span class="lineCov">        294 :     if( fabs(Y - (int)floor(Y + 0.5)) &lt; 1e-8 )</span>
+<span class="lineNum">     419 </span><span class="lineCov">         59 :         Y = (int)floor(Y + 0.5);</span>
+<span class="lineNum">     420 </span><span class="lineCov">        294 : }</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span>            : /************************************************************************/
+<span class="lineNum">     423 </span>            : /*                         PDFGetCircleCenter()                         */
+<span class="lineNum">     424 </span>            : /************************************************************************/
+<span class="lineNum">     425 </span>            : 
+<a name="426"><span class="lineNum">     426 </span>            : /* Return the center of a circle, or NULL if it is not recognized */</a>
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span><span class="lineCov">         28 : static OGRPoint* PDFGetCircleCenter(OGRLineString* poLS)</span>
+<span class="lineNum">     429 </span>            : {
+<span class="lineNum">     430 </span><span class="lineCov">         28 :     if (poLS == nullptr || poLS-&gt;getNumPoints() != 5)</span>
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span><span class="lineCov">         68 :     if (poLS-&gt;getY(0) == poLS-&gt;getY(2) &amp;&amp;</span>
+<span class="lineNum">     434 </span><span class="lineCov">         24 :         poLS-&gt;getX(1) == poLS-&gt;getX(3) &amp;&amp;</span>
+<span class="lineNum">     435 </span><span class="lineCov">         52 :         fabs((poLS-&gt;getX(0) + poLS-&gt;getX(2)) / 2 - poLS-&gt;getX(1)) &lt; EPSILON &amp;&amp;</span>
+<span class="lineNum">     436 </span><span class="lineCov">         12 :         fabs((poLS-&gt;getY(1) + poLS-&gt;getY(3)) / 2 - poLS-&gt;getY(0)) &lt; EPSILON)</span>
+<span class="lineNum">     437 </span>            :     {
+<span class="lineNum">     438 </span><span class="lineCov">         12 :         return new OGRPoint((poLS-&gt;getX(0) + poLS-&gt;getX(2)) / 2,</span>
+<span class="lineNum">     439 </span><span class="lineCov">         12 :                             (poLS-&gt;getY(1) + poLS-&gt;getY(3)) / 2);</span>
+<span class="lineNum">     440 </span>            :     }
+<span class="lineNum">     441 </span><span class="lineCov">         16 :     return nullptr;</span>
+<span class="lineNum">     442 </span>            : }
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span>            : /************************************************************************/
+<span class="lineNum">     445 </span>            : /*                         PDFGetSquareCenter()                         */
+<span class="lineNum">     446 </span>            : /************************************************************************/
+<span class="lineNum">     447 </span>            : 
+<a name="448"><span class="lineNum">     448 </span>            : /* Return the center of a square, or NULL if it is not recognized */</a>
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span><span class="lineCov">         19 : static OGRPoint* PDFGetSquareCenter(OGRLineString* poLS)</span>
+<span class="lineNum">     451 </span>            : {
+<span class="lineNum">     452 </span><span class="lineCov">         19 :     if (poLS == nullptr || poLS-&gt;getNumPoints() &lt; 4 || poLS-&gt;getNumPoints() &gt; 5)</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span><span class="lineCov">         48 :     if (poLS-&gt;getX(0) == poLS-&gt;getX(3) &amp;&amp;</span>
+<span class="lineNum">     456 </span><span class="lineCov">         17 :         poLS-&gt;getY(0) == poLS-&gt;getY(1) &amp;&amp;</span>
+<span class="lineNum">     457 </span><span class="lineCov">         14 :         poLS-&gt;getX(1) == poLS-&gt;getX(2) &amp;&amp;</span>
+<span class="lineNum">     458 </span><span class="lineCov">         33 :         poLS-&gt;getY(2) == poLS-&gt;getY(3) &amp;&amp;</span>
+<span class="lineNum">     459 </span><span class="lineCov">          7 :         fabs(fabs(poLS-&gt;getX(0) - poLS-&gt;getX(1)) - fabs(poLS-&gt;getY(0) - poLS-&gt;getY(3))) &lt; EPSILON)</span>
+<span class="lineNum">     460 </span>            :     {
+<span class="lineNum">     461 </span><span class="lineCov">          6 :         return new OGRPoint((poLS-&gt;getX(0) + poLS-&gt;getX(1)) / 2,</span>
+<span class="lineNum">     462 </span><span class="lineCov">          6 :                             (poLS-&gt;getY(0) + poLS-&gt;getY(3)) / 2);</span>
+<span class="lineNum">     463 </span>            :     }
+<span class="lineNum">     464 </span><span class="lineCov">         13 :     return nullptr;</span>
+<span class="lineNum">     465 </span>            : }
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span>            : /************************************************************************/
+<span class="lineNum">     468 </span>            : /*                        PDFGetTriangleCenter()                        */
+<span class="lineNum">     469 </span>            : /************************************************************************/
+<span class="lineNum">     470 </span>            : 
+<a name="471"><span class="lineNum">     471 </span>            : /* Return the center of a equilateral triangle, or NULL if it is not recognized */</a>
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span><span class="lineCov">          6 : static OGRPoint* PDFGetTriangleCenter(OGRLineString* poLS)</span>
+<span class="lineNum">     474 </span>            : {
+<span class="lineNum">     475 </span><span class="lineCov">          6 :     if (poLS == nullptr || poLS-&gt;getNumPoints() &lt; 3 || poLS-&gt;getNumPoints() &gt; 4)</span>
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span><span class="lineCov">          6 :     double dfSqD1 = SQUARE(poLS-&gt;getX(0) - poLS-&gt;getX(1)) + SQUARE(poLS-&gt;getY(0) - poLS-&gt;getY(1));</span>
+<span class="lineNum">     479 </span><span class="lineCov">          6 :     double dfSqD2 = SQUARE(poLS-&gt;getX(1) - poLS-&gt;getX(2)) + SQUARE(poLS-&gt;getY(1) - poLS-&gt;getY(2));</span>
+<span class="lineNum">     480 </span><span class="lineCov">          6 :     double dfSqD3 = SQUARE(poLS-&gt;getX(0) - poLS-&gt;getX(2)) + SQUARE(poLS-&gt;getY(0) - poLS-&gt;getY(2));</span>
+<span class="lineNum">     481 </span><span class="lineCov">          6 :     if (fabs(dfSqD1 - dfSqD2) &lt; EPSILON &amp;&amp; fabs(dfSqD2 - dfSqD3) &lt; EPSILON)</span>
+<span class="lineNum">     482 </span>            :     {
+<span class="lineNum">     483 </span><span class="lineCov">          6 :         return new OGRPoint((poLS-&gt;getX(0) + poLS-&gt;getX(1) + poLS-&gt;getX(2)) / 3,</span>
+<span class="lineNum">     484 </span><span class="lineCov">          6 :                             (poLS-&gt;getY(0) + poLS-&gt;getY(1) + poLS-&gt;getY(2)) / 3);</span>
+<span class="lineNum">     485 </span>            :     }
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     487 </span>            : }
+<span class="lineNum">     488 </span>            : 
+<span class="lineNum">     489 </span>            : /************************************************************************/
+<span class="lineNum">     490 </span>            : /*                          PDFGetStarCenter()                          */
+<span class="lineNum">     491 </span>            : /************************************************************************/
+<span class="lineNum">     492 </span>            : 
+<a name="493"><span class="lineNum">     493 </span>            : /* Return the center of a 5-point star, or NULL if it is not recognized */</a>
+<span class="lineNum">     494 </span>            : 
+<span class="lineNum">     495 </span><span class="lineCov">          6 : static OGRPoint* PDFGetStarCenter(OGRLineString* poLS)</span>
+<span class="lineNum">     496 </span>            : {
+<span class="lineNum">     497 </span><span class="lineCov">          6 :     if (poLS == nullptr || poLS-&gt;getNumPoints() &lt; 10 || poLS-&gt;getNumPoints() &gt; 11)</span>
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span><span class="lineCov">          6 :     double dfSqD01 = SQUARE(poLS-&gt;getX(0) - poLS-&gt;getX(1)) +</span>
+<span class="lineNum">     501 </span><span class="lineCov">          6 :                      SQUARE(poLS-&gt;getY(0) - poLS-&gt;getY(1));</span>
+<span class="lineNum">     502 </span><span class="lineCov">          6 :     double dfSqD02 = SQUARE(poLS-&gt;getX(0) - poLS-&gt;getX(2)) +</span>
+<span class="lineNum">     503 </span><span class="lineCov">          6 :                        SQUARE(poLS-&gt;getY(0) - poLS-&gt;getY(2));</span>
+<span class="lineNum">     504 </span><span class="lineCov">          6 :     double dfSqD13 = SQUARE(poLS-&gt;getX(1) - poLS-&gt;getX(3)) +</span>
+<span class="lineNum">     505 </span><span class="lineCov">          6 :                       SQUARE(poLS-&gt;getY(1) - poLS-&gt;getY(3));</span>
+<span class="lineNum">     506 </span><span class="lineCov">          6 :     const double dfSin18divSin126 = 0.38196601125;</span>
+<span class="lineNum">     507 </span><span class="lineCov">          6 :     int bOK = fabs(dfSqD13 / dfSqD02 - SQUARE(dfSin18divSin126)) &lt; EPSILON;</span>
+<span class="lineNum">     508 </span><span class="lineCov">         60 :     for(int i=1;i&lt;10 &amp;&amp; bOK;i++)</span>
+<span class="lineNum">     509 </span>            :     {
+<span class="lineNum">     510 </span><span class="lineCov">         54 :         double dfSqDiip1 = SQUARE(poLS-&gt;getX(i) - poLS-&gt;getX((i+1)%10)) +</span>
+<span class="lineNum">     511 </span><span class="lineCov">         54 :                            SQUARE(poLS-&gt;getY(i) - poLS-&gt;getY((i+1)%10));</span>
+<span class="lineNum">     512 </span><span class="lineCov">         54 :         if (fabs(dfSqDiip1 - dfSqD01) &gt; EPSILON)</span>
+<span class="lineNum">     513 </span>            :         {
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :             bOK = FALSE;</span>
+<span class="lineNum">     515 </span>            :         }
+<span class="lineNum">     516 </span><span class="lineCov">         54 :         double dfSqDiip2 = SQUARE(poLS-&gt;getX(i) - poLS-&gt;getX((i+2)%10)) +</span>
+<span class="lineNum">     517 </span><span class="lineCov">         54 :                            SQUARE(poLS-&gt;getY(i) - poLS-&gt;getY((i+2)%10));</span>
+<span class="lineNum">     518 </span><span class="lineCov">         54 :         if ( (i%2) == 1 &amp;&amp; fabs(dfSqDiip2 - dfSqD13) &gt; EPSILON )</span>
+<span class="lineNum">     519 </span>            :         {
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :             bOK = FALSE;</span>
+<span class="lineNum">     521 </span>            :         }
+<span class="lineNum">     522 </span><span class="lineCov">         54 :         if ( (i%2) == 0 &amp;&amp; fabs(dfSqDiip2 - dfSqD02) &gt; EPSILON )</span>
+<span class="lineNum">     523 </span>            :         {
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :             bOK = FALSE;</span>
+<span class="lineNum">     525 </span>            :         }
+<span class="lineNum">     526 </span>            :     }
+<span class="lineNum">     527 </span><span class="lineCov">          6 :     if (bOK)</span>
+<span class="lineNum">     528 </span>            :     {
+<span class="lineNum">     529 </span><span class="lineCov">         12 :         return new OGRPoint((poLS-&gt;getX(0) + poLS-&gt;getX(2) + poLS-&gt;getX(4) +</span>
+<span class="lineNum">     530 </span><span class="lineCov">         12 :                              poLS-&gt;getX(6) + poLS-&gt;getX(8)) / 5,</span>
+<span class="lineNum">     531 </span><span class="lineCov">         12 :                             (poLS-&gt;getY(0) + poLS-&gt;getY(2) + poLS-&gt;getY(4) +</span>
+<span class="lineNum">     532 </span><span class="lineCov">         18 :                              poLS-&gt;getY(6) + poLS-&gt;getY(8)) / 5);</span>
+<span class="lineNum">     533 </span>            :     }
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     535 </span>            : }
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span>            : /************************************************************************/
+<span class="lineNum">     538 </span>            : /*                            UnstackTokens()                           */
+<a name="539"><span class="lineNum">     539 </span>            : /************************************************************************/</a>
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span><span class="lineCov">        394 : int PDFDataset::UnstackTokens(const char* pszToken,</span>
+<span class="lineNum">     542 </span>            :                                     int nRequiredArgs,
+<span class="lineNum">     543 </span>            :                                     char aszTokenStack[TOKEN_STACK_SIZE][MAX_TOKEN_SIZE],
+<span class="lineNum">     544 </span>            :                                     int&amp; nTokenStackSize,
+<span class="lineNum">     545 </span>            :                                     double* adfCoords)
+<span class="lineNum">     546 </span>            : {
+<span class="lineNum">     547 </span><span class="lineCov">        394 :     if (nTokenStackSize &lt; nRequiredArgs)</span>
+<span class="lineNum">     548 </span>            :     {
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :         CPLDebug(&quot;PDF&quot;, &quot;not enough arguments for %s&quot;, pszToken);</span>
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     551 </span>            :     }
+<span class="lineNum">     552 </span><span class="lineCov">        394 :     nTokenStackSize -= nRequiredArgs;</span>
+<span class="lineNum">     553 </span><span class="lineCov">       1519 :     for(int i=0;i&lt;nRequiredArgs;i++)</span>
+<span class="lineNum">     554 </span>            :     {
+<span class="lineNum">     555 </span><span class="lineCov">       1125 :         adfCoords[i] = CPLAtof(aszTokenStack[nTokenStackSize+i]);</span>
+<span class="lineNum">     556 </span>            :     }
+<span class="lineNum">     557 </span><span class="lineCov">        394 :     return TRUE;</span>
+<span class="lineNum">     558 </span>            : }
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            : /************************************************************************/
+<span class="lineNum">     561 </span>            : /*                           ParseContent()                             */
+<span class="lineNum">     562 </span>            : /************************************************************************/
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span>            : #define NEW_SUBPATH -99
+<span class="lineNum">     565 </span>            : #define CLOSE_SUBPATH -98
+<a name="566"><span class="lineNum">     566 </span>            : #define FILL_SUBPATH -97</a>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineCov">         79 : OGRGeometry* PDFDataset::ParseContent(const char* pszContent,</span>
+<span class="lineNum">     569 </span>            :                                             GDALPDFObject* poResources,
+<span class="lineNum">     570 </span>            :                                             int bInitBDCStack,
+<span class="lineNum">     571 </span>            :                                             int bMatchQ,
+<span class="lineNum">     572 </span>            :                                             std::map&lt;CPLString, OGRPDFLayer*&gt;&amp; oMapPropertyToLayer,
+<span class="lineNum">     573 </span>            :                                             OGRPDFLayer* poCurLayer)
+<span class="lineNum">     574 </span>            : {
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span>            : #define PUSH(aszTokenStack, str, strlen) \
+<span class="lineNum">     577 </span>            :     do \
+<span class="lineNum">     578 </span>            :     { \
+<span class="lineNum">     579 </span>            :         if(nTokenStackSize &lt; TOKEN_STACK_SIZE) \
+<span class="lineNum">     580 </span>            :             memcpy(aszTokenStack[nTokenStackSize ++], str, strlen + 1); \
+<span class="lineNum">     581 </span>            :         else \
+<span class="lineNum">     582 </span>            :         { \
+<span class="lineNum">     583 </span>            :             CPLError(CE_Failure, CPLE_AppDefined, \
+<span class="lineNum">     584 </span>            :                      &quot;Max token stack size reached&quot;); \
+<span class="lineNum">     585 </span>            :             return nullptr; \
+<span class="lineNum">     586 </span>            :         }; \
+<span class="lineNum">     587 </span>            :     } while( false )
+<span class="lineNum">     588 </span>            : 
+<span class="lineNum">     589 </span>            : #define ADD_CHAR(szToken, c) \
+<span class="lineNum">     590 </span>            :     do \
+<span class="lineNum">     591 </span>            :     { \
+<span class="lineNum">     592 </span>            :         if(nTokenSize &lt; MAX_TOKEN_SIZE-1) \
+<span class="lineNum">     593 </span>            :         { \
+<span class="lineNum">     594 </span>            :             szToken[nTokenSize ++ ] = c; \
+<span class="lineNum">     595 </span>            :             szToken[nTokenSize ] = '\0'; \
+<span class="lineNum">     596 </span>            :         } \
+<span class="lineNum">     597 </span>            :         else \
+<span class="lineNum">     598 </span>            :         { \
+<span class="lineNum">     599 </span>            :             CPLError(CE_Failure, CPLE_AppDefined, &quot;Max token size reached&quot;);\
+<span class="lineNum">     600 </span>            :             return nullptr; \
+<span class="lineNum">     601 </span>            :         }; \
+<span class="lineNum">     602 </span>            :     } while( false )
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span>            :     char szToken[MAX_TOKEN_SIZE];
+<span class="lineNum">     605 </span><span class="lineCov">         79 :     int nTokenSize = 0;</span>
+<span class="lineNum">     606 </span>            :     char ch;
+<span class="lineNum">     607 </span>            :     char aszTokenStack[TOKEN_STACK_SIZE][MAX_TOKEN_SIZE];
+<span class="lineNum">     608 </span><span class="lineCov">         79 :     int nTokenStackSize = 0;</span>
+<span class="lineNum">     609 </span><span class="lineCov">         79 :     int bInString = FALSE;</span>
+<span class="lineNum">     610 </span><span class="lineCov">         79 :     int nBDCLevel = 0;</span>
+<span class="lineNum">     611 </span><span class="lineCov">         79 :     int nParenthesisLevel = 0;</span>
+<span class="lineNum">     612 </span><span class="lineCov">         79 :     int nArrayLevel = 0;</span>
+<span class="lineNum">     613 </span><span class="lineCov">         79 :     int nBTLevel = 0;</span>
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span><span class="lineCov">         79 :     int bCollectAllObjects = poResources != nullptr &amp;&amp; !bInitBDCStack &amp;&amp; !bMatchQ;</span>
+<span class="lineNum">     616 </span>            : 
+<span class="lineNum">     617 </span><span class="lineCov">         79 :     GraphicState oGS;</span>
+<span class="lineNum">     618 </span><span class="lineCov">         79 :     std::stack&lt;GraphicState&gt; oGSStack;</span>
+<span class="lineNum">     619 </span><span class="lineCov">        158 :     std::stack&lt;OGRPDFLayer*&gt; oLayerStack;</span>
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span><span class="lineCov">        158 :     std::vector&lt;double&gt; oCoords;</span>
+<span class="lineNum">     622 </span><span class="lineCov">         79 :     int bHasFoundFill = FALSE;</span>
+<span class="lineNum">     623 </span><span class="lineCov">         79 :     int bHasMultiPart = FALSE;</span>
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span><span class="lineCov">         79 :     szToken[0] = '\0';</span>
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span><span class="lineCov">         79 :     if (bInitBDCStack)</span>
+<span class="lineNum">     628 </span>            :     {
+<span class="lineNum">     629 </span><span class="lineCov">         23 :         PUSH(aszTokenStack, &quot;dummy&quot;, 5);</span>
+<span class="lineNum">     630 </span><span class="lineCov">         23 :         PUSH(aszTokenStack, &quot;dummy&quot;, 5);</span>
+<span class="lineNum">     631 </span><span class="lineCov">         23 :         oLayerStack.push(nullptr);</span>
+<span class="lineNum">     632 </span>            :     }
+<span class="lineNum">     633 </span>            : 
+<span class="lineNum">     634 </span><span class="lineCov">      15306 :     while((ch = *pszContent) != '\0')</span>
+<span class="lineNum">     635 </span>            :     {
+<span class="lineNum">     636 </span><span class="lineCov">      15171 :         int bPushToken = FALSE;</span>
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span><span class="lineCov">      15171 :         if (!bInString &amp;&amp; ch == '%')</span>
+<span class="lineNum">     639 </span>            :         {
+<span class="lineNum">     640 </span>            :             /* Skip comments until end-of-line */
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 :             while((ch = *pszContent) != '\0')</span>
+<span class="lineNum">     642 </span>            :             {
+<span class="lineNum">     643 </span><span class="lineNoCov">          0 :                 if (ch == '\r' || ch == '\n')</span>
+<span class="lineNum">     644 </span>            :                     break;
+<span class="lineNum">     645 </span><span class="lineNoCov">          0 :                 pszContent ++;</span>
+<span class="lineNum">     646 </span>            :             }
+<span class="lineNum">     647 </span><span class="lineNoCov">          0 :             if (ch == 0)</span>
+<span class="lineNum">     648 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     649 </span>            :         }
+<span class="lineNum">     650 </span><span class="lineCov">      15171 :         else if (!bInString &amp;&amp; (ch == ' ' || ch == '\r' || ch == '\n'))</span>
+<span class="lineNum">     651 </span>            :         {
+<span class="lineNum">     652 </span><span class="lineCov">       2480 :             bPushToken = TRUE;</span>
+<span class="lineNum">     653 </span>            :         }
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span>            :         /* Ignore arrays */
+<span class="lineNum">     656 </span><span class="lineCov">      12691 :         else if (!bInString &amp;&amp; nTokenSize == 0 &amp;&amp; ch == '[')</span>
+<span class="lineNum">     657 </span>            :         {
+<span class="lineNum">     658 </span><span class="lineCov">         47 :             nArrayLevel ++;</span>
+<span class="lineNum">     659 </span>            :         }
+<span class="lineNum">     660 </span><span class="lineCov">      12644 :         else if (!bInString &amp;&amp; nArrayLevel &amp;&amp; ch == ']')</span>
+<span class="lineNum">     661 </span>            :         {
+<span class="lineNum">     662 </span><span class="lineCov">         47 :             nArrayLevel --;</span>
+<span class="lineNum">     663 </span>            :         }
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span><span class="lineCov">      12600 :         else if (!bInString &amp;&amp; nTokenSize == 0 &amp;&amp; ch == '(')</span>
+<span class="lineNum">     666 </span>            :         {
+<span class="lineNum">     667 </span><span class="lineCov">          3 :             bInString = TRUE;</span>
+<span class="lineNum">     668 </span><span class="lineCov">          3 :             nParenthesisLevel ++;</span>
+<span class="lineNum">     669 </span><span class="lineCov">          3 :             ADD_CHAR(szToken, ch);</span>
+<span class="lineNum">     670 </span>            :         }
+<span class="lineNum">     671 </span><span class="lineCov">      12594 :         else if (bInString &amp;&amp; ch == '(')</span>
+<span class="lineNum">     672 </span>            :         {
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :             nParenthesisLevel ++;</span>
+<span class="lineNum">     674 </span><span class="lineNoCov">          0 :             ADD_CHAR(szToken, ch);</span>
+<span class="lineNum">     675 </span>            :         }
+<span class="lineNum">     676 </span><span class="lineCov">      12594 :         else if (bInString &amp;&amp; ch == ')')</span>
+<span class="lineNum">     677 </span>            :         {
+<span class="lineNum">     678 </span><span class="lineCov">          3 :             nParenthesisLevel --;</span>
+<span class="lineNum">     679 </span><span class="lineCov">          3 :             ADD_CHAR(szToken, ch);</span>
+<span class="lineNum">     680 </span><span class="lineCov">          6 :             if (nParenthesisLevel == 0)</span>
+<span class="lineNum">     681 </span>            :             {
+<span class="lineNum">     682 </span><span class="lineCov">          3 :                 bInString = FALSE;</span>
+<span class="lineNum">     683 </span><span class="lineCov">          3 :                 bPushToken = TRUE;</span>
+<span class="lineNum">     684 </span>            :             }
+<span class="lineNum">     685 </span>            :         }
+<span class="lineNum">     686 </span><span class="lineCov">      12591 :         else if (ch == '&lt;' &amp;&amp; pszContent[1] == '&lt;' &amp;&amp; nTokenSize == 0)</span>
+<span class="lineNum">     687 </span>            :         {
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :             int nDictDepth = 0;</span>
+<span class="lineNum">     689 </span>            : 
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :             while(*pszContent != '\0')</span>
+<span class="lineNum">     691 </span>            :             {
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :                 if (pszContent[0] == '&lt;' &amp;&amp; pszContent[1] == '&lt;')</span>
+<span class="lineNum">     693 </span>            :                 {
+<span class="lineNum">     694 </span><span class="lineNoCov">          0 :                     ADD_CHAR(szToken, '&lt;');</span>
+<span class="lineNum">     695 </span><span class="lineNoCov">          0 :                     ADD_CHAR(szToken, '&lt;');</span>
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :                     nDictDepth ++;</span>
+<span class="lineNum">     697 </span><span class="lineNoCov">          0 :                     pszContent += 2;</span>
+<span class="lineNum">     698 </span>            :                 }
+<span class="lineNum">     699 </span><span class="lineNoCov">          0 :                 else if (pszContent[0] == '&gt;' &amp;&amp; pszContent[1] == '&gt;')</span>
+<span class="lineNum">     700 </span>            :                 {
+<span class="lineNum">     701 </span><span class="lineNoCov">          0 :                     ADD_CHAR(szToken, '&gt;');</span>
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :                     ADD_CHAR(szToken, '&gt;');</span>
+<span class="lineNum">     703 </span><span class="lineNoCov">          0 :                     nDictDepth --;</span>
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :                     pszContent += 2;</span>
+<span class="lineNum">     705 </span><span class="lineNoCov">          0 :                     if (nDictDepth == 0)</span>
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">     707 </span>            :                 }
+<span class="lineNum">     708 </span>            :                 else
+<span class="lineNum">     709 </span>            :                 {
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :                     ADD_CHAR(szToken, *pszContent);</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :                     pszContent ++;</span>
+<span class="lineNum">     712 </span>            :                 }
+<span class="lineNum">     713 </span>            :             }
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :             if (nDictDepth == 0)</span>
+<span class="lineNum">     715 </span>            :             {
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :                 bPushToken = TRUE;</span>
+<span class="lineNum">     717 </span><span class="lineNoCov">          0 :                 pszContent --;</span>
+<span class="lineNum">     718 </span>            :             }
+<span class="lineNum">     719 </span>            :             else
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     721 </span>            :         }
+<span class="lineNum">     722 </span>            :         else
+<span class="lineNum">     723 </span>            :         {
+<span class="lineNum">     724 </span>            :             // Do not create too long tokens in arrays, that we will ignore
+<span class="lineNum">     725 </span>            :             // anyway
+<span class="lineNum">     726 </span><span class="lineCov">      12591 :             if( nArrayLevel == 0 || nTokenSize == 0 )</span>
+<span class="lineNum">     727 </span>            :             {
+<span class="lineNum">     728 </span><span class="lineCov">      12577 :                 ADD_CHAR(szToken, ch);</span>
+<span class="lineNum">     729 </span>            :             }
+<span class="lineNum">     730 </span>            :         }
+<span class="lineNum">     731 </span>            : 
+<span class="lineNum">     732 </span><span class="lineCov">      15171 :         pszContent ++;</span>
+<span class="lineNum">     733 </span><span class="lineCov">      15171 :         if (pszContent[0] == '\0')</span>
+<span class="lineNum">     734 </span><span class="lineCov">         56 :             bPushToken = TRUE;</span>
+<span class="lineNum">     735 </span>            : 
+<span class="lineNum">     736 </span>            : #define EQUAL1(szToken, s) (szToken[0] == s[0] &amp;&amp; szToken[1] == '\0')
+<span class="lineNum">     737 </span>            : #define EQUAL2(szToken, s) (szToken[0] == s[0] &amp;&amp; szToken[1] == s[1] &amp;&amp; szToken[2] == '\0')
+<span class="lineNum">     738 </span>            : #define EQUAL3(szToken, s) (szToken[0] == s[0] &amp;&amp; szToken[1] == s[1] &amp;&amp; szToken[2] == s[2] &amp;&amp; szToken[3] == '\0')
+<span class="lineNum">     739 </span>            : 
+<span class="lineNum">     740 </span><span class="lineCov">      15171 :         if (bPushToken &amp;&amp; nTokenSize)</span>
+<span class="lineNum">     741 </span>            :         {
+<span class="lineNum">     742 </span><span class="lineCov">       2533 :             if (EQUAL2(szToken, &quot;BI&quot;))</span>
+<span class="lineNum">     743 </span>            :             {
+<span class="lineNum">     744 </span><span class="lineNoCov">          0 :                 while(*pszContent != '\0')</span>
+<span class="lineNum">     745 </span>            :                 {
+<span class="lineNum">     746 </span><span class="lineNoCov">          0 :                     if( pszContent[0] == 'E' &amp;&amp; pszContent[1] == 'I' &amp;&amp; pszContent[2] == ' ' )</span>
+<span class="lineNum">     747 </span>            :                     {
+<span class="lineNum">     748 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">     749 </span>            :                     }
+<span class="lineNum">     750 </span><span class="lineNoCov">          0 :                     pszContent ++;</span>
+<span class="lineNum">     751 </span>            :                 }
+<span class="lineNum">     752 </span><span class="lineNoCov">          0 :                 if( pszContent[0] == 'E' )</span>
+<span class="lineNum">     753 </span><span class="lineNoCov">          0 :                     pszContent += 3;</span>
+<span class="lineNum">     754 </span>            :                 else
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">     756 </span>            :             }
+<span class="lineNum">     757 </span><span class="lineCov">       2533 :             else if (EQUAL3(szToken, &quot;BDC&quot;))</span>
+<span class="lineNum">     758 </span>            :             {
+<span class="lineNum">     759 </span><span class="lineCov">         29 :                 if (nTokenStackSize &lt; 2)</span>
+<span class="lineNum">     760 </span>            :                 {
+<span class="lineNum">     761 </span>            :                     CPLDebug(&quot;PDF&quot;,
+<span class="lineNum">     762 </span>            :                                 &quot;not enough arguments for %s&quot;,
+<span class="lineNum">     763 </span><span class="lineNoCov">          0 :                                 szToken);</span>
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">     765 </span>            :                 }
+<span class="lineNum">     766 </span><span class="lineCov">         29 :                 nTokenStackSize -= 2;</span>
+<span class="lineNum">     767 </span><span class="lineCov">         29 :                 const char* pszOC = aszTokenStack[nTokenStackSize];</span>
+<span class="lineNum">     768 </span><span class="lineCov">         29 :                 const char* pszOCGName = aszTokenStack[nTokenStackSize+1];</span>
+<span class="lineNum">     769 </span>            : 
+<span class="lineNum">     770 </span><span class="lineCov">         29 :                 nBDCLevel ++;</span>
+<span class="lineNum">     771 </span>            : 
+<span class="lineNum">     772 </span><span class="lineCov">         29 :                 if( EQUAL3(pszOC, &quot;/OC&quot;) &amp;&amp; pszOCGName[0] == '/' )</span>
+<span class="lineNum">     773 </span>            :                 {
+<span class="lineNum">     774 </span>            :                     std::map&lt;CPLString, OGRPDFLayer*&gt;::iterator oIter =
+<span class="lineNum">     775 </span><span class="lineCov">          6 :                         oMapPropertyToLayer.find(pszOCGName + 1);</span>
+<span class="lineNum">     776 </span><span class="lineCov">          6 :                     if( oIter != oMapPropertyToLayer.end() )</span>
+<span class="lineNum">     777 </span>            :                     {
+<span class="lineNum">     778 </span><span class="lineCov">          6 :                         poCurLayer = oIter-&gt;second;</span>
+<span class="lineNum">     779 </span>            :                         //CPLDebug(&quot;PDF&quot;, &quot;Cur layer : %s&quot;, poCurLayer-&gt;GetName());
+<span class="lineNum">     780 </span>            :                     }
+<span class="lineNum">     781 </span>            :                 }
+<span class="lineNum">     782 </span>            : 
+<span class="lineNum">     783 </span><span class="lineCov">         29 :                 oLayerStack.push(poCurLayer);</span>
+<span class="lineNum">     784 </span>            :                 //CPLDebug(&quot;PDF&quot;, &quot;%s %s BDC&quot;, osOC.c_str(), osOCGName.c_str());
+<span class="lineNum">     785 </span>            :             }
+<span class="lineNum">     786 </span><span class="lineCov">       2504 :             else if (EQUAL3(szToken, &quot;EMC&quot;))</span>
+<span class="lineNum">     787 </span>            :             {
+<span class="lineNum">     788 </span>            :                 //CPLDebug(&quot;PDF&quot;, &quot;EMC&quot;);
+<span class="lineNum">     789 </span><span class="lineCov">          7 :                 if( !oLayerStack.empty() )</span>
+<span class="lineNum">     790 </span>            :                 {
+<span class="lineNum">     791 </span><span class="lineCov">          7 :                     oLayerStack.pop();</span>
+<span class="lineNum">     792 </span><span class="lineCov">          7 :                     if( !oLayerStack.empty() )</span>
+<span class="lineNum">     793 </span><span class="lineCov">          3 :                         poCurLayer = oLayerStack.top();</span>
+<span class="lineNum">     794 </span>            :                     else
+<span class="lineNum">     795 </span><span class="lineCov">          4 :                         poCurLayer = nullptr;</span>
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span>            :                     /*if (poCurLayer)
+<span class="lineNum">     798 </span>            :                     {
+<span class="lineNum">     799 </span>            :                         CPLDebug(&quot;PDF&quot;, &quot;Cur layer : %s&quot;, poCurLayer-&gt;GetName());
+<span class="lineNum">     800 </span>            :                     }*/
+<span class="lineNum">     801 </span>            :                 }
+<span class="lineNum">     802 </span>            :                 else
+<span class="lineNum">     803 </span>            :                 {
+<span class="lineNum">     804 </span><span class="lineNoCov">          0 :                     CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">     805 </span><span class="lineNoCov">          0 :                     poCurLayer = nullptr;</span>
+<span class="lineNum">     806 </span>            :                     //return NULL;
+<span class="lineNum">     807 </span>            :                 }
+<span class="lineNum">     808 </span>            : 
+<span class="lineNum">     809 </span><span class="lineCov">          7 :                 nBDCLevel --;</span>
+<span class="lineNum">     810 </span><span class="lineCov">         13 :                 if (nBDCLevel == 0 &amp;&amp; bInitBDCStack)</span>
+<span class="lineNum">     811 </span><span class="lineCov">          1 :                     break;</span>
+<span class="lineNum">     812 </span>            :             }
+<span class="lineNum">     813 </span>            : 
+<span class="lineNum">     814 </span>            :             /* Ignore any text stuff */
+<span class="lineNum">     815 </span><span class="lineCov">       2497 :             else if (EQUAL2(szToken, &quot;BT&quot;))</span>
+<span class="lineNum">     816 </span><span class="lineCov">          3 :                 nBTLevel ++;</span>
+<span class="lineNum">     817 </span><span class="lineCov">       2494 :             else if (EQUAL2(szToken, &quot;ET&quot;))</span>
+<span class="lineNum">     818 </span>            :             {
+<span class="lineNum">     819 </span><span class="lineCov">          3 :                 nBTLevel --;</span>
+<span class="lineNum">     820 </span><span class="lineCov">          6 :                 if (nBTLevel &lt; 0)</span>
+<span class="lineNum">     821 </span>            :                 {
+<span class="lineNum">     822 </span><span class="lineNoCov">          0 :                     CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">     823 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">     824 </span>            :                 }
+<span class="lineNum">     825 </span>            :             }
+<span class="lineNum">     826 </span><span class="lineCov">       2491 :             else if (!nArrayLevel &amp;&amp; !nBTLevel)</span>
+<span class="lineNum">     827 </span>            :             {
+<span class="lineNum">     828 </span><span class="lineCov">       2441 :                 int bEmitFeature = FALSE;</span>
+<span class="lineNum">     829 </span>            : 
+<span class="lineNum">     830 </span><span class="lineCov">       2441 :                 if( szToken[0] &lt; 'A' )</span>
+<span class="lineNum">     831 </span>            :                 {
+<span class="lineNum">     832 </span><span class="lineCov">       1494 :                     PUSH(aszTokenStack, szToken, nTokenSize);</span>
+<span class="lineNum">     833 </span>            :                 }
+<span class="lineNum">     834 </span><span class="lineCov">        947 :                 else if (EQUAL1(szToken, &quot;q&quot;))</span>
+<span class="lineNum">     835 </span>            :                 {
+<span class="lineNum">     836 </span><span class="lineCov">         59 :                     oGSStack.push(oGS);</span>
+<span class="lineNum">     837 </span>            :                 }
+<span class="lineNum">     838 </span><span class="lineCov">        888 :                 else if (EQUAL1(szToken, &quot;Q&quot;))</span>
+<span class="lineNum">     839 </span>            :                 {
+<span class="lineNum">     840 </span><span class="lineCov">         59 :                     if (oGSStack.empty())</span>
+<span class="lineNum">     841 </span>            :                     {
+<span class="lineNum">     842 </span><span class="lineNoCov">          0 :                         CPLDebug(&quot;PDF&quot;, &quot;not enough arguments for %s&quot;, szToken);</span>
+<span class="lineNum">     843 </span><span class="lineNoCov">          0 :                         return nullptr;</span>
+<span class="lineNum">     844 </span>            :                     }
+<span class="lineNum">     845 </span>            : 
+<span class="lineNum">     846 </span><span class="lineCov">         59 :                     oGS = oGSStack.top();</span>
+<span class="lineNum">     847 </span><span class="lineCov">         59 :                     oGSStack.pop();</span>
+<span class="lineNum">     848 </span>            : 
+<span class="lineNum">     849 </span><span class="lineCov">        118 :                     if (oGSStack.empty() &amp;&amp; bMatchQ)</span>
+<span class="lineNum">     850 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">     851 </span>            :                 }
+<span class="lineNum">     852 </span><span class="lineCov">        829 :                 else if (EQUAL2(szToken, &quot;cm&quot;))</span>
+<span class="lineNum">     853 </span>            :                 {
+<span class="lineNum">     854 </span>            :                     double adfMatrix[6];
+<span class="lineNum">     855 </span><span class="lineCov">          3 :                     if (!UnstackTokens(szToken, 6, aszTokenStack, nTokenStackSize, adfMatrix))</span>
+<span class="lineNum">     856 </span>            :                     {
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 :                         CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">     858 </span><span class="lineNoCov">          0 :                         return nullptr;</span>
+<span class="lineNum">     859 </span>            :                     }
+<span class="lineNum">     860 </span>            : 
+<span class="lineNum">     861 </span><span class="lineCov">          3 :                     oGS.MultiplyBy(adfMatrix);</span>
+<span class="lineNum">     862 </span>            :                 }
+<span class="lineNum">     863 </span><span class="lineCov">       1652 :                 else if (EQUAL1(szToken, &quot;b&quot;) || /* closepath, fill, stroke */</span>
+<span class="lineNum">     864 </span><span class="lineCov">        851 :                          EQUAL2(szToken, &quot;b*&quot;)   /* closepath, eofill, stroke */)</span>
+<span class="lineNum">     865 </span>            :                 {
+<span class="lineNum">     866 </span><span class="lineCov">         75 :                     if (!(!oCoords.empty() &amp;&amp;</span>
+<span class="lineNum">     867 </span><span class="lineCov">         25 :                           oCoords[oCoords.size() - 2] == CLOSE_SUBPATH &amp;&amp;</span>
+<span class="lineNum">     868 </span><span class="lineCov">         32 :                           oCoords.back() == CLOSE_SUBPATH))</span>
+<span class="lineNum">     869 </span>            :                     {
+<span class="lineNum">     870 </span><span class="lineCov">         18 :                         oCoords.push_back(CLOSE_SUBPATH);</span>
+<span class="lineNum">     871 </span><span class="lineCov">         18 :                         oCoords.push_back(CLOSE_SUBPATH);</span>
+<span class="lineNum">     872 </span>            :                     }
+<span class="lineNum">     873 </span><span class="lineCov">         25 :                     oCoords.push_back(FILL_SUBPATH);</span>
+<span class="lineNum">     874 </span><span class="lineCov">         25 :                     oCoords.push_back(FILL_SUBPATH);</span>
+<span class="lineNum">     875 </span><span class="lineCov">         25 :                     bHasFoundFill = TRUE;</span>
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span><span class="lineCov">         25 :                     bEmitFeature = TRUE;</span>
+<span class="lineNum">     878 </span>            :                 }
+<span class="lineNum">     879 </span><span class="lineCov">       1602 :                 else if (EQUAL1(szToken, &quot;B&quot;) ||  /* fill, stroke */</span>
+<span class="lineNum">     880 </span><span class="lineCov">       1602 :                          EQUAL2(szToken, &quot;B*&quot;) || /* eofill, stroke */</span>
+<span class="lineNum">     881 </span><span class="lineCov">       1605 :                          EQUAL1(szToken, &quot;f&quot;) ||  /* fill */</span>
+<span class="lineNum">     882 </span><span class="lineCov">       1602 :                          EQUAL1(szToken, &quot;F&quot;) ||  /* fill */</span>
+<span class="lineNum">     883 </span><span class="lineCov">        804 :                          EQUAL2(szToken, &quot;f*&quot;)    /* eofill */ )</span>
+<span class="lineNum">     884 </span>            :                 {
+<span class="lineNum">     885 </span><span class="lineCov">          3 :                     oCoords.push_back(FILL_SUBPATH);</span>
+<span class="lineNum">     886 </span><span class="lineCov">          3 :                     oCoords.push_back(FILL_SUBPATH);</span>
+<span class="lineNum">     887 </span><span class="lineCov">          3 :                     bHasFoundFill = TRUE;</span>
+<span class="lineNum">     888 </span>            : 
+<span class="lineNum">     889 </span><span class="lineCov">          3 :                     bEmitFeature = TRUE;</span>
+<span class="lineNum">     890 </span>            :                 }
+<span class="lineNum">     891 </span><span class="lineCov">        798 :                 else if (EQUAL1(szToken, &quot;h&quot;)) /* close subpath */</span>
+<span class="lineNum">     892 </span>            :                 {
+<span class="lineNum">     893 </span><span class="lineCov">         84 :                     if (!(!oCoords.empty() &amp;&amp;</span>
+<span class="lineNum">     894 </span><span class="lineCov">         21 :                           oCoords[oCoords.size() - 2] == CLOSE_SUBPATH &amp;&amp;</span>
+<span class="lineNum">     895 </span><span class="lineCov">         21 :                           oCoords.back() == CLOSE_SUBPATH))</span>
+<span class="lineNum">     896 </span>            :                     {
+<span class="lineNum">     897 </span><span class="lineCov">         21 :                         oCoords.push_back(CLOSE_SUBPATH);</span>
+<span class="lineNum">     898 </span><span class="lineCov">         21 :                         oCoords.push_back(CLOSE_SUBPATH);</span>
+<span class="lineNum">     899 </span>            :                     }
+<span class="lineNum">     900 </span>            :                 }
+<span class="lineNum">     901 </span><span class="lineCov">        777 :                 else if (EQUAL1(szToken, &quot;n&quot;)) /* new subpath without stroking or filling */</span>
+<span class="lineNum">     902 </span>            :                 {
+<span class="lineNum">     903 </span><span class="lineCov">          1 :                     oCoords.resize(0);</span>
+<span class="lineNum">     904 </span>            :                 }
+<span class="lineNum">     905 </span><span class="lineCov">        776 :                 else if (EQUAL1(szToken, &quot;s&quot;)) /* close and stroke */</span>
+<span class="lineNum">     906 </span>            :                 {
+<span class="lineNum">     907 </span><span class="lineCov">         36 :                     if (!(!oCoords.empty() &amp;&amp;</span>
+<span class="lineNum">     908 </span><span class="lineCov">         12 :                           oCoords[oCoords.size() - 2] == CLOSE_SUBPATH &amp;&amp;</span>
+<span class="lineNum">     909 </span><span class="lineCov">         12 :                           oCoords.back() == CLOSE_SUBPATH))</span>
+<span class="lineNum">     910 </span>            :                     {
+<span class="lineNum">     911 </span><span class="lineCov">         12 :                         oCoords.push_back(CLOSE_SUBPATH);</span>
+<span class="lineNum">     912 </span><span class="lineCov">         12 :                         oCoords.push_back(CLOSE_SUBPATH);</span>
+<span class="lineNum">     913 </span>            :                     }
+<span class="lineNum">     914 </span>            : 
+<span class="lineNum">     915 </span><span class="lineCov">         12 :                     bEmitFeature = TRUE;</span>
+<span class="lineNum">     916 </span>            :                 }
+<span class="lineNum">     917 </span><span class="lineCov">        764 :                 else if (EQUAL1(szToken, &quot;S&quot;)) /* stroke */</span>
+<span class="lineNum">     918 </span>            :                 {
+<span class="lineNum">     919 </span><span class="lineCov">         15 :                     bEmitFeature = TRUE;</span>
+<span class="lineNum">     920 </span>            :                 }
+<span class="lineNum">     921 </span><span class="lineCov">        749 :                 else if (EQUAL1(szToken, &quot;m&quot;) || EQUAL1(szToken, &quot;l&quot;))</span>
+<span class="lineNum">     922 </span>            :                 {
+<span class="lineNum">     923 </span>            :                     double adfCoords[2];
+<span class="lineNum">     924 </span><span class="lineCov">        235 :                     if (!UnstackTokens(szToken, 2, aszTokenStack, nTokenStackSize, adfCoords))</span>
+<span class="lineNum">     925 </span>            :                     {
+<span class="lineNum">     926 </span><span class="lineNoCov">          0 :                         CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">     927 </span><span class="lineNoCov">          0 :                         return nullptr;</span>
+<span class="lineNum">     928 </span>            :                     }
+<span class="lineNum">     929 </span>            : 
+<span class="lineNum">     930 </span><span class="lineCov">        235 :                     if (EQUAL1(szToken, &quot;m&quot;))</span>
+<span class="lineNum">     931 </span>            :                     {
+<span class="lineNum">     932 </span><span class="lineCov">         68 :                         if (!oCoords.empty())</span>
+<span class="lineNum">     933 </span><span class="lineCov">         13 :                             bHasMultiPart = TRUE;</span>
+<span class="lineNum">     934 </span><span class="lineCov">         68 :                         oCoords.push_back(NEW_SUBPATH);</span>
+<span class="lineNum">     935 </span><span class="lineCov">         68 :                         oCoords.push_back(NEW_SUBPATH);</span>
+<span class="lineNum">     936 </span>            :                     }
+<span class="lineNum">     937 </span>            : 
+<span class="lineNum">     938 </span><span class="lineCov">        235 :                     oGS.ApplyMatrix(adfCoords);</span>
+<span class="lineNum">     939 </span><span class="lineCov">        235 :                     oCoords.push_back(adfCoords[0]);</span>
+<span class="lineNum">     940 </span><span class="lineCov">        235 :                     oCoords.push_back(adfCoords[1]);</span>
+<span class="lineNum">     941 </span>            :                 }
+<span class="lineNum">     942 </span><span class="lineCov">        514 :                 else if (EQUAL1(szToken, &quot;c&quot;)) /* Bezier curve */</span>
+<span class="lineNum">     943 </span>            :                 {
+<span class="lineNum">     944 </span>            :                     double adfCoords[6];
+<span class="lineNum">     945 </span><span class="lineCov">         56 :                     if (!UnstackTokens(szToken, 6, aszTokenStack, nTokenStackSize, adfCoords))</span>
+<span class="lineNum">     946 </span>            :                     {
+<span class="lineNum">     947 </span><span class="lineNoCov">          0 :                         CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">     948 </span><span class="lineNoCov">          0 :                         return nullptr;</span>
+<span class="lineNum">     949 </span>            :                     }
+<span class="lineNum">     950 </span>            : 
+<span class="lineNum">     951 </span><span class="lineCov">         56 :                     oGS.ApplyMatrix(adfCoords + 4);</span>
+<span class="lineNum">     952 </span><span class="lineCov">         56 :                     oCoords.push_back(adfCoords[4]);</span>
+<span class="lineNum">     953 </span><span class="lineCov">         56 :                     oCoords.push_back(adfCoords[5]);</span>
+<span class="lineNum">     954 </span>            :                 }
+<span class="lineNum">     955 </span><span class="lineCov">        458 :                 else if (EQUAL1(szToken, &quot;v&quot;) || EQUAL1(szToken, &quot;y&quot;)) /* Bezier curve */</span>
+<span class="lineNum">     956 </span>            :                 {
+<span class="lineNum">     957 </span>            :                     double adfCoords[4];
+<span class="lineNum">     958 </span><span class="lineNoCov">          0 :                     if (!UnstackTokens(szToken, 4, aszTokenStack, nTokenStackSize, adfCoords))</span>
+<span class="lineNum">     959 </span>            :                     {
+<span class="lineNum">     960 </span><span class="lineNoCov">          0 :                         CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">     961 </span><span class="lineNoCov">          0 :                         return nullptr;</span>
+<span class="lineNum">     962 </span>            :                     }
+<span class="lineNum">     963 </span>            : 
+<span class="lineNum">     964 </span><span class="lineNoCov">          0 :                     oGS.ApplyMatrix(adfCoords + 2);</span>
+<span class="lineNum">     965 </span><span class="lineNoCov">          0 :                     oCoords.push_back(adfCoords[2]);</span>
+<span class="lineNum">     966 </span><span class="lineNoCov">          0 :                     oCoords.push_back(adfCoords[3]);</span>
+<span class="lineNum">     967 </span>            :                 }
+<span class="lineNum">     968 </span><span class="lineCov">        458 :                 else if (EQUAL2(szToken, &quot;re&quot;)) /* Rectangle */</span>
+<span class="lineNum">     969 </span>            :                 {
+<span class="lineNum">     970 </span>            :                     double adfCoords[4];
+<span class="lineNum">     971 </span><span class="lineCov">          1 :                     if (!UnstackTokens(szToken, 4, aszTokenStack, nTokenStackSize, adfCoords))</span>
+<span class="lineNum">     972 </span>            :                     {
+<span class="lineNum">     973 </span><span class="lineNoCov">          0 :                         CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">     974 </span><span class="lineNoCov">          0 :                         return nullptr;</span>
+<span class="lineNum">     975 </span>            :                     }
+<span class="lineNum">     976 </span>            : 
+<span class="lineNum">     977 </span><span class="lineCov">          1 :                     adfCoords[2] += adfCoords[0];</span>
+<span class="lineNum">     978 </span><span class="lineCov">          1 :                     adfCoords[3] += adfCoords[1];</span>
+<span class="lineNum">     979 </span>            : 
+<span class="lineNum">     980 </span><span class="lineCov">          1 :                     oGS.ApplyMatrix(adfCoords);</span>
+<span class="lineNum">     981 </span><span class="lineCov">          1 :                     oGS.ApplyMatrix(adfCoords + 2);</span>
+<span class="lineNum">     982 </span>            : 
+<span class="lineNum">     983 </span><span class="lineCov">          1 :                     if (!oCoords.empty())</span>
+<span class="lineNum">     984 </span><span class="lineNoCov">          0 :                         bHasMultiPart = TRUE;</span>
+<span class="lineNum">     985 </span><span class="lineCov">          1 :                     oCoords.push_back(NEW_SUBPATH);</span>
+<span class="lineNum">     986 </span><span class="lineCov">          1 :                     oCoords.push_back(NEW_SUBPATH);</span>
+<span class="lineNum">     987 </span><span class="lineCov">          1 :                     oCoords.push_back(adfCoords[0]);</span>
+<span class="lineNum">     988 </span><span class="lineCov">          1 :                     oCoords.push_back(adfCoords[1]);</span>
+<span class="lineNum">     989 </span><span class="lineCov">          1 :                     oCoords.push_back(adfCoords[2]);</span>
+<span class="lineNum">     990 </span><span class="lineCov">          1 :                     oCoords.push_back(adfCoords[1]);</span>
+<span class="lineNum">     991 </span><span class="lineCov">          1 :                     oCoords.push_back(adfCoords[2]);</span>
+<span class="lineNum">     992 </span><span class="lineCov">          1 :                     oCoords.push_back(adfCoords[3]);</span>
+<span class="lineNum">     993 </span><span class="lineCov">          1 :                     oCoords.push_back(adfCoords[0]);</span>
+<span class="lineNum">     994 </span><span class="lineCov">          1 :                     oCoords.push_back(adfCoords[3]);</span>
+<span class="lineNum">     995 </span><span class="lineCov">          1 :                     oCoords.push_back(CLOSE_SUBPATH);</span>
+<span class="lineNum">     996 </span><span class="lineCov">          1 :                     oCoords.push_back(CLOSE_SUBPATH);</span>
+<span class="lineNum">     997 </span>            :                 }
+<span class="lineNum">     998 </span>            : 
+<span class="lineNum">     999 </span><span class="lineCov">        457 :                 else if (EQUAL2(szToken, &quot;Do&quot;))</span>
+<span class="lineNum">    1000 </span>            :                 {
+<span class="lineNum">    1001 </span><span class="lineCov">         56 :                     if (nTokenStackSize == 0)</span>
+<span class="lineNum">    1002 </span>            :                     {
+<span class="lineNum">    1003 </span>            :                         CPLDebug(&quot;PDF&quot;,
+<span class="lineNum">    1004 </span>            :                                  &quot;not enough arguments for %s&quot;,
+<span class="lineNum">    1005 </span><span class="lineNoCov">          0 :                                  szToken);</span>
+<span class="lineNum">    1006 </span><span class="lineCov">         22 :                         return nullptr;</span>
+<span class="lineNum">    1007 </span>            :                     }
+<span class="lineNum">    1008 </span>            : 
+<span class="lineNum">    1009 </span><span class="lineCov">         56 :                     CPLString osObjectName = aszTokenStack[--nTokenStackSize];</span>
+<span class="lineNum">    1010 </span>            : 
+<span class="lineNum">    1011 </span><span class="lineCov">         56 :                     if (osObjectName[0] != '/')</span>
+<span class="lineNum">    1012 </span>            :                     {
+<span class="lineNum">    1013 </span><span class="lineNoCov">          0 :                         CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">    1014 </span><span class="lineNoCov">          0 :                         return nullptr;</span>
+<span class="lineNum">    1015 </span>            :                     }
+<span class="lineNum">    1016 </span>            : 
+<span class="lineNum">    1017 </span><span class="lineCov">         56 :                     if (poResources == nullptr)</span>
+<span class="lineNum">    1018 </span>            :                     {
+<span class="lineNum">    1019 </span><span class="lineCov">          3 :                         if (osObjectName.find(&quot;/SymImage&quot;) == 0)</span>
+<span class="lineNum">    1020 </span>            :                         {
+<span class="lineNum">    1021 </span><span class="lineCov">          3 :                             oCoords.push_back(oGS.adfCM[4] + oGS.adfCM[0] / 2);</span>
+<span class="lineNum">    1022 </span><span class="lineCov">          3 :                             oCoords.push_back(oGS.adfCM[5] + oGS.adfCM[3] / 2);</span>
+<span class="lineNum">    1023 </span>            : 
+<span class="lineNum">    1024 </span><span class="lineCov">          3 :                             szToken[0] = '\0';</span>
+<span class="lineNum">    1025 </span><span class="lineCov">          3 :                             nTokenSize = 0;</span>
+<span class="lineNum">    1026 </span>            : 
+<span class="lineNum">    1027 </span><span class="lineCov">          3 :                             if( poCurLayer != nullptr)</span>
+<span class="lineNum">    1028 </span><span class="lineCov">          2 :                                 bEmitFeature = TRUE;</span>
+<span class="lineNum">    1029 </span>            :                             else
+<span class="lineNum">    1030 </span><span class="lineCov">          1 :                                 continue;</span>
+<span class="lineNum">    1031 </span>            :                         }
+<span class="lineNum">    1032 </span>            :                         else
+<span class="lineNum">    1033 </span>            :                         {
+<span class="lineNum">    1034 </span>            :                             //CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);
+<span class="lineNum">    1035 </span><span class="lineNoCov">          0 :                             return nullptr;</span>
+<span class="lineNum">    1036 </span>            :                         }
+<span class="lineNum">    1037 </span>            :                     }
+<span class="lineNum">    1038 </span>            : 
+<span class="lineNum">    1039 </span><span class="lineCov">         55 :                     if( !bEmitFeature )</span>
+<span class="lineNum">    1040 </span>            :                     {
+<span class="lineNum">    1041 </span>            :                         GDALPDFObject* poXObject =
+<span class="lineNum">    1042 </span><span class="lineCov">         53 :                             poResources-&gt;GetDictionary()-&gt;Get(&quot;XObject&quot;);</span>
+<span class="lineNum">    1043 </span><span class="lineCov">        106 :                         if (poXObject == nullptr ||</span>
+<span class="lineNum">    1044 </span><span class="lineCov">         53 :                             poXObject-&gt;GetType() != PDFObjectType_Dictionary)</span>
+<span class="lineNum">    1045 </span>            :                         {
+<span class="lineNum">    1046 </span><span class="lineNoCov">          0 :                             CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">    1047 </span><span class="lineNoCov">          0 :                             return nullptr;</span>
+<span class="lineNum">    1048 </span>            :                         }
+<span class="lineNum">    1049 </span>            : 
+<span class="lineNum">    1050 </span>            :                         GDALPDFObject* poObject =
+<span class="lineNum">    1051 </span><span class="lineCov">         53 :                             poXObject-&gt;GetDictionary()-&gt;Get(osObjectName.c_str() + 1);</span>
+<span class="lineNum">    1052 </span><span class="lineCov">         53 :                         if (poObject == nullptr)</span>
+<span class="lineNum">    1053 </span>            :                         {
+<span class="lineNum">    1054 </span><span class="lineNoCov">          0 :                             CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">    1055 </span><span class="lineNoCov">          0 :                             return nullptr;</span>
+<span class="lineNum">    1056 </span>            :                         }
+<span class="lineNum">    1057 </span>            : 
+<span class="lineNum">    1058 </span><span class="lineCov">         53 :                         int bParseStream = TRUE;</span>
+<span class="lineNum">    1059 </span>            :                         /* Check if the object is an image. If so, no need to try to parse */
+<span class="lineNum">    1060 </span>            :                         /* it. */
+<span class="lineNum">    1061 </span><span class="lineCov">         53 :                         if (poObject-&gt;GetType() == PDFObjectType_Dictionary)</span>
+<span class="lineNum">    1062 </span>            :                         {
+<span class="lineNum">    1063 </span><span class="lineCov">         53 :                             GDALPDFObject* poSubtype = poObject-&gt;GetDictionary()-&gt;Get(&quot;Subtype&quot;);</span>
+<span class="lineNum">    1064 </span><span class="lineCov">        106 :                             if (poSubtype != nullptr &amp;&amp;</span>
+<span class="lineNum">    1065 </span><span class="lineCov">        106 :                                 poSubtype-&gt;GetType() == PDFObjectType_Name &amp;&amp;</span>
+<span class="lineNum">    1066 </span><span class="lineCov">         53 :                                 poSubtype-&gt;GetName() == &quot;Image&quot; )</span>
+<span class="lineNum">    1067 </span>            :                             {
+<span class="lineNum">    1068 </span><span class="lineNoCov">          0 :                                 bParseStream = FALSE;</span>
+<span class="lineNum">    1069 </span>            :                             }
+<span class="lineNum">    1070 </span>            :                         }
+<span class="lineNum">    1071 </span>            : 
+<span class="lineNum">    1072 </span><span class="lineCov">         53 :                         if( bParseStream )</span>
+<span class="lineNum">    1073 </span>            :                         {
+<span class="lineNum">    1074 </span><span class="lineCov">         53 :                             GDALPDFStream* poStream = poObject-&gt;GetStream();</span>
+<span class="lineNum">    1075 </span><span class="lineCov">         53 :                             if (!poStream)</span>
+<span class="lineNum">    1076 </span>            :                             {
+<span class="lineNum">    1077 </span><span class="lineNoCov">          0 :                                 CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">    1078 </span><span class="lineNoCov">          0 :                                 return nullptr;</span>
+<span class="lineNum">    1079 </span>            :                             }
+<span class="lineNum">    1080 </span>            : 
+<span class="lineNum">    1081 </span><span class="lineCov">         53 :                             char* pszStr = poStream-&gt;GetBytes();</span>
+<span class="lineNum">    1082 </span><span class="lineCov">         53 :                             if( pszStr )</span>
+<span class="lineNum">    1083 </span>            :                             {
+<span class="lineNum">    1084 </span>            :                                 OGRGeometry* poGeom = ParseContent(pszStr, nullptr, FALSE, FALSE,
+<span class="lineNum">    1085 </span><span class="lineCov">         53 :                                                                 oMapPropertyToLayer, poCurLayer);</span>
+<span class="lineNum">    1086 </span><span class="lineCov">         53 :                                 CPLFree(pszStr);</span>
+<span class="lineNum">    1087 </span><span class="lineCov">         53 :                                 if (poGeom &amp;&amp; !bCollectAllObjects)</span>
+<span class="lineNum">    1088 </span><span class="lineCov">         22 :                                     return poGeom;</span>
+<span class="lineNum">    1089 </span><span class="lineCov">         31 :                                 delete poGeom;</span>
+<span class="lineNum">    1090 </span>            :                             }
+<span class="lineNum">    1091 </span>            :                         }
+<span class="lineNum">    1092 </span><span class="lineCov">         33 :                     }</span>
+<span class="lineNum">    1093 </span>            :                 }
+<span class="lineNum">    1094 </span><span class="lineCov">        401 :                 else if( EQUAL2(szToken, &quot;RG&quot;) || EQUAL2(szToken, &quot;rg&quot;) )</span>
+<span class="lineNum">    1095 </span>            :                 {
+<span class="lineNum">    1096 </span><span class="lineCov">         99 :                     double* padf = ( EQUAL2(szToken, &quot;RG&quot;) ) ? oGS.adfStrokeColor : oGS.adfFillColor;</span>
+<span class="lineNum">    1097 </span><span class="lineCov">         99 :                     if (!UnstackTokens(szToken, 3, aszTokenStack, nTokenStackSize, padf))</span>
+<span class="lineNum">    1098 </span>            :                     {
+<span class="lineNum">    1099 </span><span class="lineNoCov">          0 :                         CPLDebug(&quot;PDF&quot;, &quot;Should not happen at line %d&quot;, __LINE__);</span>
+<span class="lineNum">    1100 </span><span class="lineNoCov">          0 :                         return nullptr;</span>
+<span class="lineNum">    1101 </span><span class="lineCov">         99 :                     }</span>
+<span class="lineNum">    1102 </span>            :                 }
+<span class="lineNum">    1103 </span><span class="lineCov">        302 :                 else if (oMapOperators.find(szToken) != oMapOperators.end())</span>
+<span class="lineNum">    1104 </span>            :                 {
+<span class="lineNum">    1105 </span><span class="lineCov">        302 :                     int nArgs = oMapOperators[szToken];</span>
+<span class="lineNum">    1106 </span><span class="lineCov">        302 :                     if (nArgs &lt; 0)</span>
+<span class="lineNum">    1107 </span>            :                     {
+<span class="lineNum">    1108 </span><span class="lineNoCov">          0 :                         while( nTokenStackSize != 0 )</span>
+<span class="lineNum">    1109 </span>            :                         {
+<span class="lineNum">    1110 </span><span class="lineNoCov">          0 :                             CPLString osTopToken = aszTokenStack[--nTokenStackSize];</span>
+<span class="lineNum">    1111 </span><span class="lineNoCov">          0 :                             if (oMapOperators.find(osTopToken) != oMapOperators.end())</span>
+<span class="lineNum">    1112 </span><span class="lineNoCov">          0 :                                 break;</span>
+<span class="lineNum">    1113 </span><span class="lineNoCov">          0 :                         }</span>
+<span class="lineNum">    1114 </span>            :                     }
+<span class="lineNum">    1115 </span>            :                     else
+<span class="lineNum">    1116 </span>            :                     {
+<span class="lineNum">    1117 </span><span class="lineCov">        302 :                         if( nArgs &gt; nTokenStackSize )</span>
+<span class="lineNum">    1118 </span>            :                         {
+<span class="lineNum">    1119 </span>            :                             CPLDebug(&quot;PDF&quot;,
+<span class="lineNum">    1120 </span>            :                                     &quot;not enough arguments for %s&quot;,
+<span class="lineNum">    1121 </span><span class="lineNoCov">          0 :                                     szToken);</span>
+<span class="lineNum">    1122 </span><span class="lineNoCov">          0 :                             return nullptr;</span>
+<span class="lineNum">    1123 </span>            :                         }
+<span class="lineNum">    1124 </span><span class="lineCov">        302 :                         nTokenStackSize -= nArgs;</span>
+<span class="lineNum">    1125 </span>            :                     }
+<span class="lineNum">    1126 </span>            :                 }
+<span class="lineNum">    1127 </span>            :                 else
+<span class="lineNum">    1128 </span>            :                 {
+<span class="lineNum">    1129 </span><span class="lineNoCov">          0 :                     PUSH(aszTokenStack, szToken, nTokenSize);</span>
+<span class="lineNum">    1130 </span>            :                 }
+<span class="lineNum">    1131 </span>            : 
+<span class="lineNum">    1132 </span><span class="lineCov">       2418 :                 if( bEmitFeature &amp;&amp; poCurLayer != nullptr)</span>
+<span class="lineNum">    1133 </span>            :                 {
+<span class="lineNum">    1134 </span><span class="lineCov">         36 :                     OGRGeometry* poGeom = BuildGeometry(oCoords, bHasFoundFill, bHasMultiPart);</span>
+<span class="lineNum">    1135 </span><span class="lineCov">         36 :                     bHasFoundFill = FALSE;</span>
+<span class="lineNum">    1136 </span><span class="lineCov">         36 :                     bHasMultiPart = FALSE;</span>
+<span class="lineNum">    1137 </span><span class="lineCov">         36 :                     if (poGeom)</span>
+<span class="lineNum">    1138 </span>            :                     {
+<span class="lineNum">    1139 </span><span class="lineCov">         36 :                         OGRFeature* poFeature = new OGRFeature(poCurLayer-&gt;GetLayerDefn());</span>
+<span class="lineNum">    1140 </span><span class="lineCov">         36 :                         if( bSetStyle )</span>
+<span class="lineNum">    1141 </span>            :                         {
+<span class="lineNum">    1142 </span><span class="lineCov">         36 :                             OGRwkbGeometryType eType = wkbFlatten(poGeom-&gt;getGeometryType());</span>
+<span class="lineNum">    1143 </span><span class="lineCov">         36 :                             if( eType == wkbLineString || eType == wkbMultiLineString )</span>
+<span class="lineNum">    1144 </span>            :                             {
+<span class="lineNum">    1145 </span>            :                                 poFeature-&gt;SetStyleString(CPLSPrintf(&quot;PEN(c:#%02X%02X%02X)&quot;,
+<span class="lineNum">    1146 </span><span class="lineCov">          7 :                                                                     (int)(oGS.adfStrokeColor[0] * 255 + 0.5),</span>
+<span class="lineNum">    1147 </span><span class="lineCov">          7 :                                                                     (int)(oGS.adfStrokeColor[1] * 255 + 0.5),</span>
+<span class="lineNum">    1148 </span><span class="lineCov">         21 :                                                                     (int)(oGS.adfStrokeColor[2] * 255 + 0.5)));</span>
+<span class="lineNum">    1149 </span>            :                             }
+<span class="lineNum">    1150 </span><span class="lineCov">         29 :                             else if( eType == wkbPolygon || eType == wkbMultiPolygon )</span>
+<span class="lineNum">    1151 </span>            :                             {
+<span class="lineNum">    1152 </span>            :                                 poFeature-&gt;SetStyleString(CPLSPrintf(&quot;PEN(c:#%02X%02X%02X);BRUSH(fc:#%02X%02X%02X)&quot;,
+<span class="lineNum">    1153 </span><span class="lineCov">          7 :                                                                     (int)(oGS.adfStrokeColor[0] * 255 + 0.5),</span>
+<span class="lineNum">    1154 </span><span class="lineCov">          7 :                                                                     (int)(oGS.adfStrokeColor[1] * 255 + 0.5),</span>
+<span class="lineNum">    1155 </span><span class="lineCov">          7 :                                                                     (int)(oGS.adfStrokeColor[2] * 255 + 0.5),</span>
+<span class="lineNum">    1156 </span><span class="lineCov">          7 :                                                                     (int)(oGS.adfFillColor[0] * 255 + 0.5),</span>
+<span class="lineNum">    1157 </span><span class="lineCov">          7 :                                                                     (int)(oGS.adfFillColor[1] * 255 + 0.5),</span>
+<span class="lineNum">    1158 </span><span class="lineCov">         42 :                                                                     (int)(oGS.adfFillColor[2] * 255 + 0.5)));</span>
+<span class="lineNum">    1159 </span>            :                             }
+<span class="lineNum">    1160 </span>            :                         }
+<span class="lineNum">    1161 </span><span class="lineCov">         36 :                         poGeom-&gt;assignSpatialReference(poCurLayer-&gt;GetSpatialRef());</span>
+<span class="lineNum">    1162 </span><span class="lineCov">         36 :                         poFeature-&gt;SetGeometryDirectly(poGeom);</span>
+<span class="lineNum">    1163 </span><span class="lineCov">         36 :                         CPL_IGNORE_RET_VAL(poCurLayer-&gt;CreateFeature(poFeature));</span>
+<span class="lineNum">    1164 </span><span class="lineCov">         36 :                         delete poFeature;</span>
+<span class="lineNum">    1165 </span>            :                     }
+<span class="lineNum">    1166 </span>            : 
+<span class="lineNum">    1167 </span><span class="lineCov">         36 :                     oCoords.resize(0);</span>
+<span class="lineNum">    1168 </span>            :                 }
+<span class="lineNum">    1169 </span>            :             }
+<span class="lineNum">    1170 </span>            : 
+<span class="lineNum">    1171 </span><span class="lineCov">       2509 :             szToken[0] = '\0';</span>
+<span class="lineNum">    1172 </span><span class="lineCov">       2509 :             nTokenSize = 0;</span>
+<span class="lineNum">    1173 </span>            :         }
+<span class="lineNum">    1174 </span>            :     }
+<span class="lineNum">    1175 </span>            : 
+<span class="lineNum">    1176 </span><span class="lineCov">         57 :     if (nTokenStackSize != 0)</span>
+<span class="lineNum">    1177 </span>            :     {
+<span class="lineNum">    1178 </span><span class="lineNoCov">          0 :         while(nTokenStackSize != 0)</span>
+<span class="lineNum">    1179 </span>            :         {
+<span class="lineNum">    1180 </span><span class="lineNoCov">          0 :             nTokenStackSize--;</span>
+<span class="lineNum">    1181 </span>            :             CPLDebug(&quot;PDF&quot;,
+<span class="lineNum">    1182 </span>            :                      &quot;Remaining values in stack : %s&quot;,
+<span class="lineNum">    1183 </span><span class="lineNoCov">          0 :                      aszTokenStack[nTokenStackSize]);</span>
+<span class="lineNum">    1184 </span>            :         }
+<span class="lineNum">    1185 </span><span class="lineNoCov">          0 :         return  nullptr;</span>
+<span class="lineNum">    1186 </span>            :     }
+<span class="lineNum">    1187 </span>            : 
+<span class="lineNum">    1188 </span><span class="lineCov">         57 :     if (bCollectAllObjects)</span>
+<span class="lineNum">    1189 </span><span class="lineCov">          3 :         return nullptr;</span>
+<span class="lineNum">    1190 </span>            : 
+<span class="lineNum">    1191 </span><span class="lineCov">        133 :     return BuildGeometry(oCoords, bHasFoundFill, bHasMultiPart);</span>
+<span class="lineNum">    1192 </span>            : }
+<span class="lineNum">    1193 </span>            : 
+<span class="lineNum">    1194 </span>            : /************************************************************************/
+<span class="lineNum">    1195 </span>            : /*                           BuildGeometry()                            */
+<a name="1196"><span class="lineNum">    1196 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1197 </span>            : 
+<span class="lineNum">    1198 </span><span class="lineCov">         90 : OGRGeometry* PDFDataset::BuildGeometry(std::vector&lt;double&gt;&amp; oCoords,</span>
+<span class="lineNum">    1199 </span>            :                                              int bHasFoundFill,
+<span class="lineNum">    1200 </span>            :                                              int bHasMultiPart)
+<span class="lineNum">    1201 </span>            : {
+<span class="lineNum">    1202 </span><span class="lineCov">         90 :     OGRGeometry* poGeom = nullptr;</span>
+<span class="lineNum">    1203 </span>            : 
+<span class="lineNum">    1204 </span><span class="lineCov">         90 :     if (!oCoords.size())</span>
+<span class="lineNum">    1205 </span><span class="lineCov">         32 :         return nullptr;</span>
+<span class="lineNum">    1206 </span>            : 
+<span class="lineNum">    1207 </span><span class="lineCov">         58 :     if (oCoords.size() == 2)</span>
+<span class="lineNum">    1208 </span>            :     {
+<span class="lineNum">    1209 </span>            :         double X, Y;
+<span class="lineNum">    1210 </span><span class="lineCov">          3 :         PDFCoordsToSRSCoords(oCoords[0], oCoords[1], X, Y);</span>
+<span class="lineNum">    1211 </span><span class="lineCov">          3 :         poGeom = new OGRPoint(X, Y);</span>
+<span class="lineNum">    1212 </span>            :     }
+<span class="lineNum">    1213 </span><span class="lineCov">         55 :     else if (!bHasFoundFill)</span>
+<span class="lineNum">    1214 </span>            :     {
+<span class="lineNum">    1215 </span><span class="lineCov">         27 :         OGRLineString* poLS = nullptr;</span>
+<span class="lineNum">    1216 </span><span class="lineCov">         27 :         OGRMultiLineString* poMLS = nullptr;</span>
+<span class="lineNum">    1217 </span><span class="lineCov">         27 :         if (bHasMultiPart)</span>
+<span class="lineNum">    1218 </span>            :         {
+<span class="lineNum">    1219 </span><span class="lineCov">          6 :             poMLS = new OGRMultiLineString();</span>
+<span class="lineNum">    1220 </span><span class="lineCov">          6 :             poGeom = poMLS;</span>
+<span class="lineNum">    1221 </span>            :         }
+<span class="lineNum">    1222 </span>            : 
+<span class="lineNum">    1223 </span><span class="lineCov">        191 :         for(size_t i=0;i&lt;oCoords.size();i+=2)</span>
+<span class="lineNum">    1224 </span>            :         {
+<span class="lineNum">    1225 </span><span class="lineCov">        164 :             if (oCoords[i] == NEW_SUBPATH &amp;&amp; oCoords[i+1] == NEW_SUBPATH)</span>
+<span class="lineNum">    1226 </span>            :             {
+<span class="lineNum">    1227 </span><span class="lineCov">         33 :                 if (poMLS)</span>
+<span class="lineNum">    1228 </span>            :                 {
+<span class="lineNum">    1229 </span><span class="lineCov">         12 :                     poLS = new OGRLineString();</span>
+<span class="lineNum">    1230 </span><span class="lineCov">         12 :                     poMLS-&gt;addGeometryDirectly(poLS);</span>
+<span class="lineNum">    1231 </span>            :                 }
+<span class="lineNum">    1232 </span>            :                 else
+<span class="lineNum">    1233 </span>            :                 {
+<span class="lineNum">    1234 </span><span class="lineCov">         21 :                     delete poLS;</span>
+<span class="lineNum">    1235 </span><span class="lineCov">         21 :                     poLS = new OGRLineString();</span>
+<span class="lineNum">    1236 </span><span class="lineCov">         21 :                     poGeom = poLS;</span>
+<span class="lineNum">    1237 </span>            :                 }
+<span class="lineNum">    1238 </span>            :             }
+<span class="lineNum">    1239 </span><span class="lineCov">        131 :             else if (oCoords[i] == CLOSE_SUBPATH &amp;&amp; oCoords[i+1] == CLOSE_SUBPATH)</span>
+<span class="lineNum">    1240 </span>            :             {
+<span class="lineNum">    1241 </span><span class="lineCov">         41 :                 if (poLS &amp;&amp; poLS-&gt;getNumPoints() &gt;= 2 &amp;&amp;</span>
+<span class="lineNum">    1242 </span><span class="lineCov">         16 :                     !(poLS-&gt;getX(0) == poLS-&gt;getX(poLS-&gt;getNumPoints()-1) &amp;&amp;</span>
+<span class="lineNum">    1243 </span><span class="lineCov">         10 :                         poLS-&gt;getY(0) == poLS-&gt;getY(poLS-&gt;getNumPoints()-1)))</span>
+<span class="lineNum">    1244 </span>            :                 {
+<span class="lineNum">    1245 </span><span class="lineCov">          9 :                     poLS-&gt;addPoint(poLS-&gt;getX(0), poLS-&gt;getY(0));</span>
+<span class="lineNum">    1246 </span>            :                 }
+<span class="lineNum">    1247 </span>            :             }
+<span class="lineNum">    1248 </span><span class="lineCov">        115 :             else if (oCoords[i] == FILL_SUBPATH &amp;&amp; oCoords[i+1] == FILL_SUBPATH)</span>
+<span class="lineNum">    1249 </span>            :             {
+<span class="lineNum">    1250 </span>            :                 /* Should not happen */
+<span class="lineNum">    1251 </span>            :             }
+<span class="lineNum">    1252 </span>            :             else
+<span class="lineNum">    1253 </span>            :             {
+<span class="lineNum">    1254 </span><span class="lineCov">        115 :                 if (poLS)</span>
+<span class="lineNum">    1255 </span>            :                 {
+<span class="lineNum">    1256 </span>            :                     double X, Y;
+<span class="lineNum">    1257 </span><span class="lineCov">        115 :                     PDFCoordsToSRSCoords(oCoords[i], oCoords[i+1], X, Y);</span>
+<span class="lineNum">    1258 </span>            : 
+<span class="lineNum">    1259 </span><span class="lineCov">        115 :                     poLS-&gt;addPoint(X, Y);</span>
+<span class="lineNum">    1260 </span>            :                 }
+<span class="lineNum">    1261 </span>            :             }
+<span class="lineNum">    1262 </span>            :         }
+<span class="lineNum">    1263 </span>            : 
+<span class="lineNum">    1264 </span>            :         // Recognize points as written by GDAL (ogr-sym-2 : circle (not filled))
+<span class="lineNum">    1265 </span><span class="lineCov">         27 :         OGRGeometry* poCenter = nullptr;</span>
+<span class="lineNum">    1266 </span><span class="lineCov">         27 :         if (poCenter == nullptr &amp;&amp; poLS != nullptr &amp;&amp; poLS-&gt;getNumPoints() == 5)</span>
+<span class="lineNum">    1267 </span>            :         {
+<span class="lineNum">    1268 </span><span class="lineCov">          7 :             poCenter = PDFGetCircleCenter(poLS);</span>
+<span class="lineNum">    1269 </span>            :         }
+<span class="lineNum">    1270 </span>            : 
+<span class="lineNum">    1271 </span>            :         // Recognize points as written by GDAL (ogr-sym-4: square (not filled))
+<span class="lineNum">    1272 </span><span class="lineCov">         27 :         if (poCenter == nullptr &amp;&amp; poLS != nullptr &amp;&amp; (poLS-&gt;getNumPoints() == 4 || poLS-&gt;getNumPoints() == 5))</span>
+<span class="lineNum">    1273 </span>            :         {
+<span class="lineNum">    1274 </span><span class="lineCov">          7 :             poCenter = PDFGetSquareCenter(poLS);</span>
+<span class="lineNum">    1275 </span>            :         }
+<span class="lineNum">    1276 </span>            : 
+<span class="lineNum">    1277 </span>            :         // Recognize points as written by GDAL (ogr-sym-6: triangle (not filled))
+<span class="lineNum">    1278 </span><span class="lineCov">         27 :         if (poCenter == nullptr &amp;&amp; poLS != nullptr &amp;&amp; (poLS-&gt;getNumPoints() == 3 || poLS-&gt;getNumPoints() == 4))</span>
+<span class="lineNum">    1279 </span>            :         {
+<span class="lineNum">    1280 </span><span class="lineCov">          3 :             poCenter = PDFGetTriangleCenter(poLS);</span>
+<span class="lineNum">    1281 </span>            :         }
+<span class="lineNum">    1282 </span>            : 
+<span class="lineNum">    1283 </span>            :         // Recognize points as written by GDAL (ogr-sym-8: star (not filled))
+<span class="lineNum">    1284 </span><span class="lineCov">         27 :         if (poCenter == nullptr &amp;&amp; poLS != nullptr &amp;&amp; (poLS-&gt;getNumPoints() == 10 || poLS-&gt;getNumPoints() == 11))</span>
+<span class="lineNum">    1285 </span>            :         {
+<span class="lineNum">    1286 </span><span class="lineCov">          3 :             poCenter = PDFGetStarCenter(poLS);</span>
+<span class="lineNum">    1287 </span>            :         }
+<span class="lineNum">    1288 </span>            : 
+<span class="lineNum">    1289 </span><span class="lineCov">         27 :         if (poCenter == nullptr &amp;&amp; poMLS != nullptr &amp;&amp; poMLS-&gt;getNumGeometries() == 2)</span>
+<span class="lineNum">    1290 </span>            :         {
+<span class="lineNum">    1291 </span><span class="lineCov">          6 :             OGRLineString* poLS1 = poMLS-&gt;getGeometryRef(0)-&gt;toLineString();</span>
+<span class="lineNum">    1292 </span><span class="lineCov">          6 :             OGRLineString* poLS2 = poMLS-&gt;getGeometryRef(1)-&gt;toLineString();</span>
+<span class="lineNum">    1293 </span>            : 
+<span class="lineNum">    1294 </span>            :             // Recognize points as written by GDAL (ogr-sym-0: cross (+) ).
+<span class="lineNum">    1295 </span><span class="lineCov">         24 :             if (poLS1-&gt;getNumPoints() == 2 &amp;&amp; poLS2-&gt;getNumPoints() == 2 &amp;&amp;</span>
+<span class="lineNum">    1296 </span><span class="lineCov">          9 :                 poLS1-&gt;getY(0) == poLS1-&gt;getY(1) &amp;&amp;</span>
+<span class="lineNum">    1297 </span><span class="lineCov">          6 :                 poLS2-&gt;getX(0) == poLS2-&gt;getX(1) &amp;&amp;</span>
+<span class="lineNum">    1298 </span><span class="lineCov">          6 :                 fabs(fabs(poLS1-&gt;getX(0) - poLS1-&gt;getX(1)) - fabs(poLS2-&gt;getY(0) - poLS2-&gt;getY(1))) &lt; EPSILON &amp;&amp;</span>
+<span class="lineNum">    1299 </span><span class="lineCov">         12 :                 fabs((poLS1-&gt;getX(0) + poLS1-&gt;getX(1)) / 2 - poLS2-&gt;getX(0)) &lt; EPSILON &amp;&amp;</span>
+<span class="lineNum">    1300 </span><span class="lineCov">          3 :                 fabs((poLS2-&gt;getY(0) + poLS2-&gt;getY(1)) / 2 - poLS1-&gt;getY(0)) &lt; EPSILON)</span>
+<span class="lineNum">    1301 </span>            :             {
+<span class="lineNum">    1302 </span><span class="lineCov">          3 :                 poCenter = new OGRPoint(poLS2-&gt;getX(0), poLS1-&gt;getY(0));</span>
+<span class="lineNum">    1303 </span>            :             }
+<span class="lineNum">    1304 </span>            :             // Recognize points as written by GDAL (ogr-sym-1: diagcross (X) ).
+<span class="lineNum">    1305 </span><span class="lineCov">         12 :             else if (poLS1-&gt;getNumPoints() == 2 &amp;&amp; poLS2-&gt;getNumPoints() == 2 &amp;&amp;</span>
+<span class="lineNum">    1306 </span><span class="lineCov">          6 :                      poLS1-&gt;getX(0) == poLS2-&gt;getX(0) &amp;&amp;</span>
+<span class="lineNum">    1307 </span><span class="lineCov">          6 :                      poLS1-&gt;getY(0) == poLS2-&gt;getY(1) &amp;&amp;</span>
+<span class="lineNum">    1308 </span><span class="lineCov">          6 :                      poLS1-&gt;getX(1) == poLS2-&gt;getX(1) &amp;&amp;</span>
+<span class="lineNum">    1309 </span><span class="lineCov">          9 :                      poLS1-&gt;getY(1) == poLS2-&gt;getY(0) &amp;&amp;</span>
+<span class="lineNum">    1310 </span><span class="lineCov">          3 :                      fabs(fabs(poLS1-&gt;getX(0) - poLS1-&gt;getX(1)) - fabs(poLS1-&gt;getY(0) - poLS1-&gt;getY(1))) &lt; EPSILON)</span>
+<span class="lineNum">    1311 </span>            :             {
+<span class="lineNum">    1312 </span><span class="lineCov">          3 :                 poCenter = new OGRPoint((poLS1-&gt;getX(0) + poLS1-&gt;getX(1)) / 2,</span>
+<span class="lineNum">    1313 </span><span class="lineCov">          3 :                                         (poLS1-&gt;getY(0) + poLS1-&gt;getY(1)) / 2);</span>
+<span class="lineNum">    1314 </span>            :             }
+<span class="lineNum">    1315 </span>            :         }
+<span class="lineNum">    1316 </span>            : 
+<span class="lineNum">    1317 </span><span class="lineCov">         27 :         if (poCenter)</span>
+<span class="lineNum">    1318 </span>            :         {
+<span class="lineNum">    1319 </span><span class="lineCov">         18 :             delete poGeom;</span>
+<span class="lineNum">    1320 </span><span class="lineCov">         18 :             poGeom = poCenter;</span>
+<span class="lineNum">    1321 </span>            :         }
+<span class="lineNum">    1322 </span>            :     }
+<span class="lineNum">    1323 </span>            :     else
+<span class="lineNum">    1324 </span>            :     {
+<span class="lineNum">    1325 </span><span class="lineCov">         28 :         OGRLinearRing* poLS = nullptr;</span>
+<span class="lineNum">    1326 </span><span class="lineCov">         28 :         int nPolys = 0;</span>
+<span class="lineNum">    1327 </span><span class="lineCov">         28 :         OGRGeometry** papoPoly = nullptr;</span>
+<span class="lineNum">    1328 </span>            : 
+<span class="lineNum">    1329 </span><span class="lineCov">        266 :         for(size_t i=0;i&lt;oCoords.size();i+=2)</span>
+<span class="lineNum">    1330 </span>            :         {
+<span class="lineNum">    1331 </span><span class="lineCov">        256 :             if (oCoords[i] == NEW_SUBPATH &amp;&amp; oCoords[i+1] == NEW_SUBPATH)</span>
+<span class="lineNum">    1332 </span>            :             {
+<span class="lineNum">    1333 </span><span class="lineCov">         35 :                 delete poLS;</span>
+<span class="lineNum">    1334 </span><span class="lineCov">         35 :                 poLS = new OGRLinearRing();</span>
+<span class="lineNum">    1335 </span>            :             }
+<span class="lineNum">    1336 </span><span class="lineCov">        452 :             else if ((oCoords[i] == CLOSE_SUBPATH &amp;&amp; oCoords[i+1] == CLOSE_SUBPATH) ||</span>
+<span class="lineNum">    1337 </span><span class="lineCov">        196 :                         (oCoords[i] == FILL_SUBPATH &amp;&amp; oCoords[i+1] == FILL_SUBPATH))</span>
+<span class="lineNum">    1338 </span>            :             {
+<span class="lineNum">    1339 </span><span class="lineCov">         45 :                 if (poLS)</span>
+<span class="lineNum">    1340 </span>            :                 {
+<span class="lineNum">    1341 </span><span class="lineCov">         35 :                     poLS-&gt;closeRings();</span>
+<span class="lineNum">    1342 </span>            : 
+<span class="lineNum">    1343 </span><span class="lineCov">         35 :                     OGRPoint* poCenter = nullptr;</span>
+<span class="lineNum">    1344 </span>            : 
+<span class="lineNum">    1345 </span><span class="lineCov">         63 :                     if (nPolys == 0 &amp;&amp;</span>
+<span class="lineNum">    1346 </span><span class="lineCov">         63 :                         poLS &amp;&amp;</span>
+<span class="lineNum">    1347 </span><span class="lineCov">         28 :                         poLS-&gt;getNumPoints() == 5)</span>
+<span class="lineNum">    1348 </span>            :                     {
+<span class="lineNum">    1349 </span>            :                         // Recognize points as written by GDAL (ogr-sym-3 : circle (filled))
+<span class="lineNum">    1350 </span><span class="lineCov">         21 :                         poCenter = PDFGetCircleCenter(poLS);</span>
+<span class="lineNum">    1351 </span>            : 
+<span class="lineNum">    1352 </span>            :                         // Recognize points as written by GDAL (ogr-sym-5: square (filled))
+<span class="lineNum">    1353 </span><span class="lineCov">         21 :                         if (poCenter == nullptr)</span>
+<span class="lineNum">    1354 </span><span class="lineCov">         12 :                             poCenter = PDFGetSquareCenter(poLS);</span>
+<span class="lineNum">    1355 </span>            : 
+<span class="lineNum">    1356 </span>            :                         /* ESRI points */
+<span class="lineNum">    1357 </span><span class="lineCov">         30 :                         if (poCenter == nullptr &amp;&amp;</span>
+<span class="lineNum">    1358 </span><span class="lineCov">          9 :                             oCoords.size() == 14 &amp;&amp;</span>
+<span class="lineNum">    1359 </span><span class="lineNoCov">          0 :                             poLS-&gt;getY(0) == poLS-&gt;getY(1) &amp;&amp;</span>
+<span class="lineNum">    1360 </span><span class="lineNoCov">          0 :                             poLS-&gt;getX(1) == poLS-&gt;getX(2) &amp;&amp;</span>
+<span class="lineNum">    1361 </span><span class="lineCov">         21 :                             poLS-&gt;getY(2) == poLS-&gt;getY(3) &amp;&amp;</span>
+<span class="lineNum">    1362 </span><span class="lineNoCov">          0 :                             poLS-&gt;getX(3) == poLS-&gt;getX(0))</span>
+<span class="lineNum">    1363 </span>            :                         {
+<span class="lineNum">    1364 </span><span class="lineNoCov">          0 :                             poCenter = new OGRPoint((poLS-&gt;getX(0) + poLS-&gt;getX(1)) / 2,</span>
+<span class="lineNum">    1365 </span><span class="lineNoCov">          0 :                                                     (poLS-&gt;getY(0) + poLS-&gt;getY(2)) / 2);</span>
+<span class="lineNum">    1366 </span>            :                         }
+<span class="lineNum">    1367 </span>            :                     }
+<span class="lineNum">    1368 </span>            :                     // Recognize points as written by GDAL (ogr-sym-7: triangle (filled))
+<span class="lineNum">    1369 </span><span class="lineCov">         21 :                     else if (nPolys == 0 &amp;&amp;</span>
+<span class="lineNum">    1370 </span><span class="lineCov">         21 :                              poLS &amp;&amp;</span>
+<span class="lineNum">    1371 </span><span class="lineCov">          7 :                              poLS-&gt;getNumPoints() == 4)</span>
+<span class="lineNum">    1372 </span>            :                     {
+<span class="lineNum">    1373 </span><span class="lineCov">          3 :                         poCenter = PDFGetTriangleCenter(poLS);</span>
+<span class="lineNum">    1374 </span>            :                     }
+<span class="lineNum">    1375 </span>            :                     // Recognize points as written by GDAL (ogr-sym-9: star (filled))
+<span class="lineNum">    1376 </span><span class="lineCov">         15 :                     else if (nPolys == 0 &amp;&amp;</span>
+<span class="lineNum">    1377 </span><span class="lineCov">         15 :                              poLS &amp;&amp;</span>
+<span class="lineNum">    1378 </span><span class="lineCov">          4 :                              poLS-&gt;getNumPoints() == 11)</span>
+<span class="lineNum">    1379 </span>            :                     {
+<span class="lineNum">    1380 </span><span class="lineCov">          3 :                         poCenter = PDFGetStarCenter(poLS);</span>
+<span class="lineNum">    1381 </span>            :                     }
+<span class="lineNum">    1382 </span>            : 
+<span class="lineNum">    1383 </span><span class="lineCov">         35 :                     if (poCenter)</span>
+<span class="lineNum">    1384 </span>            :                     {
+<span class="lineNum">    1385 </span><span class="lineCov">         18 :                         poGeom = poCenter;</span>
+<span class="lineNum">    1386 </span><span class="lineCov">         18 :                         break;</span>
+<span class="lineNum">    1387 </span>            :                     }
+<span class="lineNum">    1388 </span>            : 
+<span class="lineNum">    1389 </span><span class="lineCov">         17 :                     if (poLS-&gt;getNumPoints() &gt;= 3)</span>
+<span class="lineNum">    1390 </span>            :                     {
+<span class="lineNum">    1391 </span><span class="lineCov">         15 :                         OGRPolygon* poPoly =  new OGRPolygon();</span>
+<span class="lineNum">    1392 </span><span class="lineCov">         15 :                         poPoly-&gt;addRingDirectly(poLS);</span>
+<span class="lineNum">    1393 </span><span class="lineCov">         15 :                         poLS = nullptr;</span>
+<span class="lineNum">    1394 </span>            : 
+<span class="lineNum">    1395 </span><span class="lineCov">         15 :                         papoPoly = (OGRGeometry**) CPLRealloc(papoPoly, (nPolys + 1) * sizeof(OGRGeometry*));</span>
+<span class="lineNum">    1396 </span><span class="lineCov">         15 :                         papoPoly[nPolys ++] = poPoly;</span>
+<span class="lineNum">    1397 </span>            :                     }
+<span class="lineNum">    1398 </span>            :                     else
+<span class="lineNum">    1399 </span>            :                     {
+<span class="lineNum">    1400 </span><span class="lineCov">          2 :                         delete poLS;</span>
+<span class="lineNum">    1401 </span><span class="lineCov">          2 :                         poLS = nullptr;</span>
+<span class="lineNum">    1402 </span>            :                     }
+<span class="lineNum">    1403 </span>            :                 }
+<span class="lineNum">    1404 </span>            :             }
+<span class="lineNum">    1405 </span>            :             else
+<span class="lineNum">    1406 </span>            :             {
+<span class="lineNum">    1407 </span><span class="lineCov">        176 :                 if (poLS)</span>
+<span class="lineNum">    1408 </span>            :                 {
+<span class="lineNum">    1409 </span>            :                     double X, Y;
+<span class="lineNum">    1410 </span><span class="lineCov">        176 :                     PDFCoordsToSRSCoords(oCoords[i], oCoords[i+1], X, Y);</span>
+<span class="lineNum">    1411 </span>            : 
+<span class="lineNum">    1412 </span><span class="lineCov">        176 :                     poLS-&gt;addPoint(X, Y);</span>
+<span class="lineNum">    1413 </span>            :                 }
+<span class="lineNum">    1414 </span>            :             }
+<span class="lineNum">    1415 </span>            :         }
+<span class="lineNum">    1416 </span>            : 
+<span class="lineNum">    1417 </span><span class="lineCov">         28 :         delete poLS;</span>
+<span class="lineNum">    1418 </span>            : 
+<span class="lineNum">    1419 </span>            :         int bIsValidGeometry;
+<span class="lineNum">    1420 </span><span class="lineCov">         31 :         if (nPolys == 2 &amp;&amp;</span>
+<span class="lineNum">    1421 </span><span class="lineCov">         31 :             papoPoly[0]-&gt;toPolygon()-&gt;getNumInteriorRings() == 0 &amp;&amp;</span>
+<span class="lineNum">    1422 </span><span class="lineCov">          3 :             papoPoly[1]-&gt;toPolygon()-&gt;getNumInteriorRings() == 0)</span>
+<span class="lineNum">    1423 </span>            :         {
+<span class="lineNum">    1424 </span><span class="lineCov">          3 :             OGRLinearRing* poRing0 = papoPoly[0]-&gt;toPolygon()-&gt;getExteriorRing();</span>
+<span class="lineNum">    1425 </span><span class="lineCov">          3 :             OGRLinearRing* poRing1 = papoPoly[1]-&gt;toPolygon()-&gt;getExteriorRing();</span>
+<span class="lineNum">    1426 </span><span class="lineCov">          3 :             if (poRing0-&gt;getNumPoints() == poRing1-&gt;getNumPoints())</span>
+<span class="lineNum">    1427 </span>            :             {
+<span class="lineNum">    1428 </span><span class="lineCov">          3 :                 int bSameRing = TRUE;</span>
+<span class="lineNum">    1429 </span><span class="lineCov">          3 :                 for(int i=0;i&lt;poRing0-&gt;getNumPoints();i++)</span>
+<span class="lineNum">    1430 </span>            :                 {
+<span class="lineNum">    1431 </span><span class="lineCov">          3 :                     if (poRing0-&gt;getX(i) != poRing1-&gt;getX(i))</span>
+<span class="lineNum">    1432 </span>            :                     {
+<span class="lineNum">    1433 </span><span class="lineCov">          3 :                         bSameRing = FALSE;</span>
+<span class="lineNum">    1434 </span><span class="lineCov">          3 :                         break;</span>
+<span class="lineNum">    1435 </span>            :                     }
+<span class="lineNum">    1436 </span><span class="lineNoCov">          0 :                     if (poRing0-&gt;getY(i) != poRing1-&gt;getY(i))</span>
+<span class="lineNum">    1437 </span>            :                     {
+<span class="lineNum">    1438 </span><span class="lineNoCov">          0 :                         bSameRing = FALSE;</span>
+<span class="lineNum">    1439 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">    1440 </span>            :                     }
+<span class="lineNum">    1441 </span>            :                 }
+<span class="lineNum">    1442 </span>            : 
+<span class="lineNum">    1443 </span>            :                 /* Just keep on ring if they are identical */
+<span class="lineNum">    1444 </span><span class="lineCov">          3 :                 if (bSameRing)</span>
+<span class="lineNum">    1445 </span>            :                 {
+<span class="lineNum">    1446 </span><span class="lineNoCov">          0 :                     delete papoPoly[1];</span>
+<span class="lineNum">    1447 </span><span class="lineNoCov">          0 :                     nPolys = 1;</span>
+<span class="lineNum">    1448 </span>            :                 }
+<span class="lineNum">    1449 </span>            :             }
+<span class="lineNum">    1450 </span>            :         }
+<span class="lineNum">    1451 </span><span class="lineCov">         28 :         if (nPolys)</span>
+<span class="lineNum">    1452 </span>            :         {
+<span class="lineNum">    1453 </span>            :             poGeom = OGRGeometryFactory::organizePolygons(
+<span class="lineNum">    1454 </span><span class="lineCov">         10 :                     papoPoly, nPolys, &amp;bIsValidGeometry, nullptr);</span>
+<span class="lineNum">    1455 </span>            :         }
+<span class="lineNum">    1456 </span><span class="lineCov">         28 :         CPLFree(papoPoly);</span>
+<span class="lineNum">    1457 </span>            :     }
+<span class="lineNum">    1458 </span>            : 
+<span class="lineNum">    1459 </span><span class="lineCov">         58 :     return poGeom;</span>
+<span class="lineNum">    1460 </span>            : }
+<span class="lineNum">    1461 </span>            : 
+<span class="lineNum">    1462 </span>            : /************************************************************************/
+<span class="lineNum">    1463 </span>            : /*                          ExploreContents()                           */
+<a name="1464"><span class="lineNum">    1464 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1465 </span>            : 
+<span class="lineNum">    1466 </span><span class="lineCov">          3 : void PDFDataset::ExploreContents(GDALPDFObject* poObj,</span>
+<span class="lineNum">    1467 </span>            :                                        GDALPDFObject* poResources)
+<span class="lineNum">    1468 </span>            : {
+<span class="lineNum">    1469 </span><span class="lineCov">          3 :     std::map&lt;CPLString, OGRPDFLayer*&gt; oMapPropertyToLayer;</span>
+<span class="lineNum">    1470 </span>            : 
+<span class="lineNum">    1471 </span><span class="lineCov">          3 :     if (poObj-&gt;GetType() == PDFObjectType_Array)</span>
+<span class="lineNum">    1472 </span>            :     {
+<span class="lineNum">    1473 </span><span class="lineNoCov">          0 :         GDALPDFArray* poArray = poObj-&gt;GetArray();</span>
+<span class="lineNum">    1474 </span><span class="lineNoCov">          0 :         for(int i=0;i&lt;poArray-&gt;GetLength();i++)</span>
+<span class="lineNum">    1475 </span><span class="lineNoCov">          0 :             ExploreContents(poArray-&gt;Get(i), poResources);</span>
+<span class="lineNum">    1476 </span>            :     }
+<span class="lineNum">    1477 </span>            : 
+<span class="lineNum">    1478 </span><span class="lineCov">          3 :     if (poObj-&gt;GetType() != PDFObjectType_Dictionary)</span>
+<span class="lineNum">    1479 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1480 </span>            : 
+<span class="lineNum">    1481 </span><span class="lineCov">          3 :     GDALPDFStream* poStream = poObj-&gt;GetStream();</span>
+<span class="lineNum">    1482 </span><span class="lineCov">          3 :     if (!poStream)</span>
+<span class="lineNum">    1483 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1484 </span>            : 
+<span class="lineNum">    1485 </span><span class="lineCov">          3 :     char* pszStr = poStream-&gt;GetBytes();</span>
+<span class="lineNum">    1486 </span><span class="lineCov">          3 :     if (!pszStr)</span>
+<span class="lineNum">    1487 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1488 </span>            : 
+<span class="lineNum">    1489 </span><span class="lineCov">          3 :     const char* pszMCID = (const char*) pszStr;</span>
+<span class="lineNum">    1490 </span><span class="lineCov">         30 :     while((pszMCID = strstr(pszMCID, &quot;/MCID&quot;)) != nullptr)</span>
+<span class="lineNum">    1491 </span>            :     {
+<span class="lineNum">    1492 </span><span class="lineCov">         24 :         const char* pszBDC = strstr(pszMCID, &quot;BDC&quot;);</span>
+<span class="lineNum">    1493 </span><span class="lineCov">         24 :         if (pszBDC)</span>
+<span class="lineNum">    1494 </span>            :         {
+<span class="lineNum">    1495 </span>            :             /* Hack for http://www.avenza.com/sites/default/files/spatialpdf/US_County_Populations.pdf */
+<span class="lineNum">    1496 </span>            :             /* FIXME: that logic is too fragile. */
+<span class="lineNum">    1497 </span><span class="lineCov">         24 :             const char* pszStartParsing = pszBDC;</span>
+<span class="lineNum">    1498 </span><span class="lineCov">         24 :             const char* pszAfterBDC = pszBDC + 3;</span>
+<span class="lineNum">    1499 </span><span class="lineCov">         24 :             int bMatchQ = FALSE;</span>
+<span class="lineNum">    1500 </span><span class="lineCov">         72 :             while (pszAfterBDC[0] == ' ' || pszAfterBDC[0] == '\r' || pszAfterBDC[0] == '\n')</span>
+<span class="lineNum">    1501 </span><span class="lineCov">         24 :                 pszAfterBDC ++;</span>
+<span class="lineNum">    1502 </span><span class="lineCov">         24 :             if (STARTS_WITH(pszAfterBDC, &quot;0 0 m&quot;))</span>
+<span class="lineNum">    1503 </span>            :             {
+<span class="lineNum">    1504 </span><span class="lineNoCov">          0 :                 const char* pszLastq = pszBDC;</span>
+<span class="lineNum">    1505 </span><span class="lineNoCov">          0 :                 while(pszLastq &gt; pszStr &amp;&amp; *pszLastq != 'q')</span>
+<span class="lineNum">    1506 </span><span class="lineNoCov">          0 :                     pszLastq --;</span>
+<span class="lineNum">    1507 </span>            : 
+<span class="lineNum">    1508 </span><span class="lineNoCov">          0 :                 if (pszLastq &gt; pszStr &amp;&amp; *pszLastq == 'q' &amp;&amp;</span>
+<span class="lineNum">    1509 </span><span class="lineNoCov">          0 :                     (pszLastq[-1] == ' ' || pszLastq[-1] == '\r' || pszLastq[-1] == '\n') &amp;&amp;</span>
+<span class="lineNum">    1510 </span><span class="lineNoCov">          0 :                     (pszLastq[1] == ' ' || pszLastq[1] == '\r' || pszLastq[1] == '\n'))</span>
+<span class="lineNum">    1511 </span>            :                 {
+<span class="lineNum">    1512 </span><span class="lineNoCov">          0 :                     pszStartParsing = pszLastq;</span>
+<span class="lineNum">    1513 </span><span class="lineNoCov">          0 :                     bMatchQ = TRUE;</span>
+<span class="lineNum">    1514 </span>            :                 }
+<span class="lineNum">    1515 </span>            :             }
+<span class="lineNum">    1516 </span>            : 
+<span class="lineNum">    1517 </span><span class="lineCov">         24 :             int nMCID = atoi(pszMCID + 6);</span>
+<span class="lineNum">    1518 </span><span class="lineCov">         24 :             if (GetGeometryFromMCID(nMCID) == nullptr)</span>
+<span class="lineNum">    1519 </span>            :             {
+<span class="lineNum">    1520 </span>            :                 OGRGeometry* poGeom = ParseContent(pszStartParsing, poResources,
+<span class="lineNum">    1521 </span><span class="lineCov">         23 :                                                    !bMatchQ, bMatchQ, oMapPropertyToLayer, nullptr);</span>
+<span class="lineNum">    1522 </span><span class="lineCov">         23 :                 if( poGeom != nullptr )</span>
+<span class="lineNum">    1523 </span>            :                 {
+<span class="lineNum">    1524 </span>            :                     /* Save geometry in map */
+<span class="lineNum">    1525 </span><span class="lineCov">         22 :                     oMapMCID[nMCID] = poGeom;</span>
+<span class="lineNum">    1526 </span>            :                 }
+<span class="lineNum">    1527 </span>            :             }
+<span class="lineNum">    1528 </span>            :         }
+<span class="lineNum">    1529 </span><span class="lineCov">         24 :         pszMCID += 5;</span>
+<span class="lineNum">    1530 </span>            :     }
+<span class="lineNum">    1531 </span><span class="lineCov">          3 :     CPLFree(pszStr);</span>
+<span class="lineNum">    1532 </span>            : }
+<span class="lineNum">    1533 </span>            : 
+<span class="lineNum">    1534 </span>            : /************************************************************************/
+<span class="lineNum">    1535 </span>            : /*                   ExploreContentsNonStructured()                     */
+<a name="1536"><span class="lineNum">    1536 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1537 </span>            : 
+<span class="lineNum">    1538 </span><span class="lineCov">          3 : void PDFDataset::ExploreContentsNonStructuredInternal(GDALPDFObject* poContents,</span>
+<span class="lineNum">    1539 </span>            :                                                       GDALPDFObject* poResources,
+<span class="lineNum">    1540 </span>            :                                                       std::map&lt;CPLString, OGRPDFLayer*&gt;&amp; oMapPropertyToLayer,
+<span class="lineNum">    1541 </span>            :                                                       OGRPDFLayer* poSingleLayer)
+<span class="lineNum">    1542 </span>            : {
+<span class="lineNum">    1543 </span><span class="lineCov">          3 :     if (poContents-&gt;GetType() == PDFObjectType_Array)</span>
+<span class="lineNum">    1544 </span>            :     {
+<span class="lineNum">    1545 </span><span class="lineNoCov">          0 :         GDALPDFArray* poArray = poContents-&gt;GetArray();</span>
+<span class="lineNum">    1546 </span><span class="lineNoCov">          0 :         char* pszConcatStr = nullptr;</span>
+<span class="lineNum">    1547 </span><span class="lineNoCov">          0 :         int nConcatLen = 0;</span>
+<span class="lineNum">    1548 </span><span class="lineNoCov">          0 :         for(int i=0;i&lt;poArray-&gt;GetLength();i++)</span>
+<span class="lineNum">    1549 </span>            :         {
+<span class="lineNum">    1550 </span><span class="lineNoCov">          0 :             GDALPDFObject* poObj = poArray-&gt;Get(i);</span>
+<span class="lineNum">    1551 </span><span class="lineNoCov">          0 :             if( poObj-&gt;GetType() != PDFObjectType_Dictionary)</span>
+<span class="lineNum">    1552 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1553 </span><span class="lineNoCov">          0 :             GDALPDFStream* poStream = poObj-&gt;GetStream();</span>
+<span class="lineNum">    1554 </span><span class="lineNoCov">          0 :             if (!poStream)</span>
+<span class="lineNum">    1555 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1556 </span><span class="lineNoCov">          0 :             char* pszStr = poStream-&gt;GetBytes();</span>
+<span class="lineNum">    1557 </span><span class="lineNoCov">          0 :             if (!pszStr)</span>
+<span class="lineNum">    1558 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1559 </span><span class="lineNoCov">          0 :             int nLen = (int)strlen(pszStr);</span>
+<span class="lineNum">    1560 </span><span class="lineNoCov">          0 :             char* pszConcatStrNew = (char*)CPLRealloc(pszConcatStr, nConcatLen + nLen + 1);</span>
+<span class="lineNum">    1561 </span><span class="lineNoCov">          0 :             if( pszConcatStrNew == nullptr )</span>
+<span class="lineNum">    1562 </span>            :             {
+<span class="lineNum">    1563 </span><span class="lineNoCov">          0 :                 CPLFree(pszStr);</span>
+<span class="lineNum">    1564 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1565 </span>            :             }
+<span class="lineNum">    1566 </span><span class="lineNoCov">          0 :             pszConcatStr = pszConcatStrNew;</span>
+<span class="lineNum">    1567 </span><span class="lineNoCov">          0 :             memcpy(pszConcatStr + nConcatLen, pszStr, nLen+1);</span>
+<span class="lineNum">    1568 </span><span class="lineNoCov">          0 :             nConcatLen += nLen;</span>
+<span class="lineNum">    1569 </span><span class="lineNoCov">          0 :             CPLFree(pszStr);</span>
+<span class="lineNum">    1570 </span>            :         }
+<span class="lineNum">    1571 </span><span class="lineNoCov">          0 :         if( pszConcatStr )</span>
+<span class="lineNum">    1572 </span><span class="lineNoCov">          0 :             ParseContent(pszConcatStr, poResources, FALSE, FALSE, oMapPropertyToLayer, poSingleLayer);</span>
+<span class="lineNum">    1573 </span><span class="lineNoCov">          0 :         CPLFree(pszConcatStr);</span>
+<span class="lineNum">    1574 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1575 </span>            :     }
+<span class="lineNum">    1576 </span>            : 
+<span class="lineNum">    1577 </span><span class="lineCov">          3 :     if (poContents-&gt;GetType() != PDFObjectType_Dictionary)</span>
+<span class="lineNum">    1578 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1579 </span>            : 
+<span class="lineNum">    1580 </span><span class="lineCov">          3 :     GDALPDFStream* poStream = poContents-&gt;GetStream();</span>
+<span class="lineNum">    1581 </span><span class="lineCov">          3 :     if (!poStream)</span>
+<span class="lineNum">    1582 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1583 </span>            : 
+<span class="lineNum">    1584 </span><span class="lineCov">          3 :     char* pszStr = poStream-&gt;GetBytes();</span>
+<span class="lineNum">    1585 </span><span class="lineCov">          3 :     if( !pszStr )</span>
+<span class="lineNum">    1586 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1587 </span><span class="lineCov">          3 :     ParseContent(pszStr, poResources, FALSE, FALSE, oMapPropertyToLayer, poSingleLayer);</span>
+<span class="lineNum">    1588 </span><span class="lineCov">          3 :     CPLFree(pszStr);</span>
+<a name="1589"><span class="lineNum">    1589 </span>            : }</a>
+<span class="lineNum">    1590 </span>            : 
+<span class="lineNum">    1591 </span><span class="lineCov">          4 : void PDFDataset::ExploreContentsNonStructured(GDALPDFObject* poContents,</span>
+<span class="lineNum">    1592 </span>            :                                                     GDALPDFObject* poResources)
+<span class="lineNum">    1593 </span>            : {
+<span class="lineNum">    1594 </span><span class="lineCov">          4 :     std::map&lt;CPLString, OGRPDFLayer*&gt; oMapPropertyToLayer;</span>
+<span class="lineNum">    1595 </span><span class="lineCov">          8 :     if (poResources != nullptr &amp;&amp;</span>
+<span class="lineNum">    1596 </span><span class="lineCov">          4 :         poResources-&gt;GetType() == PDFObjectType_Dictionary)</span>
+<span class="lineNum">    1597 </span>            :     {
+<span class="lineNum">    1598 </span>            :         GDALPDFObject* poProperties =
+<span class="lineNum">    1599 </span><span class="lineCov">          4 :             poResources-&gt;GetDictionary()-&gt;Get(&quot;Properties&quot;);</span>
+<span class="lineNum">    1600 </span><span class="lineCov">          6 :         if (poProperties != nullptr &amp;&amp;</span>
+<span class="lineNum">    1601 </span><span class="lineCov">          2 :             poProperties-&gt;GetType() == PDFObjectType_Dictionary)</span>
+<span class="lineNum">    1602 </span>            :         {
+<span class="lineNum">    1603 </span><span class="lineCov">          2 :             char** papszLayersWithRef = osLayerWithRefList.List();</span>
+<span class="lineNum">    1604 </span><span class="lineCov">          2 :             char** papszIter = papszLayersWithRef;</span>
+<span class="lineNum">    1605 </span><span class="lineCov">          2 :             std::map&lt; std::pair&lt;int, int&gt;, OGRPDFLayer *&gt; oMapNumGenToLayer;</span>
+<span class="lineNum">    1606 </span><span class="lineCov">          8 :             while(papszIter &amp;&amp; *papszIter)</span>
+<span class="lineNum">    1607 </span>            :             {
+<span class="lineNum">    1608 </span><span class="lineCov">          4 :                 char** papszTokens = CSLTokenizeString(*papszIter);</span>
+<span class="lineNum">    1609 </span>            : 
+<span class="lineNum">    1610 </span><span class="lineCov">          4 :                 if( CSLCount(papszTokens) != 3 ) {</span>
+<span class="lineNum">    1611 </span><span class="lineNoCov">          0 :                     CSLDestroy(papszTokens);</span>
+<span class="lineNum">    1612 </span><span class="lineNoCov">          0 :                     CPLDebug(&quot;PDF&quot;, &quot;Ignore '%s', unparsable.&quot;, *papszIter);</span>
+<span class="lineNum">    1613 </span><span class="lineNoCov">          0 :                     papszIter ++;</span>
+<span class="lineNum">    1614 </span><span class="lineNoCov">          0 :                     continue;</span>
+<span class="lineNum">    1615 </span>            :                 }
+<span class="lineNum">    1616 </span>            : 
+<span class="lineNum">    1617 </span><span class="lineCov">          4 :                 const char* pszLayerName = papszTokens[0];</span>
+<span class="lineNum">    1618 </span><span class="lineCov">          4 :                 int nNum = atoi(papszTokens[1]);</span>
+<span class="lineNum">    1619 </span><span class="lineCov">          4 :                 int nGen = atoi(papszTokens[2]);</span>
+<span class="lineNum">    1620 </span>            : 
+<span class="lineNum">    1621 </span><span class="lineCov">          4 :                 CPLString osSanitizedName(PDFSanitizeLayerName(pszLayerName));</span>
+<span class="lineNum">    1622 </span>            : 
+<span class="lineNum">    1623 </span><span class="lineCov">          4 :                 OGRPDFLayer* poLayer = (OGRPDFLayer*) GetLayerByName(osSanitizedName.c_str());</span>
+<span class="lineNum">    1624 </span><span class="lineCov">          4 :                 if (poLayer == nullptr)</span>
+<span class="lineNum">    1625 </span>            :                 {
+<span class="lineNum">    1626 </span><span class="lineCov">          4 :                     auto poSRSOri = GetSpatialRef();</span>
+<span class="lineNum">    1627 </span><span class="lineCov">          4 :                     OGRSpatialReference* poSRS = poSRSOri ? poSRSOri-&gt;Clone() : nullptr;</span>
+<span class="lineNum">    1628 </span>            :                     poLayer =
+<span class="lineNum">    1629 </span><span class="lineCov">          4 :                         new OGRPDFLayer(this, osSanitizedName.c_str(), poSRS, wkbUnknown);</span>
+<span class="lineNum">    1630 </span><span class="lineCov">          4 :                     if( poSRS )</span>
+<span class="lineNum">    1631 </span><span class="lineCov">          4 :                         poSRS-&gt;Release();</span>
+<span class="lineNum">    1632 </span>            : 
+<span class="lineNum">    1633 </span>            :                     papoLayers = (OGRLayer**)
+<span class="lineNum">    1634 </span><span class="lineCov">          4 :                         CPLRealloc(papoLayers, (nLayers + 1) * sizeof(OGRLayer*));</span>
+<span class="lineNum">    1635 </span><span class="lineCov">          4 :                     papoLayers[nLayers] = poLayer;</span>
+<span class="lineNum">    1636 </span><span class="lineCov">          4 :                     nLayers ++;</span>
+<span class="lineNum">    1637 </span>            :                 }
+<span class="lineNum">    1638 </span>            : 
+<span class="lineNum">    1639 </span><span class="lineCov">          4 :                 oMapNumGenToLayer[ std::pair&lt;int,int&gt;(nNum, nGen) ] = poLayer;</span>
+<span class="lineNum">    1640 </span>            : 
+<span class="lineNum">    1641 </span><span class="lineCov">          4 :                 CSLDestroy(papszTokens);</span>
+<span class="lineNum">    1642 </span><span class="lineCov">          4 :                 papszIter ++;</span>
+<span class="lineNum">    1643 </span><span class="lineCov">          4 :             }</span>
+<span class="lineNum">    1644 </span>            : 
+<span class="lineNum">    1645 </span>            :             std::map&lt;CPLString, GDALPDFObject*&gt;&amp; oMap =
+<span class="lineNum">    1646 </span><span class="lineCov">          2 :                                     poProperties-&gt;GetDictionary()-&gt;GetValues();</span>
+<span class="lineNum">    1647 </span><span class="lineCov">          2 :             std::map&lt;CPLString, GDALPDFObject*&gt;::iterator oIter = oMap.begin();</span>
+<span class="lineNum">    1648 </span><span class="lineCov">          2 :             std::map&lt;CPLString, GDALPDFObject*&gt;::iterator oEnd = oMap.end();</span>
+<span class="lineNum">    1649 </span>            : 
+<span class="lineNum">    1650 </span><span class="lineCov">          6 :             for(; oIter != oEnd; ++oIter)</span>
+<span class="lineNum">    1651 </span>            :             {
+<span class="lineNum">    1652 </span><span class="lineCov">          4 :                 const char* pszKey = oIter-&gt;first.c_str();</span>
+<span class="lineNum">    1653 </span><span class="lineCov">          4 :                 GDALPDFObject* poObj = oIter-&gt;second;</span>
+<span class="lineNum">    1654 </span><span class="lineCov">          4 :                 if( poObj-&gt;GetRefNum().toBool() )</span>
+<span class="lineNum">    1655 </span>            :                 {
+<span class="lineNum">    1656 </span>            :                     std::map&lt; std::pair&lt;int, int&gt;, OGRPDFLayer *&gt;::iterator
+<span class="lineNum">    1657 </span>            :                         oIterNumGenToLayer = oMapNumGenToLayer.find(
+<span class="lineNum">    1658 </span><span class="lineCov">          4 :                             std::pair&lt;int,int&gt;(poObj-&gt;GetRefNum().toInt(), poObj-&gt;GetRefGen()) );</span>
+<span class="lineNum">    1659 </span><span class="lineCov">          4 :                     if( oIterNumGenToLayer != oMapNumGenToLayer.end() )</span>
+<span class="lineNum">    1660 </span>            :                     {
+<span class="lineNum">    1661 </span><span class="lineCov">          4 :                         oMapPropertyToLayer[pszKey] = oIterNumGenToLayer-&gt;second;</span>
+<span class="lineNum">    1662 </span>            :                     }
+<span class="lineNum">    1663 </span>            :                 }
+<span class="lineNum">    1664 </span><span class="lineCov">          2 :             }</span>
+<span class="lineNum">    1665 </span>            :         }
+<span class="lineNum">    1666 </span>            :     }
+<span class="lineNum">    1667 </span>            : 
+<span class="lineNum">    1668 </span><span class="lineCov">          4 :     OGRPDFLayer* poSingleLayer = nullptr;</span>
+<span class="lineNum">    1669 </span><span class="lineCov">          4 :     if( nLayers == 0 )</span>
+<span class="lineNum">    1670 </span>            :     {
+<span class="lineNum">    1671 </span><span class="lineCov">          2 :         if( CPLTestBool(CPLGetConfigOption(&quot;OGR_PDF_READ_NON_STRUCTURED&quot;, &quot;NO&quot;)) )</span>
+<span class="lineNum">    1672 </span>            :         {
+<span class="lineNum">    1673 </span>            :             OGRPDFLayer *poLayer =
+<span class="lineNum">    1674 </span><span class="lineCov">          1 :                 new OGRPDFLayer(this, &quot;content&quot;, nullptr, wkbUnknown);</span>
+<span class="lineNum">    1675 </span>            :             papoLayers = (OGRLayer**)
+<span class="lineNum">    1676 </span><span class="lineCov">          1 :                 CPLRealloc(papoLayers, (nLayers + 1) * sizeof(OGRLayer*));</span>
+<span class="lineNum">    1677 </span><span class="lineCov">          1 :             papoLayers[nLayers] = poLayer;</span>
+<span class="lineNum">    1678 </span><span class="lineCov">          1 :             nLayers ++;</span>
+<span class="lineNum">    1679 </span><span class="lineCov">          1 :             poSingleLayer = poLayer;</span>
+<span class="lineNum">    1680 </span>            :         }
+<span class="lineNum">    1681 </span>            :         else
+<span class="lineNum">    1682 </span>            :         {
+<span class="lineNum">    1683 </span><span class="lineCov">          5 :             return;</span>
+<span class="lineNum">    1684 </span>            :         }
+<span class="lineNum">    1685 </span>            :     }
+<span class="lineNum">    1686 </span>            : 
+<span class="lineNum">    1687 </span>            :     ExploreContentsNonStructuredInternal(poContents,
+<span class="lineNum">    1688 </span>            :                                          poResources,
+<span class="lineNum">    1689 </span>            :                                          oMapPropertyToLayer,
+<span class="lineNum">    1690 </span><span class="lineCov">          3 :                                          poSingleLayer);</span>
+<span class="lineNum">    1691 </span>            : 
+<span class="lineNum">    1692 </span>            :     /* Remove empty layers */
+<span class="lineNum">    1693 </span><span class="lineCov">          3 :     int i = 0;</span>
+<span class="lineNum">    1694 </span><span class="lineCov">         11 :     while(i &lt; nLayers)</span>
+<span class="lineNum">    1695 </span>            :     {
+<span class="lineNum">    1696 </span><span class="lineCov">          5 :         if (papoLayers[i]-&gt;GetFeatureCount() == 0)</span>
+<span class="lineNum">    1697 </span>            :         {
+<span class="lineNum">    1698 </span><span class="lineCov">          2 :             delete papoLayers[i];</span>
+<span class="lineNum">    1699 </span><span class="lineCov">          2 :             if (i &lt; nLayers - 1)</span>
+<span class="lineNum">    1700 </span>            :             {
+<span class="lineNum">    1701 </span><span class="lineNoCov">          0 :                 memmove(papoLayers + i, papoLayers + i + 1,</span>
+<span class="lineNum">    1702 </span><span class="lineNoCov">          0 :                         (nLayers - 1 - i) * sizeof(OGRPDFLayer*));</span>
+<span class="lineNum">    1703 </span>            :             }
+<span class="lineNum">    1704 </span><span class="lineCov">          2 :             nLayers --;</span>
+<span class="lineNum">    1705 </span>            :         }
+<span class="lineNum">    1706 </span>            :         else
+<a name="1707"><span class="lineNum">    1707 </span><span class="lineCov">          3 :             i ++;</span></a>
+<span class="lineNum">    1708 </span><span class="lineCov">          3 :     }</span>
+<span class="lineNum">    1709 </span><span class="lineCov">       2976 : }</span>
+<span class="lineNum">    1710 </span>            : 
+<span class="lineNum">    1711 </span>            : #endif /* HAVE_PDF_READ_SUPPORT */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

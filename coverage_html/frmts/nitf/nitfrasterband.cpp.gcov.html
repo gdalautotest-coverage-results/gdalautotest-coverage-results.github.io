@@ -1,0 +1,1163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/nitf/nitfrasterband.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/nitf</a> - nitfrasterband.cpp<span style="font-size: 80%;"> (source / <a href="nitfrasterband.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">386</td>
+            <td class="headerCovTableEntry">456</td>
+            <td class="headerCovTableEntryMed">84.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">35</td>
+            <td class="headerCovTableEntry">50</td>
+            <td class="headerCovTableEntryLo">70.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  NITF Read/Write Translator
+<span class="lineNum">       4 </span>            :  * Purpose:  NITFRasterBand (and related proxy band) implementations.
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2002, Frank Warmerdam
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2011-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Portions Copyright (c) Her majesty the Queen in right of Canada as
+<span class="lineNum">      12 </span>            :  * represented by the Minister of National Defence, 2006.
+<span class="lineNum">      13 </span>            :  *
+<span class="lineNum">      14 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      15 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      16 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      17 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      18 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      19 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      22 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      23 </span>            :  *
+<span class="lineNum">      24 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      25 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      26 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      27 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      28 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      29 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      30 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      31 </span>            :  ****************************************************************************/
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;nitfdataset.h&quot;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : #include &lt;climits&gt;
+<span class="lineNum">      37 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      38 </span>            : #if HAVE_FCNTL_H
+<span class="lineNum">      39 </span>            : #  include &lt;fcntl.h&gt;
+<span class="lineNum">      40 </span>            : #endif
+<span class="lineNum">      41 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      42 </span>            : #include &lt;map&gt;
+<span class="lineNum">      43 </span>            : #include &lt;utility&gt;
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;cpl_csv.h&quot;
+<span class="lineNum">      47 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      48 </span>            : #include &quot;cpl_progress.h&quot;
+<span class="lineNum">      49 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      50 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      51 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      52 </span>            : #include &quot;gdal_pam.h&quot;
+<span class="lineNum">      53 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      54 </span>            : #include &quot;nitflib.h&quot;
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span>            : /************************************************************************/
+<span class="lineNum">      60 </span>            : /*                       NITFMakeColorTable()                           */
+<a name="61"><span class="lineNum">      61 </span>            : /************************************************************************/</a>
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span><span class="lineCov">     210674 : static GDALColorTable* NITFMakeColorTable(NITFImage* psImage, NITFBandInfo *psBandInfo)</span>
+<span class="lineNum">      64 </span>            : {
+<span class="lineNum">      65 </span><span class="lineCov">     210674 :     GDALColorTable* poColorTable = nullptr;</span>
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span><span class="lineCov">     210674 :     if( psBandInfo-&gt;nSignificantLUTEntries &gt; 0 )</span>
+<span class="lineNum">      68 </span>            :     {
+<span class="lineNum">      69 </span><span class="lineCov">         33 :         poColorTable = new GDALColorTable();</span>
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span><span class="lineCov">       5780 :         for( int iColor = 0; iColor &lt; psBandInfo-&gt;nSignificantLUTEntries; iColor++)</span>
+<span class="lineNum">      72 </span>            :         {
+<span class="lineNum">      73 </span>            :             GDALColorEntry sEntry;
+<span class="lineNum">      74 </span><span class="lineCov">       5747 :             sEntry.c1 = psBandInfo-&gt;pabyLUT[  0 + iColor];</span>
+<span class="lineNum">      75 </span><span class="lineCov">       5747 :             sEntry.c2 = psBandInfo-&gt;pabyLUT[256 + iColor];</span>
+<span class="lineNum">      76 </span><span class="lineCov">       5747 :             sEntry.c3 = psBandInfo-&gt;pabyLUT[512 + iColor];</span>
+<span class="lineNum">      77 </span><span class="lineCov">       5747 :             sEntry.c4 = 255;</span>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineCov">       5747 :             poColorTable-&gt;SetColorEntry( iColor, &amp;sEntry );</span>
+<span class="lineNum">      80 </span>            :         }
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span><span class="lineCov">         33 :         if (psImage-&gt;bNoDataSet)</span>
+<span class="lineNum">      83 </span>            :         {
+<span class="lineNum">      84 </span><span class="lineCov">         29 :             GDALColorEntry sEntry = { 0, 0, 0, 0 };</span>
+<span class="lineNum">      85 </span><span class="lineCov">         29 :             poColorTable-&gt;SetColorEntry( psImage-&gt;nNoDataValue, &amp;sEntry );</span>
+<span class="lineNum">      86 </span>            :         }
+<span class="lineNum">      87 </span>            :     }
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      90 </span>            : /*      We create a color table for 1 bit data too...                   */
+<span class="lineNum">      91 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      92 </span><span class="lineCov">     210674 :     if( poColorTable == nullptr &amp;&amp; psImage-&gt;nBitsPerSample == 1 )</span>
+<span class="lineNum">      93 </span>            :     {
+<span class="lineNum">      94 </span><span class="lineCov">         20 :         poColorTable = new GDALColorTable();</span>
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            :         GDALColorEntry sEntry;
+<span class="lineNum">      97 </span><span class="lineCov">         20 :         sEntry.c1 = 0;</span>
+<span class="lineNum">      98 </span><span class="lineCov">         20 :         sEntry.c2 = 0;</span>
+<span class="lineNum">      99 </span><span class="lineCov">         20 :         sEntry.c3 = 0;</span>
+<span class="lineNum">     100 </span><span class="lineCov">         20 :         sEntry.c4 = 255;</span>
+<span class="lineNum">     101 </span><span class="lineCov">         20 :         poColorTable-&gt;SetColorEntry( 0, &amp;sEntry );</span>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span><span class="lineCov">         20 :         sEntry.c1 = 255;</span>
+<span class="lineNum">     104 </span><span class="lineCov">         20 :         sEntry.c2 = 255;</span>
+<span class="lineNum">     105 </span><span class="lineCov">         20 :         sEntry.c3 = 255;</span>
+<span class="lineNum">     106 </span><span class="lineCov">         20 :         sEntry.c4 = 255;</span>
+<span class="lineNum">     107 </span><span class="lineCov">         20 :         poColorTable-&gt;SetColorEntry( 1, &amp;sEntry );</span>
+<span class="lineNum">     108 </span>            :     }
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span><span class="lineCov">     210674 :     return poColorTable;</span>
+<span class="lineNum">     111 </span>            : }
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span>            : /************************************************************************/
+<span class="lineNum">     114 </span>            : /* ==================================================================== */
+<span class="lineNum">     115 </span>            : /*                        NITFProxyPamRasterBand                        */
+<span class="lineNum">     116 </span>            : /* ==================================================================== */
+<a name="117"><span class="lineNum">     117 </span>            : /************************************************************************/</a>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineCov">        106 : NITFProxyPamRasterBand::~NITFProxyPamRasterBand()</span>
+<span class="lineNum">     120 </span>            : {
+<span class="lineNum">     121 </span><span class="lineCov">         53 :     std::map&lt;CPLString, char**&gt;::iterator oIter = oMDMap.begin();</span>
+<span class="lineNum">     122 </span><span class="lineCov">        110 :     while(oIter != oMDMap.end())</span>
+<span class="lineNum">     123 </span>            :     {
+<span class="lineNum">     124 </span><span class="lineCov">          4 :         CSLDestroy(oIter-&gt;second);</span>
+<span class="lineNum">     125 </span><span class="lineCov">          4 :         ++oIter;</span>
+<span class="lineNum">     126 </span>            :     }
+<a name="127"><span class="lineNum">     127 </span><span class="lineCov">         53 : }</span></a>
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span><span class="lineCov">          4 : char **NITFProxyPamRasterBand::GetMetadata( const char * pszDomain  )</span>
+<span class="lineNum">     130 </span>            : {
+<span class="lineNum">     131 </span><span class="lineCov">          4 :     GDALRasterBand* _poSrcBand = RefUnderlyingRasterBand();</span>
+<span class="lineNum">     132 </span><span class="lineCov">          4 :     if (_poSrcBand)</span>
+<span class="lineNum">     133 </span>            :     {
+<span class="lineNum">     134 </span>            :         /* Let's merge metadata of PAM and the underlying band */
+<span class="lineNum">     135 </span>            :         /* PAM metadata should override underlying band metadata */
+<span class="lineNum">     136 </span><span class="lineCov">          4 :         char** papszMD = CSLDuplicate(_poSrcBand-&gt;GetMetadata( pszDomain ));</span>
+<span class="lineNum">     137 </span><span class="lineCov">          4 :         papszMD = CSLMerge( papszMD, GDALPamRasterBand::GetMetadata(pszDomain) );</span>
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span><span class="lineCov">          4 :         if (pszDomain == nullptr)</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :             pszDomain = &quot;&quot;;</span>
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span><span class="lineCov">          4 :         std::map&lt;CPLString, char**&gt;::iterator oIter = oMDMap.find(pszDomain);</span>
+<span class="lineNum">     143 </span><span class="lineCov">          4 :         if (oIter != oMDMap.end())</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :             CSLDestroy(oIter-&gt;second);</span>
+<span class="lineNum">     145 </span><span class="lineCov">          4 :         oMDMap[pszDomain] = papszMD;</span>
+<span class="lineNum">     146 </span><span class="lineCov">          4 :         UnrefUnderlyingRasterBand(_poSrcBand);</span>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span><span class="lineCov">          4 :         return papszMD;</span>
+<span class="lineNum">     149 </span>            :     }
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :     return GDALPamRasterBand::GetMetadata(pszDomain);</span>
+<a name="152"><span class="lineNum">     152 </span>            : }</a>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineCov">          4 : const char *NITFProxyPamRasterBand::GetMetadataItem( const char * pszName,</span>
+<span class="lineNum">     155 </span>            :                                                      const char * pszDomain )
+<span class="lineNum">     156 </span>            : {
+<span class="lineNum">     157 </span><span class="lineCov">          4 :     const char* pszRet = GDALPamRasterBand::GetMetadataItem(pszName, pszDomain);</span>
+<span class="lineNum">     158 </span><span class="lineCov">          4 :     if (pszRet)</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :         return pszRet;</span>
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineCov">          4 :     GDALRasterBand* _poSrcBand = RefUnderlyingRasterBand();</span>
+<span class="lineNum">     162 </span><span class="lineCov">          4 :     if (_poSrcBand)</span>
+<span class="lineNum">     163 </span>            :     {
+<span class="lineNum">     164 </span><span class="lineCov">          4 :         pszRet = _poSrcBand-&gt;GetMetadataItem( pszName, pszDomain );</span>
+<span class="lineNum">     165 </span><span class="lineCov">          4 :         UnrefUnderlyingRasterBand(_poSrcBand);</span>
+<span class="lineNum">     166 </span>            :     }
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span><span class="lineCov">          4 :     return pszRet;</span>
+<a name="169"><span class="lineNum">     169 </span>            : }</a>
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span><span class="lineCov">          2 : CPLErr NITFProxyPamRasterBand::GetStatistics( int bApproxOK, int bForce,</span>
+<span class="lineNum">     172 </span>            :                                       double *pdfMin, double *pdfMax,
+<span class="lineNum">     173 </span>            :                                       double *pdfMean, double *pdfStdDev )
+<span class="lineNum">     174 </span>            : {
+<span class="lineNum">     175 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     176 </span>            : /*      Do we already have metadata items for the requested values?     */
+<span class="lineNum">     177 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     178 </span><span class="lineCov">          4 :     if( (pdfMin == nullptr || GetMetadataItem(&quot;STATISTICS_MINIMUM&quot;) != nullptr)</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :      &amp;&amp; (pdfMax == nullptr || GetMetadataItem(&quot;STATISTICS_MAXIMUM&quot;) != nullptr)</span>
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :      &amp;&amp; (pdfMean == nullptr || GetMetadataItem(&quot;STATISTICS_MEAN&quot;) != nullptr)</span>
+<span class="lineNum">     181 </span><span class="lineCov">          2 :      &amp;&amp; (pdfStdDev == nullptr || GetMetadataItem(&quot;STATISTICS_STDDEV&quot;) != nullptr) )</span>
+<span class="lineNum">     182 </span>            :     {
+<span class="lineNum">     183 </span>            :         return GDALPamRasterBand::GetStatistics( bApproxOK, bForce,
+<span class="lineNum">     184 </span>            :                                                  pdfMin, pdfMax,
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :                                                  pdfMean, pdfStdDev);</span>
+<span class="lineNum">     186 </span>            :     }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineCov">          2 :     GDALRasterBand* _poSrcBand = RefUnderlyingRasterBand();</span>
+<span class="lineNum">     189 </span><span class="lineCov">          2 :     if (_poSrcBand)</span>
+<span class="lineNum">     190 </span>            :     {
+<span class="lineNum">     191 </span>            :         CPLErr ret = _poSrcBand-&gt;GetStatistics( bApproxOK, bForce,
+<span class="lineNum">     192 </span>            :                                                 pdfMin, pdfMax, pdfMean,
+<span class="lineNum">     193 </span><span class="lineCov">          2 :                                                 pdfStdDev);</span>
+<span class="lineNum">     194 </span><span class="lineCov">          2 :         if (ret == CE_None)</span>
+<span class="lineNum">     195 </span>            :         {
+<span class="lineNum">     196 </span>            :             /* Report underlying statistics at PAM level */
+<span class="lineNum">     197 </span>            :             SetMetadataItem(&quot;STATISTICS_MINIMUM&quot;,
+<span class="lineNum">     198 </span><span class="lineCov">          2 :                             _poSrcBand-&gt;GetMetadataItem(&quot;STATISTICS_MINIMUM&quot;));</span>
+<span class="lineNum">     199 </span>            :             SetMetadataItem(&quot;STATISTICS_MAXIMUM&quot;,
+<span class="lineNum">     200 </span><span class="lineCov">          2 :                             _poSrcBand-&gt;GetMetadataItem(&quot;STATISTICS_MAXIMUM&quot;));</span>
+<span class="lineNum">     201 </span>            :             SetMetadataItem(&quot;STATISTICS_MEAN&quot;,
+<span class="lineNum">     202 </span><span class="lineCov">          2 :                             _poSrcBand-&gt;GetMetadataItem(&quot;STATISTICS_MEAN&quot;));</span>
+<span class="lineNum">     203 </span>            :             SetMetadataItem(&quot;STATISTICS_STDDEV&quot;,
+<span class="lineNum">     204 </span><span class="lineCov">          2 :                             _poSrcBand-&gt;GetMetadataItem(&quot;STATISTICS_STDDEV&quot;));</span>
+<span class="lineNum">     205 </span>            :         }
+<span class="lineNum">     206 </span><span class="lineCov">          2 :         UnrefUnderlyingRasterBand(_poSrcBand);</span>
+<span class="lineNum">     207 </span><span class="lineCov">          2 :         return ret;</span>
+<span class="lineNum">     208 </span>            :     }
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :     return CE_Failure;</span>
+<a name="211"><span class="lineNum">     211 </span>            : }</a>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 : CPLErr NITFProxyPamRasterBand::ComputeStatistics( int bApproxOK,</span>
+<span class="lineNum">     214 </span>            :                                         double *pdfMin, double *pdfMax,
+<span class="lineNum">     215 </span>            :                                         double *pdfMean, double *pdfStdDev,
+<span class="lineNum">     216 </span>            :                                         GDALProgressFunc pfn, void *pProgressData )
+<span class="lineNum">     217 </span>            : {
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :     GDALRasterBand* _poSrcBand = RefUnderlyingRasterBand();</span>
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :     if (_poSrcBand)</span>
+<span class="lineNum">     220 </span>            :     {
+<span class="lineNum">     221 </span>            :         CPLErr ret = _poSrcBand-&gt;ComputeStatistics( bApproxOK, pdfMin, pdfMax,
+<span class="lineNum">     222 </span>            :                                                     pdfMean, pdfStdDev,
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :                                                     pfn, pProgressData);</span>
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :         if (ret == CE_None)</span>
+<span class="lineNum">     225 </span>            :         {
+<span class="lineNum">     226 </span>            :             /* Report underlying statistics at PAM level */
+<span class="lineNum">     227 </span>            :             SetMetadataItem(&quot;STATISTICS_MINIMUM&quot;,
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :                             _poSrcBand-&gt;GetMetadataItem(&quot;STATISTICS_MINIMUM&quot;));</span>
+<span class="lineNum">     229 </span>            :             SetMetadataItem(&quot;STATISTICS_MAXIMUM&quot;,
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :                             _poSrcBand-&gt;GetMetadataItem(&quot;STATISTICS_MAXIMUM&quot;));</span>
+<span class="lineNum">     231 </span>            :             SetMetadataItem(&quot;STATISTICS_MEAN&quot;,
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :                             _poSrcBand-&gt;GetMetadataItem(&quot;STATISTICS_MEAN&quot;));</span>
+<span class="lineNum">     233 </span>            :             SetMetadataItem(&quot;STATISTICS_STDDEV&quot;,
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :                             _poSrcBand-&gt;GetMetadataItem(&quot;STATISTICS_STDDEV&quot;));</span>
+<span class="lineNum">     235 </span>            :         }
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :         UnrefUnderlyingRasterBand(_poSrcBand);</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :         return ret;</span>
+<span class="lineNum">     238 </span>            :     }
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :     return CE_Failure;</span>
+<span class="lineNum">     241 </span>            : }
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            : #define RB_PROXY_METHOD_GET_DBL_WITH_SUCCESS(methodName) \
+<span class="lineNum">     244 </span>            : double NITFProxyPamRasterBand::methodName( int *pbSuccess ) \
+<span class="lineNum">     245 </span>            : { \
+<span class="lineNum">     246 </span>            :     int bSuccess = FALSE; \
+<span class="lineNum">     247 </span>            :     double dfRet = GDALPamRasterBand::methodName(&amp;bSuccess); \
+<span class="lineNum">     248 </span>            :     if (bSuccess) \
+<span class="lineNum">     249 </span>            :     { \
+<span class="lineNum">     250 </span>            :         if (pbSuccess) \
+<span class="lineNum">     251 </span>            :             *pbSuccess = TRUE; \
+<span class="lineNum">     252 </span>            :         return dfRet; \
+<span class="lineNum">     253 </span>            :     } \
+<span class="lineNum">     254 </span>            :     GDALRasterBand* _poSrcBand = RefUnderlyingRasterBand(); \
+<span class="lineNum">     255 </span>            :     if (_poSrcBand) \
+<span class="lineNum">     256 </span>            :     { \
+<span class="lineNum">     257 </span>            :         dfRet = _poSrcBand-&gt;methodName( pbSuccess ); \
+<span class="lineNum">     258 </span>            :         UnrefUnderlyingRasterBand(_poSrcBand); \
+<span class="lineNum">     259 </span>            :     } \
+<span class="lineNum">     260 </span>            :     else \
+<span class="lineNum">     261 </span>            :     { \
+<span class="lineNum">     262 </span>            :         dfRet = 0; \
+<span class="lineNum">     263 </span>            :     } \
+<span class="lineNum">     264 </span>            :     return dfRet; \
+<a name="265"><span class="lineNum">     265 </span>            : }</a>
+<a name="266"><span class="lineNum">     266 </span>            : </a>
+<a name="267"><span class="lineNum">     267 </span><span class="lineCov">         10 : RB_PROXY_METHOD_GET_DBL_WITH_SUCCESS(GetNoDataValue)</span></a>
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_GET_DBL_WITH_SUCCESS(GetMinimum)</span>
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_GET_DBL_WITH_SUCCESS(GetMaximum)</span>
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            : #define RB_PROXY_METHOD_WITH_RET_AND_CALL_OTHER_METHOD(retType, retErrValue, methodName, underlyingMethodName, argList, argParams) \
+<span class="lineNum">     272 </span>            : retType NITFProxyPamRasterBand::methodName argList \
+<span class="lineNum">     273 </span>            : { \
+<span class="lineNum">     274 </span>            :     retType ret; \
+<span class="lineNum">     275 </span>            :     GDALRasterBand* _poSrcBand = RefUnderlyingRasterBand(); \
+<span class="lineNum">     276 </span>            :     if (_poSrcBand) \
+<span class="lineNum">     277 </span>            :     { \
+<span class="lineNum">     278 </span>            :         ret = _poSrcBand-&gt;underlyingMethodName argParams; \
+<span class="lineNum">     279 </span>            :         UnrefUnderlyingRasterBand(_poSrcBand); \
+<span class="lineNum">     280 </span>            :     } \
+<span class="lineNum">     281 </span>            :     else \
+<span class="lineNum">     282 </span>            :     { \
+<span class="lineNum">     283 </span>            :         ret = retErrValue; \
+<span class="lineNum">     284 </span>            :     } \
+<span class="lineNum">     285 </span>            :     return ret; \
+<a name="286"><span class="lineNum">     286 </span>            : }</a>
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET_AND_CALL_OTHER_METHOD(CPLErr, CE_Failure, IReadBlock, ReadBlock,</span>
+<a name="289"><span class="lineNum">     289 </span>            :                                 ( int nXBlockOff, int nYBlockOff, void* pImage),</a>
+<span class="lineNum">     290 </span>            :                                 (nXBlockOff, nYBlockOff, pImage) )
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET_AND_CALL_OTHER_METHOD(CPLErr, CE_Failure, IWriteBlock, WriteBlock,</span>
+<a name="292"><span class="lineNum">     292 </span>            :                                 ( int nXBlockOff, int nYBlockOff, void* pImage),</a>
+<span class="lineNum">     293 </span>            :                                 (nXBlockOff, nYBlockOff, pImage) )
+<span class="lineNum">     294 </span><span class="lineCov">        377 : RB_PROXY_METHOD_WITH_RET_AND_CALL_OTHER_METHOD(CPLErr, CE_Failure, IRasterIO, RasterIO,</span>
+<span class="lineNum">     295 </span>            :                         ( GDALRWFlag eRWFlag,
+<span class="lineNum">     296 </span>            :                                 int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     297 </span>            :                                 void * pData, int nBufXSize, int nBufYSize,
+<span class="lineNum">     298 </span>            :                                 GDALDataType eBufType,
+<span class="lineNum">     299 </span>            :                                 GSpacing nPixelSpace, GSpacing nLineSpace,
+<span class="lineNum">     300 </span>            :                                 GDALRasterIOExtraArg* psExtraArg ),
+<span class="lineNum">     301 </span>            :                         (eRWFlag, nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">     302 </span>            :                                 pData, nBufXSize, nBufYSize, eBufType,
+<span class="lineNum">     303 </span>            :                                 nPixelSpace, nLineSpace, psExtraArg ) )
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span>            : #define RB_PROXY_METHOD_WITH_RET(retType, retErrValue, methodName, argList, argParams) \
+<span class="lineNum">     306 </span>            : retType NITFProxyPamRasterBand::methodName argList \
+<span class="lineNum">     307 </span>            : { \
+<span class="lineNum">     308 </span>            :     retType ret; \
+<span class="lineNum">     309 </span>            :     GDALRasterBand* _poSrcBand = RefUnderlyingRasterBand(); \
+<span class="lineNum">     310 </span>            :     if (_poSrcBand) \
+<span class="lineNum">     311 </span>            :     { \
+<span class="lineNum">     312 </span>            :         ret = _poSrcBand-&gt;methodName argParams; \
+<span class="lineNum">     313 </span>            :         UnrefUnderlyingRasterBand(_poSrcBand); \
+<span class="lineNum">     314 </span>            :     } \
+<span class="lineNum">     315 </span>            :     else \
+<span class="lineNum">     316 </span>            :     { \
+<span class="lineNum">     317 </span>            :         ret = retErrValue; \
+<span class="lineNum">     318 </span>            :     } \
+<span class="lineNum">     319 </span>            :     return ret; \
+<a name="320"><span class="lineNum">     320 </span>            : }</a>
+<span class="lineNum">     321 </span>            : 
+<a name="322"><span class="lineNum">     322 </span><span class="lineCov">         53 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, FlushCache, (), ())</span></a>
+<a name="323"><span class="lineNum">     323 </span>            : </a>
+<a name="324"><span class="lineNum">     324 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(GDALColorInterp, GCI_Undefined, GetColorInterpretation, (), ())</span></a>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(GDALColorTable*, nullptr, GetColorTable, (), ())</span>
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, Fill,</span>
+<span class="lineNum">     327 </span>            :                         (double dfRealValue, double dfImaginaryValue),
+<a name="328"><span class="lineNum">     328 </span>            :                         (dfRealValue, dfImaginaryValue))</a>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span><span class="lineCov">          1 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, ComputeRasterMinMax,</span>
+<a name="331"><span class="lineNum">     331 </span>            :                         ( int arg1, double* arg2 ), (arg1, arg2))</a>
+<a name="332"><span class="lineNum">     332 </span>            : </a>
+<a name="333"><span class="lineNum">     333 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(int, 0, HasArbitraryOverviews, (), ())</span></a>
+<a name="334"><span class="lineNum">     334 </span><span class="lineCov">          2 : RB_PROXY_METHOD_WITH_RET(int, 0,  GetOverviewCount, (), ())</span></a>
+<span class="lineNum">     335 </span><span class="lineCov">          2 : RB_PROXY_METHOD_WITH_RET(GDALRasterBand*, nullptr,  GetOverview, (int arg1), (arg1))</span>
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(GDALRasterBand*, nullptr,  GetRasterSampleOverview,</span>
+<a name="337"><span class="lineNum">     337 </span>            :                         (GUIntBig arg1), (arg1))</a>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, BuildOverviews,</span>
+<span class="lineNum">     340 </span>            :                         (const char * arg1, int arg2, int *arg3,
+<span class="lineNum">     341 </span>            :                         GDALProgressFunc arg4, void * arg5),
+<a name="342"><span class="lineNum">     342 </span>            :                         (arg1, arg2, arg3, arg4, arg5))</a>
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineCov">          4 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, AdviseRead,</span>
+<span class="lineNum">     345 </span>            :                         ( int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     346 </span>            :                         int nBufXSize, int nBufYSize,
+<span class="lineNum">     347 </span>            :                         GDALDataType eDT, char **papszOptions ),
+<a name="348"><span class="lineNum">     348 </span>            :                         (nXOff, nYOff, nXSize, nYSize, nBufXSize, nBufYSize, eDT, papszOptions))</a>
+<a name="349"><span class="lineNum">     349 </span>            : </a>
+<a name="350"><span class="lineNum">     350 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(GDALRasterBand*, nullptr, GetMaskBand, (), ())</span></a>
+<span class="lineNum">     351 </span><span class="lineCov">         10 : RB_PROXY_METHOD_WITH_RET(int, 0, GetMaskFlags, (), ())</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, CreateMaskBand, ( int nFlagsIn ), (nFlagsIn))</span>
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span>            : /************************************************************************/
+<span class="lineNum">     355 </span>            : /*                 UnrefUnderlyingRasterBand()                        */
+<a name="356"><span class="lineNum">     356 </span>            : /************************************************************************/</a>
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span><span class="lineCov">        469 : void NITFProxyPamRasterBand::UnrefUnderlyingRasterBand(CPL_UNUSED GDALRasterBand* poUnderlyingRasterBand) {}</span>
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span>            : /************************************************************************/
+<span class="lineNum">     361 </span>            : /* ==================================================================== */
+<span class="lineNum">     362 </span>            : /*                            NITFRasterBand                             */
+<span class="lineNum">     363 </span>            : /* ==================================================================== */
+<span class="lineNum">     364 </span>            : /************************************************************************/
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span>            : /************************************************************************/
+<span class="lineNum">     367 </span>            : /*                           NITFRasterBand()                           */
+<a name="368"><span class="lineNum">     368 </span>            : /************************************************************************/</a>
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span><span class="lineCov">     210674 : NITFRasterBand::NITFRasterBand( NITFDataset *poDSIn, int nBandIn ) :</span>
+<span class="lineNum">     371 </span>            :     psImage(poDSIn-&gt;psImage),
+<span class="lineNum">     372 </span>            :     poColorTable(nullptr),
+<span class="lineNum">     373 </span>            :     pUnpackData(nullptr),
+<span class="lineNum">     374 </span><span class="lineCov">     210674 :     bScanlineAccess(FALSE)</span>
+<span class="lineNum">     375 </span>            : {
+<span class="lineNum">     376 </span><span class="lineCov">     210674 :     NITFBandInfo *psBandInfo = poDSIn-&gt;psImage-&gt;pasBandInfo + nBandIn - 1;</span>
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span><span class="lineCov">     210674 :     poDS = poDSIn;</span>
+<span class="lineNum">     379 </span><span class="lineCov">     210674 :     nBand = nBandIn;</span>
+<span class="lineNum">     380 </span><span class="lineCov">     210674 :     eAccess = poDSIn-&gt;eAccess;</span>
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     383 </span>            : /*      Translate data type(s).                                         */
+<span class="lineNum">     384 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     385 </span><span class="lineCov">     210674 :     if( psImage-&gt;nBitsPerSample &lt;= 8 )</span>
+<span class="lineNum">     386 </span><span class="lineCov">     210569 :         eDataType = GDT_Byte;</span>
+<span class="lineNum">     387 </span><span class="lineCov">        105 :     else if( psImage-&gt;nBitsPerSample == 16</span>
+<span class="lineNum">     388 </span><span class="lineCov">         37 :              &amp;&amp; EQUAL(psImage-&gt;szPVType,&quot;SI&quot;) )</span>
+<span class="lineNum">     389 </span><span class="lineCov">         26 :         eDataType = GDT_Int16;</span>
+<span class="lineNum">     390 </span><span class="lineCov">         79 :     else if( psImage-&gt;nBitsPerSample == 16 )</span>
+<span class="lineNum">     391 </span><span class="lineCov">         11 :         eDataType = GDT_UInt16;</span>
+<span class="lineNum">     392 </span><span class="lineCov">         68 :     else if( psImage-&gt;nBitsPerSample == 12 )</span>
+<span class="lineNum">     393 </span><span class="lineCov">         16 :         eDataType = GDT_UInt16;</span>
+<span class="lineNum">     394 </span><span class="lineCov">         52 :     else if( psImage-&gt;nBitsPerSample == 32</span>
+<span class="lineNum">     395 </span><span class="lineCov">         33 :              &amp;&amp; EQUAL(psImage-&gt;szPVType,&quot;SI&quot;) )</span>
+<span class="lineNum">     396 </span><span class="lineCov">         11 :         eDataType = GDT_Int32;</span>
+<span class="lineNum">     397 </span><span class="lineCov">         41 :     else if( psImage-&gt;nBitsPerSample == 32</span>
+<span class="lineNum">     398 </span><span class="lineCov">         22 :              &amp;&amp; EQUAL(psImage-&gt;szPVType,&quot;R&quot;) )</span>
+<span class="lineNum">     399 </span><span class="lineCov">         11 :         eDataType = GDT_Float32;</span>
+<span class="lineNum">     400 </span><span class="lineCov">         30 :     else if( psImage-&gt;nBitsPerSample == 32 )</span>
+<span class="lineNum">     401 </span><span class="lineCov">         11 :         eDataType = GDT_UInt32;</span>
+<span class="lineNum">     402 </span><span class="lineCov">         19 :     else if( psImage-&gt;nBitsPerSample == 64</span>
+<span class="lineNum">     403 </span><span class="lineCov">         19 :              &amp;&amp; EQUAL(psImage-&gt;szPVType,&quot;R&quot;) )</span>
+<span class="lineNum">     404 </span><span class="lineCov">         11 :         eDataType = GDT_Float64;</span>
+<span class="lineNum">     405 </span><span class="lineCov">          8 :     else if( psImage-&gt;nBitsPerSample == 64</span>
+<span class="lineNum">     406 </span><span class="lineCov">          8 :               &amp;&amp; EQUAL(psImage-&gt;szPVType,&quot;C&quot;) )</span>
+<span class="lineNum">     407 </span><span class="lineCov">          8 :         eDataType = GDT_CFloat32;</span>
+<span class="lineNum">     408 </span>            :     /* ERO : note I'm not sure if CFloat64 can be transmitted as NBPP is only 2 characters */
+<span class="lineNum">     409 </span>            :     else
+<span class="lineNum">     410 </span>            :     {
+<span class="lineNum">     411 </span>            :         int bOpenUnderlyingDS = CPLTestBool(
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :                 CPLGetConfigOption(&quot;NITF_OPEN_UNDERLYING_DS&quot;, &quot;YES&quot;));</span>
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :         if (!bOpenUnderlyingDS &amp;&amp; psImage-&gt;nBitsPerSample &gt; 8 &amp;&amp; psImage-&gt;nBitsPerSample &lt; 16)</span>
+<span class="lineNum">     414 </span>            :         {
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :             if (EQUAL(psImage-&gt;szPVType,&quot;SI&quot;))</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :                 eDataType = GDT_Int16;</span>
+<span class="lineNum">     417 </span>            :             else
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :                 eDataType = GDT_UInt16;</span>
+<span class="lineNum">     419 </span>            :         }
+<span class="lineNum">     420 </span>            :         else
+<span class="lineNum">     421 </span>            :         {
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :             eDataType = GDT_Unknown;</span>
+<span class="lineNum">     423 </span>            :             CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     424 </span>            :                     &quot;Unsupported combination of PVTYPE(%s) and NBPP(%d).&quot;,
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :                     psImage-&gt;szPVType, psImage-&gt;nBitsPerSample );</span>
+<span class="lineNum">     426 </span>            :         }
+<span class="lineNum">     427 </span>            :     }
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     430 </span>            : /*      Work out block size. If the image is all one big block we       */
+<span class="lineNum">     431 </span>            : /*      handle via the scanline access API.                             */
+<span class="lineNum">     432 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     433 </span><span class="lineCov">     210674 :     if( psImage-&gt;nBlocksPerRow == 1</span>
+<span class="lineNum">     434 </span><span class="lineCov">     210616 :         &amp;&amp; psImage-&gt;nBlocksPerColumn == 1</span>
+<span class="lineNum">     435 </span><span class="lineCov">     210616 :         &amp;&amp; psImage-&gt;nBitsPerSample &gt;= 8</span>
+<span class="lineNum">     436 </span><span class="lineCov">     210496 :         &amp;&amp; EQUAL(psImage-&gt;szIC,&quot;NC&quot;) )</span>
+<span class="lineNum">     437 </span>            :     {
+<span class="lineNum">     438 </span><span class="lineCov">     210496 :         bScanlineAccess = TRUE;</span>
+<span class="lineNum">     439 </span><span class="lineCov">     210496 :         nBlockXSize = psImage-&gt;nBlockWidth;</span>
+<span class="lineNum">     440 </span><span class="lineCov">     210496 :         nBlockYSize = 1;</span>
+<span class="lineNum">     441 </span>            :     }
+<span class="lineNum">     442 </span>            :     else
+<span class="lineNum">     443 </span>            :     {
+<span class="lineNum">     444 </span><span class="lineCov">        178 :         bScanlineAccess = FALSE;</span>
+<span class="lineNum">     445 </span><span class="lineCov">        178 :         nBlockXSize = psImage-&gt;nBlockWidth;</span>
+<span class="lineNum">     446 </span><span class="lineCov">        178 :         nBlockYSize = psImage-&gt;nBlockHeight;</span>
+<span class="lineNum">     447 </span>            :     }
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     450 </span>            : /*      Do we have a color table?                                       */
+<span class="lineNum">     451 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     452 </span>            :     poColorTable = NITFMakeColorTable(psImage,
+<span class="lineNum">     453 </span><span class="lineCov">     210674 :                                       psBandInfo);</span>
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span><span class="lineCov">     210674 :     if( psImage-&gt;nBitsPerSample == 1</span>
+<span class="lineNum">     456 </span><span class="lineCov">     210650 :     ||  psImage-&gt;nBitsPerSample == 3</span>
+<span class="lineNum">     457 </span><span class="lineCov">     210634 :     ||  psImage-&gt;nBitsPerSample == 5</span>
+<span class="lineNum">     458 </span><span class="lineCov">     210618 :     ||  psImage-&gt;nBitsPerSample == 6</span>
+<span class="lineNum">     459 </span><span class="lineCov">     210602 :     ||  psImage-&gt;nBitsPerSample == 7</span>
+<span class="lineNum">     460 </span><span class="lineCov">     210586 :     ||  psImage-&gt;nBitsPerSample == 12 )</span>
+<span class="lineNum">     461 </span><span class="lineCov">        104 :         SetMetadataItem( &quot;NBITS&quot;, CPLString().Printf(&quot;%d&quot;, psImage-&gt;nBitsPerSample), &quot;IMAGE_STRUCTURE&quot; );</span>
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span><span class="lineCov">     210674 :     if (psImage-&gt;nBitsPerSample == 3</span>
+<span class="lineNum">     464 </span><span class="lineCov">     210658 :     ||  psImage-&gt;nBitsPerSample == 5</span>
+<span class="lineNum">     465 </span><span class="lineCov">     210642 :     ||  psImage-&gt;nBitsPerSample == 6</span>
+<span class="lineNum">     466 </span><span class="lineCov">     210626 :     ||  psImage-&gt;nBitsPerSample == 7)</span>
+<span class="lineNum">     467 </span>            :     {
+<span class="lineNum">     468 </span><span class="lineCov">         64 :         if( nBlockXSize &gt; (INT_MAX - 7) / nBlockYSize )</span>
+<span class="lineNum">     469 </span>            :         {
+<span class="lineNum">     470 </span><span class="lineNoCov">          0 :             eDataType = GDT_Unknown;</span>
+<span class="lineNum">     471 </span>            :         }
+<span class="lineNum">     472 </span>            :         else
+<span class="lineNum">     473 </span>            :         {
+<span class="lineNum">     474 </span><span class="lineCov">         64 :             pUnpackData = static_cast&lt;GByte*&gt;(VSI_MALLOC_VERBOSE(((nBlockXSize*nBlockYSize+7)/8)*8));</span>
+<span class="lineNum">     475 </span><span class="lineCov">         64 :             if( pUnpackData == nullptr )</span>
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :                 eDataType = GDT_Unknown;</span>
+<span class="lineNum">     477 </span>            :         }
+<span class="lineNum">     478 </span>            :     }
+<span class="lineNum">     479 </span><span class="lineCov">     210674 : }</span>
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span>            : /************************************************************************/
+<span class="lineNum">     482 </span>            : /*                          ~NITFRasterBand()                           */
+<a name="483"><span class="lineNum">     483 </span>            : /************************************************************************/</a>
+<span class="lineNum">     484 </span>            : 
+<span class="lineNum">     485 </span><span class="lineCov">     632022 : NITFRasterBand::~NITFRasterBand()</span>
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span>            : {
+<span class="lineNum">     488 </span><span class="lineCov">     210674 :     if( poColorTable != nullptr )</span>
+<span class="lineNum">     489 </span><span class="lineCov">         53 :         delete poColorTable;</span>
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span><span class="lineCov">     210674 :     VSIFree(pUnpackData);</span>
+<span class="lineNum">     492 </span><span class="lineCov">     421348 : }</span>
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span>            : /************************************************************************/
+<span class="lineNum">     495 </span>            : /*                             IReadBlock()                             */
+<a name="496"><span class="lineNum">     496 </span>            : /************************************************************************/</a>
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span><span class="lineCov">      22314 : CPLErr NITFRasterBand::IReadBlock( int nBlockXOff, int nBlockYOff,</span>
+<span class="lineNum">     499 </span>            :                                    void * pImage )
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span>            : {
+<span class="lineNum">     502 </span><span class="lineCov">      22314 :     NITFDataset *poGDS = reinterpret_cast&lt;NITFDataset *&gt;( poDS );</span>
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     505 </span>            : /*      Special case for JPEG blocks.                                   */
+<span class="lineNum">     506 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     507 </span><span class="lineCov">      22314 :     if( EQUAL(psImage-&gt;szIC,&quot;C3&quot;) || EQUAL(psImage-&gt;szIC,&quot;M3&quot;) )</span>
+<span class="lineNum">     508 </span>            :     {
+<span class="lineNum">     509 </span><span class="lineCov">          8 :         CPLErr eErr = poGDS-&gt;ReadJPEGBlock( nBlockXOff, nBlockYOff );</span>
+<span class="lineNum">     510 </span>            :         const int nBlockBandSize =
+<span class="lineNum">     511 </span><span class="lineCov">          8 :             psImage-&gt;nBlockWidth * psImage-&gt;nBlockHeight *</span>
+<span class="lineNum">     512 </span><span class="lineCov">          8 :             GDALGetDataTypeSizeBytes(eDataType);</span>
+<span class="lineNum">     513 </span>            : 
+<span class="lineNum">     514 </span><span class="lineCov">          8 :         if( eErr != CE_None )</span>
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :             return eErr;</span>
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span>            :         memcpy( pImage,
+<span class="lineNum">     518 </span><span class="lineCov">          8 :                 poGDS-&gt;pabyJPEGBlock + (nBand - 1) * nBlockBandSize,</span>
+<span class="lineNum">     519 </span><span class="lineCov">         16 :                 nBlockBandSize );</span>
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span><span class="lineCov">          8 :         return eErr;</span>
+<span class="lineNum">     522 </span>            :     }
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     525 </span>            : /*      Read the line/block                                             */
+<span class="lineNum">     526 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     527 </span>            :     int nBlockResult;
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineCov">      22306 :     if( bScanlineAccess )</span>
+<span class="lineNum">     530 </span>            :     {
+<span class="lineNum">     531 </span>            :         nBlockResult =
+<span class="lineNum">     532 </span><span class="lineCov">      20780 :             NITFReadImageLine(psImage, nBlockYOff, nBand, pImage);</span>
+<span class="lineNum">     533 </span>            :     }
+<span class="lineNum">     534 </span>            :     else
+<span class="lineNum">     535 </span>            :     {
+<span class="lineNum">     536 </span>            :         nBlockResult =
+<span class="lineNum">     537 </span><span class="lineCov">       1526 :             NITFReadImageBlock(psImage, nBlockXOff, nBlockYOff, nBand, pImage);</span>
+<span class="lineNum">     538 </span>            :     }
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span><span class="lineCov">      22306 :     if( nBlockResult == BLKREAD_OK )</span>
+<span class="lineNum">     541 </span>            :     {
+<span class="lineNum">     542 </span><span class="lineCov">      22090 :         if( psImage-&gt;nBitsPerSample % 8 )</span>
+<span class="lineNum">     543 </span><span class="lineCov">         68 :             Unpack( reinterpret_cast&lt;GByte *&gt;( pImage ) );</span>
+<span class="lineNum">     544 </span>            : 
+<span class="lineNum">     545 </span><span class="lineCov">      22090 :         return CE_None;</span>
+<span class="lineNum">     546 </span>            :     }
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span><span class="lineCov">        216 :     if( nBlockResult == BLKREAD_FAIL )</span>
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     552 </span>            : /*      If we got a null/missing block, try to fill it in with the      */
+<span class="lineNum">     553 </span>            : /*      nodata value.  It seems this only really works properly for     */
+<span class="lineNum">     554 </span>            : /*      8bit.                                                           */
+<span class="lineNum">     555 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     556 </span><span class="lineCov">        216 :     if( psImage-&gt;bNoDataSet )</span>
+<span class="lineNum">     557 </span>            :         memset( pImage, psImage-&gt;nNoDataValue,
+<span class="lineNum">     558 </span><span class="lineCov">        216 :                 psImage-&gt;nWordSize*psImage-&gt;nBlockWidth*psImage-&gt;nBlockHeight);</span>
+<span class="lineNum">     559 </span>            :     else
+<span class="lineNum">     560 </span>            :         memset( pImage, 0,
+<span class="lineNum">     561 </span><span class="lineNoCov">          0 :                 psImage-&gt;nWordSize*psImage-&gt;nBlockWidth*psImage-&gt;nBlockHeight);</span>
+<span class="lineNum">     562 </span>            : 
+<span class="lineNum">     563 </span><span class="lineCov">        216 :     return CE_None;</span>
+<span class="lineNum">     564 </span>            : }
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span>            : /************************************************************************/
+<span class="lineNum">     567 </span>            : /*                            IWriteBlock()                             */
+<a name="568"><span class="lineNum">     568 </span>            : /************************************************************************/</a>
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span><span class="lineCov">       6570 : CPLErr NITFRasterBand::IWriteBlock( int nBlockXOff, int nBlockYOff,</span>
+<span class="lineNum">     571 </span>            :                                     void * pImage )
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span>            : {
+<span class="lineNum">     574 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     575 </span>            : /*      Write the line/block                                            */
+<span class="lineNum">     576 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     577 </span>            :     int  nBlockResult;
+<span class="lineNum">     578 </span>            : 
+<span class="lineNum">     579 </span><span class="lineCov">       6570 :     if( bScanlineAccess )</span>
+<span class="lineNum">     580 </span>            :     {
+<span class="lineNum">     581 </span>            :         nBlockResult =
+<span class="lineNum">     582 </span><span class="lineCov">       5926 :             NITFWriteImageLine(psImage, nBlockYOff, nBand, pImage);</span>
+<span class="lineNum">     583 </span>            :     }
+<span class="lineNum">     584 </span>            :     else
+<span class="lineNum">     585 </span>            :     {
+<span class="lineNum">     586 </span>            :         nBlockResult =
+<span class="lineNum">     587 </span><span class="lineCov">        644 :             NITFWriteImageBlock(psImage, nBlockXOff, nBlockYOff, nBand,pImage);</span>
+<span class="lineNum">     588 </span>            :     }
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span><span class="lineCov">       6570 :     if( nBlockResult == BLKREAD_OK )</span>
+<span class="lineNum">     591 </span><span class="lineCov">       6570 :         return CE_None;</span>
+<span class="lineNum">     592 </span>            : 
+<span class="lineNum">     593 </span><span class="lineNoCov">          0 :     return CE_Failure;</span>
+<span class="lineNum">     594 </span>            : }
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span>            : /************************************************************************/
+<span class="lineNum">     597 </span>            : /*                           GetNoDataValue()                           */
+<a name="598"><span class="lineNum">     598 </span>            : /************************************************************************/</a>
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span><span class="lineCov">         98 : double NITFRasterBand::GetNoDataValue( int *pbSuccess )</span>
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span>            : {
+<span class="lineNum">     603 </span><span class="lineCov">         98 :     if( pbSuccess != nullptr )</span>
+<span class="lineNum">     604 </span><span class="lineCov">         97 :         *pbSuccess = psImage-&gt;bNoDataSet;</span>
+<span class="lineNum">     605 </span>            : 
+<span class="lineNum">     606 </span><span class="lineCov">         98 :     if( psImage-&gt;bNoDataSet )</span>
+<span class="lineNum">     607 </span><span class="lineCov">         21 :         return psImage-&gt;nNoDataValue;</span>
+<span class="lineNum">     608 </span>            : 
+<span class="lineNum">     609 </span><span class="lineCov">         77 :     return GDALPamRasterBand::GetNoDataValue( pbSuccess );</span>
+<span class="lineNum">     610 </span>            : }
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span>            : /************************************************************************/
+<span class="lineNum">     613 </span>            : /*                       GetColorInterpretation()                       */
+<a name="614"><span class="lineNum">     614 </span>            : /************************************************************************/</a>
+<span class="lineNum">     615 </span>            : 
+<span class="lineNum">     616 </span><span class="lineCov">        109 : GDALColorInterp NITFRasterBand::GetColorInterpretation()</span>
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span>            : {
+<span class="lineNum">     619 </span><span class="lineCov">        109 :     NITFBandInfo *psBandInfo = psImage-&gt;pasBandInfo + nBand - 1;</span>
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span><span class="lineCov">        109 :     if( poColorTable != nullptr )</span>
+<span class="lineNum">     622 </span><span class="lineCov">         19 :         return GCI_PaletteIndex;</span>
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span><span class="lineCov">         90 :     if( EQUAL(psBandInfo-&gt;szIREPBAND,&quot;R&quot;) )</span>
+<span class="lineNum">     625 </span><span class="lineCov">         10 :         return GCI_RedBand;</span>
+<span class="lineNum">     626 </span><span class="lineCov">         80 :     if( EQUAL(psBandInfo-&gt;szIREPBAND,&quot;G&quot;) )</span>
+<span class="lineNum">     627 </span><span class="lineCov">         10 :         return GCI_GreenBand;</span>
+<span class="lineNum">     628 </span><span class="lineCov">         70 :     if( EQUAL(psBandInfo-&gt;szIREPBAND,&quot;B&quot;) )</span>
+<span class="lineNum">     629 </span><span class="lineCov">         10 :         return GCI_BlueBand;</span>
+<span class="lineNum">     630 </span><span class="lineCov">         60 :     if( EQUAL(psBandInfo-&gt;szIREPBAND,&quot;M&quot;) )</span>
+<span class="lineNum">     631 </span><span class="lineCov">         54 :         return GCI_GrayIndex;</span>
+<span class="lineNum">     632 </span><span class="lineCov">          6 :     if( EQUAL(psBandInfo-&gt;szIREPBAND,&quot;Y&quot;) )</span>
+<span class="lineNum">     633 </span><span class="lineCov">          2 :         return GCI_YCbCr_YBand;</span>
+<span class="lineNum">     634 </span><span class="lineCov">          4 :     if( EQUAL(psBandInfo-&gt;szIREPBAND,&quot;Cb&quot;) )</span>
+<span class="lineNum">     635 </span><span class="lineCov">          2 :         return GCI_YCbCr_CbBand;</span>
+<span class="lineNum">     636 </span><span class="lineCov">          2 :     if( EQUAL(psBandInfo-&gt;szIREPBAND,&quot;Cr&quot;) )</span>
+<span class="lineNum">     637 </span><span class="lineCov">          2 :         return GCI_YCbCr_CrBand;</span>
+<span class="lineNum">     638 </span>            : 
+<span class="lineNum">     639 </span><span class="lineNoCov">          0 :     return GCI_Undefined;</span>
+<span class="lineNum">     640 </span>            : }
+<span class="lineNum">     641 </span>            : 
+<span class="lineNum">     642 </span>            : /************************************************************************/
+<span class="lineNum">     643 </span>            : /*                     NITFSetColorInterpretation()                     */
+<a name="644"><span class="lineNum">     644 </span>            : /************************************************************************/</a>
+<span class="lineNum">     645 </span>            : 
+<span class="lineNum">     646 </span><span class="lineCov">         24 : CPLErr NITFSetColorInterpretation( NITFImage *psImage,</span>
+<span class="lineNum">     647 </span>            :                                    int nBand,
+<span class="lineNum">     648 </span>            :                                    GDALColorInterp eInterp )
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span>            : {
+<span class="lineNum">     651 </span><span class="lineCov">         24 :     const char *pszREP = nullptr;</span>
+<span class="lineNum">     652 </span>            : 
+<span class="lineNum">     653 </span><span class="lineCov">         24 :     if( eInterp == GCI_RedBand )</span>
+<span class="lineNum">     654 </span><span class="lineCov">          8 :         pszREP = &quot;R&quot;;</span>
+<span class="lineNum">     655 </span><span class="lineCov">         16 :     else if( eInterp == GCI_GreenBand )</span>
+<span class="lineNum">     656 </span><span class="lineCov">          8 :         pszREP = &quot;G&quot;;</span>
+<span class="lineNum">     657 </span><span class="lineCov">          8 :     else if( eInterp == GCI_BlueBand )</span>
+<span class="lineNum">     658 </span><span class="lineCov">          8 :         pszREP = &quot;B&quot;;</span>
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :     else if( eInterp == GCI_GrayIndex )</span>
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 :         pszREP = &quot;M&quot;;</span>
+<span class="lineNum">     661 </span><span class="lineNoCov">          0 :     else if( eInterp == GCI_YCbCr_YBand )</span>
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :         pszREP = &quot;Y&quot;;</span>
+<span class="lineNum">     663 </span><span class="lineNoCov">          0 :     else if( eInterp == GCI_YCbCr_CbBand )</span>
+<span class="lineNum">     664 </span><span class="lineNoCov">          0 :         pszREP = &quot;Cb&quot;;</span>
+<span class="lineNum">     665 </span><span class="lineNoCov">          0 :     else if( eInterp == GCI_YCbCr_CrBand )</span>
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :         pszREP = &quot;Cr&quot;;</span>
+<span class="lineNum">     667 </span><span class="lineNoCov">          0 :     else if( eInterp == GCI_Undefined )</span>
+<span class="lineNum">     668 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span><span class="lineCov">         24 :     if( pszREP == nullptr )</span>
+<span class="lineNum">     671 </span>            :     {
+<span class="lineNum">     672 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     673 </span>            :                   &quot;Requested color interpretation (%s) not supported in NITF.&quot;,
+<span class="lineNum">     674 </span><span class="lineNoCov">          0 :                   GDALGetColorInterpretationName( eInterp ) );</span>
+<span class="lineNum">     675 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     676 </span>            :     }
+<span class="lineNum">     677 </span>            : 
+<span class="lineNum">     678 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     679 </span>            : /*      Where does this go in the file?                                 */
+<span class="lineNum">     680 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     681 </span><span class="lineCov">         24 :     NITFBandInfo *psBandInfo = psImage-&gt;pasBandInfo + nBand - 1;</span>
+<span class="lineNum">     682 </span><span class="lineCov">         24 :     strcpy( psBandInfo-&gt;szIREPBAND, pszREP );</span>
+<span class="lineNum">     683 </span><span class="lineCov">         24 :     GUIntBig nOffset = NITFIHFieldOffset( psImage, &quot;IREPBAND&quot; );</span>
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span><span class="lineCov">         24 :     if( nOffset != 0 )</span>
+<span class="lineNum">     686 </span><span class="lineCov">         24 :         nOffset += (nBand - 1) * 13;</span>
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     689 </span>            : /*      write it (space padded).                                        */
+<span class="lineNum">     690 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     691 </span>            :     char szPadded[4];
+<span class="lineNum">     692 </span><span class="lineCov">         24 :     strcpy( szPadded, pszREP );</span>
+<span class="lineNum">     693 </span><span class="lineCov">         24 :     strcat( szPadded, &quot; &quot; );</span>
+<span class="lineNum">     694 </span>            : 
+<span class="lineNum">     695 </span><span class="lineCov">         24 :     if( nOffset != 0 )</span>
+<span class="lineNum">     696 </span>            :     {
+<span class="lineNum">     697 </span><span class="lineCov">         48 :         if( VSIFSeekL( psImage-&gt;psFile-&gt;fp, nOffset, SEEK_SET ) != 0</span>
+<span class="lineNum">     698 </span><span class="lineCov">         48 :             || VSIFWriteL( reinterpret_cast&lt;void *&gt;( szPadded ), 1, 2,</span>
+<span class="lineNum">     699 </span><span class="lineCov">         24 :                            psImage-&gt;psFile-&gt;fp ) != 2 )</span>
+<span class="lineNum">     700 </span>            :         {
+<span class="lineNum">     701 </span>            :             CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :                       &quot;IO failure writing new IREPBAND value to NITF file.&quot; );</span>
+<span class="lineNum">     703 </span><span class="lineNoCov">          0 :             return CE_Failure;</span>
+<span class="lineNum">     704 </span>            :         }
+<span class="lineNum">     705 </span>            :     }
+<span class="lineNum">     706 </span>            : 
+<span class="lineNum">     707 </span><span class="lineCov">         24 :     return CE_None;</span>
+<span class="lineNum">     708 </span>            : }
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span>            : /************************************************************************/
+<span class="lineNum">     711 </span>            : /*                       SetColorInterpretation()                       */
+<a name="712"><span class="lineNum">     712 </span>            : /************************************************************************/</a>
+<span class="lineNum">     713 </span>            : 
+<span class="lineNum">     714 </span><span class="lineCov">         21 : CPLErr NITFRasterBand::SetColorInterpretation( GDALColorInterp eInterp )</span>
+<span class="lineNum">     715 </span>            : 
+<span class="lineNum">     716 </span>            : {
+<span class="lineNum">     717 </span><span class="lineCov">         21 :     return NITFSetColorInterpretation( psImage, nBand, eInterp );</span>
+<span class="lineNum">     718 </span>            : }
+<span class="lineNum">     719 </span>            : 
+<span class="lineNum">     720 </span>            : /************************************************************************/
+<span class="lineNum">     721 </span>            : /*                           GetColorTable()                            */
+<a name="722"><span class="lineNum">     722 </span>            : /************************************************************************/</a>
+<span class="lineNum">     723 </span>            : 
+<span class="lineNum">     724 </span><span class="lineCov">         54 : GDALColorTable *NITFRasterBand::GetColorTable()</span>
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span>            : {
+<span class="lineNum">     727 </span><span class="lineCov">         54 :     return poColorTable;</span>
+<span class="lineNum">     728 </span>            : }
+<span class="lineNum">     729 </span>            : 
+<span class="lineNum">     730 </span>            : /************************************************************************/
+<span class="lineNum">     731 </span>            : /*                           SetColorTable()                            */
+<a name="732"><span class="lineNum">     732 </span>            : /************************************************************************/</a>
+<span class="lineNum">     733 </span>            : 
+<span class="lineNum">     734 </span><span class="lineCov">          2 : CPLErr NITFRasterBand::SetColorTable( GDALColorTable *poNewCT )</span>
+<span class="lineNum">     735 </span>            : 
+<span class="lineNum">     736 </span>            : {
+<span class="lineNum">     737 </span><span class="lineCov">          2 :     NITFDataset *poGDS = reinterpret_cast&lt;NITFDataset *&gt;( poDS );</span>
+<span class="lineNum">     738 </span><span class="lineCov">          2 :     if( poGDS-&gt;bInLoadXML )</span>
+<span class="lineNum">     739 </span><span class="lineNoCov">          0 :         return GDALPamRasterBand::SetColorTable(poNewCT);</span>
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span><span class="lineCov">          2 :     if( poNewCT == nullptr )</span>
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     743 </span>            : 
+<span class="lineNum">     744 </span>            :     GByte abyNITFLUT[768];
+<span class="lineNum">     745 </span><span class="lineCov">          2 :     memset( abyNITFLUT, 0, 768 );</span>
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span><span class="lineCov">          2 :     const int nCount = std::min(256, poNewCT-&gt;GetColorEntryCount());</span>
+<span class="lineNum">     748 </span><span class="lineCov">        135 :     for( int i = 0; i &lt; nCount; i++ )</span>
+<span class="lineNum">     749 </span>            :     {
+<span class="lineNum">     750 </span>            :         GDALColorEntry sEntry;
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span><span class="lineCov">        133 :         poNewCT-&gt;GetColorEntryAsRGB( i, &amp;sEntry );</span>
+<span class="lineNum">     753 </span><span class="lineCov">        133 :         abyNITFLUT[i    ] = (GByte) sEntry.c1;</span>
+<span class="lineNum">     754 </span><span class="lineCov">        133 :         abyNITFLUT[i+256] = (GByte) sEntry.c2;</span>
+<span class="lineNum">     755 </span><span class="lineCov">        133 :         abyNITFLUT[i+512] = (GByte) sEntry.c3;</span>
+<span class="lineNum">     756 </span>            :     }
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span><span class="lineCov">          2 :     if( NITFWriteLUT( psImage, nBand, nCount, abyNITFLUT ) )</span>
+<span class="lineNum">     759 </span><span class="lineCov">          2 :         return CE_None;</span>
+<span class="lineNum">     760 </span>            : 
+<span class="lineNum">     761 </span><span class="lineNoCov">          0 :     return CE_Failure;</span>
+<span class="lineNum">     762 </span>            : }
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span>            : /************************************************************************/
+<span class="lineNum">     765 </span>            : /*                           Unpack()                                   */
+<a name="766"><span class="lineNum">     766 </span>            : /************************************************************************/</a>
+<span class="lineNum">     767 </span>            : 
+<span class="lineNum">     768 </span><span class="lineCov">         68 : void NITFRasterBand::Unpack( GByte* pData )</span>
+<span class="lineNum">     769 </span>            : {
+<span class="lineNum">     770 </span><span class="lineCov">         68 :   const int n = nBlockXSize*nBlockYSize;</span>
+<span class="lineNum">     771 </span>            : 
+<span class="lineNum">     772 </span><span class="lineCov">         68 :   GByte abyTempData[7] = {0, 0, 0, 0, 0, 0, 0};</span>
+<span class="lineNum">     773 </span><span class="lineCov">         68 :   const GByte* pDataSrc = pData;</span>
+<span class="lineNum">     774 </span><span class="lineCov">         97 :   if (n &lt; psImage-&gt;nBitsPerSample &amp;&amp;</span>
+<span class="lineNum">     775 </span><span class="lineCov">         29 :       psImage-&gt;nBitsPerSample &lt; 8)</span>
+<span class="lineNum">     776 </span>            :   {
+<span class="lineNum">     777 </span><span class="lineCov">         21 :       memcpy(abyTempData, pData, n);</span>
+<span class="lineNum">     778 </span><span class="lineCov">         21 :       pDataSrc = abyTempData;</span>
+<span class="lineNum">     779 </span>            :   }
+<span class="lineNum">     780 </span>            : 
+<span class="lineNum">     781 </span><span class="lineCov">         68 :   switch (psImage-&gt;nBitsPerSample)</span>
+<span class="lineNum">     782 </span>            :   {
+<span class="lineNum">     783 </span>            :     case 1:
+<span class="lineNum">     784 </span>            :     {
+<span class="lineNum">     785 </span>            :       // unpack 1-bit in-place in reverse
+<span class="lineNum">     786 </span>            :       // DANGER: Non-standard decrement of counter in the test section of for.
+<span class="lineNum">     787 </span><span class="lineCov">    1050526 :       for( int i = n; --i &gt;= 0; )</span>
+<span class="lineNum">     788 </span><span class="lineCov">    1050502 :         pData[i] = (pData[i&gt;&gt;3] &amp; (0x80 &gt;&gt; (i&amp;7))) != 0;</span>
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span><span class="lineCov">         12 :       break;</span>
+<span class="lineNum">     791 </span>            :     }
+<span class="lineNum">     792 </span>            :     case 2:
+<span class="lineNum">     793 </span>            :     {
+<span class="lineNum">     794 </span><span class="lineCov">          8 :       constexpr int s_Shift2[] = {6, 4, 2, 0};</span>
+<span class="lineNum">     795 </span>            :       // unpack 2-bit in-place in reverse
+<span class="lineNum">     796 </span>            :       // DANGER: Non-standard decrement of counter in the test section of for.
+<span class="lineNum">     797 </span><span class="lineCov">         52 :       for (int i = n; --i &gt;= 0; )</span>
+<span class="lineNum">     798 </span><span class="lineCov">         36 :         pData[i] = (pData[i&gt;&gt;2] &gt;&gt; (GByte)s_Shift2[i&amp;3]) &amp; 0x03;</span>
+<span class="lineNum">     799 </span>            : 
+<span class="lineNum">     800 </span><span class="lineCov">          8 :       break;</span>
+<span class="lineNum">     801 </span>            :     }
+<span class="lineNum">     802 </span>            :     case 4:
+<span class="lineNum">     803 </span>            :     {
+<span class="lineNum">     804 </span><span class="lineCov">          8 :       constexpr int s_Shift4[] = {4, 0};</span>
+<span class="lineNum">     805 </span>            :       // unpack 4-bit in-place in reverse
+<span class="lineNum">     806 </span>            :       // DANGER: Non-standard decrement of counter in the test section of for.
+<span class="lineNum">     807 </span><span class="lineCov">         52 :       for( int i = n; --i &gt;= 0; )</span>
+<span class="lineNum">     808 </span><span class="lineCov">         36 :         pData[i] = (pData[i&gt;&gt;1] &gt;&gt; (GByte)s_Shift4[i&amp;1]) &amp; 0x0f;</span>
+<span class="lineNum">     809 </span>            : 
+<span class="lineNum">     810 </span><span class="lineCov">          8 :       break;</span>
+<span class="lineNum">     811 </span>            :     }
+<span class="lineNum">     812 </span>            :     case 3:
+<span class="lineNum">     813 </span>            :     {
+<span class="lineNum">     814 </span>            :       // unpacks 8 pixels (3 bytes) at time
+<span class="lineNum">     815 </span><span class="lineCov">          8 :       int i = 0;</span>
+<span class="lineNum">     816 </span><span class="lineCov">          8 :       int k = 0;</span>
+<span class="lineNum">     817 </span><span class="lineCov">          9 :       for( ; i + 7 &lt; n; i += 8, k += 3 )</span>
+<span class="lineNum">     818 </span>            :       {
+<span class="lineNum">     819 </span><span class="lineCov">          1 :         pUnpackData[i+0] = ((pDataSrc[k+0] &gt;&gt; 5));</span>
+<span class="lineNum">     820 </span><span class="lineCov">          1 :         pUnpackData[i+1] = ((pDataSrc[k+0] &gt;&gt; 2) &amp; 0x07);</span>
+<span class="lineNum">     821 </span><span class="lineCov">          1 :         pUnpackData[i+2] = ((pDataSrc[k+0] &lt;&lt; 1) &amp; 0x07) | (pDataSrc[k+1] &gt;&gt; 7);</span>
+<span class="lineNum">     822 </span><span class="lineCov">          1 :         pUnpackData[i+3] = ((pDataSrc[k+1] &gt;&gt; 4) &amp; 0x07);</span>
+<span class="lineNum">     823 </span><span class="lineCov">          1 :         pUnpackData[i+4] = ((pDataSrc[k+1] &gt;&gt; 1) &amp; 0x07);</span>
+<span class="lineNum">     824 </span><span class="lineCov">          1 :         pUnpackData[i+5] = ((pDataSrc[k+1] &lt;&lt; 2) &amp; 0x07) | (pDataSrc[k+2] &gt;&gt; 6);</span>
+<span class="lineNum">     825 </span><span class="lineCov">          1 :         pUnpackData[i+6] = ((pDataSrc[k+2] &gt;&gt; 3) &amp; 0x07);</span>
+<span class="lineNum">     826 </span><span class="lineCov">          1 :         pUnpackData[i+7] = ((pDataSrc[k+2]) &amp; 0x7);</span>
+<span class="lineNum">     827 </span>            :       }
+<span class="lineNum">     828 </span><span class="lineCov">          8 :       if( i &lt; n )</span>
+<span class="lineNum">     829 </span>            :       {
+<span class="lineNum">     830 </span><span class="lineCov">          7 :         pUnpackData[i+0] = ((pDataSrc[k+0] &gt;&gt; 5));</span>
+<span class="lineNum">     831 </span><span class="lineCov">          7 :         if( i + 1 &lt; n )</span>
+<span class="lineNum">     832 </span><span class="lineCov">          6 :             pUnpackData[i+1] = ((pDataSrc[k+0] &gt;&gt; 2) &amp; 0x07);</span>
+<span class="lineNum">     833 </span><span class="lineCov">          7 :         if( i + 2 &lt; n )</span>
+<span class="lineNum">     834 </span><span class="lineCov">          5 :             pUnpackData[i+2] = ((pDataSrc[k+0] &lt;&lt; 1) &amp; 0x07) | (pDataSrc[k+1] &gt;&gt; 7);</span>
+<span class="lineNum">     835 </span><span class="lineCov">          7 :         if( i + 3 &lt; n )</span>
+<span class="lineNum">     836 </span><span class="lineCov">          4 :             pUnpackData[i+3] = ((pDataSrc[k+1] &gt;&gt; 4) &amp; 0x07);</span>
+<span class="lineNum">     837 </span><span class="lineCov">          7 :         if( i + 4 &lt; n )</span>
+<span class="lineNum">     838 </span><span class="lineCov">          3 :             pUnpackData[i+4] = ((pDataSrc[k+1] &gt;&gt; 1) &amp; 0x07);</span>
+<span class="lineNum">     839 </span><span class="lineCov">          7 :         if( i + 5 &lt; n )</span>
+<span class="lineNum">     840 </span><span class="lineCov">          2 :             pUnpackData[i+5] = ((pDataSrc[k+1] &lt;&lt; 2) &amp; 0x07) | (pDataSrc[k+2] &gt;&gt; 6);</span>
+<span class="lineNum">     841 </span><span class="lineCov">          7 :         if( i + 6 &lt; n )</span>
+<span class="lineNum">     842 </span><span class="lineCov">          1 :             pUnpackData[i+6] = ((pDataSrc[k+2] &gt;&gt; 3) &amp; 0x07);</span>
+<span class="lineNum">     843 </span>            :       }
+<span class="lineNum">     844 </span>            : 
+<span class="lineNum">     845 </span><span class="lineCov">          8 :       memcpy(pData, pUnpackData, n);</span>
+<span class="lineNum">     846 </span><span class="lineCov">          8 :       break;</span>
+<span class="lineNum">     847 </span>            :     }
+<span class="lineNum">     848 </span>            :     case 5:
+<span class="lineNum">     849 </span>            :     {
+<span class="lineNum">     850 </span>            :       // unpacks 8 pixels (5 bytes) at time
+<span class="lineNum">     851 </span><span class="lineCov">          8 :       int i = 0;</span>
+<span class="lineNum">     852 </span><span class="lineCov">          8 :       int k = 0;</span>
+<span class="lineNum">     853 </span><span class="lineCov">          9 :       for( ; i + 7 &lt; n; i += 8, k += 5 )</span>
+<span class="lineNum">     854 </span>            :       {
+<span class="lineNum">     855 </span><span class="lineCov">          1 :         pUnpackData[i+0] = ((pDataSrc[k+0] &gt;&gt; 3));</span>
+<span class="lineNum">     856 </span><span class="lineCov">          1 :         pUnpackData[i+1] = ((pDataSrc[k+0] &lt;&lt; 2) &amp; 0x1f) | (pDataSrc[k+1] &gt;&gt; 6);</span>
+<span class="lineNum">     857 </span><span class="lineCov">          1 :         pUnpackData[i+2] = ((pDataSrc[k+1] &gt;&gt; 1) &amp; 0x1f);</span>
+<span class="lineNum">     858 </span><span class="lineCov">          1 :         pUnpackData[i+3] = ((pDataSrc[k+1] &lt;&lt; 4) &amp; 0x1f) | (pDataSrc[k+2] &gt;&gt; 4);</span>
+<span class="lineNum">     859 </span><span class="lineCov">          1 :         pUnpackData[i+4] = ((pDataSrc[k+2] &lt;&lt; 1) &amp; 0x1f) | (pDataSrc[k+3] &gt;&gt; 7);</span>
+<span class="lineNum">     860 </span><span class="lineCov">          1 :         pUnpackData[i+5] = ((pDataSrc[k+3] &gt;&gt; 2) &amp; 0x1f);</span>
+<span class="lineNum">     861 </span><span class="lineCov">          1 :         pUnpackData[i+6] = ((pDataSrc[k+3] &lt;&lt; 3) &amp; 0x1f) | (pDataSrc[k+4] &gt;&gt; 5);</span>
+<span class="lineNum">     862 </span><span class="lineCov">          1 :         pUnpackData[i+7] = ((pDataSrc[k+4]) &amp; 0x1f);</span>
+<span class="lineNum">     863 </span>            :       }
+<span class="lineNum">     864 </span><span class="lineCov">          8 :       if( i &lt; n )</span>
+<span class="lineNum">     865 </span>            :       {
+<span class="lineNum">     866 </span><span class="lineCov">          7 :         pUnpackData[i+0] = ((pDataSrc[k+0] &gt;&gt; 3));</span>
+<span class="lineNum">     867 </span><span class="lineCov">          7 :         if( i + 1 &lt; n )</span>
+<span class="lineNum">     868 </span><span class="lineCov">          6 :             pUnpackData[i+1] = ((pDataSrc[k+0] &lt;&lt; 2) &amp; 0x1f) | (pDataSrc[k+1] &gt;&gt; 6);</span>
+<span class="lineNum">     869 </span><span class="lineCov">          7 :         if( i + 2 &lt; n )</span>
+<span class="lineNum">     870 </span><span class="lineCov">          5 :             pUnpackData[i+2] = ((pDataSrc[k+1] &gt;&gt; 1) &amp; 0x1f);</span>
+<span class="lineNum">     871 </span><span class="lineCov">          7 :         if( i + 3 &lt; n )</span>
+<span class="lineNum">     872 </span><span class="lineCov">          4 :             pUnpackData[i+3] = ((pDataSrc[k+1] &lt;&lt; 4) &amp; 0x1f) | (pDataSrc[k+2] &gt;&gt; 4);</span>
+<span class="lineNum">     873 </span><span class="lineCov">          7 :         if( i + 4 &lt; n )</span>
+<span class="lineNum">     874 </span><span class="lineCov">          3 :             pUnpackData[i+4] = ((pDataSrc[k+2] &lt;&lt; 1) &amp; 0x1f) | (pDataSrc[k+3] &gt;&gt; 7);</span>
+<span class="lineNum">     875 </span><span class="lineCov">          7 :         if( i + 5 &lt; n )</span>
+<span class="lineNum">     876 </span><span class="lineCov">          2 :             pUnpackData[i+5] = ((pDataSrc[k+3] &gt;&gt; 2) &amp; 0x1f);</span>
+<span class="lineNum">     877 </span><span class="lineCov">          7 :         if( i + 6 &lt; n )</span>
+<span class="lineNum">     878 </span><span class="lineCov">          1 :             pUnpackData[i+6] = ((pDataSrc[k+3] &lt;&lt; 3) &amp; 0x1f) | (pDataSrc[k+4] &gt;&gt; 5);</span>
+<span class="lineNum">     879 </span>            :       }
+<span class="lineNum">     880 </span>            : 
+<span class="lineNum">     881 </span><span class="lineCov">          8 :       memcpy(pData, pUnpackData, n);</span>
+<span class="lineNum">     882 </span><span class="lineCov">          8 :       break;</span>
+<span class="lineNum">     883 </span>            :     }
+<span class="lineNum">     884 </span>            :     case 6:
+<span class="lineNum">     885 </span>            :     {
+<span class="lineNum">     886 </span>            :       // unpacks 4 pixels (3 bytes) at time
+<span class="lineNum">     887 </span><span class="lineCov">          8 :       int i = 0;</span>
+<span class="lineNum">     888 </span><span class="lineCov">          8 :       int k = 0;</span>
+<span class="lineNum">     889 </span><span class="lineCov">         14 :       for( ; i + 3 &lt; n; i += 4, k += 3 )</span>
+<span class="lineNum">     890 </span>            :       {
+<span class="lineNum">     891 </span><span class="lineCov">          6 :         pUnpackData[i+0] = ((pDataSrc[k+0] &gt;&gt; 2));</span>
+<span class="lineNum">     892 </span><span class="lineCov">          6 :         pUnpackData[i+1] = ((pDataSrc[k+0] &lt;&lt; 4) &amp; 0x3f) | (pDataSrc[k+1] &gt;&gt; 4);</span>
+<span class="lineNum">     893 </span><span class="lineCov">          6 :         pUnpackData[i+2] = ((pDataSrc[k+1] &lt;&lt; 2) &amp; 0x3f) | (pDataSrc[k+2] &gt;&gt; 6);</span>
+<span class="lineNum">     894 </span><span class="lineCov">          6 :         pUnpackData[i+3] = ((pDataSrc[k+2]) &amp; 0x3f);</span>
+<span class="lineNum">     895 </span>            :       }
+<span class="lineNum">     896 </span><span class="lineCov">          8 :       if( i &lt; n )</span>
+<span class="lineNum">     897 </span>            :       {
+<span class="lineNum">     898 </span><span class="lineCov">          6 :         pUnpackData[i+0] = ((pDataSrc[k+0] &gt;&gt; 2));</span>
+<span class="lineNum">     899 </span><span class="lineCov">          6 :         if( i + 1 &lt; n )</span>
+<span class="lineNum">     900 </span><span class="lineCov">          4 :             pUnpackData[i+1] = ((pDataSrc[k+0] &lt;&lt; 4) &amp; 0x3f) | (pDataSrc[k+1] &gt;&gt; 4);</span>
+<span class="lineNum">     901 </span><span class="lineCov">          6 :         if( i + 2 &lt; n )</span>
+<span class="lineNum">     902 </span><span class="lineCov">          2 :             pUnpackData[i+2] = ((pDataSrc[k+1] &lt;&lt; 2) &amp; 0x3f) | (pDataSrc[k+2] &gt;&gt; 6);</span>
+<span class="lineNum">     903 </span>            :       }
+<span class="lineNum">     904 </span>            : 
+<span class="lineNum">     905 </span><span class="lineCov">          8 :       memcpy(pData, pUnpackData, n);</span>
+<span class="lineNum">     906 </span><span class="lineCov">          8 :       break;</span>
+<span class="lineNum">     907 </span>            :     }
+<span class="lineNum">     908 </span>            :     case 7:
+<span class="lineNum">     909 </span>            :     {
+<span class="lineNum">     910 </span>            :       // unpacks 8 pixels (7 bytes) at time
+<span class="lineNum">     911 </span><span class="lineCov">          8 :       int i = 0;</span>
+<span class="lineNum">     912 </span><span class="lineCov">          8 :       int k = 0;</span>
+<span class="lineNum">     913 </span><span class="lineCov">          9 :       for( ; i + 7 &lt; n; i += 8, k += 7 )</span>
+<span class="lineNum">     914 </span>            :       {
+<span class="lineNum">     915 </span><span class="lineCov">          1 :         pUnpackData[i+0] = ((pDataSrc[k+0] &gt;&gt; 1));</span>
+<span class="lineNum">     916 </span><span class="lineCov">          1 :         pUnpackData[i+1] = ((pDataSrc[k+0] &lt;&lt; 6) &amp; 0x7f) | (pDataSrc[k+1] &gt;&gt; 2);</span>
+<span class="lineNum">     917 </span><span class="lineCov">          1 :         pUnpackData[i+2] = ((pDataSrc[k+1] &lt;&lt; 5) &amp; 0x7f) | (pDataSrc[k+2] &gt;&gt; 3) ;</span>
+<span class="lineNum">     918 </span><span class="lineCov">          1 :         pUnpackData[i+3] = ((pDataSrc[k+2] &lt;&lt; 4) &amp; 0x7f) | (pDataSrc[k+3] &gt;&gt; 4);</span>
+<span class="lineNum">     919 </span><span class="lineCov">          1 :         pUnpackData[i+4] = ((pDataSrc[k+3] &lt;&lt; 3) &amp; 0x7f) | (pDataSrc[k+4] &gt;&gt; 5);</span>
+<span class="lineNum">     920 </span><span class="lineCov">          1 :         pUnpackData[i+5] = ((pDataSrc[k+4] &lt;&lt; 2) &amp; 0x7f) | (pDataSrc[k+5] &gt;&gt; 6);</span>
+<span class="lineNum">     921 </span><span class="lineCov">          1 :         pUnpackData[i+6] = ((pDataSrc[k+5] &lt;&lt; 1) &amp; 0x7f) | (pDataSrc[k+6] &gt;&gt; 7);</span>
+<span class="lineNum">     922 </span><span class="lineCov">          1 :         pUnpackData[i+7] = ((pDataSrc[k+6]) &amp; 0x7f);</span>
+<span class="lineNum">     923 </span>            :       }
+<span class="lineNum">     924 </span><span class="lineCov">          8 :       if( i &lt; n )</span>
+<span class="lineNum">     925 </span>            :       {
+<span class="lineNum">     926 </span><span class="lineCov">          7 :         pUnpackData[i+0] = ((pDataSrc[k+0] &gt;&gt; 1));</span>
+<span class="lineNum">     927 </span><span class="lineCov">          7 :         if( i + 1 &lt; n )</span>
+<span class="lineNum">     928 </span><span class="lineCov">          6 :             pUnpackData[i+1] = ((pDataSrc[k+0] &lt;&lt; 6) &amp; 0x7f) | (pDataSrc[k+1] &gt;&gt; 2);</span>
+<span class="lineNum">     929 </span><span class="lineCov">          7 :         if( i + 2 &lt; n )</span>
+<span class="lineNum">     930 </span><span class="lineCov">          5 :             pUnpackData[i+2] = ((pDataSrc[k+1] &lt;&lt; 5) &amp; 0x7f) | (pDataSrc[k+2] &gt;&gt; 3) ;</span>
+<span class="lineNum">     931 </span><span class="lineCov">          7 :         if( i + 3 &lt; n )</span>
+<span class="lineNum">     932 </span><span class="lineCov">          4 :             pUnpackData[i+3] = ((pDataSrc[k+2] &lt;&lt; 4) &amp; 0x7f) | (pDataSrc[k+3] &gt;&gt; 4);</span>
+<span class="lineNum">     933 </span><span class="lineCov">          7 :         if( i + 4 &lt; n )</span>
+<span class="lineNum">     934 </span><span class="lineCov">          3 :             pUnpackData[i+4] = ((pDataSrc[k+3] &lt;&lt; 3) &amp; 0x7f) | (pDataSrc[k+4] &gt;&gt; 5);</span>
+<span class="lineNum">     935 </span><span class="lineCov">          7 :         if( i + 5 &lt; n )</span>
+<span class="lineNum">     936 </span><span class="lineCov">          2 :             pUnpackData[i+5] = ((pDataSrc[k+4] &lt;&lt; 2) &amp; 0x7f) | (pDataSrc[k+5] &gt;&gt; 6);</span>
+<span class="lineNum">     937 </span><span class="lineCov">          7 :         if( i + 6 &lt; n )</span>
+<span class="lineNum">     938 </span><span class="lineCov">          1 :             pUnpackData[i+6] = ((pDataSrc[k+5] &lt;&lt; 1) &amp; 0x7f) | (pDataSrc[k+6] &gt;&gt; 7);</span>
+<span class="lineNum">     939 </span>            :       }
+<span class="lineNum">     940 </span>            : 
+<span class="lineNum">     941 </span><span class="lineCov">          8 :       memcpy(pData, pUnpackData, n);</span>
+<span class="lineNum">     942 </span><span class="lineCov">          8 :       break;</span>
+<span class="lineNum">     943 </span>            :     }
+<span class="lineNum">     944 </span>            :     case 12:
+<span class="lineNum">     945 </span>            :     {
+<span class="lineNum">     946 </span><span class="lineCov">          8 :       GByte *pabyImage = reinterpret_cast&lt;GByte *&gt;( pData );</span>
+<span class="lineNum">     947 </span><span class="lineCov">          8 :       GUInt16 *panImage  = reinterpret_cast&lt;GUInt16 *&gt;( pData );</span>
+<span class="lineNum">     948 </span>            :       // DANGER: Non-standard decrement of counter in the test section of for.
+<span class="lineNum">     949 </span><span class="lineCov">         52 :       for( int i = n; --i &gt;= 0; )</span>
+<span class="lineNum">     950 </span>            :       {
+<span class="lineNum">     951 </span><span class="lineCov">         36 :         const long iOffset = i*3 / 2;</span>
+<span class="lineNum">     952 </span><span class="lineCov">         36 :         if (i % 2 == 0)</span>
+<span class="lineNum">     953 </span><span class="lineCov">         20 :           panImage[i] = pabyImage[iOffset] + (pabyImage[iOffset+1] &amp; 0xf0) * 16;</span>
+<span class="lineNum">     954 </span>            :         else
+<span class="lineNum">     955 </span><span class="lineCov">         16 :           panImage[i] = (pabyImage[iOffset]   &amp; 0x0f) * 16</span>
+<span class="lineNum">     956 </span><span class="lineCov">         16 :                       + (pabyImage[iOffset+1] &amp; 0xf0) / 16</span>
+<span class="lineNum">     957 </span><span class="lineCov">         32 :                       + (pabyImage[iOffset+1] &amp; 0x0f) * 256;</span>
+<span class="lineNum">     958 </span>            :       }
+<span class="lineNum">     959 </span>            : 
+<span class="lineNum">     960 </span><span class="lineCov">          8 :       break;</span>
+<span class="lineNum">     961 </span>            :     }
+<span class="lineNum">     962 </span>            :   }
+<span class="lineNum">     963 </span><span class="lineCov">         68 : }</span>
+<span class="lineNum">     964 </span>            : 
+<span class="lineNum">     965 </span>            : /************************************************************************/
+<span class="lineNum">     966 </span>            : /* ==================================================================== */
+<span class="lineNum">     967 </span>            : /*                       NITFWrapperRasterBand                          */
+<span class="lineNum">     968 </span>            : /* ==================================================================== */
+<span class="lineNum">     969 </span>            : /************************************************************************/
+<span class="lineNum">     970 </span>            : 
+<span class="lineNum">     971 </span>            : /************************************************************************/
+<span class="lineNum">     972 </span>            : /*                      NITFWrapperRasterBand()                         */
+<a name="973"><span class="lineNum">     973 </span>            : /************************************************************************/</a>
+<span class="lineNum">     974 </span>            : 
+<span class="lineNum">     975 </span><span class="lineCov">         53 : NITFWrapperRasterBand::NITFWrapperRasterBand( NITFDataset * poDSIn,</span>
+<span class="lineNum">     976 </span>            :                                               GDALRasterBand* poBaseBandIn,
+<span class="lineNum">     977 </span>            :                                               int nBandIn) :
+<span class="lineNum">     978 </span>            :     poBaseBand(poBaseBandIn),
+<span class="lineNum">     979 </span>            :     poColorTable(nullptr),
+<span class="lineNum">     980 </span><span class="lineCov">         53 :     eInterp(poBaseBandIn-&gt;GetColorInterpretation()),</span>
+<span class="lineNum">     981 </span><span class="lineCov">        106 :     bIsJPEG(poBaseBandIn-&gt;GetDataset() != nullptr &amp;&amp;</span>
+<span class="lineNum">     982 </span><span class="lineCov">        106 :             poBaseBandIn-&gt;GetDataset()-&gt;GetDriver() != nullptr &amp;&amp;</span>
+<span class="lineNum">     983 </span><span class="lineCov">         53 :             EQUAL(poBaseBandIn-&gt;GetDataset()-&gt;GetDriver()-&gt;GetDescription(),</span>
+<span class="lineNum">     984 </span><span class="lineCov">        159 :                   &quot;JPEG&quot;))</span>
+<span class="lineNum">     985 </span>            : {
+<span class="lineNum">     986 </span><span class="lineCov">         53 :     poDS = poDSIn;</span>
+<span class="lineNum">     987 </span><span class="lineCov">         53 :     nBand = nBandIn;</span>
+<span class="lineNum">     988 </span><span class="lineCov">         53 :     poBaseBand-&gt;GetBlockSize(&amp;nBlockXSize, &amp;nBlockYSize);</span>
+<span class="lineNum">     989 </span><span class="lineCov">         53 :     eDataType = poBaseBandIn-&gt;GetRasterDataType();</span>
+<span class="lineNum">     990 </span><span class="lineCov">         53 : }</span>
+<span class="lineNum">     991 </span>            : 
+<span class="lineNum">     992 </span>            : /************************************************************************/
+<span class="lineNum">     993 </span>            : /*                      ~NITFWrapperRasterBand()                        */
+<a name="994"><span class="lineNum">     994 </span>            : /************************************************************************/</a>
+<span class="lineNum">     995 </span>            : 
+<span class="lineNum">     996 </span><span class="lineCov">        159 : NITFWrapperRasterBand::~NITFWrapperRasterBand()</span>
+<span class="lineNum">     997 </span>            : {
+<span class="lineNum">     998 </span><span class="lineCov">         53 :     if( poColorTable != nullptr )</span>
+<span class="lineNum">     999 </span><span class="lineNoCov">          0 :         delete poColorTable;</span>
+<span class="lineNum">    1000 </span><span class="lineCov">        106 : }</span>
+<span class="lineNum">    1001 </span>            : 
+<span class="lineNum">    1002 </span>            : /************************************************************************/
+<span class="lineNum">    1003 </span>            : /*                     RefUnderlyingRasterBand()                        */
+<span class="lineNum">    1004 </span>            : /************************************************************************/
+<a name="1005"><span class="lineNum">    1005 </span>            : </a>
+<span class="lineNum">    1006 </span>            : /* We don't need ref-counting. Just return the base band */
+<span class="lineNum">    1007 </span><span class="lineCov">        469 : GDALRasterBand* NITFWrapperRasterBand::RefUnderlyingRasterBand()</span>
+<span class="lineNum">    1008 </span>            : {
+<span class="lineNum">    1009 </span><span class="lineCov">        469 :     return poBaseBand;</span>
+<span class="lineNum">    1010 </span>            : }
+<span class="lineNum">    1011 </span>            : 
+<span class="lineNum">    1012 </span>            : /************************************************************************/
+<span class="lineNum">    1013 </span>            : /*                            GetColorTable()                           */
+<a name="1014"><span class="lineNum">    1014 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1015 </span>            : 
+<span class="lineNum">    1016 </span><span class="lineCov">          9 : GDALColorTable *NITFWrapperRasterBand::GetColorTable()</span>
+<span class="lineNum">    1017 </span>            : {
+<span class="lineNum">    1018 </span><span class="lineCov">          9 :     return poColorTable;</span>
+<span class="lineNum">    1019 </span>            : }
+<span class="lineNum">    1020 </span>            : 
+<span class="lineNum">    1021 </span>            : /************************************************************************/
+<span class="lineNum">    1022 </span>            : /*                 SetColorTableFromNITFBandInfo()                      */
+<a name="1023"><span class="lineNum">    1023 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1024 </span>            : 
+<span class="lineNum">    1025 </span><span class="lineNoCov">          0 : void NITFWrapperRasterBand::SetColorTableFromNITFBandInfo()</span>
+<span class="lineNum">    1026 </span>            : {
+<span class="lineNum">    1027 </span><span class="lineNoCov">          0 :     NITFDataset* poGDS = reinterpret_cast&lt;NITFDataset *&gt;( poDS );</span>
+<span class="lineNum">    1028 </span>            :     poColorTable = NITFMakeColorTable(poGDS-&gt;psImage,
+<span class="lineNum">    1029 </span><span class="lineNoCov">          0 :                                       poGDS-&gt;psImage-&gt;pasBandInfo + nBand - 1);</span>
+<span class="lineNum">    1030 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">    1031 </span>            : 
+<span class="lineNum">    1032 </span>            : /************************************************************************/
+<span class="lineNum">    1033 </span>            : /*                        GetColorInterpretation()                      */
+<a name="1034"><span class="lineNum">    1034 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1035 </span>            : 
+<span class="lineNum">    1036 </span><span class="lineCov">         32 : GDALColorInterp NITFWrapperRasterBand::GetColorInterpretation()</span>
+<span class="lineNum">    1037 </span>            : {
+<span class="lineNum">    1038 </span><span class="lineCov">         32 :     return eInterp;</span>
+<span class="lineNum">    1039 </span>            : }
+<span class="lineNum">    1040 </span>            : 
+<span class="lineNum">    1041 </span>            : /************************************************************************/
+<span class="lineNum">    1042 </span>            : /*                        SetColorInterpretation()                      */
+<a name="1043"><span class="lineNum">    1043 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1044 </span>            : 
+<span class="lineNum">    1045 </span><span class="lineCov">         54 : CPLErr NITFWrapperRasterBand::SetColorInterpretation( GDALColorInterp eInterpIn)</span>
+<span class="lineNum">    1046 </span>            : {
+<span class="lineNum">    1047 </span><span class="lineCov">         54 :     this-&gt;eInterp = eInterpIn;</span>
+<span class="lineNum">    1048 </span><span class="lineCov">        162 :     if( poBaseBand-&gt;GetDataset() != nullptr &amp;&amp;</span>
+<span class="lineNum">    1049 </span><span class="lineCov">        108 :         poBaseBand-&gt;GetDataset()-&gt;GetDriver() != nullptr &amp;&amp;</span>
+<span class="lineNum">    1050 </span><span class="lineCov">         54 :         EQUAL(poBaseBand-&gt;GetDataset()-&gt;GetDriver()-&gt;GetDescription(), &quot;JP2ECW&quot;) )</span>
+<span class="lineNum">    1051 </span><span class="lineCov">         15 :         poBaseBand-&gt;SetColorInterpretation( eInterp );</span>
+<span class="lineNum">    1052 </span><span class="lineCov">         54 :     return CE_None;</span>
+<span class="lineNum">    1053 </span>            : }
+<span class="lineNum">    1054 </span>            : 
+<span class="lineNum">    1055 </span>            : /************************************************************************/
+<span class="lineNum">    1056 </span>            : /*                          GetOverviewCount()                          */
+<a name="1057"><span class="lineNum">    1057 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1058 </span>            : 
+<span class="lineNum">    1059 </span><span class="lineCov">          4 : int NITFWrapperRasterBand::GetOverviewCount()</span>
+<span class="lineNum">    1060 </span>            : {
+<span class="lineNum">    1061 </span><span class="lineCov">          4 :     if( bIsJPEG )</span>
+<span class="lineNum">    1062 </span>            :     {
+<span class="lineNum">    1063 </span><span class="lineCov">          2 :         if( (reinterpret_cast&lt;NITFDataset *&gt;( poDS) )-&gt;ExposeUnderlyingJPEGDatasetOverviews() )</span>
+<span class="lineNum">    1064 </span><span class="lineNoCov">          0 :             return NITFProxyPamRasterBand::GetOverviewCount();</span>
+<span class="lineNum">    1065 </span>            : 
+<span class="lineNum">    1066 </span><span class="lineCov">          2 :         return GDALPamRasterBand::GetOverviewCount();</span>
+<span class="lineNum">    1067 </span>            :     }
+<span class="lineNum">    1068 </span>            : 
+<span class="lineNum">    1069 </span><span class="lineCov">          2 :     return NITFProxyPamRasterBand::GetOverviewCount();</span>
+<span class="lineNum">    1070 </span>            : }
+<span class="lineNum">    1071 </span>            : 
+<span class="lineNum">    1072 </span>            : /************************************************************************/
+<span class="lineNum">    1073 </span>            : /*                             GetOverview()                            */
+<a name="1074"><span class="lineNum">    1074 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1075 </span>            : 
+<span class="lineNum">    1076 </span><span class="lineCov">          3 : GDALRasterBand * NITFWrapperRasterBand::GetOverview(int iOverview)</span>
+<span class="lineNum">    1077 </span>            : {
+<span class="lineNum">    1078 </span><span class="lineCov">          3 :     if( bIsJPEG )</span>
+<span class="lineNum">    1079 </span>            :     {
+<span class="lineNum">    1080 </span><span class="lineCov">          1 :         if( (reinterpret_cast&lt;NITFDataset *&gt;( poDS ) )-&gt;ExposeUnderlyingJPEGDatasetOverviews() )</span>
+<span class="lineNum">    1081 </span><span class="lineNoCov">          0 :             return NITFProxyPamRasterBand::GetOverview(iOverview);</span>
+<span class="lineNum">    1082 </span>            : 
+<span class="lineNum">    1083 </span><span class="lineCov">          1 :         return GDALPamRasterBand::GetOverview(iOverview);</span>
+<span class="lineNum">    1084 </span>            :     }
+<span class="lineNum">    1085 </span>            : 
+<span class="lineNum">    1086 </span><span class="lineCov">          2 :     return NITFProxyPamRasterBand::GetOverview(iOverview);</span>
+<span class="lineNum">    1087 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

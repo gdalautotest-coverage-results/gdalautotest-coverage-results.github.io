@@ -1,0 +1,483 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - alg/gdalcutline.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">alg</a> - gdalcutline.cpp<span style="font-size: 80%;"> (source / <a href="gdalcutline.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">111</td>
+            <td class="headerCovTableEntry">128</td>
+            <td class="headerCovTableEntryMed">86.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  High Performance Image Reprojector
+<span class="lineNum">       4 </span>            :  * Purpose:  Implement cutline/blend mask generator.
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2008, Frank Warmerdam &lt;warmerdam@pobox.com&gt;
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2008-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdalwarper.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cmath&gt;
+<span class="lineNum">      34 </span>            : #include &lt;cstdio&gt;
+<span class="lineNum">      35 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      36 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;gdal_alg.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;ogr_api.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;ogr_core.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;ogr_geometry.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;ogr_geos.h&quot;
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : /************************************************************************/
+<span class="lineNum">      51 </span>            : /*                         BlendMaskGenerator()                         */
+<span class="lineNum">      52 </span>            : /************************************************************************/
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : #ifndef HAVE_GEOS
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : static CPLErr
+<span class="lineNum">      57 </span>            : BlendMaskGenerator( int /* nXOff */, int /* nYOff */,
+<span class="lineNum">      58 </span>            :                     int /* nXSize */, int /* nYSize */,
+<span class="lineNum">      59 </span>            :                     GByte * /* pabyPolyMask */,
+<span class="lineNum">      60 </span>            :                     float * /* pafValidityMask */,
+<span class="lineNum">      61 </span>            :                     OGRGeometryH /* hPolygon */,
+<span class="lineNum">      62 </span>            :                     double /* dfBlendDist */ )
+<span class="lineNum">      63 </span>            : {
+<span class="lineNum">      64 </span>            :     CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">      65 </span>            :              &quot;Blend distance support not available without the GEOS library.&quot;);
+<span class="lineNum">      66 </span>            :     return CE_Failure;
+<span class="lineNum">      67 </span>            : }
+<a name="68"><span class="lineNum">      68 </span>            : #else</a>
+<span class="lineNum">      69 </span>            : static CPLErr
+<span class="lineNum">      70 </span><span class="lineCov">          1 : BlendMaskGenerator( int nXOff, int nYOff, int nXSize, int nYSize,</span>
+<span class="lineNum">      71 </span>            :                     GByte *pabyPolyMask, float *pafValidityMask,
+<span class="lineNum">      72 </span>            :                     OGRGeometryH hPolygon, double dfBlendDist )
+<span class="lineNum">      73 </span>            : {
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      76 </span>            : /*      Convert the polygon into a collection of lines so that we       */
+<span class="lineNum">      77 </span>            : /*      measure distance from the edge even on the inside.              */
+<span class="lineNum">      78 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      79 </span>            :     OGRGeometry *poLines =
+<span class="lineNum">      80 </span>            :         OGRGeometryFactory::forceToMultiLineString(
+<span class="lineNum">      81 </span><span class="lineCov">          1 :             reinterpret_cast&lt;OGRGeometry *&gt;(hPolygon)-&gt;clone() );</span>
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      84 </span>            : /*      Prepare a clipping polygon a bit bigger than the area of        */
+<span class="lineNum">      85 </span>            : /*      interest in the hopes of simplifying the cutline down to        */
+<span class="lineNum">      86 </span>            : /*      stuff that will be relevant for this area of interest.          */
+<span class="lineNum">      87 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      88 </span><span class="lineCov">          1 :     CPLString osClipRectWKT;</span>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            :     osClipRectWKT.Printf( &quot;POLYGON((%g %g,%g %g,%g %g,%g %g,%g %g))&quot;,
+<span class="lineNum">      91 </span><span class="lineCov">          1 :                           nXOff - (dfBlendDist + 1),</span>
+<span class="lineNum">      92 </span><span class="lineCov">          1 :                           nYOff - (dfBlendDist + 1),</span>
+<span class="lineNum">      93 </span><span class="lineCov">          2 :                           nXOff + nXSize + (dfBlendDist + 1),</span>
+<span class="lineNum">      94 </span><span class="lineCov">          1 :                           nYOff - (dfBlendDist + 1),</span>
+<span class="lineNum">      95 </span><span class="lineCov">          2 :                           nXOff + nXSize + (dfBlendDist + 1),</span>
+<span class="lineNum">      96 </span><span class="lineCov">          2 :                           nYOff + nYSize + (dfBlendDist + 1),</span>
+<span class="lineNum">      97 </span><span class="lineCov">          1 :                           nXOff - (dfBlendDist + 1),</span>
+<span class="lineNum">      98 </span><span class="lineCov">          2 :                           nYOff + nYSize + (dfBlendDist + 1),</span>
+<span class="lineNum">      99 </span><span class="lineCov">          1 :                           nXOff - (dfBlendDist + 1),</span>
+<span class="lineNum">     100 </span><span class="lineCov">         14 :                           nYOff - (dfBlendDist + 1) );</span>
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span><span class="lineCov">          1 :     OGRPolygon *poClipRect = nullptr;</span>
+<span class="lineNum">     103 </span>            :     OGRGeometryFactory::createFromWkt( osClipRectWKT.c_str(), nullptr,
+<span class="lineNum">     104 </span><span class="lineCov">          1 :                                        reinterpret_cast&lt;OGRGeometry**&gt;(&amp;poClipRect) );</span>
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span><span class="lineCov">          1 :     if( poClipRect )</span>
+<span class="lineNum">     107 </span>            :     {
+<span class="lineNum">     108 </span>            :         // If it does not intersect the polym, zero the mask and return.
+<span class="lineNum">     109 </span><span class="lineCov">          1 :         if( !reinterpret_cast&lt;OGRGeometry *&gt;(hPolygon)-&gt;Intersects(poClipRect) )</span>
+<span class="lineNum">     110 </span>            :         {
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :             memset( pafValidityMask, 0, sizeof(float) * nXSize * nYSize );</span>
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :             delete poLines;</span>
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :             delete poClipRect;</span>
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :             return CE_None;</span>
+<span class="lineNum">     117 </span>            :         }
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span>            :         // If it does not intersect the line at all, just return.
+<span class="lineNum">     120 </span><span class="lineCov">          1 :         else if( !static_cast&lt;OGRGeometry *&gt;(poLines)-&gt;Intersects(poClipRect) )</span>
+<span class="lineNum">     121 </span>            :         {
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :             delete poLines;</span>
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :             delete poClipRect;</span>
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :             return CE_None;</span>
+<span class="lineNum">     126 </span>            :         }
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span><span class="lineCov">          1 :         OGRGeometry *poClippedLines = poLines-&gt;Intersection(poClipRect);</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :         delete poLines;</span>
+<span class="lineNum">     130 </span><span class="lineCov">          1 :         poLines = poClippedLines;</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 :         delete poClipRect;</span>
+<span class="lineNum">     132 </span>            :     }
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     135 </span>            : /*      Convert our polygon into GEOS format, and compute an            */
+<span class="lineNum">     136 </span>            : /*      envelope to accelerate later distance operations.               */
+<span class="lineNum">     137 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     138 </span><span class="lineCov">          1 :     OGREnvelope sEnvelope;</span>
+<span class="lineNum">     139 </span><span class="lineCov">          1 :     GEOSContextHandle_t hGEOSCtxt = OGRGeometry::createGEOSContext();</span>
+<span class="lineNum">     140 </span><span class="lineCov">          1 :     GEOSGeom poGEOSPoly = poLines-&gt;exportToGEOS(hGEOSCtxt);</span>
+<span class="lineNum">     141 </span><span class="lineCov">          1 :     OGR_G_GetEnvelope( hPolygon, &amp;sEnvelope );</span>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span><span class="lineCov">          1 :     delete poLines;</span>
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span>            :     // This check was already done in the calling
+<span class="lineNum">     146 </span>            :     // function and should never be true.
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            :     // if( sEnvelope.MinY - dfBlendDist &gt; nYOff+nYSize
+<span class="lineNum">     149 </span>            :     //     || sEnvelope.MaxY + dfBlendDist &lt; nYOff
+<span class="lineNum">     150 </span>            :     //     || sEnvelope.MinX - dfBlendDist &gt; nXOff+nXSize
+<span class="lineNum">     151 </span>            :     //     || sEnvelope.MaxX + dfBlendDist &lt; nXOff )
+<span class="lineNum">     152 </span>            :     //     return CE_None;
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            :     const int iXMin =
+<span class="lineNum">     155 </span>            :         std::max(0,
+<span class="lineNum">     156 </span><span class="lineCov">          1 :                  static_cast&lt;int&gt;(floor(sEnvelope.MinX - dfBlendDist - nXOff)));</span>
+<span class="lineNum">     157 </span>            :     const int iXMax =
+<span class="lineNum">     158 </span>            :         std::min(nXSize,
+<span class="lineNum">     159 </span><span class="lineCov">          1 :                  static_cast&lt;int&gt;(ceil(sEnvelope.MaxX + dfBlendDist - nXOff)));</span>
+<span class="lineNum">     160 </span>            :     const int iYMin =
+<span class="lineNum">     161 </span>            :         std::max(0,
+<span class="lineNum">     162 </span><span class="lineCov">          1 :                  static_cast&lt;int&gt;(floor(sEnvelope.MinY - dfBlendDist - nYOff)));</span>
+<span class="lineNum">     163 </span>            :     const int iYMax =
+<span class="lineNum">     164 </span>            :         std::min(nYSize,
+<span class="lineNum">     165 </span><span class="lineCov">          1 :                  static_cast&lt;int&gt;(ceil(sEnvelope.MaxY + dfBlendDist - nYOff)));</span>
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     168 </span>            : /*      Loop over potential area within blend line distance,            */
+<span class="lineNum">     169 </span>            : /*      processing each pixel.                                          */
+<span class="lineNum">     170 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     171 </span><span class="lineCov">        101 :     for( int iY = 0; iY &lt; nYSize; iY++ )</span>
+<span class="lineNum">     172 </span>            :     {
+<span class="lineNum">     173 </span><span class="lineCov">        100 :         double dfLastDist = 0.0;</span>
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span><span class="lineCov">      10100 :         for( int iX = 0; iX &lt; nXSize; iX++ )</span>
+<span class="lineNum">     176 </span>            :         {
+<span class="lineNum">     177 </span><span class="lineCov">      10000 :             if( iX &lt; iXMin || iX &gt;= iXMax</span>
+<span class="lineNum">     178 </span><span class="lineCov">       6000 :                 || iY &lt; iYMin || iY &gt; iYMax</span>
+<span class="lineNum">     179 </span><span class="lineCov">       3060 :                 || dfLastDist &gt; dfBlendDist + 1.5 )</span>
+<span class="lineNum">     180 </span>            :             {
+<span class="lineNum">     181 </span><span class="lineCov">       7944 :                 if( pabyPolyMask[iX + iY * nXSize] == 0 )</span>
+<span class="lineNum">     182 </span><span class="lineCov">       7784 :                     pafValidityMask[iX + iY * nXSize] = 0.0;</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineCov">       7944 :                 dfLastDist -= 1.0;</span>
+<span class="lineNum">     185 </span><span class="lineCov">      16472 :                 continue;</span>
+<span class="lineNum">     186 </span>            :             }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineCov">       2056 :             CPLString osPointWKT;</span>
+<span class="lineNum">     189 </span><span class="lineCov">       2056 :             osPointWKT.Printf( &quot;POINT(%d.5 %d.5)&quot;, iX + nXOff, iY + nYOff );</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineCov">       2056 :             GEOSGeom poGEOSPoint = GEOSGeomFromWKT_r( hGEOSCtxt, osPointWKT );</span>
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span><span class="lineCov">       2056 :             double dfDist = 0.0;</span>
+<span class="lineNum">     194 </span><span class="lineCov">       2056 :             GEOSDistance_r( hGEOSCtxt, poGEOSPoly, poGEOSPoint, &amp;dfDist );</span>
+<span class="lineNum">     195 </span><span class="lineCov">       2056 :             GEOSGeom_destroy_r( hGEOSCtxt, poGEOSPoint );</span>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">       2056 :             dfLastDist = dfDist;</span>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineCov">       2056 :             if( dfDist &gt; dfBlendDist )</span>
+<span class="lineNum">     200 </span>            :             {
+<span class="lineNum">     201 </span><span class="lineCov">        584 :                 if( pabyPolyMask[iX + iY * nXSize] == 0 )</span>
+<span class="lineNum">     202 </span><span class="lineCov">        366 :                     pafValidityMask[iX + iY * nXSize] = 0.0;</span>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineCov">        584 :                 continue;</span>
+<span class="lineNum">     205 </span>            :             }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            :             const double dfRatio =
+<span class="lineNum">     208 </span><span class="lineCov">       1472 :                 pabyPolyMask[iX + iY * nXSize] == 0</span>
+<span class="lineNum">     209 </span><span class="lineCov">        850 :                 ? 0.5 - (dfDist / dfBlendDist) * 0.5   // Outside.</span>
+<span class="lineNum">     210 </span><span class="lineCov">       2322 :                 : 0.5 + (dfDist / dfBlendDist) * 0.5;  // Inside.</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineCov">       1472 :             pafValidityMask[iX + iY * nXSize] *= static_cast&lt;float&gt;(dfRatio);</span>
+<span class="lineNum">     213 </span><span class="lineCov">       1472 :         }</span>
+<span class="lineNum">     214 </span>            :     }
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     217 </span>            : /*      Cleanup                                                         */
+<span class="lineNum">     218 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     219 </span><span class="lineCov">          1 :     GEOSGeom_destroy_r( hGEOSCtxt, poGEOSPoly );</span>
+<span class="lineNum">     220 </span><span class="lineCov">          1 :     OGRGeometry::freeGEOSContext( hGEOSCtxt );</span>
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span><span class="lineCov">          1 :     return CE_None;</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            : }
+<span class="lineNum">     225 </span>            : #endif  // HAVE_GEOS
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            : /************************************************************************/
+<span class="lineNum">     228 </span>            : /*                         CutlineTransformer()                         */
+<span class="lineNum">     229 </span>            : /*                                                                      */
+<span class="lineNum">     230 </span>            : /*      A simple transformer for the cutline that just offsets          */
+<span class="lineNum">     231 </span>            : /*      relative to the current chunk.                                  */
+<a name="232"><span class="lineNum">     232 </span>            : /************************************************************************/</a>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineCov">         24 : static int CutlineTransformer( void *pTransformArg,</span>
+<span class="lineNum">     235 </span>            :                                int bDstToSrc,
+<span class="lineNum">     236 </span>            :                                int nPointCount,
+<span class="lineNum">     237 </span>            :                                double *x,
+<span class="lineNum">     238 </span>            :                                double *y,
+<span class="lineNum">     239 </span>            :                                double * /* z */,
+<span class="lineNum">     240 </span>            :                                int * /* panSuccess */ )
+<span class="lineNum">     241 </span>            : {
+<span class="lineNum">     242 </span><span class="lineCov">         24 :     int nXOff = static_cast&lt;int *&gt;(pTransformArg)[0];</span>
+<span class="lineNum">     243 </span><span class="lineCov">         24 :     int nYOff = static_cast&lt;int *&gt;(pTransformArg)[1];</span>
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span><span class="lineCov">         24 :     if( bDstToSrc )</span>
+<span class="lineNum">     246 </span>            :     {
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :         nXOff *= -1;</span>
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 :         nYOff *= -1;</span>
+<span class="lineNum">     249 </span>            :     }
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineCov">       6329 :     for( int i = 0; i &lt; nPointCount; i++ )</span>
+<span class="lineNum">     252 </span>            :     {
+<span class="lineNum">     253 </span><span class="lineCov">       6305 :         x[i] -= nXOff;</span>
+<span class="lineNum">     254 </span><span class="lineCov">       6305 :         y[i] -= nYOff;</span>
+<span class="lineNum">     255 </span>            :     }
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span><span class="lineCov">         24 :     return TRUE;</span>
+<span class="lineNum">     258 </span>            : }
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            : /************************************************************************/
+<span class="lineNum">     261 </span>            : /*                       GDALWarpCutlineMasker()                        */
+<span class="lineNum">     262 </span>            : /*                                                                      */
+<span class="lineNum">     263 </span>            : /*      This function will generate a source mask based on a            */
+<span class="lineNum">     264 </span>            : /*      provided cutline, and optional blend distance.                  */
+<span class="lineNum">     265 </span>            : /************************************************************************/
+<a name="266"><span class="lineNum">     266 </span>            : </a>
+<span class="lineNum">     267 </span>            : CPLErr
+<span class="lineNum">     268 </span><span class="lineCov">         24 : GDALWarpCutlineMasker( void *pMaskFuncArg,</span>
+<span class="lineNum">     269 </span>            :                        int /* nBandCount */,
+<span class="lineNum">     270 </span>            :                        GDALDataType /* eType */,
+<span class="lineNum">     271 </span>            :                        int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     272 </span>            :                        GByte ** /*ppImageData */,
+<span class="lineNum">     273 </span>            :                        int bMaskIsFloat, void *pValidityMask )
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span>            : {
+<span class="lineNum">     276 </span><span class="lineCov">         24 :     if( nXSize &lt; 1 || nYSize &lt; 1 )</span>
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     280 </span>            : /*      Do some minimal checking.                                       */
+<span class="lineNum">     281 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     282 </span><span class="lineCov">         24 :     if( !bMaskIsFloat )</span>
+<span class="lineNum">     283 </span>            :     {
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :         CPLAssert( false );</span>
+<span class="lineNum">     285 </span>            :         return CE_Failure;
+<span class="lineNum">     286 </span>            :     }
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span><span class="lineCov">         24 :     GDALWarpOptions *psWO = static_cast&lt;GDALWarpOptions *&gt;(pMaskFuncArg);</span>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineCov">         24 :     if( psWO == nullptr || psWO-&gt;hCutline == nullptr )</span>
+<span class="lineNum">     291 </span>            :     {
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :         CPLAssert( false );</span>
+<span class="lineNum">     293 </span>            :         return CE_Failure;
+<span class="lineNum">     294 </span>            :     }
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span><span class="lineCov">         24 :     GDALDriverH hMemDriver = GDALGetDriverByName(&quot;MEM&quot;);</span>
+<span class="lineNum">     297 </span><span class="lineCov">         24 :     if( hMemDriver == nullptr )</span>
+<span class="lineNum">     298 </span>            :     {
+<span class="lineNum">     299 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     300 </span><span class="lineNoCov">          0 :                  &quot;GDALWarpCutlineMasker needs MEM driver&quot;);</span>
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     302 </span>            :     }
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     305 </span>            : /*      Check the polygon.                                              */
+<span class="lineNum">     306 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     307 </span><span class="lineCov">         24 :     OGRGeometryH hPolygon = static_cast&lt;OGRGeometryH&gt;(psWO-&gt;hCutline);</span>
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span><span class="lineCov">         48 :     if( wkbFlatten(OGR_G_GetGeometryType(hPolygon)) != wkbPolygon</span>
+<span class="lineNum">     310 </span><span class="lineCov">         24 :         &amp;&amp; wkbFlatten(OGR_G_GetGeometryType(hPolygon)) != wkbMultiPolygon )</span>
+<span class="lineNum">     311 </span>            :     {
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :         CPLAssert( false );</span>
+<span class="lineNum">     313 </span>            :         return CE_Failure;
+<span class="lineNum">     314 </span>            :     }
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span><span class="lineCov">         24 :     OGREnvelope sEnvelope;</span>
+<span class="lineNum">     317 </span><span class="lineCov">         24 :     OGR_G_GetEnvelope( hPolygon, &amp;sEnvelope );</span>
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span><span class="lineCov">         24 :     float *pafMask = static_cast&lt;float *&gt;(pValidityMask);</span>
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineCov">         24 :     if( sEnvelope.MaxX + psWO-&gt;dfCutlineBlendDist &lt; nXOff</span>
+<span class="lineNum">     322 </span><span class="lineCov">         24 :         || sEnvelope.MinX - psWO-&gt;dfCutlineBlendDist &gt; nXOff + nXSize</span>
+<span class="lineNum">     323 </span><span class="lineCov">         24 :         || sEnvelope.MaxY + psWO-&gt;dfCutlineBlendDist &lt; nYOff</span>
+<span class="lineNum">     324 </span><span class="lineCov">         24 :         || sEnvelope.MinY - psWO-&gt;dfCutlineBlendDist &gt; nYOff + nYSize )</span>
+<span class="lineNum">     325 </span>            :     {
+<span class="lineNum">     326 </span>            :         // We are far from the blend line - everything is masked to zero.
+<span class="lineNum">     327 </span>            :         // It would be nice to realize no work is required for this whole
+<span class="lineNum">     328 </span>            :         // chunk!
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :         memset( pafMask, 0, sizeof(float) * nXSize * nYSize );</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     331 </span>            :     }
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     334 </span>            : /*      Create a byte buffer into which we can burn the                 */
+<span class="lineNum">     335 </span>            : /*      mask polygon and wrap it up as a memory dataset.                */
+<span class="lineNum">     336 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     337 </span><span class="lineCov">         24 :     GByte *pabyPolyMask = static_cast&lt;GByte *&gt;(CPLCalloc(nXSize, nYSize));</span>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineCov">         24 :     char szDataPointer[100] = {};</span>
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            :     // cppcheck-suppress redundantCopy
+<span class="lineNum">     342 </span><span class="lineCov">         24 :     snprintf( szDataPointer, sizeof(szDataPointer), &quot;DATAPOINTER=&quot; );</span>
+<span class="lineNum">     343 </span>            :     CPLPrintPointer(
+<span class="lineNum">     344 </span><span class="lineCov">         24 :         szDataPointer+strlen(szDataPointer),</span>
+<span class="lineNum">     345 </span>            :         pabyPolyMask,
+<span class="lineNum">     346 </span><span class="lineCov">         48 :         static_cast&lt;int&gt;(sizeof(szDataPointer) - strlen(szDataPointer)) );</span>
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span>            :     GDALDatasetH hMemDS = GDALCreate( hMemDriver, &quot;warp_temp&quot;,
+<span class="lineNum">     349 </span><span class="lineCov">         24 :                                       nXSize, nYSize, 0, GDT_Byte, nullptr );</span>
+<span class="lineNum">     350 </span><span class="lineCov">         24 :     char *apszOptions[] = { szDataPointer, nullptr };</span>
+<span class="lineNum">     351 </span><span class="lineCov">         24 :     GDALAddBand( hMemDS, GDT_Byte, apszOptions );</span>
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span><span class="lineCov">         24 :     double adfGeoTransform[6] = { 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 };</span>
+<span class="lineNum">     354 </span><span class="lineCov">         24 :     GDALSetGeoTransform( hMemDS, adfGeoTransform );</span>
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     357 </span>            : /*      Burn the polygon into the mask with 1.0 values.                 */
+<span class="lineNum">     358 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     359 </span><span class="lineCov">         24 :     int nTargetBand = 1;</span>
+<span class="lineNum">     360 </span><span class="lineCov">         24 :     double dfBurnValue = 255.0;</span>
+<span class="lineNum">     361 </span><span class="lineCov">         24 :     char **papszRasterizeOptions = nullptr;</span>
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span><span class="lineCov">         24 :     if( CPLFetchBool( psWO-&gt;papszWarpOptions, &quot;CUTLINE_ALL_TOUCHED&quot;, false ))</span>
+<span class="lineNum">     364 </span>            :         papszRasterizeOptions =
+<span class="lineNum">     365 </span><span class="lineCov">          5 :             CSLSetNameValue( papszRasterizeOptions, &quot;ALL_TOUCHED&quot;, &quot;TRUE&quot; );</span>
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span><span class="lineCov">         24 :     int anXYOff[2] = { nXOff, nYOff };</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span>            :     CPLErr eErr =
+<span class="lineNum">     370 </span>            :         GDALRasterizeGeometries( hMemDS, 1, &amp;nTargetBand,
+<span class="lineNum">     371 </span>            :                                  1, &amp;hPolygon,
+<span class="lineNum">     372 </span>            :                                  CutlineTransformer, anXYOff,
+<span class="lineNum">     373 </span>            :                                  &amp;dfBurnValue, papszRasterizeOptions,
+<span class="lineNum">     374 </span><span class="lineCov">         24 :                                  nullptr, nullptr );</span>
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span><span class="lineCov">         24 :     CSLDestroy( papszRasterizeOptions );</span>
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span>            :     // Close and ensure data flushed to underlying array.
+<span class="lineNum">     379 </span><span class="lineCov">         24 :     GDALClose( hMemDS );</span>
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     382 </span>            : /*      In the case with no blend distance, we just apply this as a     */
+<span class="lineNum">     383 </span>            : /*      mask, zeroing out everything outside the polygon.               */
+<span class="lineNum">     384 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     385 </span><span class="lineCov">         24 :     if( psWO-&gt;dfCutlineBlendDist == 0.0 )</span>
+<span class="lineNum">     386 </span>            :     {
+<span class="lineNum">     387 </span><span class="lineCov">    2098942 :         for( int i = nXSize * nYSize - 1; i &gt;= 0; i-- )</span>
+<span class="lineNum">     388 </span>            :         {
+<span class="lineNum">     389 </span><span class="lineCov">    2098919 :             if( pabyPolyMask[i] == 0 )</span>
+<span class="lineNum">     390 </span><span class="lineCov">    1842363 :                 static_cast&lt;float *&gt;(pValidityMask)[i] = 0.0;</span>
+<span class="lineNum">     391 </span>            :         }
+<span class="lineNum">     392 </span>            :     }
+<span class="lineNum">     393 </span>            :     else
+<span class="lineNum">     394 </span>            :     {
+<span class="lineNum">     395 </span>            :         eErr = BlendMaskGenerator( nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">     396 </span>            :                                    pabyPolyMask,
+<span class="lineNum">     397 </span>            :                                    static_cast&lt;float *&gt;(pValidityMask),
+<span class="lineNum">     398 </span><span class="lineCov">          1 :                                    hPolygon, psWO-&gt;dfCutlineBlendDist );</span>
+<span class="lineNum">     399 </span>            :     }
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     402 </span>            : /*      Clean up.                                                       */
+<span class="lineNum">     403 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     404 </span><span class="lineCov">         24 :     CPLFree( pabyPolyMask );</span>
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span><span class="lineCov">         24 :     return eErr;</span>
+<span class="lineNum">     407 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

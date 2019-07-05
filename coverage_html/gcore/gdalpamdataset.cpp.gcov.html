@@ -1,0 +1,1706 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - gcore/gdalpamdataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">gcore</a> - gdalpamdataset.cpp<span style="font-size: 80%;"> (source / <a href="gdalpamdataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">517</td>
+            <td class="headerCovTableEntry">567</td>
+            <td class="headerCovTableEntryHi">91.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">35</td>
+            <td class="headerCovTableEntry">36</td>
+            <td class="headerCovTableEntryHi">97.2 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL Core
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of GDALPamDataset, a dataset base class that
+<span class="lineNum">       5 </span>            :  *           knows how to persist auxiliary metadata into a support XML file.
+<span class="lineNum">       6 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  ******************************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2005, Frank Warmerdam &lt;warmerdam@pobox.com&gt;
+<span class="lineNum">      10 </span>            :  * Copyright (c) 2007-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      11 </span>            :  *
+<span class="lineNum">      12 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      13 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      14 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      15 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      16 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      17 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      18 </span>            :  *
+<span class="lineNum">      19 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      20 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      21 </span>            :  *
+<span class="lineNum">      22 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      23 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      24 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      25 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      26 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      27 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      28 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      29 </span>            :  ****************************************************************************/
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;gdal_pam.h&quot;
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      35 </span>            : #include &lt;cstdlib&gt;
+<span class="lineNum">      36 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      37 </span>            : #include &lt;string&gt;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;cpl_minixml.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;cpl_progress.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      47 </span>            : #include &quot;ogr_core.h&quot;
+<span class="lineNum">      48 </span>            : #include &quot;ogr_spatialref.h&quot;
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : /************************************************************************/
+<span class="lineNum">      53 </span>            : /*                           GDALPamDataset()                           */
+<span class="lineNum">      54 </span>            : /************************************************************************/
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : /**
+<span class="lineNum">      57 </span>            :  * \class GDALPamDataset &quot;gdal_pam.h&quot;
+<span class="lineNum">      58 </span>            :  *
+<span class="lineNum">      59 </span>            :  * A subclass of GDALDataset which introduces the ability to save and
+<span class="lineNum">      60 </span>            :  * restore auxiliary information (coordinate system, gcps, metadata,
+<span class="lineNum">      61 </span>            :  * etc) not supported by a file format via an &quot;auxiliary metadata&quot; file
+<span class="lineNum">      62 </span>            :  * with the .aux.xml extension.
+<span class="lineNum">      63 </span>            :  *
+<span class="lineNum">      64 </span>            :  * &lt;h3&gt;Enabling PAM&lt;/h3&gt;
+<span class="lineNum">      65 </span>            :  *
+<span class="lineNum">      66 </span>            :  * PAM support can be enabled (resp. disabled) in GDAL by setting the
+<span class="lineNum">      67 </span>            :  * GDAL_PAM_ENABLED configuration option (via CPLSetConfigOption(), or the
+<span class="lineNum">      68 </span>            :  * environment) to the value of YES (resp. NO). Note: The default value is
+<span class="lineNum">      69 </span>            :  * build dependent and defaults to YES in Windows and Unix builds.
+<span class="lineNum">      70 </span>            :  *
+<span class="lineNum">      71 </span>            :  * &lt;h3&gt;PAM Proxy Files&lt;/h3&gt;
+<span class="lineNum">      72 </span>            :  *
+<span class="lineNum">      73 </span>            :  * In order to be able to record auxiliary information about files on
+<span class="lineNum">      74 </span>            :  * read-only media such as CDROMs or in directories where the user does not
+<span class="lineNum">      75 </span>            :  * have write permissions, it is possible to enable the &quot;PAM Proxy Database&quot;.
+<span class="lineNum">      76 </span>            :  * When enabled the .aux.xml files are kept in a different directory, writable
+<span class="lineNum">      77 </span>            :  * by the user. Overviews will also be stored in the PAM proxy directory.
+<span class="lineNum">      78 </span>            :  *
+<span class="lineNum">      79 </span>            :  * To enable this, set the GDAL_PAM_PROXY_DIR configuration option to be
+<span class="lineNum">      80 </span>            :  * the name of the directory where the proxies should be kept. The configuration
+<span class="lineNum">      81 </span>            :  * option must be set *before* the first access to PAM, because its value is
+<span class="lineNum">      82 </span>            :  * cached for later access.
+<span class="lineNum">      83 </span>            :  *
+<span class="lineNum">      84 </span>            :  * &lt;h3&gt;Adding PAM to Drivers&lt;/h3&gt;
+<span class="lineNum">      85 </span>            :  *
+<span class="lineNum">      86 </span>            :  * Drivers for physical file formats that wish to support persistent auxiliary
+<span class="lineNum">      87 </span>            :  * metadata in addition to that for the format itself should derive their
+<span class="lineNum">      88 </span>            :  * dataset class from GDALPamDataset instead of directly from GDALDataset.
+<span class="lineNum">      89 </span>            :  * The raster band classes should also be derived from GDALPamRasterBand.
+<span class="lineNum">      90 </span>            :  *
+<span class="lineNum">      91 </span>            :  * They should also call something like this near the end of the Open()
+<span class="lineNum">      92 </span>            :  * method:
+<span class="lineNum">      93 </span>            :  *
+<span class="lineNum">      94 </span>            :  * \code
+<span class="lineNum">      95 </span>            :  *      poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );
+<span class="lineNum">      96 </span>            :  *      poDS-&gt;TryLoadXML();
+<span class="lineNum">      97 </span>            :  * \endcode
+<span class="lineNum">      98 </span>            :  *
+<span class="lineNum">      99 </span>            :  * The SetDescription() is necessary so that the dataset will have a valid
+<span class="lineNum">     100 </span>            :  * filename set as the description before TryLoadXML() is called.  TryLoadXML()
+<span class="lineNum">     101 </span>            :  * will look for an .aux.xml file with the same basename as the dataset and
+<span class="lineNum">     102 </span>            :  * in the same directory.  If found the contents will be loaded and kept
+<span class="lineNum">     103 </span>            :  * track of in the GDALPamDataset and GDALPamRasterBand objects.  When a
+<span class="lineNum">     104 </span>            :  * call like GetProjectionRef() is not implemented by the format specific
+<span class="lineNum">     105 </span>            :  * class, it will fall through to the PAM implementation which will return
+<span class="lineNum">     106 </span>            :  * information if it was in the .aux.xml file.
+<span class="lineNum">     107 </span>            :  *
+<span class="lineNum">     108 </span>            :  * Drivers should also try to call the GDALPamDataset/GDALPamRasterBand
+<span class="lineNum">     109 </span>            :  * methods as a fallback if their implementation does not find information.
+<span class="lineNum">     110 </span>            :  * This allows using the .aux.xml for variations that can't be stored in
+<span class="lineNum">     111 </span>            :  * the format.  For instance, the GeoTIFF driver GetProjectionRef() looks
+<span class="lineNum">     112 </span>            :  * like this:
+<span class="lineNum">     113 </span>            :  *
+<span class="lineNum">     114 </span>            :  * \code
+<span class="lineNum">     115 </span>            :  *      if( EQUAL(pszProjection,&quot;&quot;) )
+<span class="lineNum">     116 </span>            :  *          return GDALPamDataset::GetProjectionRef();
+<span class="lineNum">     117 </span>            :  *      else
+<span class="lineNum">     118 </span>            :  *          return( pszProjection );
+<span class="lineNum">     119 </span>            :  * \endcode
+<span class="lineNum">     120 </span>            :  *
+<span class="lineNum">     121 </span>            :  * So if the geotiff header is missing, the .aux.xml file will be
+<span class="lineNum">     122 </span>            :  * consulted.
+<span class="lineNum">     123 </span>            :  *
+<span class="lineNum">     124 </span>            :  * Similarly, if SetProjection() were called with a coordinate system
+<span class="lineNum">     125 </span>            :  * not supported by GeoTIFF, the SetProjection() method should pass it on
+<span class="lineNum">     126 </span>            :  * to the GDALPamDataset::SetProjection() method after issuing a warning
+<span class="lineNum">     127 </span>            :  * that the information can't be represented within the file itself.
+<span class="lineNum">     128 </span>            :  *
+<span class="lineNum">     129 </span>            :  * Drivers for subdataset based formats will also need to declare the
+<span class="lineNum">     130 </span>            :  * name of the physical file they are related to, and the name of their
+<span class="lineNum">     131 </span>            :  * subdataset before calling TryLoadXML().
+<span class="lineNum">     132 </span>            :  *
+<span class="lineNum">     133 </span>            :  * \code
+<span class="lineNum">     134 </span>            :  *      poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );
+<span class="lineNum">     135 </span>            :  *      poDS-&gt;SetPhysicalFilename( poDS-&gt;pszFilename );
+<span class="lineNum">     136 </span>            :  *      poDS-&gt;SetSubdatasetName( osSubdatasetName );
+<span class="lineNum">     137 </span>            :  *
+<span class="lineNum">     138 </span>            :  *      poDS-&gt;TryLoadXML();
+<span class="lineNum">     139 </span>            :  * \endcode
+<span class="lineNum">     140 </span>            :  */
+<a name="141"><span class="lineNum">     141 </span>            : class GDALPamDataset;</a>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span><span class="lineCov">      31905 : GDALPamDataset::GDALPamDataset()</span>
+<span class="lineNum">     144 </span>            : {
+<span class="lineNum">     145 </span><span class="lineCov">      31892 :     SetMOFlags( GetMOFlags() | GMO_PAM_CLASS );</span>
+<span class="lineNum">     146 </span><span class="lineCov">      31854 : }</span>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            : /************************************************************************/
+<span class="lineNum">     149 </span>            : /*                          ~GDALPamDataset()                           */
+<a name="150"><span class="lineNum">     150 </span>            : /************************************************************************/</a>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">      63803 : GDALPamDataset::~GDALPamDataset()</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            : {
+<span class="lineNum">     155 </span><span class="lineCov">      31911 :     if( nPamFlags &amp; GPF_DIRTY )</span>
+<span class="lineNum">     156 </span>            :     {
+<span class="lineNum">     157 </span><span class="lineCov">        451 :         CPLDebug( &quot;GDALPamDataset&quot;, &quot;In destructor with dirty metadata.&quot; );</span>
+<span class="lineNum">     158 </span><span class="lineCov">        451 :         GDALPamDataset::TrySaveXML();</span>
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineCov">      31911 :     PamClear();</span>
+<span class="lineNum">     162 </span><span class="lineCov">      31920 : }</span>
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            : /************************************************************************/
+<span class="lineNum">     165 </span>            : /*                             FlushCache()                             */
+<a name="166"><span class="lineNum">     166 </span>            : /************************************************************************/</a>
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span><span class="lineCov">      42323 : void GDALPamDataset::FlushCache()</span>
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            : {
+<span class="lineNum">     171 </span><span class="lineCov">      42323 :     GDALDataset::FlushCache();</span>
+<span class="lineNum">     172 </span><span class="lineCov">      42318 :     if( nPamFlags &amp; GPF_DIRTY )</span>
+<span class="lineNum">     173 </span><span class="lineCov">        764 :         TrySaveXML();</span>
+<span class="lineNum">     174 </span><span class="lineCov">      42318 : }</span>
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span>            : /************************************************************************/
+<span class="lineNum">     177 </span>            : /*                           SerializeToXML()                           */
+<span class="lineNum">     178 </span>            : /************************************************************************/
+<a name="179"><span class="lineNum">     179 </span>            : </a>
+<span class="lineNum">     180 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">     181 </span><span class="lineCov">        708 : CPLXMLNode *GDALPamDataset::SerializeToXML( const char *pszUnused )</span>
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span>            : {
+<span class="lineNum">     184 </span><span class="lineCov">        708 :     if( psPam == nullptr )</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     188 </span>            : /*      Setup root node and attributes.                                 */
+<span class="lineNum">     189 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     190 </span><span class="lineCov">        708 :     CPLXMLNode *psDSTree = CPLCreateXMLNode( nullptr, CXT_Element, &quot;PAMDataset&quot; );</span>
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     193 </span>            : /*      SRS                                                             */
+<span class="lineNum">     194 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     195 </span><span class="lineCov">        708 :     if( psPam-&gt;poSRS &amp;&amp; !psPam-&gt;poSRS-&gt;IsEmpty() )</span>
+<span class="lineNum">     196 </span>            :     {
+<span class="lineNum">     197 </span><span class="lineCov">        177 :         char* pszWKT = nullptr;</span>
+<span class="lineNum">     198 </span><span class="lineCov">        177 :         psPam-&gt;poSRS-&gt;exportToWkt(&amp;pszWKT);</span>
+<span class="lineNum">     199 </span><span class="lineCov">        177 :         CPLXMLNode* psSRSNode = CPLCreateXMLElementAndValue( psDSTree, &quot;SRS&quot;, pszWKT );</span>
+<span class="lineNum">     200 </span><span class="lineCov">        177 :         CPLFree(pszWKT);</span>
+<span class="lineNum">     201 </span><span class="lineCov">        177 :         const auto&amp; mapping = psPam-&gt;poSRS-&gt;GetDataAxisToSRSAxisMapping();</span>
+<span class="lineNum">     202 </span><span class="lineCov">        177 :         CPLString osMapping;</span>
+<span class="lineNum">     203 </span><span class="lineCov">        531 :         for( size_t i = 0; i &lt; mapping.size(); ++i )</span>
+<span class="lineNum">     204 </span>            :         {
+<span class="lineNum">     205 </span><span class="lineCov">        354 :             if( !osMapping.empty() )</span>
+<span class="lineNum">     206 </span><span class="lineCov">        177 :                 osMapping += &quot;,&quot;;</span>
+<span class="lineNum">     207 </span><span class="lineCov">        354 :             osMapping += CPLSPrintf(&quot;%d&quot;, mapping[i]);</span>
+<span class="lineNum">     208 </span>            :         }
+<span class="lineNum">     209 </span>            :         CPLAddXMLAttributeAndValue(psSRSNode, &quot;dataAxisToSRSAxisMapping&quot;,
+<span class="lineNum">     210 </span><span class="lineCov">        177 :                                    osMapping.c_str());</span>
+<span class="lineNum">     211 </span>            :     }
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     214 </span>            : /*      GeoTransform.                                                   */
+<span class="lineNum">     215 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     216 </span><span class="lineCov">        708 :     if( psPam-&gt;bHaveGeoTransform )</span>
+<span class="lineNum">     217 </span>            :     {
+<span class="lineNum">     218 </span><span class="lineCov">        156 :         CPLString oFmt;</span>
+<span class="lineNum">     219 </span>            :         oFmt.Printf( &quot;%24.16e,%24.16e,%24.16e,%24.16e,%24.16e,%24.16e&quot;,
+<span class="lineNum">     220 </span>            :                      psPam-&gt;adfGeoTransform[0],
+<span class="lineNum">     221 </span>            :                      psPam-&gt;adfGeoTransform[1],
+<span class="lineNum">     222 </span>            :                      psPam-&gt;adfGeoTransform[2],
+<span class="lineNum">     223 </span>            :                      psPam-&gt;adfGeoTransform[3],
+<span class="lineNum">     224 </span>            :                      psPam-&gt;adfGeoTransform[4],
+<span class="lineNum">     225 </span><span class="lineCov">        156 :                      psPam-&gt;adfGeoTransform[5] );</span>
+<span class="lineNum">     226 </span><span class="lineCov">        156 :         CPLSetXMLValue( psDSTree, &quot;GeoTransform&quot;, oFmt );</span>
+<span class="lineNum">     227 </span>            :     }
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     230 </span>            : /*      Metadata.                                                       */
+<span class="lineNum">     231 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     232 </span><span class="lineCov">        708 :     if( psPam-&gt;bHasMetadata )</span>
+<span class="lineNum">     233 </span>            :     {
+<span class="lineNum">     234 </span><span class="lineCov">        444 :         CPLXMLNode *psMD = oMDMD.Serialize();</span>
+<span class="lineNum">     235 </span><span class="lineCov">        444 :         if( psMD != nullptr )</span>
+<span class="lineNum">     236 </span>            :         {
+<span class="lineNum">     237 </span><span class="lineCov">        430 :             CPLAddXMLChild( psDSTree, psMD );</span>
+<span class="lineNum">     238 </span>            :         }
+<span class="lineNum">     239 </span>            :     }
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     242 </span>            : /*      GCPs                                                            */
+<span class="lineNum">     243 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     244 </span><span class="lineCov">        708 :     if( psPam-&gt;nGCPCount &gt; 0 )</span>
+<span class="lineNum">     245 </span>            :     {
+<span class="lineNum">     246 </span>            :         GDALSerializeGCPListToXML( psDSTree,
+<span class="lineNum">     247 </span>            :                                    psPam-&gt;pasGCPList,
+<span class="lineNum">     248 </span>            :                                    psPam-&gt;nGCPCount,
+<span class="lineNum">     249 </span><span class="lineCov">          4 :                                    psPam-&gt;poGCP_SRS );</span>
+<span class="lineNum">     250 </span>            :     }
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     253 </span>            : /*      Process bands.                                                  */
+<span class="lineNum">     254 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span>            :     // Find last child
+<span class="lineNum">     257 </span><span class="lineCov">        708 :     CPLXMLNode* psLastChild = psDSTree-&gt;psChild;</span>
+<span class="lineNum">     258 </span><span class="lineCov">        708 :     for( ; psLastChild != nullptr &amp;&amp; psLastChild-&gt;psNext;</span>
+<span class="lineNum">     259 </span>            :                                     psLastChild = psLastChild-&gt;psNext )
+<span class="lineNum">     260 </span>            :     {
+<span class="lineNum">     261 </span>            :     }
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span><span class="lineCov">       1660 :     for( int iBand = 0; iBand &lt; GetRasterCount(); iBand++ )</span>
+<span class="lineNum">     264 </span>            :     {
+<span class="lineNum">     265 </span><span class="lineCov">        952 :         GDALRasterBand * const poBand = GetRasterBand(iBand+1);</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span><span class="lineCov">        952 :         if( poBand == nullptr || !(poBand-&gt;GetMOFlags() &amp; GMO_PAM_CLASS) )</span>
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            :         CPLXMLNode * const psBandTree =
+<span class="lineNum">     271 </span><span class="lineCov">        952 :             cpl::down_cast&lt;GDALPamRasterBand *&gt;(poBand)-&gt;SerializeToXML( pszUnused );</span>
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span><span class="lineCov">        952 :         if( psBandTree != nullptr )</span>
+<span class="lineNum">     274 </span>            :         {
+<span class="lineNum">     275 </span><span class="lineCov">        379 :             if( psLastChild == nullptr )</span>
+<span class="lineNum">     276 </span>            :             {
+<span class="lineNum">     277 </span><span class="lineCov">        128 :                 CPLAddXMLChild( psDSTree, psBandTree );</span>
+<span class="lineNum">     278 </span>            :             }
+<span class="lineNum">     279 </span>            :             else
+<span class="lineNum">     280 </span>            :             {
+<span class="lineNum">     281 </span><span class="lineCov">        251 :                 psLastChild-&gt;psNext = psBandTree;</span>
+<span class="lineNum">     282 </span>            :             }
+<span class="lineNum">     283 </span><span class="lineCov">        379 :             psLastChild = psBandTree;</span>
+<span class="lineNum">     284 </span>            :         }
+<span class="lineNum">     285 </span>            :     }
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     288 </span>            : /*      We don't want to return anything if we had no metadata to       */
+<span class="lineNum">     289 </span>            : /*      attach.                                                         */
+<span class="lineNum">     290 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     291 </span><span class="lineCov">        708 :     if( psDSTree-&gt;psChild == nullptr )</span>
+<span class="lineNum">     292 </span>            :     {
+<span class="lineNum">     293 </span><span class="lineCov">         17 :         CPLDestroyXMLNode( psDSTree );</span>
+<span class="lineNum">     294 </span><span class="lineCov">         17 :         psDSTree = nullptr;</span>
+<span class="lineNum">     295 </span>            :     }
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span><span class="lineCov">        708 :     return psDSTree;</span>
+<span class="lineNum">     298 </span>            : }
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span>            : /************************************************************************/
+<span class="lineNum">     301 </span>            : /*                           PamInitialize()                            */
+<a name="302"><span class="lineNum">     302 </span>            : /************************************************************************/</a>
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span><span class="lineCov">     510702 : void GDALPamDataset::PamInitialize()</span>
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            : {
+<span class="lineNum">     307 </span>            : #ifdef PAM_ENABLED
+<span class="lineNum">     308 </span><span class="lineCov">     510702 :     const char * const pszPamDefault = &quot;YES&quot;;</span>
+<span class="lineNum">     309 </span>            : #else
+<span class="lineNum">     310 </span>            :     const char * const pszPamDefault = &quot;NO&quot;;
+<span class="lineNum">     311 </span>            : #endif
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span><span class="lineCov">     510702 :     if( psPam || (nPamFlags &amp; GPF_DISABLED) )</span>
+<span class="lineNum">     314 </span><span class="lineCov">     489658 :         return;</span>
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span><span class="lineCov">      21044 :     if( !CPLTestBool( CPLGetConfigOption( &quot;GDAL_PAM_ENABLED&quot;,</span>
+<span class="lineNum">     317 </span><span class="lineCov">      21044 :                                              pszPamDefault ) ) )</span>
+<span class="lineNum">     318 </span>            :     {
+<span class="lineNum">     319 </span><span class="lineCov">         13 :         nPamFlags |= GPF_DISABLED;</span>
+<span class="lineNum">     320 </span><span class="lineCov">         13 :         return;</span>
+<span class="lineNum">     321 </span>            :     }
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            :     /* ERO 2011/04/13 : GPF_AUXMODE seems to be unimplemented */
+<span class="lineNum">     324 </span><span class="lineCov">      21031 :     if( EQUAL( CPLGetConfigOption( &quot;GDAL_PAM_MODE&quot;, &quot;PAM&quot; ), &quot;AUX&quot;) )</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :         nPamFlags |= GPF_AUXMODE;</span>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineCov">      21031 :     psPam = new GDALDatasetPamInfo;</span>
+<span class="lineNum">     328 </span><span class="lineCov">     462076 :     for( int iBand = 0; iBand &lt; GetRasterCount(); iBand++ )</span>
+<span class="lineNum">     329 </span>            :     {
+<span class="lineNum">     330 </span><span class="lineCov">     441045 :         GDALRasterBand *poBand = GetRasterBand(iBand+1);</span>
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span><span class="lineCov">     441045 :         if( poBand == nullptr || !(poBand-&gt;GetMOFlags() &amp; GMO_PAM_CLASS) )</span>
+<span class="lineNum">     333 </span><span class="lineCov">         90 :             continue;</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span><span class="lineCov">     440955 :         cpl::down_cast&lt;GDALPamRasterBand *&gt;(poBand)-&gt;PamInitialize();</span>
+<span class="lineNum">     336 </span>            :     }
+<span class="lineNum">     337 </span>            : }
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            : /************************************************************************/
+<span class="lineNum">     340 </span>            : /*                              PamClear()                              */
+<a name="341"><span class="lineNum">     341 </span>            : /************************************************************************/</a>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span><span class="lineCov">      31892 : void GDALPamDataset::PamClear()</span>
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span>            : {
+<span class="lineNum">     346 </span><span class="lineCov">      31892 :     if( psPam )</span>
+<span class="lineNum">     347 </span>            :     {
+<span class="lineNum">     348 </span><span class="lineCov">      21031 :         CPLFree( psPam-&gt;pszPamFilename );</span>
+<span class="lineNum">     349 </span><span class="lineCov">      21031 :         if( psPam-&gt;poSRS )</span>
+<span class="lineNum">     350 </span><span class="lineCov">        518 :             psPam-&gt;poSRS-&gt;Release();</span>
+<span class="lineNum">     351 </span><span class="lineCov">      21031 :         if( psPam-&gt;poGCP_SRS )</span>
+<span class="lineNum">     352 </span><span class="lineCov">         28 :             psPam-&gt;poGCP_SRS-&gt;Release();</span>
+<span class="lineNum">     353 </span><span class="lineCov">      21031 :         if( psPam-&gt;nGCPCount &gt; 0 )</span>
+<span class="lineNum">     354 </span>            :         {
+<span class="lineNum">     355 </span><span class="lineCov">         25 :             GDALDeinitGCPs( psPam-&gt;nGCPCount, psPam-&gt;pasGCPList );</span>
+<span class="lineNum">     356 </span><span class="lineCov">         25 :             CPLFree( psPam-&gt;pasGCPList );</span>
+<span class="lineNum">     357 </span>            :         }
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineCov">      21031 :         delete psPam;</span>
+<span class="lineNum">     360 </span><span class="lineCov">      21031 :         psPam = nullptr;</span>
+<span class="lineNum">     361 </span>            :     }
+<span class="lineNum">     362 </span><span class="lineCov">      31892 : }</span>
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span>            : /************************************************************************/
+<span class="lineNum">     365 </span>            : /*                              XMLInit()                               */
+<a name="366"><span class="lineNum">     366 </span>            : /************************************************************************/</a>
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span><span class="lineCov">        930 : CPLErr GDALPamDataset::XMLInit( CPLXMLNode *psTree, const char *pszUnused )</span>
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span>            : {
+<span class="lineNum">     371 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     372 </span>            : /*      Check for an SRS node.                                          */
+<span class="lineNum">     373 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     374 </span><span class="lineCov">        930 :     CPLXMLNode* psSRSNode = CPLGetXMLNode(psTree, &quot;SRS&quot;);</span>
+<span class="lineNum">     375 </span><span class="lineCov">        930 :     if( psSRSNode )</span>
+<span class="lineNum">     376 </span>            :     {
+<span class="lineNum">     377 </span><span class="lineCov">        268 :         if( psPam-&gt;poSRS )</span>
+<span class="lineNum">     378 </span><span class="lineCov">         25 :             psPam-&gt;poSRS-&gt;Release();</span>
+<span class="lineNum">     379 </span><span class="lineCov">        268 :         psPam-&gt;poSRS = new OGRSpatialReference();</span>
+<span class="lineNum">     380 </span><span class="lineCov">        268 :         psPam-&gt;poSRS-&gt;SetFromUserInput( CPLGetXMLValue(psSRSNode, nullptr, &quot;&quot;) );</span>
+<span class="lineNum">     381 </span>            :         const char* pszMapping =
+<span class="lineNum">     382 </span><span class="lineCov">        268 :             CPLGetXMLValue(psSRSNode, &quot;dataAxisToSRSAxisMapping&quot;, nullptr);</span>
+<span class="lineNum">     383 </span><span class="lineCov">        268 :         if( pszMapping )</span>
+<span class="lineNum">     384 </span>            :         {
+<span class="lineNum">     385 </span><span class="lineCov">        190 :             char** papszTokens = CSLTokenizeStringComplex( pszMapping, &quot;,&quot;, FALSE, FALSE);</span>
+<span class="lineNum">     386 </span><span class="lineCov">        190 :             std::vector&lt;int&gt; anMapping;</span>
+<span class="lineNum">     387 </span><span class="lineCov">        570 :             for( int i = 0; papszTokens &amp;&amp; papszTokens[i]; i++ )</span>
+<span class="lineNum">     388 </span>            :             {
+<span class="lineNum">     389 </span><span class="lineCov">        380 :                 anMapping.push_back(atoi(papszTokens[i]));</span>
+<span class="lineNum">     390 </span>            :             }
+<span class="lineNum">     391 </span><span class="lineCov">        190 :             CSLDestroy(papszTokens);</span>
+<span class="lineNum">     392 </span><span class="lineCov">        190 :             psPam-&gt;poSRS-&gt;SetDataAxisToSRSAxisMapping(anMapping);</span>
+<span class="lineNum">     393 </span>            :         }
+<span class="lineNum">     394 </span>            :         else
+<span class="lineNum">     395 </span>            :         {
+<span class="lineNum">     396 </span><span class="lineCov">         78 :             psPam-&gt;poSRS-&gt;SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">     397 </span>            :         }
+<span class="lineNum">     398 </span>            :     }
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     401 </span>            : /*      Check for a GeoTransform node.                                  */
+<span class="lineNum">     402 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     403 </span><span class="lineCov">        930 :     if( strlen(CPLGetXMLValue(psTree, &quot;GeoTransform&quot;, &quot;&quot;)) &gt; 0 )</span>
+<span class="lineNum">     404 </span>            :     {
+<span class="lineNum">     405 </span><span class="lineCov">        249 :         const char *pszGT = CPLGetXMLValue(psTree, &quot;GeoTransform&quot;, &quot;&quot;);</span>
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span>            :         char **papszTokens =
+<span class="lineNum">     408 </span><span class="lineCov">        249 :             CSLTokenizeStringComplex( pszGT, &quot;,&quot;, FALSE, FALSE );</span>
+<span class="lineNum">     409 </span><span class="lineCov">        249 :         if( CSLCount(papszTokens) != 6 )</span>
+<span class="lineNum">     410 </span>            :         {
+<span class="lineNum">     411 </span>            :             CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :                       &quot;GeoTransform node does not have expected six values.&quot;);</span>
+<span class="lineNum">     413 </span>            :         }
+<span class="lineNum">     414 </span>            :         else
+<span class="lineNum">     415 </span>            :         {
+<span class="lineNum">     416 </span><span class="lineCov">       1743 :             for( int iTA = 0; iTA &lt; 6; iTA++ )</span>
+<span class="lineNum">     417 </span><span class="lineCov">       1494 :                 psPam-&gt;adfGeoTransform[iTA] = CPLAtof(papszTokens[iTA]);</span>
+<span class="lineNum">     418 </span><span class="lineCov">        249 :             psPam-&gt;bHaveGeoTransform = TRUE;</span>
+<span class="lineNum">     419 </span>            :         }
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span><span class="lineCov">        249 :         CSLDestroy( papszTokens );</span>
+<span class="lineNum">     422 </span>            :     }
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     425 </span>            : /*      Check for GCPs.                                                 */
+<span class="lineNum">     426 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     427 </span><span class="lineCov">        930 :     CPLXMLNode *psGCPList = CPLGetXMLNode( psTree, &quot;GCPList&quot; );</span>
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineCov">        930 :     if( psGCPList != nullptr )</span>
+<span class="lineNum">     430 </span>            :     {
+<span class="lineNum">     431 </span><span class="lineCov">         21 :         if( psPam-&gt;poGCP_SRS )</span>
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :             psPam-&gt;poGCP_SRS-&gt;Release();</span>
+<span class="lineNum">     433 </span><span class="lineCov">         21 :         psPam-&gt;poGCP_SRS = nullptr;</span>
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span>            :         // Make sure any previous GCPs, perhaps from an .aux file, are cleared
+<span class="lineNum">     436 </span>            :         // if we have new ones.
+<span class="lineNum">     437 </span><span class="lineCov">         21 :         if( psPam-&gt;nGCPCount &gt; 0 )</span>
+<span class="lineNum">     438 </span>            :         {
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :             GDALDeinitGCPs( psPam-&gt;nGCPCount, psPam-&gt;pasGCPList );</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :             CPLFree( psPam-&gt;pasGCPList );</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :             psPam-&gt;nGCPCount = 0;</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :             psPam-&gt;pasGCPList = nullptr;</span>
+<span class="lineNum">     443 </span>            :         }
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span>            :         GDALDeserializeGCPListFromXML( psGCPList,
+<span class="lineNum">     446 </span>            :                                        &amp;(psPam-&gt;pasGCPList),
+<span class="lineNum">     447 </span>            :                                        &amp;(psPam-&gt;nGCPCount),
+<span class="lineNum">     448 </span><span class="lineCov">         21 :                                        &amp;(psPam-&gt;poGCP_SRS) );</span>
+<span class="lineNum">     449 </span>            :     }
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     452 </span>            : /*      Apply any dataset level metadata.                               */
+<span class="lineNum">     453 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     454 </span><span class="lineCov">        930 :     if( oMDMD.XMLInit( psTree, TRUE ) )</span>
+<span class="lineNum">     455 </span>            :     {
+<span class="lineNum">     456 </span><span class="lineCov">        638 :         psPam-&gt;bHasMetadata = TRUE;</span>
+<span class="lineNum">     457 </span>            :     }
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     460 </span>            : /*      Try loading ESRI xml encoded GeodataXform.                      */
+<span class="lineNum">     461 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     462 </span><span class="lineCov">        930 :     if (psPam-&gt;poSRS == nullptr)</span>
+<span class="lineNum">     463 </span>            :     {
+<span class="lineNum">     464 </span>            :         // ArcGIS 9.3: GeodataXform as a root element
+<span class="lineNum">     465 </span><span class="lineCov">        662 :         CPLXMLNode* psGeodataXform = CPLGetXMLNode(psTree, &quot;=GeodataXform&quot;);</span>
+<span class="lineNum">     466 </span><span class="lineCov">        662 :         CPLXMLNode *psValueAsXML = nullptr;</span>
+<span class="lineNum">     467 </span><span class="lineCov">        662 :         if( psGeodataXform != nullptr )</span>
+<span class="lineNum">     468 </span>            :         {
+<span class="lineNum">     469 </span>            :             char* apszMD[2];
+<span class="lineNum">     470 </span><span class="lineCov">          1 :             apszMD[0] = CPLSerializeXMLTree(psGeodataXform);</span>
+<span class="lineNum">     471 </span><span class="lineCov">          1 :             apszMD[1] = nullptr;</span>
+<span class="lineNum">     472 </span><span class="lineCov">          1 :             oMDMD.SetMetadata( apszMD, &quot;xml:ESRI&quot;);</span>
+<span class="lineNum">     473 </span><span class="lineCov">          1 :             CPLFree(apszMD[0]);</span>
+<span class="lineNum">     474 </span>            :         }
+<span class="lineNum">     475 </span>            :         else
+<span class="lineNum">     476 </span>            :         {
+<span class="lineNum">     477 </span>            :             // ArcGIS 10: GeodataXform as content of xml:ESRI metadata domain.
+<span class="lineNum">     478 </span><span class="lineCov">        661 :             char** papszXML = oMDMD.GetMetadata( &quot;xml:ESRI&quot; );</span>
+<span class="lineNum">     479 </span><span class="lineCov">        661 :             if (CSLCount(papszXML) == 1)</span>
+<span class="lineNum">     480 </span>            :             {
+<span class="lineNum">     481 </span><span class="lineCov">          6 :                 psValueAsXML = CPLParseXMLString( papszXML[0] );</span>
+<span class="lineNum">     482 </span><span class="lineCov">          6 :                 if( psValueAsXML )</span>
+<span class="lineNum">     483 </span><span class="lineCov">          6 :                     psGeodataXform = CPLGetXMLNode(psValueAsXML, &quot;=GeodataXform&quot;);</span>
+<span class="lineNum">     484 </span>            :             }
+<span class="lineNum">     485 </span>            :         }
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span><span class="lineCov">        662 :         if (psGeodataXform)</span>
+<span class="lineNum">     488 </span>            :         {
+<span class="lineNum">     489 </span>            :             const char* pszESRI_WKT = CPLGetXMLValue(psGeodataXform,
+<span class="lineNum">     490 </span><span class="lineCov">          3 :                                 &quot;SpatialReference.WKT&quot;, nullptr);</span>
+<span class="lineNum">     491 </span><span class="lineCov">          3 :             if (pszESRI_WKT)</span>
+<span class="lineNum">     492 </span>            :             {
+<span class="lineNum">     493 </span><span class="lineCov">          3 :                 psPam-&gt;poSRS = new OGRSpatialReference(nullptr);</span>
+<span class="lineNum">     494 </span><span class="lineCov">          3 :                 psPam-&gt;poSRS-&gt;SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">     495 </span><span class="lineCov">          3 :                 if( psPam-&gt;poSRS-&gt;importFromWkt(pszESRI_WKT) != OGRERR_NONE)</span>
+<span class="lineNum">     496 </span>            :                 {
+<span class="lineNum">     497 </span><span class="lineNoCov">          0 :                     delete psPam-&gt;poSRS;</span>
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :                     psPam-&gt;poSRS = nullptr;</span>
+<span class="lineNum">     499 </span>            :                 }
+<span class="lineNum">     500 </span>            :             }
+<span class="lineNum">     501 </span>            :         }
+<span class="lineNum">     502 </span><span class="lineCov">        662 :         if( psValueAsXML )</span>
+<span class="lineNum">     503 </span><span class="lineCov">          6 :             CPLDestroyXMLNode(psValueAsXML);</span>
+<span class="lineNum">     504 </span>            :     }
+<span class="lineNum">     505 </span>            : 
+<span class="lineNum">     506 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     507 </span>            : /*      Process bands.                                                  */
+<span class="lineNum">     508 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     509 </span><span class="lineCov">       2702 :     for( CPLXMLNode *psBandTree = psTree-&gt;psChild;</span>
+<span class="lineNum">     510 </span>            :          psBandTree != nullptr;
+<span class="lineNum">     511 </span>            :          psBandTree = psBandTree-&gt;psNext )
+<span class="lineNum">     512 </span>            :     {
+<span class="lineNum">     513 </span><span class="lineCov">       1772 :         if( psBandTree-&gt;eType != CXT_Element</span>
+<span class="lineNum">     514 </span><span class="lineCov">       1770 :             || !EQUAL(psBandTree-&gt;pszValue,&quot;PAMRasterBand&quot;) )</span>
+<span class="lineNum">     515 </span><span class="lineCov">       1295 :             continue;</span>
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span><span class="lineCov">        477 :         const int nBand = atoi(CPLGetXMLValue( psBandTree, &quot;band&quot;, &quot;0&quot;));</span>
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span><span class="lineCov">        477 :         if( nBand &lt; 1 || nBand &gt; GetRasterCount() )</span>
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span><span class="lineCov">        477 :         GDALRasterBand *poBand = GetRasterBand(nBand);</span>
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span><span class="lineCov">        477 :         if( poBand == nullptr || !(poBand-&gt;GetMOFlags() &amp; GMO_PAM_CLASS) )</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     526 </span>            : 
+<span class="lineNum">     527 </span>            :         GDALPamRasterBand *poPamBand = cpl::down_cast&lt;GDALPamRasterBand *&gt;(
+<span class="lineNum">     528 </span><span class="lineCov">        477 :             GetRasterBand(nBand) );</span>
+<span class="lineNum">     529 </span>            : 
+<span class="lineNum">     530 </span><span class="lineCov">        477 :         poPamBand-&gt;XMLInit( psBandTree, pszUnused );</span>
+<span class="lineNum">     531 </span>            :     }
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     534 </span>            : /*      Clear dirty flag.                                               */
+<span class="lineNum">     535 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     536 </span><span class="lineCov">        930 :     nPamFlags &amp;= ~GPF_DIRTY;</span>
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span><span class="lineCov">        930 :     return CE_None;</span>
+<span class="lineNum">     539 </span>            : }
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span>            : /************************************************************************/
+<span class="lineNum">     542 </span>            : /*                        SetPhysicalFilename()                         */
+<a name="543"><span class="lineNum">     543 </span>            : /************************************************************************/</a>
+<span class="lineNum">     544 </span>            : 
+<span class="lineNum">     545 </span><span class="lineCov">       2148 : void GDALPamDataset::SetPhysicalFilename( const char *pszFilename )</span>
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span>            : {
+<span class="lineNum">     548 </span><span class="lineCov">       2148 :     PamInitialize();</span>
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span><span class="lineCov">       2148 :     if( psPam )</span>
+<span class="lineNum">     551 </span><span class="lineCov">       2148 :         psPam-&gt;osPhysicalFilename = pszFilename;</span>
+<span class="lineNum">     552 </span><span class="lineCov">       2148 : }</span>
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span>            : /************************************************************************/
+<span class="lineNum">     555 </span>            : /*                        GetPhysicalFilename()                         */
+<a name="556"><span class="lineNum">     556 </span>            : /************************************************************************/</a>
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span><span class="lineCov">        115 : const char *GDALPamDataset::GetPhysicalFilename()</span>
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            : {
+<span class="lineNum">     561 </span><span class="lineCov">        115 :     PamInitialize();</span>
+<span class="lineNum">     562 </span>            : 
+<span class="lineNum">     563 </span><span class="lineCov">        115 :     if( psPam )</span>
+<span class="lineNum">     564 </span><span class="lineCov">        115 :         return psPam-&gt;osPhysicalFilename;</span>
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :     return &quot;&quot;;</span>
+<span class="lineNum">     567 </span>            : }
+<span class="lineNum">     568 </span>            : 
+<span class="lineNum">     569 </span>            : /************************************************************************/
+<span class="lineNum">     570 </span>            : /*                         SetSubdatasetName()                          */
+<a name="571"><span class="lineNum">     571 </span>            : /************************************************************************/</a>
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span><span class="lineCov">        410 : void GDALPamDataset::SetSubdatasetName( const char *pszSubdataset )</span>
+<span class="lineNum">     574 </span>            : 
+<span class="lineNum">     575 </span>            : {
+<span class="lineNum">     576 </span><span class="lineCov">        410 :     PamInitialize();</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineCov">        410 :     if( psPam )</span>
+<span class="lineNum">     579 </span><span class="lineCov">        410 :         psPam-&gt;osSubdatasetName = pszSubdataset;</span>
+<span class="lineNum">     580 </span><span class="lineCov">        410 : }</span>
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span>            : /************************************************************************/
+<span class="lineNum">     583 </span>            : /*                         GetSubdatasetName()                          */
+<a name="584"><span class="lineNum">     584 </span>            : /************************************************************************/</a>
+<span class="lineNum">     585 </span>            : 
+<span class="lineNum">     586 </span><span class="lineCov">          3 : const char *GDALPamDataset::GetSubdatasetName()</span>
+<span class="lineNum">     587 </span>            : 
+<span class="lineNum">     588 </span>            : {
+<span class="lineNum">     589 </span><span class="lineCov">          3 :     PamInitialize();</span>
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span><span class="lineCov">          3 :     if( psPam )</span>
+<span class="lineNum">     592 </span><span class="lineCov">          3 :         return psPam-&gt;osSubdatasetName;</span>
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :     return &quot;&quot;;</span>
+<span class="lineNum">     595 </span>            : }
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span>            : /************************************************************************/
+<span class="lineNum">     598 </span>            : /*                          BuildPamFilename()                          */
+<a name="599"><span class="lineNum">     599 </span>            : /************************************************************************/</a>
+<span class="lineNum">     600 </span>            : 
+<span class="lineNum">     601 </span><span class="lineCov">      19240 : const char *GDALPamDataset::BuildPamFilename()</span>
+<span class="lineNum">     602 </span>            : 
+<span class="lineNum">     603 </span>            : {
+<span class="lineNum">     604 </span><span class="lineCov">      19240 :     if( psPam == nullptr )</span>
+<span class="lineNum">     605 </span><span class="lineCov">         80 :         return nullptr;</span>
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     608 </span>            : /*      What is the name of the physical file we are referencing?       */
+<span class="lineNum">     609 </span>            : /*      We allow an override via the psPam-&gt;pszPhysicalFile item.       */
+<span class="lineNum">     610 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     611 </span><span class="lineCov">      19160 :     if( psPam-&gt;pszPamFilename != nullptr )</span>
+<span class="lineNum">     612 </span><span class="lineCov">        574 :         return psPam-&gt;pszPamFilename;</span>
+<span class="lineNum">     613 </span>            : 
+<span class="lineNum">     614 </span><span class="lineCov">      18586 :     const char *pszPhysicalFile = psPam-&gt;osPhysicalFilename;</span>
+<span class="lineNum">     615 </span>            : 
+<span class="lineNum">     616 </span><span class="lineCov">      18586 :     if( strlen(pszPhysicalFile) == 0 &amp;&amp; GetDescription() != nullptr )</span>
+<span class="lineNum">     617 </span><span class="lineCov">      18018 :         pszPhysicalFile = GetDescription();</span>
+<span class="lineNum">     618 </span>            : 
+<span class="lineNum">     619 </span><span class="lineCov">      18586 :     if( strlen(pszPhysicalFile) == 0 )</span>
+<span class="lineNum">     620 </span><span class="lineCov">         40 :         return nullptr;</span>
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     623 </span>            : /*      Try a proxy lookup, otherwise just add .aux.xml.                */
+<span class="lineNum">     624 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     625 </span><span class="lineCov">      18546 :     const char *pszProxyPam = PamGetProxy( pszPhysicalFile );</span>
+<span class="lineNum">     626 </span><span class="lineCov">      18546 :     if( pszProxyPam != nullptr )</span>
+<span class="lineNum">     627 </span><span class="lineCov">          4 :         psPam-&gt;pszPamFilename = CPLStrdup(pszProxyPam);</span>
+<span class="lineNum">     628 </span>            :     else
+<span class="lineNum">     629 </span>            :     {
+<span class="lineNum">     630 </span><span class="lineCov">      18542 :         if( !GDALCanFileAcceptSidecarFile(pszPhysicalFile) )</span>
+<span class="lineNum">     631 </span><span class="lineCov">         15 :             return nullptr;</span>
+<span class="lineNum">     632 </span><span class="lineCov">      18527 :         psPam-&gt;pszPamFilename = static_cast&lt;char*&gt;(CPLMalloc(strlen(pszPhysicalFile)+10));</span>
+<span class="lineNum">     633 </span><span class="lineCov">      18527 :         strcpy( psPam-&gt;pszPamFilename, pszPhysicalFile );</span>
+<span class="lineNum">     634 </span><span class="lineCov">      18527 :         strcat( psPam-&gt;pszPamFilename, &quot;.aux.xml&quot; );</span>
+<span class="lineNum">     635 </span>            :     }
+<span class="lineNum">     636 </span>            : 
+<span class="lineNum">     637 </span><span class="lineCov">      18531 :     return psPam-&gt;pszPamFilename;</span>
+<span class="lineNum">     638 </span>            : }
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span>            : /************************************************************************/
+<span class="lineNum">     641 </span>            : /*                   IsPamFilenameAPotentialSiblingFile()               */
+<a name="642"><span class="lineNum">     642 </span>            : /************************************************************************/</a>
+<span class="lineNum">     643 </span>            : 
+<span class="lineNum">     644 </span><span class="lineCov">      14839 : int GDALPamDataset::IsPamFilenameAPotentialSiblingFile()</span>
+<span class="lineNum">     645 </span>            : {
+<span class="lineNum">     646 </span><span class="lineCov">      14839 :     if (psPam == nullptr)</span>
+<span class="lineNum">     647 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     650 </span>            : /*      Determine if the PAM filename is a .aux.xml file next to the    */
+<span class="lineNum">     651 </span>            : /*      physical file, or if it comes from the ProxyDB                  */
+<span class="lineNum">     652 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     653 </span><span class="lineCov">      14839 :     const char *pszPhysicalFile = psPam-&gt;osPhysicalFilename;</span>
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span><span class="lineCov">      14839 :     if( strlen(pszPhysicalFile) == 0 &amp;&amp; GetDescription() != nullptr )</span>
+<span class="lineNum">     656 </span><span class="lineCov">      14832 :         pszPhysicalFile = GetDescription();</span>
+<span class="lineNum">     657 </span>            : 
+<span class="lineNum">     658 </span><span class="lineCov">      14839 :     size_t nLenPhysicalFile = strlen(pszPhysicalFile);</span>
+<span class="lineNum">     659 </span>            :     int bIsSiblingPamFile = strncmp(psPam-&gt;pszPamFilename, pszPhysicalFile,
+<span class="lineNum">     660 </span><span class="lineCov">      29670 :                                     nLenPhysicalFile) == 0 &amp;&amp;</span>
+<span class="lineNum">     661 </span>            :                             strcmp(psPam-&gt;pszPamFilename + nLenPhysicalFile,
+<span class="lineNum">     662 </span><span class="lineCov">      29670 :                                    &quot;.aux.xml&quot;) == 0;</span>
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span><span class="lineCov">      14839 :     return bIsSiblingPamFile;</span>
+<span class="lineNum">     665 </span>            : }
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span>            : /************************************************************************/
+<span class="lineNum">     668 </span>            : /*                             TryLoadXML()                             */
+<a name="669"><span class="lineNum">     669 </span>            : /************************************************************************/</a>
+<span class="lineNum">     670 </span>            : 
+<span class="lineNum">     671 </span><span class="lineCov">      18486 : CPLErr GDALPamDataset::TryLoadXML(char **papszSiblingFiles)</span>
+<span class="lineNum">     672 </span>            : 
+<span class="lineNum">     673 </span>            : {
+<span class="lineNum">     674 </span><span class="lineCov">      18486 :     PamInitialize();</span>
+<span class="lineNum">     675 </span>            : 
+<span class="lineNum">     676 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     677 </span>            : /*      Clear dirty flag.  Generally when we get to this point is       */
+<span class="lineNum">     678 </span>            : /*      from a call at the end of the Open() method, and some calls     */
+<span class="lineNum">     679 </span>            : /*      may have already marked the PAM info as dirty (for instance     */
+<span class="lineNum">     680 </span>            : /*      setting metadata), but really everything to this point is       */
+<span class="lineNum">     681 </span>            : /*      reproducible, and so the PAM info should not really be          */
+<span class="lineNum">     682 </span>            : /*      thought of as dirty.                                            */
+<span class="lineNum">     683 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     684 </span><span class="lineCov">      18486 :     nPamFlags &amp;= ~GPF_DIRTY;</span>
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     687 </span>            : /*      Try reading the file.                                           */
+<span class="lineNum">     688 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     689 </span><span class="lineCov">      18486 :     if( !BuildPamFilename() )</span>
+<span class="lineNum">     690 </span><span class="lineCov">         96 :         return CE_None;</span>
+<span class="lineNum">     691 </span>            : 
+<span class="lineNum">     692 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     693 </span>            : /*      In case the PAM filename is a .aux.xml file next to the         */
+<span class="lineNum">     694 </span>            : /*      physical file and we have a siblings list, then we can skip     */
+<span class="lineNum">     695 </span>            : /*      stat'ing the filesystem.                                        */
+<span class="lineNum">     696 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     697 </span>            :     VSIStatBufL sStatBuf;
+<span class="lineNum">     698 </span><span class="lineCov">      18390 :     CPLXMLNode *psTree = nullptr;</span>
+<span class="lineNum">     699 </span>            : 
+<span class="lineNum">     700 </span><span class="lineCov">      18390 :     CPLErr eLastErr = CPLGetLastErrorType();</span>
+<span class="lineNum">     701 </span><span class="lineCov">      18390 :     int nLastErrNo = CPLGetLastErrorNo();</span>
+<span class="lineNum">     702 </span><span class="lineCov">      18390 :     CPLString osLastErrorMsg = CPLGetLastErrorMsg();</span>
+<span class="lineNum">     703 </span>            : 
+<span class="lineNum">     704 </span><span class="lineCov">      18390 :     if (papszSiblingFiles != nullptr &amp;&amp; IsPamFilenameAPotentialSiblingFile())</span>
+<span class="lineNum">     705 </span>            :     {
+<span class="lineNum">     706 </span>            :         const int iSibling =
+<span class="lineNum">     707 </span>            :             CSLFindString( papszSiblingFiles,
+<span class="lineNum">     708 </span><span class="lineCov">      12799 :                            CPLGetFilename(psPam-&gt;pszPamFilename) );</span>
+<span class="lineNum">     709 </span><span class="lineCov">      12799 :         if( iSibling &gt;= 0 )</span>
+<span class="lineNum">     710 </span>            :         {
+<span class="lineNum">     711 </span><span class="lineCov">        243 :             CPLErrorReset();</span>
+<span class="lineNum">     712 </span><span class="lineCov">        243 :             CPLPushErrorHandler( CPLQuietErrorHandler );</span>
+<span class="lineNum">     713 </span><span class="lineCov">        243 :             psTree = CPLParseXMLFile( psPam-&gt;pszPamFilename );</span>
+<span class="lineNum">     714 </span><span class="lineCov">        243 :             CPLPopErrorHandler();</span>
+<span class="lineNum">     715 </span><span class="lineCov">        243 :             CPLErrorReset();</span>
+<span class="lineNum">     716 </span>            :         }
+<span class="lineNum">     717 </span>            :     }
+<span class="lineNum">     718 </span>            :     else
+<span class="lineNum">     719 </span><span class="lineCov">       5591 :     if( VSIStatExL( psPam-&gt;pszPamFilename, &amp;sStatBuf,</span>
+<span class="lineNum">     720 </span><span class="lineCov">       5591 :                     VSI_STAT_EXISTS_FLAG | VSI_STAT_NATURE_FLAG ) == 0</span>
+<span class="lineNum">     721 </span><span class="lineCov">       5591 :         &amp;&amp; VSI_ISREG( sStatBuf.st_mode ) )</span>
+<span class="lineNum">     722 </span>            :     {
+<span class="lineNum">     723 </span><span class="lineCov">        787 :         CPLErrorReset();</span>
+<span class="lineNum">     724 </span><span class="lineCov">        787 :         CPLPushErrorHandler( CPLQuietErrorHandler );</span>
+<span class="lineNum">     725 </span><span class="lineCov">        787 :         psTree = CPLParseXMLFile( psPam-&gt;pszPamFilename );</span>
+<span class="lineNum">     726 </span><span class="lineCov">        787 :         CPLPopErrorHandler();</span>
+<span class="lineNum">     727 </span><span class="lineCov">        787 :         CPLErrorReset();</span>
+<span class="lineNum">     728 </span>            :     }
+<span class="lineNum">     729 </span>            : 
+<span class="lineNum">     730 </span><span class="lineCov">      18390 :     if( eLastErr != CE_None )</span>
+<span class="lineNum">     731 </span><span class="lineCov">        196 :         CPLErrorSetState( eLastErr, nLastErrNo, osLastErrorMsg.c_str() );</span>
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     734 </span>            : /*      If we are looking for a subdataset, search for its subtree not. */
+<span class="lineNum">     735 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     736 </span><span class="lineCov">      18390 :     if( psTree &amp;&amp; !psPam-&gt;osSubdatasetName.empty() )</span>
+<span class="lineNum">     737 </span>            :     {
+<span class="lineNum">     738 </span><span class="lineCov">        110 :         CPLXMLNode *psSubTree = psTree-&gt;psChild;</span>
+<span class="lineNum">     739 </span>            : 
+<span class="lineNum">     740 </span><span class="lineCov">        210 :         for( ;</span>
+<span class="lineNum">     741 </span>            :              psSubTree != nullptr;
+<span class="lineNum">     742 </span>            :              psSubTree = psSubTree-&gt;psNext )
+<span class="lineNum">     743 </span>            :         {
+<span class="lineNum">     744 </span><span class="lineCov">        110 :             if( psSubTree-&gt;eType != CXT_Element</span>
+<span class="lineNum">     745 </span><span class="lineCov">        110 :                 || !EQUAL(psSubTree-&gt;pszValue,&quot;Subdataset&quot;) )</span>
+<span class="lineNum">     746 </span><span class="lineCov">         96 :                 continue;</span>
+<span class="lineNum">     747 </span>            : 
+<span class="lineNum">     748 </span><span class="lineCov">         14 :             if( !EQUAL(CPLGetXMLValue( psSubTree, &quot;name&quot;, &quot;&quot; ),</span>
+<span class="lineNum">     749 </span>            :                        psPam-&gt;osSubdatasetName) )
+<span class="lineNum">     750 </span><span class="lineCov">          4 :                 continue;</span>
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span><span class="lineCov">         10 :             psSubTree = CPLGetXMLNode( psSubTree, &quot;PAMDataset&quot; );</span>
+<span class="lineNum">     753 </span><span class="lineCov">         10 :             break;</span>
+<span class="lineNum">     754 </span>            :         }
+<span class="lineNum">     755 </span>            : 
+<span class="lineNum">     756 </span><span class="lineCov">        110 :         if( psSubTree != nullptr )</span>
+<span class="lineNum">     757 </span><span class="lineCov">         10 :             psSubTree = CPLCloneXMLTree( psSubTree );</span>
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span><span class="lineCov">        110 :         CPLDestroyXMLNode( psTree );</span>
+<span class="lineNum">     760 </span><span class="lineCov">        110 :         psTree = psSubTree;</span>
+<span class="lineNum">     761 </span>            :     }
+<span class="lineNum">     762 </span>            : 
+<span class="lineNum">     763 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     764 </span>            : /*      If we fail, try .aux.                                           */
+<span class="lineNum">     765 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     766 </span><span class="lineCov">      18390 :     if( psTree == nullptr )</span>
+<span class="lineNum">     767 </span><span class="lineCov">      17460 :         return TryLoadAux(papszSiblingFiles);</span>
+<span class="lineNum">     768 </span>            : 
+<span class="lineNum">     769 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     770 </span>            : /*      Initialize ourselves from this XML tree.                        */
+<span class="lineNum">     771 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span><span class="lineCov">       1860 :     CPLString osVRTPath(CPLGetPath(psPam-&gt;pszPamFilename));</span>
+<span class="lineNum">     774 </span><span class="lineCov">        930 :     const CPLErr eErr = XMLInit( psTree, osVRTPath );</span>
+<span class="lineNum">     775 </span>            : 
+<span class="lineNum">     776 </span><span class="lineCov">        930 :     CPLDestroyXMLNode( psTree );</span>
+<span class="lineNum">     777 </span>            : 
+<span class="lineNum">     778 </span><span class="lineCov">        930 :     if( eErr != CE_None )</span>
+<span class="lineNum">     779 </span><span class="lineNoCov">          0 :         PamClear();</span>
+<span class="lineNum">     780 </span>            : 
+<span class="lineNum">     781 </span><span class="lineCov">      19320 :     return eErr;</span>
+<span class="lineNum">     782 </span>            : }
+<span class="lineNum">     783 </span>            : 
+<span class="lineNum">     784 </span>            : /************************************************************************/
+<span class="lineNum">     785 </span>            : /*                             TrySaveXML()                             */
+<a name="786"><span class="lineNum">     786 </span>            : /************************************************************************/</a>
+<span class="lineNum">     787 </span>            : 
+<span class="lineNum">     788 </span><span class="lineCov">       1261 : CPLErr GDALPamDataset::TrySaveXML()</span>
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span>            : {
+<span class="lineNum">     791 </span><span class="lineCov">       1261 :     nPamFlags &amp;= ~GPF_DIRTY;</span>
+<span class="lineNum">     792 </span>            : 
+<span class="lineNum">     793 </span><span class="lineCov">       1261 :     if( psPam == nullptr || (nPamFlags &amp; GPF_NOSAVE) )</span>
+<span class="lineNum">     794 </span><span class="lineCov">        507 :         return CE_None;</span>
+<span class="lineNum">     795 </span>            : 
+<span class="lineNum">     796 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     797 </span>            : /*      Make sure we know the filename we want to store in.             */
+<span class="lineNum">     798 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     799 </span><span class="lineCov">        754 :     if( !BuildPamFilename() )</span>
+<span class="lineNum">     800 </span><span class="lineCov">         39 :         return CE_None;</span>
+<span class="lineNum">     801 </span>            : 
+<span class="lineNum">     802 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     803 </span>            : /*      Build the XML representation of the auxiliary metadata.          */
+<span class="lineNum">     804 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     805 </span><span class="lineCov">        715 :     CPLXMLNode *psTree = SerializeToXML( nullptr );</span>
+<span class="lineNum">     806 </span>            : 
+<span class="lineNum">     807 </span><span class="lineCov">        715 :     if( psTree == nullptr )</span>
+<span class="lineNum">     808 </span>            :     {
+<span class="lineNum">     809 </span>            :         /* If we have unset all metadata, we have to delete the PAM file */
+<span class="lineNum">     810 </span><span class="lineCov">         24 :         CPLPushErrorHandler( CPLQuietErrorHandler );</span>
+<span class="lineNum">     811 </span><span class="lineCov">         24 :         VSIUnlink(psPam-&gt;pszPamFilename);</span>
+<span class="lineNum">     812 </span><span class="lineCov">         24 :         CPLPopErrorHandler();</span>
+<span class="lineNum">     813 </span><span class="lineCov">         24 :         return CE_None;</span>
+<span class="lineNum">     814 </span>            :     }
+<span class="lineNum">     815 </span>            : 
+<span class="lineNum">     816 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     817 </span>            : /*      If we are working with a subdataset, we need to integrate       */
+<span class="lineNum">     818 </span>            : /*      the subdataset tree within the whole existing pam tree,         */
+<span class="lineNum">     819 </span>            : /*      after removing any old version of the same subdataset.          */
+<span class="lineNum">     820 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     821 </span><span class="lineCov">        691 :     if( !psPam-&gt;osSubdatasetName.empty() )</span>
+<span class="lineNum">     822 </span>            :     {
+<span class="lineNum">     823 </span>            :         CPLXMLNode *psOldTree, *psSubTree;
+<span class="lineNum">     824 </span>            : 
+<span class="lineNum">     825 </span><span class="lineCov">          4 :         CPLErrorReset();</span>
+<span class="lineNum">     826 </span><span class="lineCov">          4 :         CPLPushErrorHandler( CPLQuietErrorHandler );</span>
+<span class="lineNum">     827 </span><span class="lineCov">          4 :         psOldTree = CPLParseXMLFile( psPam-&gt;pszPamFilename );</span>
+<span class="lineNum">     828 </span><span class="lineCov">          4 :         CPLPopErrorHandler();</span>
+<span class="lineNum">     829 </span>            : 
+<span class="lineNum">     830 </span><span class="lineCov">          4 :         if( psOldTree == nullptr )</span>
+<span class="lineNum">     831 </span><span class="lineCov">          4 :             psOldTree = CPLCreateXMLNode( nullptr, CXT_Element, &quot;PAMDataset&quot; );</span>
+<span class="lineNum">     832 </span>            : 
+<span class="lineNum">     833 </span><span class="lineCov">          4 :         for( psSubTree = psOldTree-&gt;psChild;</span>
+<span class="lineNum">     834 </span>            :              psSubTree != nullptr;
+<span class="lineNum">     835 </span>            :              psSubTree = psSubTree-&gt;psNext )
+<span class="lineNum">     836 </span>            :         {
+<span class="lineNum">     837 </span><span class="lineNoCov">          0 :             if( psSubTree-&gt;eType != CXT_Element</span>
+<span class="lineNum">     838 </span><span class="lineNoCov">          0 :                 || !EQUAL(psSubTree-&gt;pszValue,&quot;Subdataset&quot;) )</span>
+<span class="lineNum">     839 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     840 </span>            : 
+<span class="lineNum">     841 </span><span class="lineNoCov">          0 :             if( !EQUAL(CPLGetXMLValue( psSubTree, &quot;name&quot;, &quot;&quot; ),</span>
+<span class="lineNum">     842 </span>            :                        psPam-&gt;osSubdatasetName) )
+<span class="lineNum">     843 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     844 </span>            : 
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     846 </span>            :         }
+<span class="lineNum">     847 </span>            : 
+<span class="lineNum">     848 </span><span class="lineCov">          4 :         if( psSubTree == nullptr )</span>
+<span class="lineNum">     849 </span>            :         {
+<span class="lineNum">     850 </span>            :             psSubTree = CPLCreateXMLNode( psOldTree, CXT_Element,
+<span class="lineNum">     851 </span><span class="lineCov">          4 :                                           &quot;Subdataset&quot; );</span>
+<span class="lineNum">     852 </span>            :             CPLCreateXMLNode(
+<span class="lineNum">     853 </span>            :                 CPLCreateXMLNode( psSubTree, CXT_Attribute, &quot;name&quot; ),
+<span class="lineNum">     854 </span><span class="lineCov">          4 :                 CXT_Text, psPam-&gt;osSubdatasetName );</span>
+<span class="lineNum">     855 </span>            :         }
+<span class="lineNum">     856 </span>            : 
+<span class="lineNum">     857 </span><span class="lineCov">          4 :         CPLXMLNode *psOldPamDataset = CPLGetXMLNode( psSubTree, &quot;PAMDataset&quot;);</span>
+<span class="lineNum">     858 </span><span class="lineCov">          4 :         if( psOldPamDataset != nullptr )</span>
+<span class="lineNum">     859 </span>            :         {
+<span class="lineNum">     860 </span><span class="lineNoCov">          0 :             CPLRemoveXMLChild( psSubTree, psOldPamDataset );</span>
+<span class="lineNum">     861 </span><span class="lineNoCov">          0 :             CPLDestroyXMLNode( psOldPamDataset );</span>
+<span class="lineNum">     862 </span>            :         }
+<span class="lineNum">     863 </span>            : 
+<span class="lineNum">     864 </span><span class="lineCov">          4 :         CPLAddXMLChild( psSubTree, psTree );</span>
+<span class="lineNum">     865 </span><span class="lineCov">          4 :         psTree = psOldTree;</span>
+<span class="lineNum">     866 </span>            :     }
+<span class="lineNum">     867 </span>            : 
+<span class="lineNum">     868 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     869 </span>            : /*      Try saving the auxiliary metadata.                               */
+<span class="lineNum">     870 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     871 </span>            : 
+<span class="lineNum">     872 </span><span class="lineCov">        691 :     CPLPushErrorHandler( CPLQuietErrorHandler );</span>
+<span class="lineNum">     873 </span>            :     const int bSaved =
+<span class="lineNum">     874 </span><span class="lineCov">        691 :         CPLSerializeXMLTreeToFile( psTree, psPam-&gt;pszPamFilename );</span>
+<span class="lineNum">     875 </span><span class="lineCov">        691 :     CPLPopErrorHandler();</span>
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     878 </span>            : /*      If it fails, check if we have a proxy directory for auxiliary    */
+<span class="lineNum">     879 </span>            : /*      metadata to be stored in, and try to save there.                */
+<span class="lineNum">     880 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     881 </span><span class="lineCov">        691 :     CPLErr eErr = CE_None;</span>
+<span class="lineNum">     882 </span>            : 
+<span class="lineNum">     883 </span><span class="lineCov">        691 :     if( bSaved )</span>
+<span class="lineNum">     884 </span><span class="lineCov">        687 :         eErr = CE_None;</span>
+<span class="lineNum">     885 </span>            :     else
+<span class="lineNum">     886 </span>            :     {
+<span class="lineNum">     887 </span><span class="lineCov">          4 :         const char *pszBasename = GetDescription();</span>
+<span class="lineNum">     888 </span>            : 
+<span class="lineNum">     889 </span><span class="lineCov">          4 :         if( psPam-&gt;osPhysicalFilename.length() &gt; 0 )</span>
+<span class="lineNum">     890 </span><span class="lineCov">          2 :             pszBasename = psPam-&gt;osPhysicalFilename;</span>
+<span class="lineNum">     891 </span>            : 
+<span class="lineNum">     892 </span><span class="lineCov">          4 :         const char *pszNewPam = nullptr;</span>
+<span class="lineNum">     893 </span><span class="lineCov">          8 :         if( PamGetProxy(pszBasename) == nullptr</span>
+<span class="lineNum">     894 </span><span class="lineCov">          4 :             &amp;&amp; ((pszNewPam = PamAllocateProxy(pszBasename)) != nullptr))</span>
+<span class="lineNum">     895 </span>            :         {
+<span class="lineNum">     896 </span><span class="lineCov">          1 :             CPLErrorReset();</span>
+<span class="lineNum">     897 </span><span class="lineCov">          1 :             CPLFree( psPam-&gt;pszPamFilename );</span>
+<span class="lineNum">     898 </span><span class="lineCov">          1 :             psPam-&gt;pszPamFilename = CPLStrdup(pszNewPam);</span>
+<span class="lineNum">     899 </span><span class="lineCov">          1 :             eErr = TrySaveXML();</span>
+<span class="lineNum">     900 </span>            :         }
+<span class="lineNum">     901 </span>            :         /* No way we can save into a /vsicurl resource */
+<span class="lineNum">     902 </span><span class="lineCov">          3 :         else if( !STARTS_WITH(psPam-&gt;pszPamFilename, &quot;/vsicurl&quot;) )</span>
+<span class="lineNum">     903 </span>            :         {
+<span class="lineNum">     904 </span>            :             CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     905 </span>            :                       &quot;Unable to save auxiliary information in %s.&quot;,
+<span class="lineNum">     906 </span><span class="lineCov">          3 :                       psPam-&gt;pszPamFilename );</span>
+<span class="lineNum">     907 </span><span class="lineCov">          3 :             eErr = CE_Warning;</span>
+<span class="lineNum">     908 </span>            :         }
+<span class="lineNum">     909 </span>            :     }
+<span class="lineNum">     910 </span>            : 
+<span class="lineNum">     911 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     912 </span>            : /*      Cleanup                                                         */
+<span class="lineNum">     913 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     914 </span><span class="lineCov">        691 :     CPLDestroyXMLNode( psTree );</span>
+<span class="lineNum">     915 </span>            : 
+<span class="lineNum">     916 </span><span class="lineCov">        691 :     return eErr;</span>
+<span class="lineNum">     917 </span>            : }
+<span class="lineNum">     918 </span>            : 
+<span class="lineNum">     919 </span>            : /************************************************************************/
+<span class="lineNum">     920 </span>            : /*                             CloneInfo()                              */
+<a name="921"><span class="lineNum">     921 </span>            : /************************************************************************/</a>
+<span class="lineNum">     922 </span>            : 
+<span class="lineNum">     923 </span><span class="lineCov">       5207 : CPLErr GDALPamDataset::CloneInfo( GDALDataset *poSrcDS, int nCloneFlags )</span>
+<span class="lineNum">     924 </span>            : 
+<span class="lineNum">     925 </span>            : {
+<span class="lineNum">     926 </span><span class="lineCov">       5207 :     const int bOnlyIfMissing = nCloneFlags &amp; GCIF_ONLY_IF_MISSING;</span>
+<span class="lineNum">     927 </span><span class="lineCov">       5207 :     const int nSavedMOFlags = GetMOFlags();</span>
+<span class="lineNum">     928 </span>            : 
+<span class="lineNum">     929 </span><span class="lineCov">       5207 :     PamInitialize();</span>
+<span class="lineNum">     930 </span>            : 
+<span class="lineNum">     931 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     932 </span>            : /*      Suppress NotImplemented error messages - mainly needed if PAM   */
+<span class="lineNum">     933 </span>            : /*      disabled.                                                       */
+<span class="lineNum">     934 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     935 </span><span class="lineCov">       5207 :     SetMOFlags( nSavedMOFlags | GMO_IGNORE_UNIMPLEMENTED );</span>
+<span class="lineNum">     936 </span>            : 
+<span class="lineNum">     937 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     938 </span>            : /*      GeoTransform                                                    */
+<span class="lineNum">     939 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     940 </span><span class="lineCov">       5207 :     if( nCloneFlags &amp; GCIF_GEOTRANSFORM )</span>
+<span class="lineNum">     941 </span>            :     {
+<span class="lineNum">     942 </span><span class="lineCov">       5207 :       double adfGeoTransform[6] = { 0.0 };</span>
+<span class="lineNum">     943 </span>            : 
+<span class="lineNum">     944 </span><span class="lineCov">       5207 :         if( poSrcDS-&gt;GetGeoTransform( adfGeoTransform ) == CE_None )</span>
+<span class="lineNum">     945 </span>            :         {
+<span class="lineNum">     946 </span><span class="lineCov">        678 :             double adfOldGT[6] = { 0.0 };</span>
+<span class="lineNum">     947 </span>            : 
+<span class="lineNum">     948 </span><span class="lineCov">        678 :             if( !bOnlyIfMissing || GetGeoTransform( adfOldGT ) != CE_None )</span>
+<span class="lineNum">     949 </span><span class="lineCov">         43 :                 SetGeoTransform( adfGeoTransform );</span>
+<span class="lineNum">     950 </span>            :         }
+<span class="lineNum">     951 </span>            :     }
+<span class="lineNum">     952 </span>            : 
+<span class="lineNum">     953 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     954 </span>            : /*      Projection                                                      */
+<span class="lineNum">     955 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     956 </span><span class="lineCov">       5207 :     if( nCloneFlags &amp; GCIF_PROJECTION )</span>
+<span class="lineNum">     957 </span>            :     {
+<span class="lineNum">     958 </span><span class="lineCov">       5207 :         const auto poSRS = poSrcDS-&gt;GetSpatialRef();</span>
+<span class="lineNum">     959 </span>            : 
+<span class="lineNum">     960 </span><span class="lineCov">       5207 :         if( poSRS != nullptr )</span>
+<span class="lineNum">     961 </span>            :         {
+<span class="lineNum">     962 </span><span class="lineCov">        642 :             if( !bOnlyIfMissing</span>
+<span class="lineNum">     963 </span><span class="lineCov">        642 :                 || GetSpatialRef() == nullptr )</span>
+<span class="lineNum">     964 </span><span class="lineCov">         44 :                 SetSpatialRef( poSRS );</span>
+<span class="lineNum">     965 </span>            :         }
+<span class="lineNum">     966 </span>            :     }
+<span class="lineNum">     967 </span>            : 
+<span class="lineNum">     968 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     969 </span>            : /*      GCPs                                                            */
+<span class="lineNum">     970 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     971 </span><span class="lineCov">       5207 :     if( nCloneFlags &amp; GCIF_GCPS )</span>
+<span class="lineNum">     972 </span>            :     {
+<span class="lineNum">     973 </span><span class="lineCov">       5207 :         if( poSrcDS-&gt;GetGCPCount() &gt; 0 )</span>
+<span class="lineNum">     974 </span>            :         {
+<span class="lineNum">     975 </span><span class="lineCov">         16 :             if( !bOnlyIfMissing || GetGCPCount() == 0 )</span>
+<span class="lineNum">     976 </span>            :             {
+<span class="lineNum">     977 </span><span class="lineCov">          2 :                 SetGCPs( poSrcDS-&gt;GetGCPCount(),</span>
+<span class="lineNum">     978 </span><span class="lineCov">          2 :                          poSrcDS-&gt;GetGCPs(),</span>
+<span class="lineNum">     979 </span><span class="lineCov">          6 :                          poSrcDS-&gt;GetGCPSpatialRef() );</span>
+<span class="lineNum">     980 </span>            :             }
+<span class="lineNum">     981 </span>            :         }
+<span class="lineNum">     982 </span>            :     }
+<span class="lineNum">     983 </span>            : 
+<span class="lineNum">     984 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     985 </span>            : /*      Metadata                                                        */
+<span class="lineNum">     986 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     987 </span><span class="lineCov">       5207 :     if( nCloneFlags &amp; GCIF_METADATA )</span>
+<span class="lineNum">     988 </span>            :     {
+<span class="lineNum">     989 </span><span class="lineCov">       5066 :         if( poSrcDS-&gt;GetMetadata() != nullptr )</span>
+<span class="lineNum">     990 </span>            :         {
+<span class="lineNum">     991 </span><span class="lineCov">        600 :             if( !bOnlyIfMissing</span>
+<span class="lineNum">     992 </span><span class="lineCov">        600 :                 || CSLCount(GetMetadata()) != CSLCount(poSrcDS-&gt;GetMetadata()) )</span>
+<span class="lineNum">     993 </span>            :             {
+<span class="lineNum">     994 </span><span class="lineCov">        222 :                 SetMetadata( poSrcDS-&gt;GetMetadata() );</span>
+<span class="lineNum">     995 </span>            :             }
+<span class="lineNum">     996 </span>            :         }
+<span class="lineNum">     997 </span><span class="lineCov">       5066 :         if( poSrcDS-&gt;GetMetadata(&quot;RPC&quot;) != nullptr )</span>
+<span class="lineNum">     998 </span>            :         {
+<span class="lineNum">     999 </span><span class="lineCov">         27 :             if( !bOnlyIfMissing</span>
+<span class="lineNum">    1000 </span><span class="lineCov">         54 :                 || CSLCount(GetMetadata(&quot;RPC&quot;))</span>
+<span class="lineNum">    1001 </span><span class="lineCov">         27 :                    != CSLCount(poSrcDS-&gt;GetMetadata(&quot;RPC&quot;)) )</span>
+<span class="lineNum">    1002 </span>            :             {
+<span class="lineNum">    1003 </span><span class="lineCov">         14 :                 SetMetadata( poSrcDS-&gt;GetMetadata(&quot;RPC&quot;), &quot;RPC&quot; );</span>
+<span class="lineNum">    1004 </span>            :             }
+<span class="lineNum">    1005 </span>            :         }
+<span class="lineNum">    1006 </span>            :     }
+<span class="lineNum">    1007 </span>            : 
+<span class="lineNum">    1008 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1009 </span>            : /*      Process bands.                                                  */
+<span class="lineNum">    1010 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1011 </span><span class="lineCov">       5207 :     if( nCloneFlags &amp; GCIF_PROCESS_BANDS )</span>
+<span class="lineNum">    1012 </span>            :     {
+<span class="lineNum">    1013 </span><span class="lineCov">      19166 :         for( int iBand = 0; iBand &lt; GetRasterCount(); iBand++ )</span>
+<span class="lineNum">    1014 </span>            :         {
+<span class="lineNum">    1015 </span><span class="lineCov">      13959 :             GDALRasterBand *poBand = GetRasterBand(iBand+1);</span>
+<span class="lineNum">    1016 </span>            : 
+<span class="lineNum">    1017 </span><span class="lineCov">      13959 :             if( poBand == nullptr || !(poBand-&gt;GetMOFlags() &amp; GMO_PAM_CLASS) )</span>
+<span class="lineNum">    1018 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">    1019 </span>            : 
+<span class="lineNum">    1020 </span><span class="lineCov">      13959 :             if( poSrcDS-&gt;GetRasterCount() &gt;= iBand+1 )</span>
+<span class="lineNum">    1021 </span>            :             {
+<span class="lineNum">    1022 </span><span class="lineCov">      13959 :                 cpl::down_cast&lt;GDALPamRasterBand *&gt;(poBand)-&gt;</span>
+<span class="lineNum">    1023 </span><span class="lineCov">      13959 :                     CloneInfo( poSrcDS-&gt;GetRasterBand(iBand+1), nCloneFlags );</span>
+<span class="lineNum">    1024 </span>            :             }
+<span class="lineNum">    1025 </span>            :             else
+<span class="lineNum">    1026 </span>            :                 CPLDebug(
+<span class="lineNum">    1027 </span>            :                     &quot;GDALPamDataset&quot;,
+<span class="lineNum">    1028 </span>            :                     &quot;Skipping CloneInfo for band not in source, &quot;
+<span class="lineNum">    1029 </span><span class="lineNoCov">          0 :                     &quot;this is a bit unusual!&quot; );</span>
+<span class="lineNum">    1030 </span>            :         }
+<span class="lineNum">    1031 </span>            :     }
+<span class="lineNum">    1032 </span>            : 
+<span class="lineNum">    1033 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1034 </span>            : /*      Copy masks.  These are really copied at a lower level using     */
+<span class="lineNum">    1035 </span>            : /*      GDALDefaultOverviews, for formats with no native mask           */
+<span class="lineNum">    1036 </span>            : /*      support but this is a convenient central point to put this      */
+<span class="lineNum">    1037 </span>            : /*      for most drivers.                                               */
+<span class="lineNum">    1038 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1039 </span><span class="lineCov">       5207 :     if( nCloneFlags &amp; GCIF_MASK )</span>
+<span class="lineNum">    1040 </span>            :     {
+<span class="lineNum">    1041 </span><span class="lineCov">       4567 :         GDALDriver::DefaultCopyMasks( poSrcDS, this, FALSE );</span>
+<span class="lineNum">    1042 </span>            :     }
+<span class="lineNum">    1043 </span>            : 
+<span class="lineNum">    1044 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1045 </span>            : /*      Restore MO flags.                                               */
+<span class="lineNum">    1046 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1047 </span><span class="lineCov">       5207 :     SetMOFlags( nSavedMOFlags );</span>
+<span class="lineNum">    1048 </span>            : 
+<span class="lineNum">    1049 </span><span class="lineCov">       5207 :     return CE_None;</span>
+<span class="lineNum">    1050 </span>            : }
+<span class="lineNum">    1051 </span>            : //! @endcond
+<span class="lineNum">    1052 </span>            : 
+<span class="lineNum">    1053 </span>            : /************************************************************************/
+<span class="lineNum">    1054 </span>            : /*                            GetFileList()                             */
+<span class="lineNum">    1055 </span>            : /*                                                                      */
+<span class="lineNum">    1056 </span>            : /*      Add .aux.xml or .aux file into file list as appropriate.        */
+<a name="1057"><span class="lineNum">    1057 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1058 </span>            : 
+<span class="lineNum">    1059 </span><span class="lineCov">       3022 : char **GDALPamDataset::GetFileList()</span>
+<span class="lineNum">    1060 </span>            : 
+<span class="lineNum">    1061 </span>            : {
+<span class="lineNum">    1062 </span><span class="lineCov">       3022 :     char **papszFileList = GDALDataset::GetFileList();</span>
+<span class="lineNum">    1063 </span>            : 
+<span class="lineNum">    1064 </span><span class="lineCov">       5936 :     if( psPam &amp;&amp; !psPam-&gt;osPhysicalFilename.empty()</span>
+<span class="lineNum">    1065 </span><span class="lineCov">       3171 :         &amp;&amp; CSLFindString( papszFileList, psPam-&gt;osPhysicalFilename ) == -1 )</span>
+<span class="lineNum">    1066 </span>            :     {
+<span class="lineNum">    1067 </span>            :         papszFileList = CSLInsertString( papszFileList, 0,
+<span class="lineNum">    1068 </span><span class="lineCov">         18 :                                          psPam-&gt;osPhysicalFilename );</span>
+<span class="lineNum">    1069 </span>            :     }
+<span class="lineNum">    1070 </span>            : 
+<span class="lineNum">    1071 </span><span class="lineCov">       3022 :     if( psPam &amp;&amp; psPam-&gt;pszPamFilename )</span>
+<span class="lineNum">    1072 </span>            :     {
+<span class="lineNum">    1073 </span><span class="lineCov">       2903 :         int bAddPamFile = nPamFlags &amp; GPF_DIRTY;</span>
+<span class="lineNum">    1074 </span><span class="lineCov">       2903 :         if (!bAddPamFile)</span>
+<span class="lineNum">    1075 </span>            :         {
+<span class="lineNum">    1076 </span>            :             VSIStatBufL sStatBuf;
+<span class="lineNum">    1077 </span><span class="lineCov">       2903 :             if (oOvManager.GetSiblingFiles() != nullptr &amp;&amp; IsPamFilenameAPotentialSiblingFile())</span>
+<span class="lineNum">    1078 </span>            :             {
+<span class="lineNum">    1079 </span><span class="lineCov">       2032 :                 bAddPamFile = CSLFindString(oOvManager.GetSiblingFiles(),</span>
+<span class="lineNum">    1080 </span><span class="lineCov">       4064 :                                   CPLGetFilename(psPam-&gt;pszPamFilename)) &gt;= 0;</span>
+<span class="lineNum">    1081 </span>            :             }
+<span class="lineNum">    1082 </span>            :             else
+<span class="lineNum">    1083 </span>            :             {
+<span class="lineNum">    1084 </span>            :                 bAddPamFile = VSIStatExL( psPam-&gt;pszPamFilename, &amp;sStatBuf,
+<span class="lineNum">    1085 </span><span class="lineCov">        871 :                                           VSI_STAT_EXISTS_FLAG ) == 0;</span>
+<span class="lineNum">    1086 </span>            :             }
+<span class="lineNum">    1087 </span>            :         }
+<span class="lineNum">    1088 </span><span class="lineCov">       2903 :         if (bAddPamFile)</span>
+<span class="lineNum">    1089 </span>            :         {
+<span class="lineNum">    1090 </span><span class="lineCov">        244 :             papszFileList = CSLAddString( papszFileList, psPam-&gt;pszPamFilename );</span>
+<span class="lineNum">    1091 </span>            :         }
+<span class="lineNum">    1092 </span>            :     }
+<span class="lineNum">    1093 </span>            : 
+<span class="lineNum">    1094 </span><span class="lineCov">       3025 :     if( psPam &amp;&amp; !psPam-&gt;osAuxFilename.empty() &amp;&amp;</span>
+<span class="lineNum">    1095 </span><span class="lineCov">          3 :         CSLFindString( papszFileList, psPam-&gt;osAuxFilename ) == -1 )</span>
+<span class="lineNum">    1096 </span>            :     {
+<span class="lineNum">    1097 </span><span class="lineCov">          1 :         papszFileList = CSLAddString( papszFileList, psPam-&gt;osAuxFilename );</span>
+<span class="lineNum">    1098 </span>            :     }
+<span class="lineNum">    1099 </span><span class="lineCov">       3022 :     return papszFileList;</span>
+<span class="lineNum">    1100 </span>            : }
+<span class="lineNum">    1101 </span>            : 
+<span class="lineNum">    1102 </span>            : /************************************************************************/
+<span class="lineNum">    1103 </span>            : /*                          IBuildOverviews()                           */
+<span class="lineNum">    1104 </span>            : /************************************************************************/
+<a name="1105"><span class="lineNum">    1105 </span>            : </a>
+<span class="lineNum">    1106 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">    1107 </span><span class="lineCov">         24 : CPLErr GDALPamDataset::IBuildOverviews( const char *pszResampling,</span>
+<span class="lineNum">    1108 </span>            :                                         int nOverviews, int *panOverviewList,
+<span class="lineNum">    1109 </span>            :                                         int nListBands, int *panBandList,
+<span class="lineNum">    1110 </span>            :                                         GDALProgressFunc pfnProgress,
+<span class="lineNum">    1111 </span>            :                                         void * pProgressData )
+<span class="lineNum">    1112 </span>            : 
+<span class="lineNum">    1113 </span>            : {
+<span class="lineNum">    1114 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1115 </span>            : /*      Initialize PAM.                                                 */
+<span class="lineNum">    1116 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1117 </span><span class="lineCov">         24 :     PamInitialize();</span>
+<span class="lineNum">    1118 </span><span class="lineCov">         24 :     if( psPam == nullptr )</span>
+<span class="lineNum">    1119 </span>            :         return GDALDataset::IBuildOverviews( pszResampling,
+<span class="lineNum">    1120 </span>            :                                              nOverviews, panOverviewList,
+<span class="lineNum">    1121 </span>            :                                              nListBands, panBandList,
+<span class="lineNum">    1122 </span><span class="lineCov">          1 :                                              pfnProgress, pProgressData );</span>
+<span class="lineNum">    1123 </span>            : 
+<span class="lineNum">    1124 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1125 </span>            : /*      If we appear to have subdatasets and to have a physical         */
+<span class="lineNum">    1126 </span>            : /*      filename, use that physical filename to derive a name for a     */
+<span class="lineNum">    1127 </span>            : /*      new overview file.                                              */
+<span class="lineNum">    1128 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1129 </span><span class="lineCov">         23 :     if( oOvManager.IsInitialized() &amp;&amp; psPam-&gt;osPhysicalFilename.length() != 0 )</span>
+<span class="lineNum">    1130 </span>            :     {
+<span class="lineNum">    1131 </span>            :         return oOvManager.BuildOverviewsSubDataset(
+<span class="lineNum">    1132 </span>            :             psPam-&gt;osPhysicalFilename, pszResampling,
+<span class="lineNum">    1133 </span>            :             nOverviews, panOverviewList,
+<span class="lineNum">    1134 </span>            :             nListBands, panBandList,
+<span class="lineNum">    1135 </span><span class="lineCov">          4 :             pfnProgress, pProgressData );</span>
+<span class="lineNum">    1136 </span>            :     }
+<span class="lineNum">    1137 </span>            : 
+<span class="lineNum">    1138 </span>            :     return GDALDataset::IBuildOverviews( pszResampling,
+<span class="lineNum">    1139 </span>            :                                          nOverviews, panOverviewList,
+<span class="lineNum">    1140 </span>            :                                          nListBands, panBandList,
+<span class="lineNum">    1141 </span><span class="lineCov">         19 :                                          pfnProgress, pProgressData );</span>
+<span class="lineNum">    1142 </span>            : }
+<span class="lineNum">    1143 </span>            : //! @endcond
+<span class="lineNum">    1144 </span>            : 
+<span class="lineNum">    1145 </span>            : /************************************************************************/
+<span class="lineNum">    1146 </span>            : /*                           GetSpatialRef()                            */
+<a name="1147"><span class="lineNum">    1147 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1148 </span>            : 
+<span class="lineNum">    1149 </span><span class="lineCov">       6452 : const OGRSpatialReference *GDALPamDataset::GetSpatialRef() const</span>
+<span class="lineNum">    1150 </span>            : 
+<span class="lineNum">    1151 </span>            : {
+<span class="lineNum">    1152 </span><span class="lineCov">       6452 :     if( psPam &amp;&amp; psPam-&gt;poSRS )</span>
+<span class="lineNum">    1153 </span><span class="lineCov">        113 :         return psPam-&gt;poSRS;</span>
+<span class="lineNum">    1154 </span>            : 
+<span class="lineNum">    1155 </span><span class="lineCov">       6339 :     return GDALDataset::GetSpatialRef();</span>
+<span class="lineNum">    1156 </span>            : }
+<span class="lineNum">    1157 </span>            : 
+<span class="lineNum">    1158 </span>            : /************************************************************************/
+<span class="lineNum">    1159 </span>            : /*                           SetSpatialRef()                            */
+<a name="1160"><span class="lineNum">    1160 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1161 </span>            : 
+<span class="lineNum">    1162 </span><span class="lineCov">        284 : CPLErr GDALPamDataset::SetSpatialRef( const OGRSpatialReference* poSRS )</span>
+<span class="lineNum">    1163 </span>            : 
+<span class="lineNum">    1164 </span>            : {
+<span class="lineNum">    1165 </span><span class="lineCov">        284 :     PamInitialize();</span>
+<span class="lineNum">    1166 </span>            : 
+<span class="lineNum">    1167 </span><span class="lineCov">        284 :     if( psPam == nullptr )</span>
+<span class="lineNum">    1168 </span><span class="lineCov">          5 :         return GDALDataset::SetSpatialRef( poSRS );</span>
+<span class="lineNum">    1169 </span>            : 
+<span class="lineNum">    1170 </span><span class="lineCov">        279 :     if( psPam-&gt;poSRS )</span>
+<span class="lineNum">    1171 </span><span class="lineNoCov">          0 :         psPam-&gt;poSRS-&gt;Release();</span>
+<span class="lineNum">    1172 </span><span class="lineCov">        279 :     psPam-&gt;poSRS = poSRS ? poSRS-&gt;Clone() : nullptr;</span>
+<span class="lineNum">    1173 </span><span class="lineCov">        279 :     MarkPamDirty();</span>
+<span class="lineNum">    1174 </span>            : 
+<span class="lineNum">    1175 </span><span class="lineCov">        279 :     return CE_None;</span>
+<span class="lineNum">    1176 </span>            : }
+<span class="lineNum">    1177 </span>            : 
+<span class="lineNum">    1178 </span>            : /************************************************************************/
+<span class="lineNum">    1179 </span>            : /*                          GetGeoTransform()                           */
+<a name="1180"><span class="lineNum">    1180 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1181 </span>            : 
+<span class="lineNum">    1182 </span><span class="lineCov">       6304 : CPLErr GDALPamDataset::GetGeoTransform( double * padfTransform )</span>
+<span class="lineNum">    1183 </span>            : 
+<span class="lineNum">    1184 </span>            : {
+<span class="lineNum">    1185 </span><span class="lineCov">       6304 :     if( psPam &amp;&amp; psPam-&gt;bHaveGeoTransform )</span>
+<span class="lineNum">    1186 </span>            :     {
+<span class="lineNum">    1187 </span><span class="lineCov">        150 :         memcpy( padfTransform, psPam-&gt;adfGeoTransform, sizeof(double) * 6 );</span>
+<span class="lineNum">    1188 </span><span class="lineCov">        150 :         return CE_None;</span>
+<span class="lineNum">    1189 </span>            :     }
+<span class="lineNum">    1190 </span>            : 
+<span class="lineNum">    1191 </span><span class="lineCov">       6154 :     return GDALDataset::GetGeoTransform( padfTransform );</span>
+<span class="lineNum">    1192 </span>            : }
+<span class="lineNum">    1193 </span>            : 
+<span class="lineNum">    1194 </span>            : /************************************************************************/
+<span class="lineNum">    1195 </span>            : /*                          SetGeoTransform()                           */
+<a name="1196"><span class="lineNum">    1196 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1197 </span>            : 
+<span class="lineNum">    1198 </span><span class="lineCov">        198 : CPLErr GDALPamDataset::SetGeoTransform( double * padfTransform )</span>
+<span class="lineNum">    1199 </span>            : 
+<span class="lineNum">    1200 </span>            : {
+<span class="lineNum">    1201 </span><span class="lineCov">        198 :     PamInitialize();</span>
+<span class="lineNum">    1202 </span>            : 
+<span class="lineNum">    1203 </span><span class="lineCov">        198 :     if( psPam )</span>
+<span class="lineNum">    1204 </span>            :     {
+<span class="lineNum">    1205 </span><span class="lineCov">        193 :         MarkPamDirty();</span>
+<span class="lineNum">    1206 </span><span class="lineCov">        193 :         psPam-&gt;bHaveGeoTransform = TRUE;</span>
+<span class="lineNum">    1207 </span><span class="lineCov">        193 :         memcpy( psPam-&gt;adfGeoTransform, padfTransform, sizeof(double) * 6 );</span>
+<span class="lineNum">    1208 </span><span class="lineCov">        193 :         return( CE_None );</span>
+<span class="lineNum">    1209 </span>            :     }
+<span class="lineNum">    1210 </span>            : 
+<span class="lineNum">    1211 </span><span class="lineCov">          5 :     return GDALDataset::SetGeoTransform( padfTransform );</span>
+<span class="lineNum">    1212 </span>            : }
+<span class="lineNum">    1213 </span>            : 
+<span class="lineNum">    1214 </span>            : /************************************************************************/
+<span class="lineNum">    1215 </span>            : /*                            GetGCPCount()                             */
+<a name="1216"><span class="lineNum">    1216 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1217 </span>            : 
+<span class="lineNum">    1218 </span><span class="lineCov">       6478 : int GDALPamDataset::GetGCPCount()</span>
+<span class="lineNum">    1219 </span>            : 
+<span class="lineNum">    1220 </span>            : {
+<span class="lineNum">    1221 </span><span class="lineCov">       6478 :     if( psPam &amp;&amp; psPam-&gt;nGCPCount &gt; 0 )</span>
+<span class="lineNum">    1222 </span><span class="lineCov">         27 :         return psPam-&gt;nGCPCount;</span>
+<span class="lineNum">    1223 </span>            : 
+<span class="lineNum">    1224 </span><span class="lineCov">       6451 :     return GDALDataset::GetGCPCount();</span>
+<span class="lineNum">    1225 </span>            : }
+<span class="lineNum">    1226 </span>            : 
+<span class="lineNum">    1227 </span>            : /************************************************************************/
+<span class="lineNum">    1228 </span>            : /*                          GetGCPSpatialRef()                          */
+<a name="1229"><span class="lineNum">    1229 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1230 </span>            : 
+<span class="lineNum">    1231 </span><span class="lineCov">         31 : const OGRSpatialReference *GDALPamDataset::GetGCPSpatialRef() const</span>
+<span class="lineNum">    1232 </span>            : 
+<span class="lineNum">    1233 </span>            : {
+<span class="lineNum">    1234 </span><span class="lineCov">         31 :     if( psPam &amp;&amp; psPam-&gt;poGCP_SRS != nullptr )</span>
+<span class="lineNum">    1235 </span><span class="lineCov">         16 :         return psPam-&gt;poGCP_SRS;</span>
+<span class="lineNum">    1236 </span>            : 
+<span class="lineNum">    1237 </span><span class="lineCov">         15 :     return GDALDataset::GetGCPSpatialRef();</span>
+<span class="lineNum">    1238 </span>            : }
+<span class="lineNum">    1239 </span>            : 
+<span class="lineNum">    1240 </span>            : /************************************************************************/
+<span class="lineNum">    1241 </span>            : /*                               GetGCPs()                              */
+<a name="1242"><span class="lineNum">    1242 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1243 </span>            : 
+<span class="lineNum">    1244 </span><span class="lineCov">         24 : const GDAL_GCP *GDALPamDataset::GetGCPs()</span>
+<span class="lineNum">    1245 </span>            : 
+<span class="lineNum">    1246 </span>            : {
+<span class="lineNum">    1247 </span><span class="lineCov">         24 :     if( psPam &amp;&amp; psPam-&gt;nGCPCount &gt; 0 )</span>
+<span class="lineNum">    1248 </span><span class="lineCov">         17 :         return psPam-&gt;pasGCPList;</span>
+<span class="lineNum">    1249 </span>            : 
+<span class="lineNum">    1250 </span><span class="lineCov">          7 :     return GDALDataset::GetGCPs();</span>
+<span class="lineNum">    1251 </span>            : }
+<span class="lineNum">    1252 </span>            : 
+<span class="lineNum">    1253 </span>            : /************************************************************************/
+<span class="lineNum">    1254 </span>            : /*                              SetGCPs()                               */
+<a name="1255"><span class="lineNum">    1255 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1256 </span>            : 
+<span class="lineNum">    1257 </span><span class="lineCov">         16 : CPLErr GDALPamDataset::SetGCPs( int nGCPCount, const GDAL_GCP *pasGCPList,</span>
+<span class="lineNum">    1258 </span>            :                                 const OGRSpatialReference* poGCP_SRS )
+<span class="lineNum">    1259 </span>            : 
+<span class="lineNum">    1260 </span>            : {
+<span class="lineNum">    1261 </span><span class="lineCov">         16 :     PamInitialize();</span>
+<span class="lineNum">    1262 </span>            : 
+<span class="lineNum">    1263 </span><span class="lineCov">         16 :     if( psPam )</span>
+<span class="lineNum">    1264 </span>            :     {
+<span class="lineNum">    1265 </span><span class="lineCov">         16 :         if( psPam-&gt;poGCP_SRS )</span>
+<span class="lineNum">    1266 </span><span class="lineNoCov">          0 :             psPam-&gt;poGCP_SRS-&gt;Release();</span>
+<span class="lineNum">    1267 </span><span class="lineCov">         16 :         if( psPam-&gt;nGCPCount &gt; 0 )</span>
+<span class="lineNum">    1268 </span>            :         {
+<span class="lineNum">    1269 </span><span class="lineNoCov">          0 :             GDALDeinitGCPs( psPam-&gt;nGCPCount, psPam-&gt;pasGCPList );</span>
+<span class="lineNum">    1270 </span><span class="lineNoCov">          0 :             CPLFree( psPam-&gt;pasGCPList );</span>
+<span class="lineNum">    1271 </span>            :         }
+<span class="lineNum">    1272 </span>            : 
+<span class="lineNum">    1273 </span><span class="lineCov">         16 :         psPam-&gt;poGCP_SRS = poGCP_SRS ? poGCP_SRS-&gt;Clone() : nullptr;</span>
+<span class="lineNum">    1274 </span><span class="lineCov">         16 :         psPam-&gt;nGCPCount = nGCPCount;</span>
+<span class="lineNum">    1275 </span><span class="lineCov">         16 :         psPam-&gt;pasGCPList = GDALDuplicateGCPs( nGCPCount, pasGCPList );</span>
+<span class="lineNum">    1276 </span>            : 
+<span class="lineNum">    1277 </span><span class="lineCov">         16 :         MarkPamDirty();</span>
+<span class="lineNum">    1278 </span>            : 
+<span class="lineNum">    1279 </span><span class="lineCov">         16 :         return CE_None;</span>
+<span class="lineNum">    1280 </span>            :     }
+<span class="lineNum">    1281 </span>            : 
+<span class="lineNum">    1282 </span><span class="lineNoCov">          0 :     return GDALDataset::SetGCPs( nGCPCount, pasGCPList, poGCP_SRS );</span>
+<span class="lineNum">    1283 </span>            : }
+<span class="lineNum">    1284 </span>            : 
+<span class="lineNum">    1285 </span>            : /************************************************************************/
+<span class="lineNum">    1286 </span>            : /*                            SetMetadata()                             */
+<a name="1287"><span class="lineNum">    1287 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1288 </span>            : 
+<span class="lineNum">    1289 </span><span class="lineCov">       2318 : CPLErr GDALPamDataset::SetMetadata( char **papszMetadata,</span>
+<span class="lineNum">    1290 </span>            :                                     const char *pszDomain )
+<span class="lineNum">    1291 </span>            : 
+<span class="lineNum">    1292 </span>            : {
+<span class="lineNum">    1293 </span><span class="lineCov">       2318 :     PamInitialize();</span>
+<span class="lineNum">    1294 </span>            : 
+<span class="lineNum">    1295 </span><span class="lineCov">       2318 :     if( psPam )</span>
+<span class="lineNum">    1296 </span>            :     {
+<span class="lineNum">    1297 </span><span class="lineCov">       2317 :         psPam-&gt;bHasMetadata = TRUE;</span>
+<span class="lineNum">    1298 </span><span class="lineCov">       2317 :         MarkPamDirty();</span>
+<span class="lineNum">    1299 </span>            :     }
+<span class="lineNum">    1300 </span>            : 
+<span class="lineNum">    1301 </span><span class="lineCov">       2318 :     return GDALDataset::SetMetadata( papszMetadata, pszDomain );</span>
+<span class="lineNum">    1302 </span>            : }
+<span class="lineNum">    1303 </span>            : 
+<span class="lineNum">    1304 </span>            : /************************************************************************/
+<span class="lineNum">    1305 </span>            : /*                          SetMetadataItem()                           */
+<a name="1306"><span class="lineNum">    1306 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1307 </span>            : 
+<span class="lineNum">    1308 </span><span class="lineCov">      19073 : CPLErr GDALPamDataset::SetMetadataItem( const char *pszName,</span>
+<span class="lineNum">    1309 </span>            :                                         const char *pszValue,
+<span class="lineNum">    1310 </span>            :                                         const char *pszDomain )
+<span class="lineNum">    1311 </span>            : 
+<span class="lineNum">    1312 </span>            : {
+<span class="lineNum">    1313 </span><span class="lineCov">      19073 :     PamInitialize();</span>
+<span class="lineNum">    1314 </span>            : 
+<span class="lineNum">    1315 </span><span class="lineCov">      19072 :     if( psPam )</span>
+<span class="lineNum">    1316 </span>            :     {
+<span class="lineNum">    1317 </span><span class="lineCov">      18865 :         psPam-&gt;bHasMetadata = TRUE;</span>
+<span class="lineNum">    1318 </span><span class="lineCov">      18865 :         MarkPamDirty();</span>
+<span class="lineNum">    1319 </span>            :     }
+<span class="lineNum">    1320 </span>            : 
+<span class="lineNum">    1321 </span><span class="lineCov">      19072 :     return GDALDataset::SetMetadataItem( pszName, pszValue, pszDomain );</span>
+<span class="lineNum">    1322 </span>            : }
+<span class="lineNum">    1323 </span>            : 
+<span class="lineNum">    1324 </span>            : /************************************************************************/
+<span class="lineNum">    1325 </span>            : /*                          GetMetadataItem()                           */
+<a name="1326"><span class="lineNum">    1326 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1327 </span>            : 
+<span class="lineNum">    1328 </span><span class="lineCov">       8976 : const char *GDALPamDataset::GetMetadataItem( const char *pszName,</span>
+<span class="lineNum">    1329 </span>            :                                              const char *pszDomain )
+<span class="lineNum">    1330 </span>            : 
+<span class="lineNum">    1331 </span>            : {
+<span class="lineNum">    1332 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1333 </span>            : /*      A request against the ProxyOverviewRequest is a special         */
+<span class="lineNum">    1334 </span>            : /*      mechanism to request an overview filename be allocated in       */
+<span class="lineNum">    1335 </span>            : /*      the proxy pool location.  The allocated name is saved as        */
+<span class="lineNum">    1336 </span>            : /*      metadata as well as being returned.                             */
+<span class="lineNum">    1337 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1338 </span><span class="lineCov">       8976 :     if( pszDomain != nullptr &amp;&amp; EQUAL(pszDomain,&quot;ProxyOverviewRequest&quot;) )</span>
+<span class="lineNum">    1339 </span>            :     {
+<span class="lineNum">    1340 </span><span class="lineCov">          3 :         CPLString osPrelimOvr = GetDescription();</span>
+<span class="lineNum">    1341 </span><span class="lineCov">          3 :         osPrelimOvr += &quot;:::OVR&quot;;</span>
+<span class="lineNum">    1342 </span>            : 
+<span class="lineNum">    1343 </span><span class="lineCov">          3 :         const char *pszProxyOvrFilename = PamAllocateProxy( osPrelimOvr );</span>
+<span class="lineNum">    1344 </span><span class="lineCov">          3 :         if( pszProxyOvrFilename == nullptr )</span>
+<span class="lineNum">    1345 </span><span class="lineCov">          2 :             return nullptr;</span>
+<span class="lineNum">    1346 </span>            : 
+<span class="lineNum">    1347 </span><span class="lineCov">          1 :         SetMetadataItem( &quot;OVERVIEW_FILE&quot;, pszProxyOvrFilename, &quot;OVERVIEWS&quot; );</span>
+<span class="lineNum">    1348 </span>            : 
+<span class="lineNum">    1349 </span><span class="lineCov">          1 :         return pszProxyOvrFilename;</span>
+<span class="lineNum">    1350 </span>            :     }
+<span class="lineNum">    1351 </span>            : 
+<span class="lineNum">    1352 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1353 </span>            : /*      If the OVERVIEW_FILE metadata is requested, we intercept the    */
+<span class="lineNum">    1354 </span>            : /*      request in order to replace &quot;:::BASE:::&quot; with the path to       */
+<span class="lineNum">    1355 </span>            : /*      the physical file - if available.  This is primarily for the    */
+<span class="lineNum">    1356 </span>            : /*      purpose of managing subdataset overview filenames as being      */
+<span class="lineNum">    1357 </span>            : /*      relative to the physical file the subdataset comes              */
+<span class="lineNum">    1358 </span>            : /*      from. (#3287).                                                  */
+<span class="lineNum">    1359 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1360 </span><span class="lineCov">       8973 :     else if( pszDomain != nullptr</span>
+<span class="lineNum">    1361 </span><span class="lineCov">       8973 :              &amp;&amp; EQUAL(pszDomain,&quot;OVERVIEWS&quot;)</span>
+<span class="lineNum">    1362 </span><span class="lineCov">       2362 :              &amp;&amp; EQUAL(pszName,&quot;OVERVIEW_FILE&quot;) )</span>
+<span class="lineNum">    1363 </span>            :     {
+<span class="lineNum">    1364 </span>            :         const char *pszOverviewFile =
+<span class="lineNum">    1365 </span><span class="lineCov">       2362 :             GDALDataset::GetMetadataItem( pszName, pszDomain );</span>
+<span class="lineNum">    1366 </span>            : 
+<span class="lineNum">    1367 </span><span class="lineCov">       2362 :         if( pszOverviewFile == nullptr</span>
+<span class="lineNum">    1368 </span><span class="lineCov">         23 :             || !STARTS_WITH_CI(pszOverviewFile, &quot;:::BASE:::&quot;) )</span>
+<span class="lineNum">    1369 </span><span class="lineCov">       2340 :             return pszOverviewFile;</span>
+<span class="lineNum">    1370 </span>            : 
+<span class="lineNum">    1371 </span><span class="lineCov">         22 :         CPLString osPath;</span>
+<span class="lineNum">    1372 </span>            : 
+<span class="lineNum">    1373 </span><span class="lineCov">         22 :         if( strlen(GetPhysicalFilename()) &gt; 0 )</span>
+<span class="lineNum">    1374 </span><span class="lineCov">         22 :             osPath = CPLGetPath(GetPhysicalFilename());</span>
+<span class="lineNum">    1375 </span>            :         else
+<span class="lineNum">    1376 </span><span class="lineNoCov">          0 :             osPath = CPLGetPath(GetDescription());</span>
+<span class="lineNum">    1377 </span>            : 
+<span class="lineNum">    1378 </span><span class="lineCov">         22 :         return CPLFormFilename( osPath, pszOverviewFile + 10, nullptr );</span>
+<span class="lineNum">    1379 </span>            :     }
+<span class="lineNum">    1380 </span>            : 
+<span class="lineNum">    1381 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1382 </span>            : /*      Everything else is a pass through.                              */
+<span class="lineNum">    1383 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1384 </span>            : 
+<span class="lineNum">    1385 </span><span class="lineCov">       6611 :     return GDALDataset::GetMetadataItem( pszName, pszDomain );</span>
+<span class="lineNum">    1386 </span>            : }
+<span class="lineNum">    1387 </span>            : 
+<span class="lineNum">    1388 </span>            : /************************************************************************/
+<span class="lineNum">    1389 </span>            : /*                            GetMetadata()                             */
+<a name="1390"><span class="lineNum">    1390 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1391 </span>            : 
+<span class="lineNum">    1392 </span><span class="lineCov">       6432 : char **GDALPamDataset::GetMetadata( const char *pszDomain )</span>
+<span class="lineNum">    1393 </span>            : 
+<span class="lineNum">    1394 </span>            : {
+<span class="lineNum">    1395 </span>            :     // if( pszDomain == nullptr || !EQUAL(pszDomain,&quot;ProxyOverviewRequest&quot;) )
+<span class="lineNum">    1396 </span><span class="lineCov">       6432 :     return GDALDataset::GetMetadata( pszDomain );</span>
+<span class="lineNum">    1397 </span>            : }
+<span class="lineNum">    1398 </span>            : 
+<span class="lineNum">    1399 </span>            : /************************************************************************/
+<span class="lineNum">    1400 </span>            : /*                             TryLoadAux()                             */
+<span class="lineNum">    1401 </span>            : /************************************************************************/
+<a name="1402"><span class="lineNum">    1402 </span>            : </a>
+<span class="lineNum">    1403 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">    1404 </span><span class="lineCov">      17460 : CPLErr GDALPamDataset::TryLoadAux(char **papszSiblingFiles)</span>
+<span class="lineNum">    1405 </span>            : 
+<span class="lineNum">    1406 </span>            : {
+<span class="lineNum">    1407 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1408 </span>            : /*      Initialize PAM.                                                 */
+<span class="lineNum">    1409 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1410 </span><span class="lineCov">      17460 :     PamInitialize();</span>
+<span class="lineNum">    1411 </span><span class="lineCov">      17460 :     if( psPam == nullptr )</span>
+<span class="lineNum">    1412 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">    1413 </span>            : 
+<span class="lineNum">    1414 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1415 </span>            : /*      What is the name of the physical file we are referencing?       */
+<span class="lineNum">    1416 </span>            : /*      We allow an override via the psPam-&gt;pszPhysicalFile item.       */
+<span class="lineNum">    1417 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1418 </span><span class="lineCov">      17460 :     const char *pszPhysicalFile = psPam-&gt;osPhysicalFilename;</span>
+<span class="lineNum">    1419 </span>            : 
+<span class="lineNum">    1420 </span><span class="lineCov">      17460 :     if( strlen(pszPhysicalFile) == 0 &amp;&amp; GetDescription() != nullptr )</span>
+<span class="lineNum">    1421 </span><span class="lineCov">      17061 :         pszPhysicalFile = GetDescription();</span>
+<span class="lineNum">    1422 </span>            : 
+<span class="lineNum">    1423 </span><span class="lineCov">      17460 :     if( strlen(pszPhysicalFile) == 0 )</span>
+<span class="lineNum">    1424 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">    1425 </span>            : 
+<span class="lineNum">    1426 </span><span class="lineCov">      17460 :     if( papszSiblingFiles )</span>
+<span class="lineNum">    1427 </span>            :     {
+<span class="lineNum">    1428 </span><span class="lineCov">      12559 :         CPLString osAuxFilename = CPLResetExtension( pszPhysicalFile, &quot;aux&quot;);</span>
+<span class="lineNum">    1429 </span>            :         int iSibling = CSLFindString( papszSiblingFiles,
+<span class="lineNum">    1430 </span><span class="lineCov">      12559 :                                       CPLGetFilename(osAuxFilename) );</span>
+<span class="lineNum">    1431 </span><span class="lineCov">      12559 :         if( iSibling &lt; 0 )</span>
+<span class="lineNum">    1432 </span>            :         {
+<span class="lineNum">    1433 </span><span class="lineCov">      12552 :             osAuxFilename = pszPhysicalFile;</span>
+<span class="lineNum">    1434 </span><span class="lineCov">      12552 :             osAuxFilename += &quot;.aux&quot;;</span>
+<span class="lineNum">    1435 </span>            :             iSibling = CSLFindString( papszSiblingFiles,
+<span class="lineNum">    1436 </span><span class="lineCov">      12552 :                                       CPLGetFilename(osAuxFilename) );</span>
+<span class="lineNum">    1437 </span><span class="lineCov">      12552 :             if( iSibling &lt; 0 )</span>
+<span class="lineNum">    1438 </span><span class="lineCov">      12552 :                 return CE_None;</span>
+<span class="lineNum">    1439 </span><span class="lineCov">          7 :         }</span>
+<span class="lineNum">    1440 </span>            :     }
+<span class="lineNum">    1441 </span>            : 
+<span class="lineNum">    1442 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1443 </span>            : /*      Try to open .aux file.                                          */
+<span class="lineNum">    1444 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1445 </span>            :     GDALDataset *poAuxDS = GDALFindAssociatedAuxFile( pszPhysicalFile,
+<span class="lineNum">    1446 </span><span class="lineCov">       4908 :                                                       GA_ReadOnly, this );</span>
+<span class="lineNum">    1447 </span>            : 
+<span class="lineNum">    1448 </span><span class="lineCov">       4908 :     if( poAuxDS == nullptr )</span>
+<span class="lineNum">    1449 </span><span class="lineCov">       4898 :         return CE_None;</span>
+<span class="lineNum">    1450 </span>            : 
+<span class="lineNum">    1451 </span><span class="lineCov">         10 :     psPam-&gt;osAuxFilename = poAuxDS-&gt;GetDescription();</span>
+<span class="lineNum">    1452 </span>            : 
+<span class="lineNum">    1453 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1454 </span>            : /*      Do we have an SRS on the aux file?                              */
+<span class="lineNum">    1455 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1456 </span><span class="lineCov">         10 :     if( strlen(poAuxDS-&gt;GetProjectionRef()) &gt; 0 )</span>
+<span class="lineNum">    1457 </span><span class="lineCov">          1 :         GDALPamDataset::SetProjection( poAuxDS-&gt;GetProjectionRef() );</span>
+<span class="lineNum">    1458 </span>            : 
+<span class="lineNum">    1459 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1460 </span>            : /*      Geotransform.                                                   */
+<span class="lineNum">    1461 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1462 </span><span class="lineCov">         10 :     if( poAuxDS-&gt;GetGeoTransform( psPam-&gt;adfGeoTransform ) == CE_None )</span>
+<span class="lineNum">    1463 </span><span class="lineCov">          1 :         psPam-&gt;bHaveGeoTransform = TRUE;</span>
+<span class="lineNum">    1464 </span>            : 
+<span class="lineNum">    1465 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1466 </span>            : /*      GCPs                                                            */
+<span class="lineNum">    1467 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1468 </span><span class="lineCov">         10 :     if( poAuxDS-&gt;GetGCPCount() &gt; 0 )</span>
+<span class="lineNum">    1469 </span>            :     {
+<span class="lineNum">    1470 </span><span class="lineNoCov">          0 :         psPam-&gt;nGCPCount = poAuxDS-&gt;GetGCPCount();</span>
+<span class="lineNum">    1471 </span>            :         psPam-&gt;pasGCPList = GDALDuplicateGCPs( psPam-&gt;nGCPCount,
+<span class="lineNum">    1472 </span><span class="lineNoCov">          0 :                                                poAuxDS-&gt;GetGCPs() );</span>
+<span class="lineNum">    1473 </span>            :     }
+<span class="lineNum">    1474 </span>            : 
+<span class="lineNum">    1475 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1476 </span>            : /*      Apply metadata. We likely ought to be merging this in rather    */
+<span class="lineNum">    1477 </span>            : /*      than overwriting everything that was there.                     */
+<span class="lineNum">    1478 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1479 </span><span class="lineCov">         10 :     char **papszMD = poAuxDS-&gt;GetMetadata();</span>
+<span class="lineNum">    1480 </span><span class="lineCov">         10 :     if( CSLCount(papszMD) &gt; 0 )</span>
+<span class="lineNum">    1481 </span>            :     {
+<span class="lineNum">    1482 </span>            :         char **papszMerged =
+<span class="lineNum">    1483 </span><span class="lineNoCov">          0 :             CSLMerge( CSLDuplicate(GetMetadata()), papszMD );</span>
+<span class="lineNum">    1484 </span><span class="lineNoCov">          0 :         GDALPamDataset::SetMetadata( papszMerged );</span>
+<span class="lineNum">    1485 </span><span class="lineNoCov">          0 :         CSLDestroy( papszMerged );</span>
+<span class="lineNum">    1486 </span>            :     }
+<span class="lineNum">    1487 </span>            : 
+<span class="lineNum">    1488 </span><span class="lineCov">         10 :     papszMD = poAuxDS-&gt;GetMetadata(&quot;XFORMS&quot;);</span>
+<span class="lineNum">    1489 </span><span class="lineCov">         10 :     if( CSLCount(papszMD) &gt; 0 )</span>
+<span class="lineNum">    1490 </span>            :     {
+<span class="lineNum">    1491 </span>            :         char **papszMerged =
+<span class="lineNum">    1492 </span><span class="lineNoCov">          0 :             CSLMerge( CSLDuplicate(GetMetadata(&quot;XFORMS&quot;)), papszMD );</span>
+<span class="lineNum">    1493 </span><span class="lineNoCov">          0 :         GDALPamDataset::SetMetadata( papszMerged, &quot;XFORMS&quot; );</span>
+<span class="lineNum">    1494 </span><span class="lineNoCov">          0 :         CSLDestroy( papszMerged );</span>
+<span class="lineNum">    1495 </span>            :     }
+<span class="lineNum">    1496 </span>            : 
+<span class="lineNum">    1497 </span>            : /* ==================================================================== */
+<span class="lineNum">    1498 </span>            : /*      Process bands.                                                  */
+<span class="lineNum">    1499 </span>            : /* ==================================================================== */
+<span class="lineNum">    1500 </span><span class="lineCov">         22 :     for( int iBand = 0; iBand &lt; poAuxDS-&gt;GetRasterCount(); iBand++ )</span>
+<span class="lineNum">    1501 </span>            :     {
+<span class="lineNum">    1502 </span><span class="lineCov">         12 :         if( iBand &gt;= GetRasterCount() )</span>
+<span class="lineNum">    1503 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1504 </span>            : 
+<span class="lineNum">    1505 </span><span class="lineCov">         12 :         GDALRasterBand * const poAuxBand = poAuxDS-&gt;GetRasterBand( iBand+1 );</span>
+<span class="lineNum">    1506 </span><span class="lineCov">         12 :         GDALRasterBand * const poBand = GetRasterBand( iBand+1 );</span>
+<span class="lineNum">    1507 </span>            : 
+<span class="lineNum">    1508 </span><span class="lineCov">         12 :         papszMD = poAuxBand-&gt;GetMetadata();</span>
+<span class="lineNum">    1509 </span><span class="lineCov">         12 :         if( CSLCount(papszMD) &gt; 0 )</span>
+<span class="lineNum">    1510 </span>            :         {
+<span class="lineNum">    1511 </span>            :             char **papszMerged =
+<span class="lineNum">    1512 </span><span class="lineCov">         12 :                 CSLMerge( CSLDuplicate(poBand-&gt;GetMetadata()), papszMD );</span>
+<span class="lineNum">    1513 </span><span class="lineCov">         12 :             poBand-&gt;SetMetadata( papszMerged );</span>
+<span class="lineNum">    1514 </span><span class="lineCov">         12 :             CSLDestroy( papszMerged );</span>
+<span class="lineNum">    1515 </span>            :         }
+<span class="lineNum">    1516 </span>            : 
+<span class="lineNum">    1517 </span><span class="lineCov">         12 :         if( strlen(poAuxBand-&gt;GetDescription()) &gt; 0 )</span>
+<span class="lineNum">    1518 </span><span class="lineCov">         12 :             poBand-&gt;SetDescription( poAuxBand-&gt;GetDescription() );</span>
+<span class="lineNum">    1519 </span>            : 
+<span class="lineNum">    1520 </span><span class="lineCov">         12 :         if( poAuxBand-&gt;GetCategoryNames() != nullptr )</span>
+<span class="lineNum">    1521 </span><span class="lineNoCov">          0 :             poBand-&gt;SetCategoryNames( poAuxBand-&gt;GetCategoryNames() );</span>
+<span class="lineNum">    1522 </span>            : 
+<span class="lineNum">    1523 </span><span class="lineCov">         24 :         if( poAuxBand-&gt;GetColorTable() != nullptr</span>
+<span class="lineNum">    1524 </span><span class="lineCov">         12 :             &amp;&amp; poBand-&gt;GetColorTable() == nullptr )</span>
+<span class="lineNum">    1525 </span><span class="lineNoCov">          0 :             poBand-&gt;SetColorTable( poAuxBand-&gt;GetColorTable() );</span>
+<span class="lineNum">    1526 </span>            : 
+<span class="lineNum">    1527 </span>            :         // histograms?
+<span class="lineNum">    1528 </span><span class="lineCov">         12 :         double dfMin = 0.0;</span>
+<span class="lineNum">    1529 </span><span class="lineCov">         12 :         double dfMax = 0.0;</span>
+<span class="lineNum">    1530 </span><span class="lineCov">         12 :         int nBuckets = 0;</span>
+<span class="lineNum">    1531 </span><span class="lineCov">         12 :         GUIntBig *panHistogram=nullptr;</span>
+<span class="lineNum">    1532 </span>            : 
+<span class="lineNum">    1533 </span><span class="lineCov">         12 :         if( poAuxBand-&gt;GetDefaultHistogram( &amp;dfMin, &amp;dfMax,</span>
+<span class="lineNum">    1534 </span>            :                                             &amp;nBuckets, &amp;panHistogram,
+<span class="lineNum">    1535 </span><span class="lineCov">         12 :                                             FALSE, nullptr, nullptr ) == CE_None )</span>
+<span class="lineNum">    1536 </span>            :         {
+<span class="lineNum">    1537 </span>            :             poBand-&gt;SetDefaultHistogram( dfMin, dfMax, nBuckets,
+<span class="lineNum">    1538 </span><span class="lineCov">          5 :                                          panHistogram );</span>
+<span class="lineNum">    1539 </span><span class="lineCov">          5 :             CPLFree( panHistogram );</span>
+<span class="lineNum">    1540 </span>            :         }
+<span class="lineNum">    1541 </span>            : 
+<span class="lineNum">    1542 </span>            :         // RAT
+<span class="lineNum">    1543 </span><span class="lineCov">         12 :         if( poAuxBand-&gt;GetDefaultRAT() != nullptr )</span>
+<span class="lineNum">    1544 </span><span class="lineCov">         12 :             poBand-&gt;SetDefaultRAT( poAuxBand-&gt;GetDefaultRAT() );</span>
+<span class="lineNum">    1545 </span>            : 
+<span class="lineNum">    1546 </span>            :         // NoData
+<span class="lineNum">    1547 </span><span class="lineCov">         12 :         int bSuccess = FALSE;</span>
+<span class="lineNum">    1548 </span><span class="lineCov">         12 :         const double dfNoDataValue = poAuxBand-&gt;GetNoDataValue( &amp;bSuccess );</span>
+<span class="lineNum">    1549 </span><span class="lineCov">         12 :         if( bSuccess )</span>
+<span class="lineNum">    1550 </span><span class="lineCov">          4 :             poBand-&gt;SetNoDataValue( dfNoDataValue );</span>
+<span class="lineNum">    1551 </span>            :     }
+<span class="lineNum">    1552 </span>            : 
+<span class="lineNum">    1553 </span><span class="lineCov">         10 :     GDALClose( poAuxDS );</span>
+<span class="lineNum">    1554 </span>            : 
+<span class="lineNum">    1555 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1556 </span>            : /*      Mark PAM info as clean.                                         */
+<span class="lineNum">    1557 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1558 </span><span class="lineCov">         10 :     nPamFlags &amp;= ~GPF_DIRTY;</span>
+<span class="lineNum">    1559 </span>            : 
+<span class="lineNum">    1560 </span><span class="lineCov">         10 :     return CE_Failure;</span>
+<span class="lineNum">    1561 </span>            : }
+<span class="lineNum">    1562 </span>            : //! @endcond
+<span class="lineNum">    1563 </span>            : 
+<span class="lineNum">    1564 </span>            : /************************************************************************/
+<span class="lineNum">    1565 </span>            : /*                        _GetProjectionRef()                           */
+<span class="lineNum">    1566 </span>            : /************************************************************************/
+<a name="1567"><span class="lineNum">    1567 </span>            : </a>
+<span class="lineNum">    1568 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">    1569 </span><span class="lineCov">        627 : const char *GDALPamDataset::_GetProjectionRef()</span>
+<span class="lineNum">    1570 </span>            : {
+<span class="lineNum">    1571 </span><span class="lineCov">        627 :     return GetProjectionRefFromSpatialRef(GDALPamDataset::GetSpatialRef());</span>
+<span class="lineNum">    1572 </span>            : }
+<span class="lineNum">    1573 </span>            : 
+<span class="lineNum">    1574 </span>            : /************************************************************************/
+<span class="lineNum">    1575 </span>            : /*                          _SetProjection()                            */
+<a name="1576"><span class="lineNum">    1576 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1577 </span>            : 
+<span class="lineNum">    1578 </span><span class="lineCov">         13 : CPLErr GDALPamDataset::_SetProjection( const char *pszProjection )</span>
+<span class="lineNum">    1579 </span>            : {
+<span class="lineNum">    1580 </span><span class="lineCov">         13 :     if( pszProjection &amp;&amp; pszProjection[0] != '\0' )</span>
+<span class="lineNum">    1581 </span>            :     {
+<span class="lineNum">    1582 </span><span class="lineCov">         13 :         OGRSpatialReference oSRS;</span>
+<span class="lineNum">    1583 </span><span class="lineCov">         13 :         oSRS.SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">    1584 </span><span class="lineCov">         13 :         if( oSRS.importFromWkt(pszProjection) != OGRERR_NONE )</span>
+<span class="lineNum">    1585 </span>            :         {
+<span class="lineNum">    1586 </span><span class="lineNoCov">          0 :             return CE_Failure;</span>
+<span class="lineNum">    1587 </span>            :         }
+<span class="lineNum">    1588 </span><span class="lineCov">         13 :         return GDALPamDataset::SetSpatialRef(&amp;oSRS);</span>
+<span class="lineNum">    1589 </span>            :     }
+<span class="lineNum">    1590 </span>            :     else
+<span class="lineNum">    1591 </span>            :     {
+<span class="lineNum">    1592 </span><span class="lineNoCov">          0 :         return GDALPamDataset::SetSpatialRef(nullptr);</span>
+<span class="lineNum">    1593 </span>            :     }
+<span class="lineNum">    1594 </span>            : }
+<span class="lineNum">    1595 </span>            : 
+<span class="lineNum">    1596 </span>            : /************************************************************************/
+<span class="lineNum">    1597 </span>            : /*                        _GetGCPProjection()                           */
+<a name="1598"><span class="lineNum">    1598 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1599 </span>            : 
+<span class="lineNum">    1600 </span><span class="lineCov">          7 : const char *GDALPamDataset::_GetGCPProjection()</span>
+<span class="lineNum">    1601 </span>            : {
+<span class="lineNum">    1602 </span><span class="lineCov">          7 :     return GetGCPProjectionFromSpatialRef(GDALPamDataset::GetGCPSpatialRef());</span>
+<span class="lineNum">    1603 </span>            : }
+<span class="lineNum">    1604 </span>            : 
+<span class="lineNum">    1605 </span>            : /************************************************************************/
+<span class="lineNum">    1606 </span>            : /*                            _SetGCPs()                                */
+<a name="1607"><span class="lineNum">    1607 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1608 </span>            : 
+<span class="lineNum">    1609 </span><span class="lineCov">          1 : CPLErr GDALPamDataset::_SetGCPs( int nGCPCount,</span>
+<span class="lineNum">    1610 </span>            :                              const GDAL_GCP *pasGCPList,
+<span class="lineNum">    1611 </span>            :                              const char *pszGCPProjection )
+<span class="lineNum">    1612 </span>            : 
+<span class="lineNum">    1613 </span>            : {
+<span class="lineNum">    1614 </span><span class="lineCov">          1 :     if( pszGCPProjection &amp;&amp; pszGCPProjection[0] != '\0' )</span>
+<span class="lineNum">    1615 </span>            :     {
+<span class="lineNum">    1616 </span><span class="lineCov">          1 :         OGRSpatialReference oSRS;</span>
+<span class="lineNum">    1617 </span><span class="lineCov">          1 :         oSRS.SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">    1618 </span><span class="lineCov">          1 :         if( oSRS.importFromWkt(pszGCPProjection) != OGRERR_NONE )</span>
+<span class="lineNum">    1619 </span>            :         {
+<span class="lineNum">    1620 </span><span class="lineNoCov">          0 :             return CE_Failure;</span>
+<span class="lineNum">    1621 </span>            :         }
+<span class="lineNum">    1622 </span><span class="lineCov">          1 :         return GDALPamDataset::SetGCPs(nGCPCount, pasGCPList, &amp;oSRS);</span>
+<span class="lineNum">    1623 </span>            :     }
+<span class="lineNum">    1624 </span>            :     else
+<span class="lineNum">    1625 </span>            :     {
+<span class="lineNum">    1626 </span>            :         return GDALPamDataset::SetGCPs(nGCPCount, pasGCPList,
+<span class="lineNum">    1627 </span><span class="lineNoCov">          0 :                        static_cast&lt;const OGRSpatialReference*&gt;(nullptr));</span>
+<span class="lineNum">    1628 </span>            :     }
+<span class="lineNum">    1629 </span>            : }
+<span class="lineNum">    1630 </span>            : //! @endcond
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

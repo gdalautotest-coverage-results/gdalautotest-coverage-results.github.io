@@ -1,0 +1,1673 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/grib/degrib/degrib/grib2api.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">frmts/grib/degrib/degrib</a> - grib2api.c<span style="font-size: 80%;"> (source / <a href="grib2api.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">188</td>
+            <td class="headerCovTableEntry">426</td>
+            <td class="headerCovTableEntryLo">44.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">5</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntryMed">83.3 %</td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*****************************************************************************</a>
+<span class="lineNum">       2 </span>            :  * grib2api.c
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * DESCRIPTION
+<span class="lineNum">       5 </span>            :  *    This file contains the API to the GRIB2 libraries which is as close as
+<span class="lineNum">       6 </span>            :  * possible to the &quot;official&quot; NWS GRIB2 Library's API.  The reason for this
+<span class="lineNum">       7 </span>            :  * is so we can use NCEP's unofficial GRIB2 library while having minimal
+<span class="lineNum">       8 </span>            :  * impact on the already written drivers.
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * HISTORY
+<span class="lineNum">      11 </span>            :  *  12/2003 Arthur Taylor (MDL / RSIS): Created.
+<span class="lineNum">      12 </span>            :  *
+<span class="lineNum">      13 </span>            :  * NOTES
+<span class="lineNum">      14 </span>            :  *****************************************************************************
+<span class="lineNum">      15 </span>            :  */
+<span class="lineNum">      16 </span>            : #include &lt;limits.h&gt;
+<span class="lineNum">      17 </span>            : #include &lt;math.h&gt;
+<span class="lineNum">      18 </span>            : #include &lt;stdlib.h&gt;
+<span class="lineNum">      19 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      20 </span>            : #include &quot;grib2api.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;grib2.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;scan.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;tendian.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;myassert.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;gridtemplates.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;pdstemplates.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;drstemplates.h&quot;
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : /* Commented out by GDAL: we can actually include gribtemplates.h */
+<span class="lineNum">      32 </span>            : #if 0
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : /* Would prefer to include &quot;gribtemplates.h&quot; but can't since NCEP decided to
+<span class="lineNum">      35 </span>            :  * put a const struct in it.  The result is if I include it, I get 2 copies
+<span class="lineNum">      36 </span>            :  * of the data.
+<span class="lineNum">      37 </span>            :  */
+<span class="lineNum">      38 </span>            : extern sInt4 getgridindex(sInt4 number);
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : /* have now put this in grib2api.h... may bring it back. */
+<span class="lineNum">      41 </span>            : #define MAXGRIDTEMP 23  /* maximum number of templates */
+<span class="lineNum">      42 </span>            : #define MAXGRIDMAPLEN 200 /* maximum template map length */
+<span class="lineNum">      43 </span>            : struct gridtemplate {
+<span class="lineNum">      44 </span>            :    sInt4 template_num;
+<span class="lineNum">      45 </span>            :    sInt4 mapgridlen;
+<span class="lineNum">      46 </span>            :    sInt4 needext;
+<span class="lineNum">      47 </span>            :    sInt4 mapgrid[MAXGRIDMAPLEN];
+<span class="lineNum">      48 </span>            : };
+<span class="lineNum">      49 </span>            : extern const struct gridtemplate templatesgrid[MAXGRIDTEMP];
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : /* Would prefer to include &quot;pdstemplates.h&quot; but can't since NCEP decided to
+<span class="lineNum">      52 </span>            :  * put a const struct in it.  The result is if I include it, I get 2 copies
+<span class="lineNum">      53 </span>            :  * of the data.
+<span class="lineNum">      54 </span>            :  */
+<span class="lineNum">      55 </span>            : extern sInt4 getpdsindex(sInt4 number);
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : /* have now put this in grib2api.h... may bring it back. */
+<span class="lineNum">      58 </span>            : #define MAXPDSTEMP 23   /* maximum number of templates */
+<span class="lineNum">      59 </span>            : #define MAXPDSMAPLEN 200 /* maximum template map length */
+<span class="lineNum">      60 </span>            : struct pdstemplate {
+<span class="lineNum">      61 </span>            :    sInt4 template_num;
+<span class="lineNum">      62 </span>            :    sInt4 mappdslen;
+<span class="lineNum">      63 </span>            :    sInt4 needext;
+<span class="lineNum">      64 </span>            :    sInt4 mappds[MAXPDSMAPLEN];
+<span class="lineNum">      65 </span>            : };
+<span class="lineNum">      66 </span>            : extern const struct pdstemplate templatespds[MAXPDSTEMP];
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            : /* Would prefer to include &quot;drstemplates.h&quot; but can't since NCEP decided to
+<span class="lineNum">      69 </span>            :  * put a const struct in it.  The result is if I include it, I get 2 copies
+<span class="lineNum">      70 </span>            :  * of the data.
+<span class="lineNum">      71 </span>            :  */
+<span class="lineNum">      72 </span>            : extern sInt4 getdrsindex(sInt4 number);
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            : #define MAXDRSTEMP 8    /* maximum number of templates */
+<span class="lineNum">      75 </span>            : #define MAXDRSMAPLEN 200 /* maximum template map length */
+<span class="lineNum">      76 </span>            : struct drstemplate {
+<span class="lineNum">      77 </span>            :    sInt4 template_num;
+<span class="lineNum">      78 </span>            :    sInt4 mapdrslen;
+<span class="lineNum">      79 </span>            :    sInt4 needext;
+<span class="lineNum">      80 </span>            :    sInt4 mapdrs[MAXDRSMAPLEN];
+<span class="lineNum">      81 </span>            : };
+<span class="lineNum">      82 </span>            : extern const struct drstemplate templatesdrs[MAXDRSTEMP];
+<a name="83"><span class="lineNum">      83 </span>            : #endif</a>
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span><span class="lineCov">    1625962 : static sInt4 FloatToSInt4Clamp(float val) {</span>
+<span class="lineNum">      86 </span><span class="lineCov">    1625962 :    if (val &gt;= INT_MAX) return INT_MAX;</span>
+<span class="lineNum">      87 </span><span class="lineCov">    1625962 :    if (val &lt;= INT_MIN) return INT_MIN;</span>
+<span class="lineNum">      88 </span><span class="lineCov">    1625956 :    if (CPLIsNan(val)) return 0;</span>
+<span class="lineNum">      89 </span><span class="lineCov">    1625947 :    return (sInt4)val;</span>
+<span class="lineNum">      90 </span>            : }
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            : /*****************************************************************************
+<span class="lineNum">      93 </span>            :  * mdl_LocalUnpack() --
+<span class="lineNum">      94 </span>            :  *
+<span class="lineNum">      95 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">      96 </span>            :  *
+<span class="lineNum">      97 </span>            :  * PURPOSE
+<span class="lineNum">      98 </span>            :  *   Unpack the local use data assuming that it was packed using the MDL
+<span class="lineNum">      99 </span>            :  * encoder.  This assumes &quot;local&quot; starts at octet 6 (i.e. skipping over the
+<span class="lineNum">     100 </span>            :  * length and section ID octets)
+<span class="lineNum">     101 </span>            :  *
+<span class="lineNum">     102 </span>            :  *   In Section 2, GRIB2 provides for local use data.  The MDL encoder packs
+<span class="lineNum">     103 </span>            :  * that data, and signifies that it has done so by setting octet 6 to 1.
+<span class="lineNum">     104 </span>            :  * This may have been inadvisable, since the GRIB2 specs did not state that
+<span class="lineNum">     105 </span>            :  * octet 6 was special.
+<span class="lineNum">     106 </span>            :  *
+<span class="lineNum">     107 </span>            :  * ARGUMENTS
+<span class="lineNum">     108 </span>            :  *    local = The section 2 data prior to being unpacked. (Input)
+<span class="lineNum">     109 </span>            :  * locallen = The length of &quot;local&quot; (Input)
+<span class="lineNum">     110 </span>            :  *     idat = Unpacked MDL local data (if it was an integer) (Output)
+<span class="lineNum">     111 </span>            :  *    nidat = length of idat. (Input)
+<span class="lineNum">     112 </span>            :  *     rdat = Unpacked MDL local data (if it was a float) (Output)
+<span class="lineNum">     113 </span>            :  *    nrdat = length of rdat. (Input)
+<span class="lineNum">     114 </span>            :  *
+<span class="lineNum">     115 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     116 </span>            :  *
+<span class="lineNum">     117 </span>            :  * RETURNS: int
+<span class="lineNum">     118 </span>            :  *  0 = Ok.
+<span class="lineNum">     119 </span>            :  *  1 = Mixed local data types?
+<span class="lineNum">     120 </span>            :  *  2 = nrdat is not large enough.
+<span class="lineNum">     121 </span>            :  *  3 = nidat is not large enough.
+<span class="lineNum">     122 </span>            :  *  4 = Too many bits to unpack, should be a max of 32 bits.
+<span class="lineNum">     123 </span>            :  *  5 = Locallen is too small
+<span class="lineNum">     124 </span>            :  *
+<span class="lineNum">     125 </span>            :  * HISTORY
+<span class="lineNum">     126 </span>            :  *  12/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     127 </span>            :  *
+<span class="lineNum">     128 </span>            :  * NOTES
+<span class="lineNum">     129 </span>            :  *****************************************************************************
+<a name="130"><span class="lineNum">     130 </span>            :  */</a>
+<span class="lineNum">     131 </span>            : #define GRIB_UNSIGN_INT2(a,b) ((a&lt;&lt;8)+b)
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 : static int mdl_LocalUnpack(unsigned char *local, sInt4 locallen,</span>
+<span class="lineNum">     133 </span>            :                            sInt4 *idat, sInt4 *nidat, float *rdat,
+<span class="lineNum">     134 </span>            :                            sInt4 *nrdat)
+<span class="lineNum">     135 </span>            : {
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :    int BytesUsed = 0;   /* How many bytes have been used. */</span>
+<span class="lineNum">     137 </span>            :    unsigned int numGroup; /* Number of groups */
+<span class="lineNum">     138 </span>            :    int i;               /* Counter over the groups. */
+<span class="lineNum">     139 </span>            :    sInt4 numVal;        /* Number of values in a given group. */
+<span class="lineNum">     140 </span>            :    float refVal;        /* The reference value in a given group. */
+<span class="lineNum">     141 </span>            :    unsigned int scale;  /* The power of 10 scale value in the group. */
+<span class="lineNum">     142 </span>            :    sInt4 recScale10;    /* 1 / 10**scale.. For faster computations. */
+<span class="lineNum">     143 </span>            :    unsigned char numBits; /* # of bits for a single element in the group. */
+<span class="lineNum">     144 </span>            :    char f_dataType;     /* If the local data is a float or integer. */
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :    char f_firstType = 0; /* The type of the first group of local data. */</span>
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :    int curIndex = 0;    /* Where to store the current data. */</span>
+<span class="lineNum">     147 </span>            :    int j;               /* Counter over the number of values in a group. */
+<span class="lineNum">     148 </span>            :    size_t numUsed;      /* Number of bytes used in call to memBitRead. */
+<span class="lineNum">     149 </span>            :    uChar bufLoc;        /* Where to read for more bits in the data stream. */
+<span class="lineNum">     150 </span>            :    uInt4 uli_temp;      /* Temporary storage to hold unpacked data. */
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :    if (locallen &lt; BytesUsed + 3) {</span>
+<span class="lineNum">     153 </span>            : #ifdef DEBUG
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :       printf(&quot;Locallen is too small.\n&quot;);</span>
+<span class="lineNum">     155 </span>            : #endif
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :       return 5;</span>
+<span class="lineNum">     157 </span>            :    }
+<span class="lineNum">     158 </span>            :    /* The calling routine should check octet 6, which is local[0], to be 1,
+<span class="lineNum">     159 </span>            :     * so we just assert it is 1. */
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :    myAssert(local[0] == 1);</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :    numGroup = GRIB_UNSIGN_INT2(local[1], local[2]);</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :    local += 3;</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :    BytesUsed += 3;</span>
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :    myAssert(*nrdat &gt; 1);</span>
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :    myAssert(*nidat &gt; 1);</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :    idat[0] = 0;</span>
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :    rdat[0] = 0;</span>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :    for (i = 0; (unsigned int)i &lt; numGroup; i++) {</span>
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :       if (locallen &lt; BytesUsed + 12) {</span>
+<span class="lineNum">     171 </span>            : #ifdef DEBUG
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :          printf(&quot;Locallen is too small.\n&quot;);</span>
+<span class="lineNum">     173 </span>            : #endif
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :          return 5;</span>
+<span class="lineNum">     175 </span>            :       }
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :       MEMCPY_BIG(&amp;numVal, local, sizeof (sInt4));</span>
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :       MEMCPY_BIG(&amp;refVal, local + 4, sizeof (float));</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :       scale = GRIB_UNSIGN_INT2(local[8], local[9]);</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :       recScale10 = (sInt4)(1 / pow (10.0, scale));</span>
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :       numBits = local[10];</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :       if (numBits &gt;= 32) {</span>
+<span class="lineNum">     182 </span>            : #ifdef DEBUG
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :          printf(&quot;Too many bits too unpack.\n&quot;);</span>
+<span class="lineNum">     184 </span>            : #endif
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :          return 4;</span>
+<span class="lineNum">     186 </span>            :       }
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :       f_dataType = local[11];</span>
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :       local += 12;</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :       BytesUsed += 12;</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :       if (locallen &lt; BytesUsed + ((numBits * numVal) + 7) / 8) {</span>
+<span class="lineNum">     191 </span>            : #ifdef DEBUG
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :          printf(&quot;Locallen is too small.\n&quot;);</span>
+<span class="lineNum">     193 </span>            : #endif
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :          return 5;</span>
+<span class="lineNum">     195 </span>            :       }
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :       if (i == 0) {</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :          f_firstType = f_dataType;</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :       } else if (f_firstType != f_dataType) {</span>
+<span class="lineNum">     199 </span>            : #ifdef DEBUG
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :          printf(&quot;Local use data has mixed float/integer type?\n&quot;);</span>
+<span class="lineNum">     201 </span>            : #endif
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :          return 1;</span>
+<span class="lineNum">     203 </span>            :       }
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :       bufLoc = 8;</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :       if (f_dataType == 0) {</span>
+<span class="lineNum">     206 </span>            :          /* Floating point data. */
+<span class="lineNum">     207 </span><span class="lineNoCov">          0 :          if (*nrdat &lt; (curIndex + numVal + 3)) {</span>
+<span class="lineNum">     208 </span>            : #ifdef DEBUG
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :             printf(&quot;nrdat is not large enough.\n&quot;);</span>
+<span class="lineNum">     210 </span>            : #endif
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :             return 2;</span>
+<span class="lineNum">     212 </span>            :          }
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :          rdat[curIndex] = numVal;</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :          curIndex++;</span>
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :          rdat[curIndex] = scale;</span>
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :          curIndex++;</span>
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :          for (j = 0; j &lt; numVal; j++) {</span>
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :             memBitRead(&amp;uli_temp, sizeof(sInt4), local, numBits,</span>
+<span class="lineNum">     219 </span>            :                        &amp;bufLoc, &amp;numUsed);
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :             local += numUsed;</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :             BytesUsed += (int) numUsed;</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :             rdat[curIndex] = (refVal + uli_temp) * recScale10;</span>
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :             curIndex++;</span>
+<span class="lineNum">     224 </span>            :          }
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :          rdat[curIndex] = 0;</span>
+<span class="lineNum">     226 </span>            :       } else {
+<span class="lineNum">     227 </span>            :          /* Integer point data. */
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :          if (*nidat &lt; (curIndex + numVal + 3)) {</span>
+<span class="lineNum">     229 </span>            : #ifdef DEBUG
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :             printf(&quot;nidat is not large enough.\n&quot;);</span>
+<span class="lineNum">     231 </span>            : #endif
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :             return 3;</span>
+<span class="lineNum">     233 </span>            :          }
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :          idat[curIndex] = numVal;</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :          curIndex++;</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :          idat[curIndex] = scale;</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :          curIndex++;</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :          for (j = 0; j &lt; numVal; j++) {</span>
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :             memBitRead(&amp;uli_temp, sizeof(sInt4), local, numBits,</span>
+<span class="lineNum">     240 </span>            :                        &amp;bufLoc, &amp;numUsed);
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :             local += numUsed;</span>
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :             BytesUsed += (int) numUsed;</span>
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :             idat[curIndex] = (sInt4)((refVal + uli_temp) * recScale10);</span>
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :             curIndex++;</span>
+<span class="lineNum">     245 </span>            :          }
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :          idat[curIndex] = 0;</span>
+<span class="lineNum">     247 </span>            :       }
+<span class="lineNum">     248 </span>            :    }
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :    return 0;</span>
+<span class="lineNum">     250 </span>            : }
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            : /*****************************************************************************
+<span class="lineNum">     253 </span>            :  * fillOutSectLen() --
+<span class="lineNum">     254 </span>            :  *
+<span class="lineNum">     255 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">     256 </span>            :  *
+<span class="lineNum">     257 </span>            :  * PURPOSE
+<span class="lineNum">     258 </span>            :  *   The GRIB2 API returns the lengths of each GRIB2 section along with the
+<span class="lineNum">     259 </span>            :  * meta data.  NCEP's routines did not, so this routine fills in that part.
+<span class="lineNum">     260 </span>            :  * This routine has to consider which grid is being unpacked.
+<span class="lineNum">     261 </span>            :  *
+<span class="lineNum">     262 </span>            :  *   c_ipack is passed in after section 1 (since section 1 is not repeated)
+<span class="lineNum">     263 </span>            :  *
+<span class="lineNum">     264 </span>            :  * ARGUMENTS
+<span class="lineNum">     265 </span>            :  *  c_ipack = Complete GRIB2 message to look for the section lengths in. (In)
+<span class="lineNum">     266 </span>            :  * lenCpack = Length of c_ipack (Input)
+<span class="lineNum">     267 </span>            :  *  subgNum = Which sub rid to find the section lengths of. (Input)
+<span class="lineNum">     268 </span>            :  *      is2 = Section 2 data (Output)
+<span class="lineNum">     269 </span>            :  *      is3 = Section 3 data (Output)
+<span class="lineNum">     270 </span>            :  *      is4 = Section 4 data (Output)
+<span class="lineNum">     271 </span>            :  *      is5 = Section 5 data (Output)
+<span class="lineNum">     272 </span>            :  *      is6 = Section 6 data (Output)
+<span class="lineNum">     273 </span>            :  *      is7 = Section 7 data (Output)
+<span class="lineNum">     274 </span>            :  *
+<span class="lineNum">     275 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     276 </span>            :  *
+<span class="lineNum">     277 </span>            :  * RETURNS: int
+<span class="lineNum">     278 </span>            :  *  0 = Ok.
+<span class="lineNum">     279 </span>            :  *  1 = c_ipack is not large enough
+<span class="lineNum">     280 </span>            :  *  2 = invalid section number
+<span class="lineNum">     281 </span>            :  *
+<span class="lineNum">     282 </span>            :  * HISTORY
+<span class="lineNum">     283 </span>            :  *  12/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     284 </span>            :  *
+<span class="lineNum">     285 </span>            :  * NOTES
+<a name="286"><span class="lineNum">     286 </span>            :  *****************************************************************************</a>
+<span class="lineNum">     287 </span>            :  */
+<span class="lineNum">     288 </span><span class="lineCov">        236 : static int fillOutSectLen(unsigned char *c_ipack, int lenCpack,</span>
+<span class="lineNum">     289 </span>            :                           int subgNum, sInt4 *is2, sInt4 *is3,
+<span class="lineNum">     290 </span>            :                           sInt4 *is4, sInt4 *is5, sInt4 *is6, sInt4 *is7)
+<span class="lineNum">     291 </span>            : {
+<span class="lineNum">     292 </span><span class="lineCov">        236 :    sInt4 offset = 0;    /* How far in c_ipack we have read. */</span>
+<span class="lineNum">     293 </span>            :    sInt4 sectLen;       /* The length of the current section. */
+<span class="lineNum">     294 </span>            :    int sectId;          /* The current section number. */
+<span class="lineNum">     295 </span><span class="lineCov">        236 :    unsigned int gNum = 0; /* Which sub group we are currently working with. */</span>
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span><span class="lineCov">        236 :    if (lenCpack &lt; 5) {</span>
+<span class="lineNum">     298 </span>            : #ifdef DEBUG
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :       printf(&quot;Cpack is not large enough.\n&quot;);</span>
+<span class="lineNum">     300 </span>            : #endif
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :       return 1;</span>
+<span class="lineNum">     302 </span>            :    }
+<span class="lineNum">     303 </span>            :    /* assert that we start with data in either section 2 or 3. */
+<span class="lineNum">     304 </span><span class="lineCov">        236 :    myAssert((c_ipack[4] == 2) || (c_ipack[4] == 3));</span>
+<span class="lineNum">     305 </span><span class="lineCov">       1868 :    while (gNum &lt;= (unsigned int)subgNum) {</span>
+<span class="lineNum">     306 </span><span class="lineCov">       1396 :       if (lenCpack &lt; offset + 5) {</span>
+<span class="lineNum">     307 </span>            : #ifdef DEBUG
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :          printf(&quot;Cpack is not large enough.\n&quot;);</span>
+<span class="lineNum">     309 </span>            : #endif
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :          return 1;</span>
+<span class="lineNum">     311 </span>            :       }
+<span class="lineNum">     312 </span><span class="lineCov">       1396 :       MEMCPY_BIG(&amp;sectLen, c_ipack + offset, sizeof(sInt4));</span>
+<span class="lineNum">     313 </span>            :       /* Check if we just read section 8.  If so, then it is &quot;7777&quot; =
+<span class="lineNum">     314 </span>            :        * 926365495 regardless of endian'ness. */
+<span class="lineNum">     315 </span><span class="lineCov">       1396 :       if (sectLen == 926365495L) {</span>
+<span class="lineNum">     316 </span>            : #ifdef DEBUG
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :          printf(&quot;Shouldn't see sect 8. Should stop after correct sect 7\n&quot;);</span>
+<span class="lineNum">     318 </span>            : #endif
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :          return 2;</span>
+<span class="lineNum">     320 </span>            :       }
+<span class="lineNum">     321 </span><span class="lineCov">       1396 :       sectId = c_ipack[offset + 4];</span>
+<span class="lineNum">     322 </span><span class="lineCov">       1396 :       switch (sectId) {</span>
+<span class="lineNum">     323 </span>            :          case 2:
+<span class="lineNum">     324 </span><span class="lineCov">        216 :             is2[0] = sectLen;</span>
+<span class="lineNum">     325 </span><span class="lineCov">        216 :             break;</span>
+<span class="lineNum">     326 </span>            :          case 3:
+<span class="lineNum">     327 </span><span class="lineCov">        236 :             is3[0] = sectLen;</span>
+<span class="lineNum">     328 </span><span class="lineCov">        236 :             break;</span>
+<span class="lineNum">     329 </span>            :          case 4:
+<span class="lineNum">     330 </span><span class="lineCov">        236 :             is4[0] = sectLen;</span>
+<span class="lineNum">     331 </span><span class="lineCov">        236 :             break;</span>
+<span class="lineNum">     332 </span>            :          case 5:
+<span class="lineNum">     333 </span><span class="lineCov">        236 :             is5[0] = sectLen;</span>
+<span class="lineNum">     334 </span><span class="lineCov">        236 :             break;</span>
+<span class="lineNum">     335 </span>            :          case 6:
+<span class="lineNum">     336 </span><span class="lineCov">        236 :             is6[0] = sectLen;</span>
+<span class="lineNum">     337 </span><span class="lineCov">        236 :             break;</span>
+<span class="lineNum">     338 </span>            :          case 7:
+<span class="lineNum">     339 </span><span class="lineCov">        236 :             is7[0] = sectLen;</span>
+<span class="lineNum">     340 </span><span class="lineCov">        236 :             gNum++;</span>
+<span class="lineNum">     341 </span><span class="lineCov">        236 :             break;</span>
+<span class="lineNum">     342 </span>            :          default:
+<span class="lineNum">     343 </span>            : #ifdef DEBUG
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :             printf(&quot;Invalid section id %d.\n&quot;, sectId);</span>
+<span class="lineNum">     345 </span>            : #endif
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :             return 2;</span>
+<span class="lineNum">     347 </span>            :       }
+<span class="lineNum">     348 </span><span class="lineCov">       1396 :       offset += sectLen;</span>
+<span class="lineNum">     349 </span>            :    }
+<span class="lineNum">     350 </span><span class="lineCov">        236 :    return 0;</span>
+<span class="lineNum">     351 </span>            : }
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            : /*****************************************************************************
+<span class="lineNum">     354 </span>            :  * TransferInt() --
+<span class="lineNum">     355 </span>            :  *
+<span class="lineNum">     356 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">     357 </span>            :  *
+<span class="lineNum">     358 </span>            :  * PURPOSE
+<span class="lineNum">     359 </span>            :  *   To transfer the data from &quot;fld&quot; and &quot;bmap&quot; to &quot;iain&quot; and &quot;ib&quot;.  The API
+<span class="lineNum">     360 </span>            :  * attempts to rearrange the order, so that anything returned from it has
+<span class="lineNum">     361 </span>            :  * scan mode 0100????
+<span class="lineNum">     362 </span>            :  *
+<span class="lineNum">     363 </span>            :  * ARGUMENTS
+<span class="lineNum">     364 </span>            :  *          fld = The expanded grid from NCEPs routines (Input)
+<span class="lineNum">     365 </span>            :  *      ngrdpts = Length of fld (Input)
+<span class="lineNum">     366 </span>            :  *      ibitmap = flag if we have a bitmap or not. (Input)
+<span class="lineNum">     367 </span>            :  *         bmap = bitmap from NCEPs routines. (Input)
+<span class="lineNum">     368 </span>            :  * f_ignoreScan = Flag to ignore the attempt at changing the scan (Input)
+<span class="lineNum">     369 </span>            :  *         scan = The scan orientation of fld/bmap/iain/ib (Input/Output)
+<span class="lineNum">     370 </span>            :  *       nx, ny = The dimensions of the grid. (Input)
+<span class="lineNum">     371 </span>            :  *       iclean = 1 means the user wants the unpacked data returned without
+<span class="lineNum">     372 </span>            :  *                missing values in it. 0 means embed the missing values. (In)
+<span class="lineNum">     373 </span>            :  *       xmissp = The primary missing value to use if iclean = 0. (Input).
+<span class="lineNum">     374 </span>            :  *         iain = The grid to return. (Output)
+<span class="lineNum">     375 </span>            :  *        nd2x3 = The length of iain. (Input)
+<span class="lineNum">     376 </span>            :  *           ib = Bitmap if it was packed (Output)
+<span class="lineNum">     377 </span>            :  *
+<span class="lineNum">     378 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     379 </span>            :  *
+<span class="lineNum">     380 </span>            :  * RETURNS: int
+<span class="lineNum">     381 </span>            :  *  0 = Ok.
+<span class="lineNum">     382 </span>            :  *  1 = nd2x3 is too small.
+<span class="lineNum">     383 </span>            :  *  2 = nx*ny != ngrdpts
+<span class="lineNum">     384 </span>            :  *
+<span class="lineNum">     385 </span>            :  * HISTORY
+<span class="lineNum">     386 </span>            :  *  12/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     387 </span>            :  *
+<span class="lineNum">     388 </span>            :  * NOTES
+<span class="lineNum">     389 </span>            :  *   May want to disable the scan adjustment in the future.
+<a name="390"><span class="lineNum">     390 </span>            :  *****************************************************************************</a>
+<span class="lineNum">     391 </span>            :  */
+<span class="lineNum">     392 </span><span class="lineCov">        148 : static int TransferInt(float *fld, sInt4 ngrdpts, sInt4 ibitmap,</span>
+<span class="lineNum">     393 </span>            :                        sInt4 *bmap, char f_ignoreScan, sInt4 *scan,
+<span class="lineNum">     394 </span>            :                        sInt4 nx, sInt4 ny, sInt4 iclean, float xmissp,
+<span class="lineNum">     395 </span>            :                        sInt4 *iain, sInt4 nd2x3, sInt4 *ib)
+<span class="lineNum">     396 </span>            : {
+<span class="lineNum">     397 </span>            :    int i;               /* loop counter over all grid points. */
+<span class="lineNum">     398 </span>            :    sInt4 x, y;          /* Where we are in a grid of scan value 0100???? */
+<span class="lineNum">     399 </span>            :    int curIndex;        /* Where in iain to store the current data. */
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span><span class="lineCov">        148 :    if (nd2x3 &lt; ngrdpts) {</span>
+<span class="lineNum">     402 </span>            : #ifdef DEBUG
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :       printf(&quot;nd2x3(%d) is &lt; ngrdpts(%d)\n&quot;, nd2x3, ngrdpts);</span>
+<span class="lineNum">     404 </span>            : #endif
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :       return 1;</span>
+<span class="lineNum">     406 </span>            :    }
+<span class="lineNum">     407 </span><span class="lineCov">        148 :    if (f_ignoreScan || ((*scan &amp; 0xf0) == 64)) {</span>
+<span class="lineNum">     408 </span><span class="lineCov">        296 :       if (ibitmap) {</span>
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :          for (i = 0; i &lt; ngrdpts; i++) {</span>
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :             ib[i] = bmap[i];</span>
+<span class="lineNum">     411 </span>            :             /* Check if we are supposed to insert xmissp into the field */
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :             if ((iclean != 0) &amp;&amp; (ib[i] == 0)) {</span>
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :                iain[i] = FloatToSInt4Clamp(xmissp);</span>
+<span class="lineNum">     414 </span>            :             } else {
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :                iain[i] = FloatToSInt4Clamp(fld[i]);</span>
+<span class="lineNum">     416 </span>            :             }
+<span class="lineNum">     417 </span>            :          }
+<span class="lineNum">     418 </span>            :       } else {
+<span class="lineNum">     419 </span><span class="lineCov">    1625834 :          for (i = 0; i &lt; ngrdpts; i++) {</span>
+<span class="lineNum">     420 </span><span class="lineCov">    1625686 :             iain[i] = FloatToSInt4Clamp(fld[i]);</span>
+<span class="lineNum">     421 </span>            :          }
+<span class="lineNum">     422 </span>            :       }
+<span class="lineNum">     423 </span>            :    } else {
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :       if( nx &lt;= 0 || ny &lt;= 0 )</span>
+<span class="lineNum">     425 </span>            :       {
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :           return 1;</span>
+<span class="lineNum">     427 </span>            :       }
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :       if (ny != ngrdpts / nx) {</span>
+<span class="lineNum">     429 </span>            : #ifdef DEBUG
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :          printf(&quot;nx(%d) * ny(%d) != ngrdpts(%d)\n&quot;, nx, ny, ngrdpts);</span>
+<span class="lineNum">     431 </span>            : #endif
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :          return 2;</span>
+<span class="lineNum">     433 </span>            :       }
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :       if (ibitmap) {</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :          for (i = 0; i &lt; ngrdpts; i++) {</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :             ScanIndex2XY(i, &amp;x, &amp;y, *scan, nx, ny);</span>
+<span class="lineNum">     437 </span>            :             /* ScanIndex returns value as if scan was 0100(0000) */
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :             curIndex = (x - 1) + (y - 1) * nx;</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :             if( curIndex &lt; 0 || curIndex &gt;= nd2x3 )</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :             ib[curIndex] = bmap[i];</span>
+<span class="lineNum">     442 </span>            :             /* Check if we are supposed to insert xmissp into the field */
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :             if ((iclean != 0) &amp;&amp; (ib[curIndex] == 0)) {</span>
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :                iain[i] = FloatToSInt4Clamp(xmissp);</span>
+<span class="lineNum">     445 </span>            :             } else {
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :                iain[curIndex] = FloatToSInt4Clamp(fld[i]);</span>
+<span class="lineNum">     447 </span>            :             }
+<span class="lineNum">     448 </span>            :          }
+<span class="lineNum">     449 </span>            :       } else {
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :          for (i = 0; i &lt; ngrdpts; i++) {</span>
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :             ScanIndex2XY (i, &amp;x, &amp;y, *scan, nx, ny);</span>
+<span class="lineNum">     452 </span>            :             /* ScanIndex returns value as if scan was 0100(0000) */
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :             curIndex = (x - 1) + (y - 1) * nx;</span>
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :             if( curIndex &lt; 0 || curIndex &gt;= nd2x3 )</span>
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :             iain[curIndex] = FloatToSInt4Clamp(fld[i]);</span>
+<span class="lineNum">     457 </span>            :          }
+<span class="lineNum">     458 </span>            :       }
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :       *scan = 64 + (*scan &amp; 0x0f);</span>
+<span class="lineNum">     460 </span>            :    }
+<span class="lineNum">     461 </span><span class="lineCov">        148 :    return 0;</span>
+<span class="lineNum">     462 </span>            : }
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span>            : /*****************************************************************************
+<span class="lineNum">     465 </span>            :  * TransferFloat() --
+<span class="lineNum">     466 </span>            :  *
+<span class="lineNum">     467 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">     468 </span>            :  *
+<span class="lineNum">     469 </span>            :  * PURPOSE
+<span class="lineNum">     470 </span>            :  *   To transfer the data from &quot;fld&quot; and &quot;bmap&quot; to &quot;ain&quot; and &quot;ib&quot;.  The API
+<span class="lineNum">     471 </span>            :  * attempts to rearrange the order, so that anything returned from it has
+<span class="lineNum">     472 </span>            :  * scan mode 0100????
+<span class="lineNum">     473 </span>            :  *
+<span class="lineNum">     474 </span>            :  * ARGUMENTS
+<span class="lineNum">     475 </span>            :  *          fld = The expanded grid from NCEPs routines (Input)
+<span class="lineNum">     476 </span>            :  *      ngrdpts = Length of fld (Input)
+<span class="lineNum">     477 </span>            :  *      ibitmap = flag if we have a bitmap or not. (Input)
+<span class="lineNum">     478 </span>            :  *         bmap = bitmap from NCEPs routines. (Input)
+<span class="lineNum">     479 </span>            :  *         scan = The scan orientation of fld/bmap/iain/ib (Input/Output)
+<span class="lineNum">     480 </span>            :  * f_ignoreScan = Flag to ignore the attempt at changing the scan (Input)
+<span class="lineNum">     481 </span>            :  *       nx, ny = The dimensions of the grid. (Input)
+<span class="lineNum">     482 </span>            :  *       iclean = 1 means the user wants the unpacked data returned without
+<span class="lineNum">     483 </span>            :  *                missing values in it. 0 means embed the missing values. (In)
+<span class="lineNum">     484 </span>            :  *       xmissp = The primary missing value to use if iclean = 0. (Input).
+<span class="lineNum">     485 </span>            :  *          ain = The grid to return. (Output)
+<span class="lineNum">     486 </span>            :  *        nd2x3 = The length of iain. (Input)
+<span class="lineNum">     487 </span>            :  *           ib = Bitmap if it was packed (Output)
+<span class="lineNum">     488 </span>            :  *
+<span class="lineNum">     489 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     490 </span>            :  *
+<span class="lineNum">     491 </span>            :  * RETURNS: int
+<span class="lineNum">     492 </span>            :  *  0 = Ok.
+<span class="lineNum">     493 </span>            :  *  1 = nd2x3 is too small.
+<span class="lineNum">     494 </span>            :  *  2 = nx*ny != ngrdpts
+<span class="lineNum">     495 </span>            :  *
+<span class="lineNum">     496 </span>            :  * HISTORY
+<span class="lineNum">     497 </span>            :  *  12/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     498 </span>            :  *
+<span class="lineNum">     499 </span>            :  * NOTES
+<span class="lineNum">     500 </span>            :  *   May want to disable the scan adjustment in the future.
+<a name="501"><span class="lineNum">     501 </span>            :  *****************************************************************************</a>
+<span class="lineNum">     502 </span>            :  */
+<span class="lineNum">     503 </span><span class="lineCov">         88 : static int TransferFloat(float *fld, sInt4 ngrdpts, sInt4 ibitmap,</span>
+<span class="lineNum">     504 </span>            :                          sInt4 *bmap, char f_ignoreScan, sInt4 *scan,
+<span class="lineNum">     505 </span>            :                          sInt4 nx, sInt4 ny, sInt4 iclean, float xmissp,
+<span class="lineNum">     506 </span>            :                          float *ain, sInt4 nd2x3, sInt4 *ib)
+<span class="lineNum">     507 </span>            : {
+<span class="lineNum">     508 </span>            :    int i;               /* loop counter over all grid points. */
+<span class="lineNum">     509 </span>            :    sInt4 x, y;          /* Where we are in a grid of scan value 0100???? */
+<span class="lineNum">     510 </span>            :    uInt4 curIndex;      /* Where in ain to store the current data. */
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span><span class="lineCov">         88 :    if (nd2x3 &lt; ngrdpts) {</span>
+<span class="lineNum">     513 </span>            : #ifdef DEBUG
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :       printf(&quot;nd2x3(%d) is &lt; ngrdpts(%d)\n&quot;, nd2x3, ngrdpts);</span>
+<span class="lineNum">     515 </span>            : #endif
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :       return 1;</span>
+<span class="lineNum">     517 </span>            :    }
+<span class="lineNum">     518 </span><span class="lineCov">         88 :    if (f_ignoreScan || ((*scan &amp; 0xf0) == 64)) {</span>
+<span class="lineNum">     519 </span><span class="lineCov">        146 :       if (ibitmap) {</span>
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :          for (i = 0; i &lt; ngrdpts; i++) {</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :             ib[i] = bmap[i];</span>
+<span class="lineNum">     522 </span>            :             /* Check if we are supposed to insert xmissp into the field */
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 :             if ((iclean != 0) &amp;&amp; (ib[i] == 0)) {</span>
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :                ain[i] = xmissp;</span>
+<span class="lineNum">     525 </span>            :             } else {
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :                ain[i] = fld[i];</span>
+<span class="lineNum">     527 </span>            :             }
+<span class="lineNum">     528 </span>            :          }
+<span class="lineNum">     529 </span>            :       } else {
+<span class="lineNum">     530 </span><span class="lineCov">     153085 :          for (i = 0; i &lt; ngrdpts; i++) {</span>
+<span class="lineNum">     531 </span><span class="lineCov">     153012 :             ain[i] = fld[i];</span>
+<span class="lineNum">     532 </span>            :          }
+<span class="lineNum">     533 </span>            :       }
+<span class="lineNum">     534 </span>            :    } else {
+<span class="lineNum">     535 </span><span class="lineCov">         15 :       if( nx &lt;= 0 || ny &lt;= 0 )</span>
+<span class="lineNum">     536 </span>            :       {
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 :           return 1;</span>
+<span class="lineNum">     538 </span>            :       }
+<span class="lineNum">     539 </span><span class="lineCov">         15 :       if (ny != ngrdpts / nx) {</span>
+<span class="lineNum">     540 </span>            : #ifdef DEBUG
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :          printf(&quot;nx(%d) * ny(%d) != ngrdpts(%d)\n&quot;, nx, ny, ngrdpts);</span>
+<span class="lineNum">     542 </span>            : #endif
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :          return 2;</span>
+<span class="lineNum">     544 </span>            :       }
+<span class="lineNum">     545 </span><span class="lineCov">         15 :       if (ibitmap) {</span>
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :          for (i = 0; i &lt; ngrdpts; i++) {</span>
+<span class="lineNum">     547 </span><span class="lineNoCov">          0 :             ScanIndex2XY(i, &amp;x, &amp;y, *scan, nx, ny);</span>
+<span class="lineNum">     548 </span>            :             /* ScanIndex returns value as if scan was 0100(0000) */
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :             curIndex = (uInt4)(x - 1) + (uInt4)(y - 1) * (uInt4)nx;</span>
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :             if (curIndex &gt;= (uInt4)nd2x3)</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 :             ib[curIndex] = bmap[i];</span>
+<span class="lineNum">     553 </span>            :             /* Check if we are supposed to insert xmissp into the field */
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :             if ((iclean != 0) &amp;&amp; (ib[curIndex] == 0)) {</span>
+<span class="lineNum">     555 </span><span class="lineNoCov">          0 :                ain[i] = xmissp;</span>
+<span class="lineNum">     556 </span>            :             } else {
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 :                ain[curIndex] = fld[i];</span>
+<span class="lineNum">     558 </span>            :             }
+<span class="lineNum">     559 </span>            :          }
+<span class="lineNum">     560 </span>            :       } else {
+<span class="lineNum">     561 </span><span class="lineCov">    5305012 :          for (i = 0; i &lt; ngrdpts; i++) {</span>
+<span class="lineNum">     562 </span><span class="lineCov">    5304997 :             ScanIndex2XY(i, &amp;x, &amp;y, *scan, nx, ny);</span>
+<span class="lineNum">     563 </span>            :             /* ScanIndex returns value as if scan was 0100(0000) */
+<span class="lineNum">     564 </span><span class="lineCov">    5304997 :             curIndex = (uInt4)(x - 1) + (uInt4)(y - 1) * (uInt4)nx;</span>
+<span class="lineNum">     565 </span><span class="lineCov">    5304997 :             if( curIndex &gt;= (uInt4)nd2x3 )</span>
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     567 </span><span class="lineCov">    5304997 :             ain[curIndex] = fld[i];</span>
+<span class="lineNum">     568 </span>            :          }
+<span class="lineNum">     569 </span>            :       }
+<span class="lineNum">     570 </span><span class="lineCov">         15 :       *scan = 64 + (*scan &amp; 0x0f);</span>
+<span class="lineNum">     571 </span>            :    }
+<span class="lineNum">     572 </span>            : /*
+<span class="lineNum">     573 </span>            :    if (1==1) {
+<span class="lineNum">     574 </span>            :       int i;
+<span class="lineNum">     575 </span>            :       for (i=0; i &lt; ngrdpts; i++) {
+<span class="lineNum">     576 </span>            :          if (ain[i] != 9999) {
+<span class="lineNum">     577 </span>            :             fprintf (stderr, &quot;grib2api.c: ain[%d] %f, fld[%d] %f\n&quot;, i, ain[i],
+<span class="lineNum">     578 </span>            :                      i, fld[i]);
+<span class="lineNum">     579 </span>            :          }
+<span class="lineNum">     580 </span>            :       }
+<span class="lineNum">     581 </span>            :    }
+<span class="lineNum">     582 </span>            : */
+<span class="lineNum">     583 </span><span class="lineCov">         88 :    return 0;</span>
+<span class="lineNum">     584 </span>            : }
+<span class="lineNum">     585 </span>            : 
+<span class="lineNum">     586 </span>            : #ifdef PKNCEP
+<span class="lineNum">     587 </span>            : int pk_g2ncep(sInt4 *kfildo, float *ain, sInt4 *iain, sInt4 *nx,
+<span class="lineNum">     588 </span>            :               sInt4 *ny, sInt4 *idat, sInt4 *nidat, float *rdat,
+<span class="lineNum">     589 </span>            :               sInt4 *nrdat, sInt4 *is0, sInt4 *ns0, sInt4 *is1,
+<span class="lineNum">     590 </span>            :               sInt4 *ns1, sInt4 *is3, sInt4 *ns3, sInt4 *is4,
+<span class="lineNum">     591 </span>            :               sInt4 *ns4, sInt4 *is5, sInt4 *ns5, sInt4 *is6,
+<span class="lineNum">     592 </span>            :               sInt4 *ns6, sInt4 *is7, sInt4 *ns7, sInt4 *ib,
+<span class="lineNum">     593 </span>            :               sInt4 *ibitmap, unsigned char *cgrib, sInt4 *nd5,
+<span class="lineNum">     594 </span>            :               sInt4 *missp, float *xmissp, sInt4 *misss,
+<span class="lineNum">     595 </span>            :               float *xmisss, sInt4 *inew, sInt4 *minpk, sInt4 *iclean,
+<span class="lineNum">     596 </span>            :               sInt4 *l3264b, sInt4 *jer, sInt4 *ndjer, sInt4 *kjer)
+<span class="lineNum">     597 </span>            : {
+<span class="lineNum">     598 </span>            :    g2int listsec0[2];
+<span class="lineNum">     599 </span>            :    g2int listsec1[13];
+<span class="lineNum">     600 </span>            :    g2int igds[5];
+<span class="lineNum">     601 </span>            :    g2int igdstmpl[];
+<span class="lineNum">     602 </span>            :    int ierr;            /* Holds the error code from a called routine. */
+<span class="lineNum">     603 </span>            :    int i;
+<span class="lineNum">     604 </span>            : 
+<span class="lineNum">     605 </span>            :    listsec0[0] = is0[6];
+<span class="lineNum">     606 </span>            :    listsec0[1] = is0[7];
+<span class="lineNum">     607 </span>            : 
+<span class="lineNum">     608 </span>            :    listsec1[0] = is1[5];
+<span class="lineNum">     609 </span>            :    listsec1[1] = is1[7];
+<span class="lineNum">     610 </span>            :    listsec1[2] = is1[9];
+<span class="lineNum">     611 </span>            :    listsec1[3] = is1[10];
+<span class="lineNum">     612 </span>            :    listsec1[4] = is1[11];
+<span class="lineNum">     613 </span>            :    listsec1[5] = is1[12];
+<span class="lineNum">     614 </span>            :    listsec1[6] = is1[14];
+<span class="lineNum">     615 </span>            :    listsec1[7] = is1[15];
+<span class="lineNum">     616 </span>            :    listsec1[8] = is1[16];
+<span class="lineNum">     617 </span>            :    listsec1[9] = is1[17];
+<span class="lineNum">     618 </span>            :    listsec1[10] = is1[18];
+<span class="lineNum">     619 </span>            :    listsec1[11] = is1[19];
+<span class="lineNum">     620 </span>            :    listsec1[12] = is1[20];
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span>            :    ierr = g2_create(cgrib, listsec0, listsec1);
+<span class="lineNum">     623 </span>            :    printf(&quot;Length = %d\n&quot;, ierr);
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span>            :    if ((idat[0] != 0) || (rdat[0] != 0)) {
+<span class="lineNum">     626 </span>            :       printf(&quot;Don't handle this yet.\n&quot;);
+<span class="lineNum">     627 </span>            : /*
+<span class="lineNum">     628 </span>            :       ierr = g2_addlocal (cgrib, unsigned char *csec2, g2int lcsec2);
+<span class="lineNum">     629 </span>            : */
+<span class="lineNum">     630 </span>            :    }
+<span class="lineNum">     631 </span>            : 
+<span class="lineNum">     632 </span>            :    igds[0] = is3[5];
+<span class="lineNum">     633 </span>            :    igds[1] = is3[6];
+<span class="lineNum">     634 </span>            :    igds[2] = is3[10];
+<span class="lineNum">     635 </span>            :    igds[3] = is3[11];
+<span class="lineNum">     636 </span>            :    igds[4] = is3[12];
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span>            :    IS3(15) - IS3(nn) = Grid Definition Template, stored in bytes 15 - nn(*)
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span>            :          ierr = g2_addgrid(cgrib, igds, g2int * igdstmpl, g2int * ideflist,
+<span class="lineNum">     641 </span>            :                            g2int idefnum)
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span>            : 
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span>            : 
+<span class="lineNum">     646 </span>            :    return 0;
+<span class="lineNum">     647 </span>            : /*
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span>            : To start a new GRIB2 message, call function g2_create.  G2_create
+<span class="lineNum">     650 </span>            : encodes Sections 0 and 1 at the beginning of the message.  This routine
+<span class="lineNum">     651 </span>            : must be used to create each message.
+<span class="lineNum">     652 </span>            : 
+<span class="lineNum">     653 </span>            : Routine g2_addlocal can be used to add a Local Use Section ( Section 2 ).
+<span class="lineNum">     654 </span>            : Note that this section is optional and need not appear in a GRIB2 message.
+<span class="lineNum">     655 </span>            : 
+<span class="lineNum">     656 </span>            : Function g2_addgrid is used to encode a grid definition into Section 3.
+<span class="lineNum">     657 </span>            : This grid definition defines the geometry of the data values in the
+<span class="lineNum">     658 </span>            : fields that follow it.  g2_addgrid can be called again to change the grid
+<span class="lineNum">     659 </span>            : definition describing subsequent data fields.
+<span class="lineNum">     660 </span>            : 
+<span class="lineNum">     661 </span>            : Each data field is added to the GRIB2 message using routine g2_addfield,
+<span class="lineNum">     662 </span>            : which adds Sections 4, 5, 6, and 7 to the message.
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span>            : After all desired data fields have been added to the GRIB2 message, a
+<span class="lineNum">     665 </span>            : call to function g2_gribend is needed to add the final section 8 to the
+<span class="lineNum">     666 </span>            : message and to update the length of the message.  A call to g2_gribend
+<span class="lineNum">     667 </span>            : is required for each GRIB2 message.
+<span class="lineNum">     668 </span>            : */
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span>            : }
+<span class="lineNum">     671 </span>            : #endif
+<span class="lineNum">     672 </span>            : 
+<span class="lineNum">     673 </span>            : /*****************************************************************************
+<span class="lineNum">     674 </span>            :  * unpk_g2ncep() --
+<span class="lineNum">     675 </span>            :  *
+<span class="lineNum">     676 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">     677 </span>            :  *
+<span class="lineNum">     678 </span>            :  * PURPOSE
+<span class="lineNum">     679 </span>            :  *   This procedure is a wrapper around the NCEP GRIB2 routines to interface
+<span class="lineNum">     680 </span>            :  * their routines with the &quot;official NWS&quot; GRIB2 API.  The reason for this is
+<span class="lineNum">     681 </span>            :  * so drivers that have been written to use the &quot;official NWS&quot; GRIB2 API, can
+<span class="lineNum">     682 </span>            :  * use the NCEP library with minimal disruption.
+<span class="lineNum">     683 </span>            :  *
+<span class="lineNum">     684 </span>            :  * ARGUMENTS
+<span class="lineNum">     685 </span>            :  *  kfildo = Unit number for output diagnostics (C ignores this). (Input)
+<span class="lineNum">     686 </span>            :  *     ain = contains the data if the original data was float data.
+<span class="lineNum">     687 </span>            :  *           (size = nd2x3) (Output)
+<span class="lineNum">     688 </span>            :  *    iain = contains the data if the original data was integer data.
+<span class="lineNum">     689 </span>            :  *           (size = nd2x3) (Output)
+<span class="lineNum">     690 </span>            :  *   nd2x3 = length of ain, iain, ib (Input)
+<span class="lineNum">     691 </span>            :  *           (at least the size of num grid points)
+<span class="lineNum">     692 </span>            :  *    idat = local use data if any that were unpacked from Section 2. (Output)
+<span class="lineNum">     693 </span>            :  *   nidat = length of idat. (Input)
+<span class="lineNum">     694 </span>            :  *    rdat = floating point local use data (Output)
+<span class="lineNum">     695 </span>            :  *   nrdat = length of rdat. (Input)
+<span class="lineNum">     696 </span>            :  *     is0 = Section 0 data (Output)
+<span class="lineNum">     697 </span>            :  *     ns0 = length of is0 (16 is fine) (Input)
+<span class="lineNum">     698 </span>            :  *     is1 = Section 1 data (Output)
+<span class="lineNum">     699 </span>            :  *     ns1 = length of is1 (21 is fine) (Input)
+<span class="lineNum">     700 </span>            :  *     is2 = Section 2 data (Output)
+<span class="lineNum">     701 </span>            :  *     ns2 = length of is2 () (Input)
+<span class="lineNum">     702 </span>            :  *     is3 = Section 3 data (Output)
+<span class="lineNum">     703 </span>            :  *     ns3 = length of is3 (96 or 1600) (Input)
+<span class="lineNum">     704 </span>            :  *     is4 = Section 4 data (Output)
+<span class="lineNum">     705 </span>            :  *     ns4 = length of is4 (60) (Input)
+<span class="lineNum">     706 </span>            :  *     is5 = Section 5 data (Output)
+<span class="lineNum">     707 </span>            :  *     ns5 = length of is5 (49 is fine) (Input)
+<span class="lineNum">     708 </span>            :  *     is6 = Section 6 data (Output)
+<span class="lineNum">     709 </span>            :  *     ns6 = length of is6 (6 is fine) (Input)
+<span class="lineNum">     710 </span>            :  *     is7 = Section 7 data (Output)
+<span class="lineNum">     711 </span>            :  *     ns7 = length of is7 (8 is fine) (Input)
+<span class="lineNum">     712 </span>            :  *      ib = Bitmap if user requested it, and it was packed (Output)
+<span class="lineNum">     713 </span>            :  * ibitmap = 0 means ib is invalid, 1 means ib is valid. (Output)
+<span class="lineNum">     714 </span>            :  * c_ipack = The message to unpack (Input)
+<span class="lineNum">     715 </span>            :  *     nd5 = 1/4 the size of c_ipack (Input)
+<span class="lineNum">     716 </span>            :  *  xmissp = The floating point representation for the primary missing value.
+<span class="lineNum">     717 </span>            :  *           (Input/Output)
+<span class="lineNum">     718 </span>            :  *  xmisss = The floating point representation for the secondary missing
+<span class="lineNum">     719 </span>            :  *           value (Input/Output)
+<span class="lineNum">     720 </span>            :  *     new = 1 if this is the first grid to be unpacked, else 0. (Input)
+<span class="lineNum">     721 </span>            :  *  iclean = 1 means the user wants the unpacked data returned without
+<span class="lineNum">     722 </span>            :  *           missing values in it. 0 means embed the missing values. (Input)
+<span class="lineNum">     723 </span>            :  *  l3264b = Integer word length in bits (32 or 64) (Input)
+<span class="lineNum">     724 </span>            :  *  iendpk = A 1 means no more grids in this message, a 0 means more grids.
+<span class="lineNum">     725 </span>            :  *           (Output)
+<span class="lineNum">     726 </span>            :  * jer(ndjer,2) = error codes along with severity. (Output)
+<span class="lineNum">     727 </span>            :  *   ndjer = 1/2 length of jer. (&gt;= 15) (Input)
+<span class="lineNum">     728 </span>            :  *    kjer = number of error messages stored in jer.
+<span class="lineNum">     729 </span>            :  *
+<span class="lineNum">     730 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     731 </span>            :  *
+<span class="lineNum">     732 </span>            :  * RETURNS: void
+<span class="lineNum">     733 </span>            :  *   &quot;jer&quot; is used to store error messages, and kjer is used to denote how
+<span class="lineNum">     734 </span>            :  * many there were.  Jer is set up as a 2 column array, with the first
+<span class="lineNum">     735 </span>            :  * column in the first half of the array, and denoting the GRIB2 section
+<span class="lineNum">     736 </span>            :  * an error occurred in.  The second column denoting the severity.
+<span class="lineNum">     737 </span>            :  *
+<span class="lineNum">     738 </span>            :  *    The possibilities from unpk_g2ncep() are as follows:
+<span class="lineNum">     739 </span>            :  * ker=1 jer[0,0]=0    jer[0,1]=2: Message is not formed correctly
+<span class="lineNum">     740 </span>            :  *                                 Request for an invalid subgrid
+<span class="lineNum">     741 </span>            :  *                                 Problems unpacking the data.
+<span class="lineNum">     742 </span>            :  *                                 problems expanding the data.
+<span class="lineNum">     743 </span>            :  *                                 Calling dimensions were too small.
+<span class="lineNum">     744 </span>            :  * ker=2 jer[1,0]=100  jer[1,1]=2: Error unpacking section 1.
+<span class="lineNum">     745 </span>            :  * ker=3 jer[2,0]=200  jer[2,1]=2: Error unpacking section 2.
+<span class="lineNum">     746 </span>            :  * ker=4 jer[3,0]=300  jer[3,1]=2: Error unpacking section 3.
+<span class="lineNum">     747 </span>            :  * ker=5 jer[4,0]=400  jer[4,1]=2: Error unpacking section 4.
+<span class="lineNum">     748 </span>            :  * ker=6 jer[5,0]=500  jer[5,1]=2: Error unpacking section 5.
+<span class="lineNum">     749 </span>            :  *                                 Data Template not implemented.
+<span class="lineNum">     750 </span>            :  *                                 During Transfer, nx * ny != ngrdpts.
+<span class="lineNum">     751 </span>            :  * ker=7 jer[6,0]=600  jer[6,1]=2: Error unpacking section 6.
+<span class="lineNum">     752 </span>            :  * ker=8 jer[7,0]=700  jer[7,1]=2: Error unpacking section 7.
+<span class="lineNum">     753 </span>            :  * ker=9 jer[8,0]=2001 jer[8,1]=2: nd2x3 is not large enough.
+<span class="lineNum">     754 </span>            :  * ker=9 jer[8,0]=2003 jer[8,1]=2: undefined sect 3 template
+<span class="lineNum">     755 </span>            :  *                                 (see gridtemplates.h).
+<span class="lineNum">     756 </span>            :  * ker=9 jer[8,0]=2004 jer[8,1]=2: undefined sect 4 template
+<span class="lineNum">     757 </span>            :  *                                 (see pdstemplates.h).
+<span class="lineNum">     758 </span>            :  * ker=9 jer[8,0]=2005 jer[8,1]=2: undefined sect 5 template
+<span class="lineNum">     759 </span>            :  *                                 (see drstemplates.h).
+<span class="lineNum">     760 </span>            :  * ker=9 jer[8,0]=9999 jer[8,1]=2: NCEP returns an unrecognized error.
+<span class="lineNum">     761 </span>            :  *
+<span class="lineNum">     762 </span>            :  * HISTORY
+<span class="lineNum">     763 </span>            :  *  12/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     764 </span>            :  *
+<span class="lineNum">     765 </span>            :  * NOTES
+<span class="lineNum">     766 </span>            :  * MDL handles is5[12], is5[23], and is5[27] in an &quot;interesting&quot; manner.
+<span class="lineNum">     767 </span>            :  * MDL attempts to always return grids in scan mode 0100????
+<span class="lineNum">     768 </span>            :  *
+<span class="lineNum">     769 </span>            :  * ToDo: Check length of parameters better.
+<span class="lineNum">     770 </span>            :  * ToDo: Probably shouldn't abort if they have problems expanding the data.
+<span class="lineNum">     771 </span>            :  * ToDo: Better handling of:
+<span class="lineNum">     772 </span>            :  * gfld-&gt;list_opt  = (Used if gfld-&gt;numoct_opt .ne. 0)  This array contains
+<span class="lineNum">     773 </span>            :  *      the number of grid points contained in each row (or column). (part of
+<span class="lineNum">     774 </span>            :  *      Section 3)  This element is a pointer to an array that holds the data.
+<span class="lineNum">     775 </span>            :  *      This pointer is nullified if gfld-&gt;numoct_opt=0.
+<span class="lineNum">     776 </span>            :  * gfld-&gt;num_opt = (Used if gfld-&gt;numoct_opt .ne. 0)  The number of entries in
+<span class="lineNum">     777 </span>            :  *      array ideflist.  i.e. number of rows (or columns) for which optional
+<span class="lineNum">     778 </span>            :  *      grid points are defined.  This value is set to zero, if
+<span class="lineNum">     779 </span>            :  *      gfld-&gt;numoct_opt=0.
+<span class="lineNum">     780 </span>            :  * gfld-&gt;coord_list  = Real array containing floating point values intended to
+<span class="lineNum">     781 </span>            :  *      document the vertical discretisation associated to model data on
+<span class="lineNum">     782 </span>            :  *      hybrid coordinate vertical levels.  (part of Section 4) This element
+<span class="lineNum">     783 </span>            :  *      is a pointer to an array that holds the data.
+<span class="lineNum">     784 </span>            :  * gfld-&gt;num_coord = number of values in array gfld-&gt;coord_list[].
+<a name="785"><span class="lineNum">     785 </span>            :  *****************************************************************************</a>
+<span class="lineNum">     786 </span>            :  */
+<span class="lineNum">     787 </span><span class="lineCov">        236 : void unpk_g2ncep(CPL_UNUSED sInt4 *kfildo, float *ain, sInt4 *iain, sInt4 *nd2x3,</span>
+<span class="lineNum">     788 </span>            :                  sInt4 *idat, sInt4 *nidat, float *rdat, sInt4 *nrdat,
+<span class="lineNum">     789 </span>            :                  sInt4 *is0, CPL_UNUSED sInt4 *ns0, sInt4 *is1, CPL_UNUSED sInt4 *ns1,
+<span class="lineNum">     790 </span>            :                  sInt4 *is2, sInt4 *ns2, sInt4 *is3, sInt4 *ns3,
+<span class="lineNum">     791 </span>            :                  sInt4 *is4, sInt4 *ns4, sInt4 *is5, CPL_UNUSED sInt4 *ns5,
+<span class="lineNum">     792 </span>            :                  sInt4 *is6, CPL_UNUSED sInt4 *ns6, sInt4 *is7, CPL_UNUSED sInt4 *ns7,
+<span class="lineNum">     793 </span>            :                  sInt4 *ib, sInt4 *ibitmap, unsigned char *c_ipack,
+<span class="lineNum">     794 </span>            :                  sInt4 *nd5, float *xmissp, float *xmisss,
+<span class="lineNum">     795 </span>            :                  sInt4 *inew, sInt4 *iclean, CPL_UNUSED sInt4 *l3264b,
+<span class="lineNum">     796 </span>            :                  sInt4 *iendpk, sInt4 *jer, sInt4 *ndjer, sInt4 *kjer)
+<span class="lineNum">     797 </span>            : {
+<span class="lineNum">     798 </span>            :    int i;               /* A counter used for a number of purposes. */
+<span class="lineNum">     799 </span>            :    static unsigned int subgNum = 0; /* The sub grid we read most recently.
+<span class="lineNum">     800 </span>            :                                      * This is primarily to help with the
+<span class="lineNum">     801 </span>            :                                      * inew option. */
+<span class="lineNum">     802 </span>            :    int ierr;            /* Holds the error code from a called routine. */
+<span class="lineNum">     803 </span>            :    sInt4 listsec0[3];
+<span class="lineNum">     804 </span>            :    sInt4 listsec1[13];
+<span class="lineNum">     805 </span>            :    static sInt4 numfields = 1; /* Number of sub Grids in this message */
+<span class="lineNum">     806 </span>            :    sInt4 numlocal;      /* Number of local sections in this message. */
+<span class="lineNum">     807 </span>            :    int unpack;          /* Tell g2_getfld to unpack the message. */
+<span class="lineNum">     808 </span>            :    int expand;          /* Tell g2_getflt to attempt to expand the bitmap. */
+<span class="lineNum">     809 </span>            :    gribfield *gfld;     /* Holds the data after g2_getfld unpacks it. */
+<span class="lineNum">     810 </span>            :    sInt4 gridIndex;     /* index in templatesgrid[] for this sect 3 templat */
+<span class="lineNum">     811 </span>            :    sInt4 pdsIndex;      /* index in templatespds[] for this sect 4 template */
+<span class="lineNum">     812 </span>            :    sInt4 drsIndex;      /* index in templatesdrs[] for this sect 5 template */
+<span class="lineNum">     813 </span>            :    int curIndex;        /* Where in is3, is4, or is5 to store meta data */
+<span class="lineNum">     814 </span>            :    int scanIndex;       /* Where in is3 to find the scan mode. */
+<span class="lineNum">     815 </span>            :    int nxIndex;         /* Where in is3 to find the number of x values. */
+<span class="lineNum">     816 </span>            :    int nyIndex;         /* Where in is3 to find the number of y values. */
+<span class="lineNum">     817 </span>            :    float f_temp;        /* Assist with handling weird MDL behavior in is5[] */
+<span class="lineNum">     818 </span>            :    char f_ignoreScan;   /* Flag to ignore the attempt at changing the scan */
+<span class="lineNum">     819 </span>            :    sInt4 dummyScan;     /* Dummy place holder for call to Transfer routines
+<span class="lineNum">     820 </span>            :                          * if ignoring scan. */
+<span class="lineNum">     821 </span><span class="lineCov">        236 :    const struct gridtemplate *templatesgrid = get_templatesgrid();</span>
+<span class="lineNum">     822 </span>            : 
+<span class="lineNum">     823 </span><span class="lineCov">        236 :    myAssert(*ndjer &gt;= 8);</span>
+<span class="lineNum">     824 </span>            :    /* Init the error handling array. */
+<span class="lineNum">     825 </span><span class="lineCov">        236 :    memset((void *)jer, 0, 2 * *ndjer * sizeof(sInt4));</span>
+<span class="lineNum">     826 </span><span class="lineCov">       2124 :    for (i = 0; i &lt; 8; i++) {</span>
+<span class="lineNum">     827 </span><span class="lineCov">       1888 :       jer[i] = i * 100;</span>
+<span class="lineNum">     828 </span>            :    }
+<span class="lineNum">     829 </span><span class="lineCov">        236 :    *kjer = 8;</span>
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span>            :    /* The first time in, figure out how many grids there are, and store it in
+<span class="lineNum">     832 </span>            :     * numfields for subsequent calls with inew != 1. */
+<span class="lineNum">     833 </span><span class="lineCov">        236 :    if (*inew == 1) {</span>
+<span class="lineNum">     834 </span><span class="lineCov">        236 :       subgNum = 0;</span>
+<span class="lineNum">     835 </span><span class="lineCov">        236 :       ierr = g2_info(c_ipack, listsec0, listsec1, &amp;numfields, &amp;numlocal);</span>
+<span class="lineNum">     836 </span><span class="lineCov">        236 :       if (ierr != 0) {</span>
+<span class="lineNum">     837 </span><span class="lineNoCov">          0 :          switch (ierr) {</span>
+<span class="lineNum">     838 </span>            :             case 1:    /* Beginning characters &quot;GRIB&quot; not found. */
+<span class="lineNum">     839 </span>            :             case 2:    /* GRIB message is not Edition 2. */
+<span class="lineNum">     840 </span>            :             case 3:    /* Could not find Section 1, where expected. */
+<span class="lineNum">     841 </span>            :             case 4:    /* End string &quot;7777&quot; found, but not where expected. */
+<span class="lineNum">     842 </span>            :             case 5:    /* End string &quot;7777&quot; not found at end of message. */
+<span class="lineNum">     843 </span>            :             case 6:    /* Invalid section number found. */
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :                jer[0 + *ndjer] = 2;</span>
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :                *kjer = 1;</span>
+<span class="lineNum">     846 </span><span class="lineNoCov">          0 :                break;</span>
+<span class="lineNum">     847 </span>            :             default:
+<span class="lineNum">     848 </span><span class="lineNoCov">          0 :                jer[8 + *ndjer] = 2;</span>
+<span class="lineNum">     849 </span><span class="lineNoCov">          0 :                jer[8] = 9999; /* Unknown error message. */</span>
+<span class="lineNum">     850 </span><span class="lineNoCov">          0 :                *kjer = 9;</span>
+<span class="lineNum">     851 </span>            :          }
+<span class="lineNum">     852 </span><span class="lineNoCov">          0 :          return;</span>
+<span class="lineNum">     853 </span>            :       }
+<span class="lineNum">     854 </span>            :    } else {
+<span class="lineNum">     855 </span><span class="lineNoCov">          0 :       if (subgNum + 1 &gt;= (unsigned int)numfields) {</span>
+<span class="lineNum">     856 </span>            :          /* Field request error. */
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 :          jer[0 + *ndjer] = 2;</span>
+<span class="lineNum">     858 </span><span class="lineNoCov">          0 :          *kjer = 1;</span>
+<span class="lineNum">     859 </span><span class="lineNoCov">          0 :          return;</span>
+<span class="lineNum">     860 </span>            :       }
+<span class="lineNum">     861 </span><span class="lineNoCov">          0 :       subgNum++;</span>
+<span class="lineNum">     862 </span>            :    }
+<span class="lineNum">     863 </span>            : 
+<span class="lineNum">     864 </span>            :    /* Expand the desired subgrid. */
+<span class="lineNum">     865 </span><span class="lineCov">        236 :    unpack = 1;</span>
+<span class="lineNum">     866 </span><span class="lineCov">        236 :    expand = 1;</span>
+<span class="lineNum">     867 </span>            :    /* The size of c_ipack is *nd5 * sizeof(sInt4) */
+<span class="lineNum">     868 </span><span class="lineCov">        236 :    ierr = g2_getfld(c_ipack, *nd5 * sizeof(sInt4), subgNum + 1, unpack, expand, &amp;gfld);</span>
+<span class="lineNum">     869 </span><span class="lineCov">        236 :    if (ierr != 0) {</span>
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :       switch (ierr) {</span>
+<span class="lineNum">     871 </span>            :          case 1:       /* Beginning characters &quot;GRIB&quot; not found. */
+<span class="lineNum">     872 </span>            :          case 2:       /* GRIB message is not Edition 2. */
+<span class="lineNum">     873 </span>            :          case 3:       /* The data field request number was not positive. */
+<span class="lineNum">     874 </span>            :          case 4:       /* End string &quot;7777&quot; found, but not where expected. */
+<span class="lineNum">     875 </span>            :          case 6:       /* message did not contain requested # of fields */
+<span class="lineNum">     876 </span>            :          case 7:       /* End string &quot;7777&quot; not found at end of message. */
+<span class="lineNum">     877 </span>            :          case 8:       /* Unrecognized Section encountered. */
+<span class="lineNum">     878 </span><span class="lineNoCov">          0 :             jer[0 + *ndjer] = 2;</span>
+<span class="lineNum">     879 </span><span class="lineNoCov">          0 :             *kjer = 1;</span>
+<span class="lineNum">     880 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     881 </span>            :          case 15:      /* Error unpacking Section 1. */
+<span class="lineNum">     882 </span><span class="lineNoCov">          0 :             jer[1 + *ndjer] = 2;</span>
+<span class="lineNum">     883 </span><span class="lineNoCov">          0 :             *kjer = 2;</span>
+<span class="lineNum">     884 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     885 </span>            :          case 16:      /* Error unpacking Section 2. */
+<span class="lineNum">     886 </span><span class="lineNoCov">          0 :             jer[2 + *ndjer] = 2;</span>
+<span class="lineNum">     887 </span><span class="lineNoCov">          0 :             *kjer = 3;</span>
+<span class="lineNum">     888 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     889 </span>            :          case 10:      /* Error unpacking Section 3. */
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 :             jer[3 + *ndjer] = 2;</span>
+<span class="lineNum">     891 </span><span class="lineNoCov">          0 :             *kjer = 4;</span>
+<span class="lineNum">     892 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     893 </span>            :          case 11:      /* Error unpacking Section 4. */
+<span class="lineNum">     894 </span><span class="lineNoCov">          0 :             jer[4 + *ndjer] = 2;</span>
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :             *kjer = 5;</span>
+<span class="lineNum">     896 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     897 </span>            :          case 9:       /* Data Template 5.NN not implemented. */
+<span class="lineNum">     898 </span>            :          case 12:      /* Error unpacking Section 5. */
+<span class="lineNum">     899 </span><span class="lineNoCov">          0 :             jer[5 + *ndjer] = 2;</span>
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :             *kjer = 6;</span>
+<span class="lineNum">     901 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     902 </span>            :          case 13:      /* Error unpacking Section 6. */
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :             jer[6 + *ndjer] = 2;</span>
+<span class="lineNum">     904 </span><span class="lineNoCov">          0 :             *kjer = 7;</span>
+<span class="lineNum">     905 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     906 </span>            :          case 14:      /* Error unpacking Section 7. */
+<span class="lineNum">     907 </span><span class="lineNoCov">          0 :             jer[7 + *ndjer] = 2;</span>
+<span class="lineNum">     908 </span><span class="lineNoCov">          0 :             *kjer = 8;</span>
+<span class="lineNum">     909 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     910 </span>            :          default:
+<span class="lineNum">     911 </span><span class="lineNoCov">          0 :             jer[8 + *ndjer] = 2;</span>
+<span class="lineNum">     912 </span><span class="lineNoCov">          0 :             jer[8] = 9999; /* Unknown error message. */</span>
+<span class="lineNum">     913 </span><span class="lineNoCov">          0 :             *kjer = 9;</span>
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     915 </span>            :       }
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :       g2_free(gfld);</span>
+<span class="lineNum">     917 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">     918 </span>            :    }
+<span class="lineNum">     919 </span>            :    /* Check if data was not unpacked. */
+<span class="lineNum">     920 </span><span class="lineCov">        236 :    if (!gfld-&gt;unpacked) {</span>
+<span class="lineNum">     921 </span><span class="lineNoCov">          0 :       jer[0 + *ndjer] = 2;</span>
+<span class="lineNum">     922 </span><span class="lineNoCov">          0 :       *kjer = 1;</span>
+<span class="lineNum">     923 </span><span class="lineNoCov">          0 :       g2_free(gfld);</span>
+<span class="lineNum">     924 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">     925 </span>            :    }
+<span class="lineNum">     926 </span>            : 
+<span class="lineNum">     927 </span>            :    /* Start going through the gfld structure and converting it to the needed
+<span class="lineNum">     928 </span>            :     * data output formats. */
+<span class="lineNum">     929 </span><span class="lineCov">        236 :    myAssert(*ns0 &gt;= 16);</span>
+<span class="lineNum">     930 </span><span class="lineCov">        236 :    MEMCPY_BIG(&amp;(is0[0]), c_ipack, sizeof(sInt4));</span>
+<span class="lineNum">     931 </span><span class="lineCov">        236 :    is0[6] = gfld-&gt;discipline;</span>
+<span class="lineNum">     932 </span><span class="lineCov">        236 :    is0[7] = gfld-&gt;version;</span>
+<span class="lineNum">     933 </span><span class="lineCov">        236 :    MEMCPY_BIG(&amp;(is0[8]), c_ipack + 8, sizeof(sInt4));</span>
+<span class="lineNum">     934 </span>            :    /* The following assert fails only if the GRIB message is more that 4
+<span class="lineNum">     935 </span>            :     * giga-bytes large, which I think would break the fortran library. */
+<span class="lineNum">     936 </span><span class="lineCov">        236 :    myAssert(is0[8] == 0);</span>
+<span class="lineNum">     937 </span><span class="lineCov">        236 :    MEMCPY_BIG(&amp;(is0[8]), c_ipack + 12, sizeof(sInt4));</span>
+<span class="lineNum">     938 </span>            : 
+<span class="lineNum">     939 </span><span class="lineCov">        236 :    myAssert(*ns1 &gt;= 21);</span>
+<span class="lineNum">     940 </span><span class="lineCov">        236 :    myAssert(gfld-&gt;idsectlen &gt;= 13);</span>
+<span class="lineNum">     941 </span><span class="lineCov">        236 :    MEMCPY_BIG(&amp;(is1[0]), c_ipack + 16, sizeof(sInt4));</span>
+<span class="lineNum">     942 </span><span class="lineCov">        236 :    is1[4] = c_ipack[20];</span>
+<span class="lineNum">     943 </span><span class="lineCov">        236 :    is1[5] = gfld-&gt;idsect[0];</span>
+<span class="lineNum">     944 </span><span class="lineCov">        236 :    is1[7] = gfld-&gt;idsect[1];</span>
+<span class="lineNum">     945 </span><span class="lineCov">        236 :    is1[9] = gfld-&gt;idsect[2];</span>
+<span class="lineNum">     946 </span><span class="lineCov">        236 :    is1[10] = gfld-&gt;idsect[3];</span>
+<span class="lineNum">     947 </span><span class="lineCov">        236 :    is1[11] = gfld-&gt;idsect[4];</span>
+<span class="lineNum">     948 </span><span class="lineCov">        236 :    is1[12] = gfld-&gt;idsect[5]; /* Year */</span>
+<span class="lineNum">     949 </span><span class="lineCov">        236 :    is1[14] = gfld-&gt;idsect[6]; /* Month */</span>
+<span class="lineNum">     950 </span><span class="lineCov">        236 :    is1[15] = gfld-&gt;idsect[7]; /* Day */</span>
+<span class="lineNum">     951 </span><span class="lineCov">        236 :    is1[16] = gfld-&gt;idsect[8]; /* Hour */</span>
+<span class="lineNum">     952 </span><span class="lineCov">        236 :    is1[17] = gfld-&gt;idsect[9]; /* Min */</span>
+<span class="lineNum">     953 </span><span class="lineCov">        236 :    is1[18] = gfld-&gt;idsect[10]; /* Sec */</span>
+<span class="lineNum">     954 </span><span class="lineCov">        236 :    is1[19] = gfld-&gt;idsect[11];</span>
+<span class="lineNum">     955 </span><span class="lineCov">        236 :    is1[20] = gfld-&gt;idsect[12];</span>
+<span class="lineNum">     956 </span>            : 
+<span class="lineNum">     957 </span>            :    /* Fill out section lengths (separate procedure because of possibility of
+<span class="lineNum">     958 </span>            :     * having multiple grids.  Should combine fillOutSectLen g2_info, and
+<span class="lineNum">     959 </span>            :     * g2_getfld into one procedure to optimize it. */
+<span class="lineNum">     960 </span><span class="lineCov">        236 :    fillOutSectLen(c_ipack + 16 + is1[0], 4 * *nd5 - 15 - is1[0], subgNum,</span>
+<span class="lineNum">     961 </span>            :                   is2, is3, is4, is5, is6, is7);
+<span class="lineNum">     962 </span>            : 
+<span class="lineNum">     963 </span>            :    /* Check if there is section 2 data. */
+<span class="lineNum">     964 </span><span class="lineCov">        236 :    if (gfld-&gt;locallen &gt; 0) {</span>
+<span class="lineNum">     965 </span>            :       /* The + 1 is so we don't overwrite the section length */
+<span class="lineNum">     966 </span><span class="lineNoCov">          0 :       memset((void *)(is2 + 1), 0, (*ns2 - 1) * sizeof(sInt4));</span>
+<span class="lineNum">     967 </span><span class="lineNoCov">          0 :       is2[4] = 2;</span>
+<span class="lineNum">     968 </span><span class="lineNoCov">          0 :       is2[5] = gfld-&gt;local[0];</span>
+<span class="lineNum">     969 </span>            :       /* check if MDL Local use simple packed data */
+<span class="lineNum">     970 </span><span class="lineNoCov">          0 :       if (is2[5] == 1) {</span>
+<span class="lineNum">     971 </span><span class="lineNoCov">          0 :          mdl_LocalUnpack(gfld-&gt;local, gfld-&gt;locallen, idat, nidat, rdat,</span>
+<span class="lineNum">     972 </span>            :                          nrdat);
+<span class="lineNum">     973 </span>            :       } else {
+<span class="lineNum">     974 </span>            :          /* local use section was not MDL packed, return it in is2. */
+<span class="lineNum">     975 </span><span class="lineNoCov">          0 :          for (i = 0; i &lt; gfld-&gt;locallen; i++) {</span>
+<span class="lineNum">     976 </span><span class="lineNoCov">          0 :             is2[i + 5] = gfld-&gt;local[i];</span>
+<span class="lineNum">     977 </span>            :          }
+<span class="lineNum">     978 </span>            :       }
+<span class="lineNum">     979 </span>            :    } else {
+<span class="lineNum">     980 </span>            :       /* API specified that is2[0] = 0; idat[0] = 0, and rdat[0] = 0 */
+<span class="lineNum">     981 </span><span class="lineCov">        236 :       is2[0] = 0;</span>
+<span class="lineNum">     982 </span><span class="lineCov">        236 :       idat[0] = 0;</span>
+<span class="lineNum">     983 </span><span class="lineCov">        236 :       rdat[0] = 0;</span>
+<span class="lineNum">     984 </span>            :    }
+<span class="lineNum">     985 </span>            : 
+<span class="lineNum">     986 </span><span class="lineCov">        236 :    is3[4] = 3;</span>
+<span class="lineNum">     987 </span><span class="lineCov">        236 :    is3[5] = gfld-&gt;griddef;</span>
+<span class="lineNum">     988 </span><span class="lineCov">        236 :    is3[6] = gfld-&gt;ngrdpts;</span>
+<span class="lineNum">     989 </span><span class="lineCov">        236 :    if (*nd2x3 &lt; gfld-&gt;ngrdpts) {</span>
+<span class="lineNum">     990 </span><span class="lineNoCov">          0 :       jer[8 + *ndjer] = 2;</span>
+<span class="lineNum">     991 </span><span class="lineNoCov">          0 :       jer[8] = 2001;    /* nd2x3 is not large enough */</span>
+<span class="lineNum">     992 </span><span class="lineNoCov">          0 :       *kjer = 9;</span>
+<span class="lineNum">     993 </span><span class="lineNoCov">          0 :       g2_free(gfld);</span>
+<span class="lineNum">     994 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">     995 </span>            :    }
+<span class="lineNum">     996 </span><span class="lineCov">        236 :    is3[10] = gfld-&gt;numoct_opt;</span>
+<span class="lineNum">     997 </span><span class="lineCov">        236 :    is3[11] = gfld-&gt;interp_opt;</span>
+<span class="lineNum">     998 </span><span class="lineCov">        236 :    is3[12] = gfld-&gt;igdtnum;</span>
+<span class="lineNum">     999 </span><span class="lineCov">        236 :    gridIndex = getgridindex(gfld-&gt;igdtnum);</span>
+<span class="lineNum">    1000 </span><span class="lineCov">        236 :    if (gridIndex == -1) {</span>
+<span class="lineNum">    1001 </span><span class="lineNoCov">          0 :       jer[8 + *ndjer] = 2;</span>
+<span class="lineNum">    1002 </span><span class="lineNoCov">          0 :       jer[8] = 2003;    /* undefined sect 3 template */</span>
+<span class="lineNum">    1003 </span><span class="lineNoCov">          0 :       *kjer = 9;</span>
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :       g2_free(gfld);</span>
+<span class="lineNum">    1005 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">    1006 </span>            :    }
+<span class="lineNum">    1007 </span><span class="lineCov">        236 :    if( gfld-&gt;igdtlen &gt; templatesgrid[gridIndex].mapgridlen )</span>
+<span class="lineNum">    1008 </span>            :    {
+<span class="lineNum">    1009 </span><span class="lineNoCov">          0 :       jer[8 + *ndjer] = 2;</span>
+<span class="lineNum">    1010 </span><span class="lineNoCov">          0 :       jer[8] = 2003;    /* undefined sect 3 template: FIXME: wrong code probably */</span>
+<span class="lineNum">    1011 </span><span class="lineNoCov">          0 :       *kjer = 9;</span>
+<span class="lineNum">    1012 </span><span class="lineNoCov">          0 :       g2_free (gfld);</span>
+<span class="lineNum">    1013 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">    1014 </span>            :    }
+<span class="lineNum">    1015 </span><span class="lineCov">        236 :    curIndex = 14;</span>
+<span class="lineNum">    1016 </span><span class="lineCov">       5122 :    for (i = 0; i &lt; gfld-&gt;igdtlen; i++) {</span>
+<span class="lineNum">    1017 </span><span class="lineCov">       4886 :       if( curIndex &lt; 0 || curIndex &gt;= *ns3 )</span>
+<span class="lineNum">    1018 </span>            :       {
+<span class="lineNum">    1019 </span><span class="lineNoCov">          0 :         jer[8 + *ndjer] = 2;</span>
+<span class="lineNum">    1020 </span><span class="lineNoCov">          0 :         jer[8] = 2003;    /* undefined sect 3 template: FIXME: wrong code probably */</span>
+<span class="lineNum">    1021 </span><span class="lineNoCov">          0 :         *kjer = 9;</span>
+<span class="lineNum">    1022 </span><span class="lineNoCov">          0 :         g2_free (gfld);</span>
+<span class="lineNum">    1023 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1024 </span>            :       }
+<span class="lineNum">    1025 </span><span class="lineCov">       4886 :       is3[curIndex] = gfld-&gt;igdtmpl[i];</span>
+<span class="lineNum">    1026 </span><span class="lineCov">       4886 :       curIndex += abs(templatesgrid[gridIndex].mapgrid[i]);</span>
+<span class="lineNum">    1027 </span>            :    }
+<span class="lineNum">    1028 </span>            :    /* API attempts to return grid in scan mode 0100????.  Find the necessary
+<span class="lineNum">    1029 </span>            :     * indexes into the is3 array for the attempt. */
+<span class="lineNum">    1030 </span><span class="lineCov">        236 :    switch (gfld-&gt;igdtnum) {</span>
+<span class="lineNum">    1031 </span>            :       case 0:
+<span class="lineNum">    1032 </span>            :       case 1:
+<span class="lineNum">    1033 </span>            :       case 2:
+<span class="lineNum">    1034 </span>            :       case 3:
+<span class="lineNum">    1035 </span>            :       case 40:
+<span class="lineNum">    1036 </span>            :       case 41:
+<span class="lineNum">    1037 </span>            :       case 42:
+<span class="lineNum">    1038 </span>            :       case 43:
+<span class="lineNum">    1039 </span><span class="lineCov">         59 :          scanIndex = 72 - 1;</span>
+<span class="lineNum">    1040 </span><span class="lineCov">         59 :          nxIndex = 31 - 1;</span>
+<span class="lineNum">    1041 </span><span class="lineCov">         59 :          nyIndex = 35 - 1;</span>
+<span class="lineNum">    1042 </span><span class="lineCov">         59 :          break;</span>
+<span class="lineNum">    1043 </span>            :       case 10:
+<span class="lineNum">    1044 </span>            :       case 12: // Transverse Mercator
+<span class="lineNum">    1045 </span><span class="lineCov">        155 :          scanIndex = 60 - 1;</span>
+<span class="lineNum">    1046 </span><span class="lineCov">        155 :          nxIndex = 31 - 1;</span>
+<span class="lineNum">    1047 </span><span class="lineCov">        155 :          nyIndex = 35 - 1;</span>
+<span class="lineNum">    1048 </span><span class="lineCov">        155 :          break;</span>
+<span class="lineNum">    1049 </span>            :       case 20:
+<span class="lineNum">    1050 </span>            :       case 30:
+<span class="lineNum">    1051 </span>            :       case 31:
+<span class="lineNum">    1052 </span><span class="lineCov">         17 :          scanIndex = 65 - 1;</span>
+<span class="lineNum">    1053 </span><span class="lineCov">         17 :          nxIndex = 31 - 1;</span>
+<span class="lineNum">    1054 </span><span class="lineCov">         17 :          nyIndex = 35 - 1;</span>
+<span class="lineNum">    1055 </span><span class="lineCov">         17 :          break;</span>
+<span class="lineNum">    1056 </span>            :       case 90:
+<span class="lineNum">    1057 </span><span class="lineNoCov">          0 :          scanIndex = 64 - 1;</span>
+<span class="lineNum">    1058 </span><span class="lineNoCov">          0 :          nxIndex = 31 - 1;</span>
+<span class="lineNum">    1059 </span><span class="lineNoCov">          0 :          nyIndex = 35 - 1;</span>
+<span class="lineNum">    1060 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">    1061 </span>            :       case 110:
+<span class="lineNum">    1062 </span><span class="lineNoCov">          0 :          scanIndex = 57 - 1;</span>
+<span class="lineNum">    1063 </span><span class="lineNoCov">          0 :          nxIndex = 31 - 1;</span>
+<span class="lineNum">    1064 </span><span class="lineNoCov">          0 :          nyIndex = 35 - 1;</span>
+<span class="lineNum">    1065 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">    1066 </span>            :       case 50:
+<span class="lineNum">    1067 </span>            :       case 51:
+<span class="lineNum">    1068 </span>            :       case 52:
+<span class="lineNum">    1069 </span>            :       case 53:
+<span class="lineNum">    1070 </span>            :       case 100:
+<span class="lineNum">    1071 </span>            :       case 120:
+<span class="lineNum">    1072 </span>            :       case 1000:
+<span class="lineNum">    1073 </span>            :       case 1200:
+<span class="lineNum">    1074 </span>            :       default:
+<span class="lineNum">    1075 </span><span class="lineCov">          5 :          scanIndex = -1;</span>
+<span class="lineNum">    1076 </span><span class="lineCov">          5 :          nxIndex = -1;</span>
+<span class="lineNum">    1077 </span><span class="lineCov">          5 :          nyIndex = -1;</span>
+<span class="lineNum">    1078 </span>            :    }
+<span class="lineNum">    1079 </span>            : 
+<span class="lineNum">    1080 </span><span class="lineCov">        236 :    is4[4] = 4;</span>
+<span class="lineNum">    1081 </span><span class="lineCov">        236 :    is4[5] = gfld-&gt;num_coord;</span>
+<span class="lineNum">    1082 </span><span class="lineCov">        236 :    is4[7] = gfld-&gt;ipdtnum;</span>
+<span class="lineNum">    1083 </span><span class="lineCov">        236 :    pdsIndex = getpdsindex(gfld-&gt;ipdtnum);</span>
+<span class="lineNum">    1084 </span>            : #if 0
+<span class="lineNum">    1085 </span>            :    if (pdsIndex == -1) {
+<span class="lineNum">    1086 </span>            :       jer[8 + *ndjer] = 2;
+<span class="lineNum">    1087 </span>            :       jer[8] = 2004;    /* undefined sect 4 template */
+<span class="lineNum">    1088 </span>            :       *kjer = 9;
+<span class="lineNum">    1089 </span>            :       g2_free(gfld);
+<span class="lineNum">    1090 </span>            :       return;
+<span class="lineNum">    1091 </span>            :    }
+<span class="lineNum">    1092 </span>            : #endif
+<span class="lineNum">    1093 </span><span class="lineCov">        236 :    if( pdsIndex &gt;= 0 )</span>
+<span class="lineNum">    1094 </span>            :    {
+<span class="lineNum">    1095 </span><span class="lineCov">        233 :    curIndex = 9;</span>
+<span class="lineNum">    1096 </span><span class="lineCov">       4128 :    for (i = 0; i &lt; gfld-&gt;ipdtlen; i++) {</span>
+<span class="lineNum">    1097 </span><span class="lineCov">       3895 :       const struct pdstemplate *templatespds = get_templatespds();</span>
+<span class="lineNum">    1098 </span><span class="lineCov">       3895 :       if( curIndex &gt;= *ns4 )</span>
+<span class="lineNum">    1099 </span>            :       {
+<span class="lineNum">    1100 </span>            :           /* Should we error out instead ? */
+<span class="lineNum">    1101 </span><span class="lineNoCov">          0 :           break;</span>
+<span class="lineNum">    1102 </span>            :       }
+<span class="lineNum">    1103 </span><span class="lineCov">       3895 :       is4[curIndex] = gfld-&gt;ipdtmpl[i];</span>
+<span class="lineNum">    1104 </span><span class="lineCov">       3895 :       if( i == MAXPDSMAPLEN )</span>
+<span class="lineNum">    1105 </span>            :       {
+<span class="lineNum">    1106 </span><span class="lineNoCov">          0 :         jer[8 + *ndjer] = 2;</span>
+<span class="lineNum">    1107 </span><span class="lineNoCov">          0 :         jer[8] = 2004;    /* undefined sect 4 template */</span>
+<span class="lineNum">    1108 </span><span class="lineNoCov">          0 :         *kjer = 9;</span>
+<span class="lineNum">    1109 </span><span class="lineNoCov">          0 :         g2_free (gfld);</span>
+<span class="lineNum">    1110 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1111 </span>            :       }
+<span class="lineNum">    1112 </span><span class="lineCov">       3895 :       curIndex += abs(templatespds[pdsIndex].mappds[i]);</span>
+<span class="lineNum">    1113 </span>            :    }
+<span class="lineNum">    1114 </span>            :    }
+<span class="lineNum">    1115 </span>            : 
+<span class="lineNum">    1116 </span><span class="lineCov">        236 :    is5[4] = 5;</span>
+<span class="lineNum">    1117 </span><span class="lineCov">        236 :    is5[5] = gfld-&gt;ndpts;</span>
+<span class="lineNum">    1118 </span><span class="lineCov">        236 :    is5[9] = gfld-&gt;idrtnum;</span>
+<span class="lineNum">    1119 </span><span class="lineCov">        236 :    drsIndex = getdrsindex(gfld-&gt;idrtnum);</span>
+<span class="lineNum">    1120 </span><span class="lineCov">        236 :    if (drsIndex == -1) {</span>
+<span class="lineNum">    1121 </span><span class="lineNoCov">          0 :       jer[8 + *ndjer] = 2;</span>
+<span class="lineNum">    1122 </span><span class="lineNoCov">          0 :       jer[8] = 2005;    /* undefined sect 5 template */</span>
+<span class="lineNum">    1123 </span><span class="lineNoCov">          0 :       *kjer = 9;</span>
+<span class="lineNum">    1124 </span><span class="lineNoCov">          0 :       g2_free(gfld);</span>
+<span class="lineNum">    1125 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">    1126 </span>            :    }
+<span class="lineNum">    1127 </span><span class="lineCov">        236 :    curIndex = 11;</span>
+<span class="lineNum">    1128 </span><span class="lineCov">       1808 :    for (i = 0; i &lt; gfld-&gt;idrtlen; i++) {</span>
+<span class="lineNum">    1129 </span><span class="lineCov">       1572 :       const struct drstemplate *templatesdrs = get_templatesdrs();</span>
+<span class="lineNum">    1130 </span><span class="lineCov">       1572 :       is5[curIndex] = gfld-&gt;idrtmpl[i];</span>
+<span class="lineNum">    1131 </span><span class="lineCov">       1572 :       curIndex += abs(templatesdrs[drsIndex].mapdrs[i]);</span>
+<span class="lineNum">    1132 </span>            :    }
+<span class="lineNum">    1133 </span>            :    /* Mimic MDL's handling of reference value (IS5(12)) */
+<span class="lineNum">    1134 </span><span class="lineCov">        236 :    memcpy(&amp;f_temp, &amp;(is5[11]), sizeof (float));</span>
+<span class="lineNum">    1135 </span><span class="lineCov">        236 :    is5[11] = FloatToSInt4Clamp(f_temp);</span>
+<span class="lineNum">    1136 </span><span class="lineCov">        236 :    if ((is5[9] == 2) || (is5[9] == 3)) {</span>
+<span class="lineNum">    1137 </span><span class="lineCov">         40 :       if (is5[20] == 0) {</span>
+<span class="lineNum">    1138 </span><span class="lineCov">         20 :          memcpy(&amp;(f_temp), &amp;(is5[23]), sizeof (float));</span>
+<span class="lineNum">    1139 </span><span class="lineCov">         20 :          *xmissp = f_temp;</span>
+<span class="lineNum">    1140 </span><span class="lineCov">         20 :          is5[23] = FloatToSInt4Clamp(f_temp);</span>
+<span class="lineNum">    1141 </span><span class="lineCov">         20 :          memcpy(&amp;(f_temp), &amp;(is5[27]), sizeof (float));</span>
+<span class="lineNum">    1142 </span><span class="lineCov">         20 :          *xmisss = f_temp;</span>
+<span class="lineNum">    1143 </span><span class="lineCov">         20 :          is5[27] = FloatToSInt4Clamp(f_temp);</span>
+<span class="lineNum">    1144 </span>            :       } else {
+<span class="lineNum">    1145 </span><span class="lineCov">         20 :          *xmissp = is5[23];</span>
+<span class="lineNum">    1146 </span><span class="lineCov">         20 :          *xmisss = is5[27];</span>
+<span class="lineNum">    1147 </span>            :       }
+<span class="lineNum">    1148 </span>            :    }
+<span class="lineNum">    1149 </span>            : 
+<span class="lineNum">    1150 </span><span class="lineCov">        236 :    is6[4] = 6;</span>
+<span class="lineNum">    1151 </span><span class="lineCov">        236 :    is6[5] = gfld-&gt;ibmap;</span>
+<span class="lineNum">    1152 </span><span class="lineCov">        236 :    is7[4] = 7;</span>
+<span class="lineNum">    1153 </span>            : 
+<span class="lineNum">    1154 </span><span class="lineCov">        236 :    if (subgNum + 1 == (unsigned int)numfields) {</span>
+<span class="lineNum">    1155 </span><span class="lineCov">        236 :       *iendpk = 1;</span>
+<span class="lineNum">    1156 </span>            :    } else {
+<span class="lineNum">    1157 </span><span class="lineNoCov">          0 :       *iendpk = 0;</span>
+<span class="lineNum">    1158 </span>            :    }
+<span class="lineNum">    1159 </span>            : 
+<span class="lineNum">    1160 </span><span class="lineCov">        236 :    if ((gfld-&gt;ibmap == 0) || (gfld-&gt;ibmap == 254)) {</span>
+<span class="lineNum">    1161 </span><span class="lineNoCov">          0 :       *ibitmap = 1;</span>
+<span class="lineNum">    1162 </span>            :    } else {
+<span class="lineNum">    1163 </span><span class="lineCov">        236 :       *ibitmap = 0;</span>
+<span class="lineNum">    1164 </span>            :    }
+<span class="lineNum">    1165 </span>            : 
+<span class="lineNum">    1166 </span>            :    /* Check type of original field, before transferring the memory. */
+<span class="lineNum">    1167 </span><span class="lineCov">        236 :    myAssert(*ns5 &gt; 20);</span>
+<span class="lineNum">    1168 </span>            :    /* Check if NCEP had problems expanding the data.  If so we currently
+<span class="lineNum">    1169 </span>            :     * abort. May need to revisit this behavior. */
+<span class="lineNum">    1170 </span><span class="lineCov">        236 :    if (!gfld-&gt;expanded) {</span>
+<span class="lineNum">    1171 </span><span class="lineNoCov">          0 :       jer[0 + *ndjer] = 2;</span>
+<span class="lineNum">    1172 </span><span class="lineNoCov">          0 :       *kjer = 1;</span>
+<span class="lineNum">    1173 </span><span class="lineNoCov">          0 :       g2_free(gfld);</span>
+<span class="lineNum">    1174 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">    1175 </span>            :    }
+<span class="lineNum">    1176 </span><span class="lineCov">        236 :    f_ignoreScan = 0;</span>
+<span class="lineNum">    1177 </span>            :    /* Check if integer type... is5[20] == 1 implies integer (code table 5.1),
+<span class="lineNum">    1178 </span>            :     * but only for certain templates. (0,1,2,3,40,41,40000,40010). (not 4,50,51) 
+<span class="lineNum">    1179 </span>            :     */
+<span class="lineNum">    1180 </span><span class="lineCov">        236 :    if ((is5[20] == 1) &amp;&amp; ((is5[9] != 4) &amp;&amp; (is5[9] != 50) &amp;&amp; (is5[9] != 51))) {</span>
+<span class="lineNum">    1181 </span>            :       /* integer data, use iain */
+<span class="lineNum">    1182 </span><span class="lineCov">        296 :       if ((scanIndex &lt; 0) || (nxIndex &lt; 0) || (nyIndex &lt; 0)) {</span>
+<span class="lineNum">    1183 </span><span class="lineCov">          3 :          ierr = TransferInt(gfld-&gt;fld, gfld-&gt;ngrdpts, *ibitmap, gfld-&gt;bmap,</span>
+<span class="lineNum">    1184 </span>            :                             1, &amp;(dummyScan), 0, 0, *iclean, *xmissp,
+<span class="lineNum">    1185 </span>            :                             iain, *nd2x3, ib);
+<span class="lineNum">    1186 </span>            :       } else {
+<span class="lineNum">    1187 </span><span class="lineCov">        580 :          ierr = TransferInt(gfld-&gt;fld, gfld-&gt;ngrdpts, *ibitmap, gfld-&gt;bmap,</span>
+<span class="lineNum">    1188 </span><span class="lineCov">        290 :                             f_ignoreScan, &amp;(is3[scanIndex]), is3[nxIndex],</span>
+<span class="lineNum">    1189 </span><span class="lineCov">        145 :                             is3[nyIndex], *iclean, *xmissp, iain, *nd2x3, ib);</span>
+<span class="lineNum">    1190 </span>            :       }
+<span class="lineNum">    1191 </span>            :    } else {
+<span class="lineNum">    1192 </span>            :       /* float data, use ain */
+<span class="lineNum">    1193 </span><span class="lineCov">         88 :       if ((scanIndex &lt; 0) || (nxIndex &lt; 0) || (nyIndex &lt; 0)) {</span>
+<span class="lineNum">    1194 </span><span class="lineCov">          4 :          ierr = TransferFloat(gfld-&gt;fld, gfld-&gt;ngrdpts, *ibitmap,</span>
+<span class="lineNum">    1195 </span><span class="lineCov">          2 :                               gfld-&gt;bmap, 1, &amp;(dummyScan), 0, 0, *iclean,</span>
+<span class="lineNum">    1196 </span>            :                               *xmissp, ain, *nd2x3, ib);
+<span class="lineNum">    1197 </span>            :       } else {
+<span class="lineNum">    1198 </span><span class="lineCov">        430 :          ierr = TransferFloat(gfld-&gt;fld, gfld-&gt;ngrdpts, *ibitmap,</span>
+<span class="lineNum">    1199 </span><span class="lineCov">        172 :                               gfld-&gt;bmap, f_ignoreScan, &amp;(is3[scanIndex]),</span>
+<span class="lineNum">    1200 </span><span class="lineCov">        172 :                               is3[nxIndex], is3[nyIndex], *iclean, *xmissp,</span>
+<span class="lineNum">    1201 </span>            :                               ain, *nd2x3, ib);
+<span class="lineNum">    1202 </span>            :       }
+<span class="lineNum">    1203 </span>            :    }
+<span class="lineNum">    1204 </span><span class="lineCov">        236 :    if (ierr != 0) {</span>
+<span class="lineNum">    1205 </span><span class="lineNoCov">          0 :       switch (ierr) {</span>
+<span class="lineNum">    1206 </span>            :          case 1:       /* nd2x3 is too small */
+<span class="lineNum">    1207 </span><span class="lineNoCov">          0 :             jer[0 + *ndjer] = 2;</span>
+<span class="lineNum">    1208 </span><span class="lineNoCov">          0 :             *kjer = 1;</span>
+<span class="lineNum">    1209 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1210 </span>            :          case 2:       /* nx * ny != ngrdpts */
+<span class="lineNum">    1211 </span><span class="lineNoCov">          0 :             jer[5 + *ndjer] = 2;</span>
+<span class="lineNum">    1212 </span><span class="lineNoCov">          0 :             *kjer = 6;</span>
+<span class="lineNum">    1213 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1214 </span>            :          default:
+<span class="lineNum">    1215 </span><span class="lineNoCov">          0 :             jer[8 + *ndjer] = 2;</span>
+<span class="lineNum">    1216 </span><span class="lineNoCov">          0 :             jer[8] = 9999; /* Unknown error message. */</span>
+<span class="lineNum">    1217 </span><span class="lineNoCov">          0 :             *kjer = 9;</span>
+<span class="lineNum">    1218 </span>            :       }
+<span class="lineNum">    1219 </span><span class="lineNoCov">          0 :       g2_free(gfld);</span>
+<span class="lineNum">    1220 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">    1221 </span>            :    }
+<span class="lineNum">    1222 </span><span class="lineCov">        236 :    g2_free(gfld);</span>
+<span class="lineNum">    1223 </span>            : }
+<span class="lineNum">    1224 </span>            : 
+<span class="lineNum">    1225 </span>            : /*****************************************************************************
+<span class="lineNum">    1226 </span>            :  * BigByteCpy() --
+<span class="lineNum">    1227 </span>            :  *
+<span class="lineNum">    1228 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">    1229 </span>            :  *
+<span class="lineNum">    1230 </span>            :  * PURPOSE
+<span class="lineNum">    1231 </span>            :  *   This is so we can copy up to 4 bytes from a big endian 4 byte int data
+<span class="lineNum">    1232 </span>            :  * stream.
+<span class="lineNum">    1233 </span>            :  *
+<span class="lineNum">    1234 </span>            :  *   The reason this is needed is because the GRIB2 API required the GRIB2
+<span class="lineNum">    1235 </span>            :  * message to be passed in as a big endian 4 byte int data stream instead of
+<span class="lineNum">    1236 </span>            :  * something more reasonable (such as a stream of 1 byte char's)  By having
+<span class="lineNum">    1237 </span>            :  * this routine we reduce the number of memswaps of the message on a little
+<span class="lineNum">    1238 </span>            :  * endian system.
+<span class="lineNum">    1239 </span>            :  *
+<span class="lineNum">    1240 </span>            :  * ARGUMENTS
+<span class="lineNum">    1241 </span>            :  *       dst = Where to copy the data to. (Output)
+<span class="lineNum">    1242 </span>            :  *     ipack = The 4 byte int data stream. (Input)
+<span class="lineNum">    1243 </span>            :  *       nd5 = length of ipack (Input)
+<span class="lineNum">    1244 </span>            :  *  startInt = Which integer to start reading in ipack. (Input)
+<span class="lineNum">    1245 </span>            :  * startByte = Which byte in the startInt to start reading from. (Input)
+<span class="lineNum">    1246 </span>            :  *   numByte = How many bytes to read. (Input)
+<span class="lineNum">    1247 </span>            :  *
+<span class="lineNum">    1248 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">    1249 </span>            :  *
+<span class="lineNum">    1250 </span>            :  * RETURNS: NULL
+<span class="lineNum">    1251 </span>            :  *
+<span class="lineNum">    1252 </span>            :  * HISTORY
+<span class="lineNum">    1253 </span>            :  *  12/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">    1254 </span>            :  *
+<span class="lineNum">    1255 </span>            :  * NOTES
+<span class="lineNum">    1256 </span>            :  *****************************************************************************
+<span class="lineNum">    1257 </span>            :  */
+<span class="lineNum">    1258 </span>            : #if 0
+<span class="lineNum">    1259 </span>            : static void BigByteCpy(sInt4 *dst, sInt4 *ipack, sInt4 nd5,
+<span class="lineNum">    1260 </span>            :                        unsigned int startInt, unsigned int startByte,
+<span class="lineNum">    1261 </span>            :                        int numByte)
+<span class="lineNum">    1262 </span>            : {
+<span class="lineNum">    1263 </span>            :    static char Lshift[] = { 0, 8, 16, 24 }; /* Amounts to shift left by. */
+<span class="lineNum">    1264 </span>            :    unsigned int intIndex; /* Where in ipack to read from. */
+<span class="lineNum">    1265 </span>            :    unsigned int byteIndex; /* Where in intIndex to read from. */
+<span class="lineNum">    1266 </span>            :    uInt4 curInt;        /* An unsigned version of the current int. */
+<span class="lineNum">    1267 </span>            :    unsigned int curByte; /* The current byte we have read. */
+<span class="lineNum">    1268 </span>            :    int i;               /* Loop counter over number of bytes to read. */
+<span class="lineNum">    1269 </span>            : 
+<span class="lineNum">    1270 </span>            :    myAssert(numByte &lt;= 4);
+<span class="lineNum">    1271 </span>            :    myAssert(startByte &lt; 4);
+<span class="lineNum">    1272 </span>            :    *dst = 0;
+<span class="lineNum">    1273 </span>            :    intIndex = startInt;
+<span class="lineNum">    1274 </span>            :    byteIndex = startByte;
+<span class="lineNum">    1275 </span>            :    for (i = 0; i &lt; numByte; i++) {
+<span class="lineNum">    1276 </span>            :        if( intIndex &gt;= (unsigned)nd5 )
+<span class="lineNum">    1277 </span>            :        {
+<span class="lineNum">    1278 </span>            :            /* TODO should error out */
+<span class="lineNum">    1279 </span>            :            return;
+<span class="lineNum">    1280 </span>            :        }
+<span class="lineNum">    1281 </span>            :       curInt = (uInt4)ipack[intIndex];
+<span class="lineNum">    1282 </span>            :       curByte = (curInt &lt;&lt; Lshift[byteIndex]) &gt;&gt; 24;
+<span class="lineNum">    1283 </span>            :       *dst = (sInt4)((unsigned)*dst &lt;&lt; 8) + curByte;
+<span class="lineNum">    1284 </span>            :       byteIndex++;
+<span class="lineNum">    1285 </span>            :       if (byteIndex == 4) {
+<span class="lineNum">    1286 </span>            :          byteIndex = 0;
+<span class="lineNum">    1287 </span>            :          intIndex++;
+<span class="lineNum">    1288 </span>            :       }
+<span class="lineNum">    1289 </span>            :    }
+<span class="lineNum">    1290 </span>            : }
+<span class="lineNum">    1291 </span>            : #endif
+<span class="lineNum">    1292 </span>            : 
+<span class="lineNum">    1293 </span>            : /*****************************************************************************
+<span class="lineNum">    1294 </span>            :  * FindTemplateIDs() --
+<span class="lineNum">    1295 </span>            :  *
+<span class="lineNum">    1296 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">    1297 </span>            :  *
+<span class="lineNum">    1298 </span>            :  * PURPOSE
+<span class="lineNum">    1299 </span>            :  *   This is so we can find out which templates are in this GRIB2 message.
+<span class="lineNum">    1300 </span>            :  * Which allows us to determine if we can call the MDL routines, or if we
+<span class="lineNum">    1301 </span>            :  * should call the NCEP routines instead.
+<span class="lineNum">    1302 </span>            :  *
+<span class="lineNum">    1303 </span>            :  * ARGUMENTS
+<span class="lineNum">    1304 </span>            :  *      ipack = The 4 byte int data stream. (Input)
+<span class="lineNum">    1305 </span>            :  *        nd5 = length of ipack (Input)
+<span class="lineNum">    1306 </span>            :  *    subgNum = Which subgrid to look at. (Input)
+<span class="lineNum">    1307 </span>            :  *    gdsTmpl = The gds template number for this subgrid. (Output)
+<span class="lineNum">    1308 </span>            :  *    pdsTmpl = The pds template number for this subgrid. (Output)
+<span class="lineNum">    1309 </span>            :  *    drsTmpl = The drs template number for this subgrid. (Output)
+<span class="lineNum">    1310 </span>            :  * f_noBitmap = 0 has a bitmap, else doesn't have a bitmap. (Output)
+<span class="lineNum">    1311 </span>            :  *  orderDiff = The order of the differencing in template 5.3 (1st, 2nd) (out)
+<span class="lineNum">    1312 </span>            :  *
+<span class="lineNum">    1313 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">    1314 </span>            :  *
+<span class="lineNum">    1315 </span>            :  * RETURNS: int
+<span class="lineNum">    1316 </span>            :  *  0 = Ok.
+<span class="lineNum">    1317 </span>            :  *  2 = invalid section number
+<span class="lineNum">    1318 </span>            :  *
+<span class="lineNum">    1319 </span>            :  * HISTORY
+<span class="lineNum">    1320 </span>            :  *  12/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">    1321 </span>            :  *
+<span class="lineNum">    1322 </span>            :  * NOTES
+<span class="lineNum">    1323 </span>            :  *****************************************************************************
+<span class="lineNum">    1324 </span>            :  */
+<span class="lineNum">    1325 </span>            : #if 0
+<span class="lineNum">    1326 </span>            : static int FindTemplateIDs(sInt4 *ipack, sInt4 nd5, int subgNum,
+<span class="lineNum">    1327 </span>            :                            sInt4 *gdsTmpl, sInt4 *pdsTmpl,
+<span class="lineNum">    1328 </span>            :                            sInt4 *drsTmpl, sInt4 *numGrps,
+<span class="lineNum">    1329 </span>            :                            uChar *f_noBitmap, sInt4 *orderDiff)
+<span class="lineNum">    1330 </span>            : {
+<span class="lineNum">    1331 </span>            :    unsigned int gNum = 0; /* Which sub group we are currently working with. */
+<span class="lineNum">    1332 </span>            :    sInt4 offset;        /* Where in the bytes stream we currently are. */
+<span class="lineNum">    1333 </span>            :    sInt4 sectLen;       /* The length of the current section. */
+<span class="lineNum">    1334 </span>            :    sInt4 sectId;        /* The current section number. */
+<span class="lineNum">    1335 </span>            :    sInt4 li_temp;       /* A temporary holder for the bitmap flag. */
+<span class="lineNum">    1336 </span>            : 
+<span class="lineNum">    1337 </span>            :    /* Jump over section 0. */
+<span class="lineNum">    1338 </span>            :    offset = 16;
+<span class="lineNum">    1339 </span>            :    while (gNum &lt;= (unsigned int)subgNum) {
+<span class="lineNum">    1340 </span>            :       BigByteCpy(&amp;sectLen, ipack, nd5, (offset / 4), (offset % 4), 4);
+<span class="lineNum">    1341 </span>            :       /* Check if we just read section 8.  If so, then it is &quot;7777&quot; =
+<span class="lineNum">    1342 </span>            :        * 926365495 regardless of endian'ness. */
+<span class="lineNum">    1343 </span>            :       if (sectLen == 926365495L) {
+<span class="lineNum">    1344 </span>            : #ifdef DEBUG
+<span class="lineNum">    1345 </span>            :          printf(&quot;Shouldn't see sect 8. Should stop after correct sect 5\n&quot;);
+<span class="lineNum">    1346 </span>            : #endif
+<span class="lineNum">    1347 </span>            :          return 2;
+<span class="lineNum">    1348 </span>            :       }
+<span class="lineNum">    1349 </span>            :       BigByteCpy(&amp;sectId, ipack, nd5, ((offset + 4) / 4),
+<span class="lineNum">    1350 </span>            :                  ((offset + 4) % 4), 1);
+<span class="lineNum">    1351 </span>            :       switch (sectId) {
+<span class="lineNum">    1352 </span>            :          case 1:
+<span class="lineNum">    1353 </span>            :          case 2:
+<span class="lineNum">    1354 </span>            :             break;
+<span class="lineNum">    1355 </span>            :          case 3:
+<span class="lineNum">    1356 </span>            :             BigByteCpy(gdsTmpl, ipack, nd5, ((offset + 12) / 4),
+<span class="lineNum">    1357 </span>            :                        ((offset + 12) % 4), 2);
+<span class="lineNum">    1358 </span>            :             break;
+<span class="lineNum">    1359 </span>            :          case 4:
+<span class="lineNum">    1360 </span>            :             BigByteCpy(pdsTmpl, ipack, nd5, ((offset + 7) / 4),
+<span class="lineNum">    1361 </span>            :                        ((offset + 7) % 4), 2);
+<span class="lineNum">    1362 </span>            :             break;
+<span class="lineNum">    1363 </span>            :          case 5:
+<span class="lineNum">    1364 </span>            :             BigByteCpy(drsTmpl, ipack, nd5, ((offset + 9) / 4),
+<span class="lineNum">    1365 </span>            :                        ((offset + 9) % 4), 2);
+<span class="lineNum">    1366 </span>            :             if ((*drsTmpl == 2) || (*drsTmpl == 3)) {
+<span class="lineNum">    1367 </span>            :                BigByteCpy(numGrps, ipack, nd5, ((offset + 31) / 4),
+<span class="lineNum">    1368 </span>            :                           ((offset + 31) % 4), 4);
+<span class="lineNum">    1369 </span>            :             } else {
+<span class="lineNum">    1370 </span>            :                *numGrps = 0;
+<span class="lineNum">    1371 </span>            :             }
+<span class="lineNum">    1372 </span>            :             if (*drsTmpl == 3) {
+<span class="lineNum">    1373 </span>            :                BigByteCpy(&amp;li_temp, ipack, nd5, ((offset + 44) / 4),
+<span class="lineNum">    1374 </span>            :                           ((offset + 44) % 4), 1);
+<span class="lineNum">    1375 </span>            :                *orderDiff = li_temp;
+<span class="lineNum">    1376 </span>            :             } else {
+<span class="lineNum">    1377 </span>            :                *orderDiff = 0;
+<span class="lineNum">    1378 </span>            :             }
+<span class="lineNum">    1379 </span>            :             break;
+<span class="lineNum">    1380 </span>            :          case 6:
+<span class="lineNum">    1381 </span>            :             BigByteCpy(&amp;li_temp, ipack, nd5, ((offset + 5) / 4),
+<span class="lineNum">    1382 </span>            :                        ((offset + 5) % 4), 1);
+<span class="lineNum">    1383 </span>            :             if (li_temp == 255) {
+<span class="lineNum">    1384 </span>            :                *f_noBitmap = 1;
+<span class="lineNum">    1385 </span>            :             }
+<span class="lineNum">    1386 </span>            :             gNum++;
+<span class="lineNum">    1387 </span>            :             break;
+<span class="lineNum">    1388 </span>            :          case 7:
+<span class="lineNum">    1389 </span>            :             break;
+<span class="lineNum">    1390 </span>            :          default:
+<span class="lineNum">    1391 </span>            : #ifdef DEBUG
+<span class="lineNum">    1392 </span>            :             printf(&quot;Invalid section id %d.\n&quot;, sectId);
+<span class="lineNum">    1393 </span>            : #endif
+<span class="lineNum">    1394 </span>            :             return 2;
+<span class="lineNum">    1395 </span>            :       }
+<span class="lineNum">    1396 </span>            :       offset += sectLen;
+<span class="lineNum">    1397 </span>            :    }
+<span class="lineNum">    1398 </span>            :    return 0;
+<span class="lineNum">    1399 </span>            : }
+<span class="lineNum">    1400 </span>            : #endif
+<span class="lineNum">    1401 </span>            : 
+<span class="lineNum">    1402 </span>            : /*****************************************************************************
+<span class="lineNum">    1403 </span>            :  * unpk_grib2() --
+<span class="lineNum">    1404 </span>            :  *
+<span class="lineNum">    1405 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">    1406 </span>            :  *
+<span class="lineNum">    1407 </span>            :  * PURPOSE
+<span class="lineNum">    1408 </span>            :  *   This procedure is the main API for decoding GRIB2 messages.  It is
+<span class="lineNum">    1409 </span>            :  * intended to be a branching routine to call either the MDL GRIB2 library,
+<span class="lineNum">    1410 </span>            :  * or the NCEP GRIB2 library, depending on which template it sees in the
+<span class="lineNum">    1411 </span>            :  * message.
+<span class="lineNum">    1412 </span>            :  *
+<span class="lineNum">    1413 </span>            :  * ARGUMENTS
+<span class="lineNum">    1414 </span>            :  *  kfildo = Unit number for output diagnostics (C ignores this). (Input)
+<span class="lineNum">    1415 </span>            :  *     ain = contains the data if the original data was float data.
+<span class="lineNum">    1416 </span>            :  *           (size = nd2x3) (Output)
+<span class="lineNum">    1417 </span>            :  *    iain = contains the data if the original data was integer data.
+<span class="lineNum">    1418 </span>            :  *           (size = nd2x3) (Output)
+<span class="lineNum">    1419 </span>            :  *   nd2x3 = length of ain, iain, ib (Input)
+<span class="lineNum">    1420 </span>            :  *           (at least the size of num grid points)
+<span class="lineNum">    1421 </span>            :  *    idat = local use data if any that were unpacked from Section 2. (Output)
+<span class="lineNum">    1422 </span>            :  *   nidat = length of idat. (Input)
+<span class="lineNum">    1423 </span>            :  *    rdat = floating point local use data (Output)
+<span class="lineNum">    1424 </span>            :  *   nrdat = length of rdat. (Input)
+<span class="lineNum">    1425 </span>            :  *     is0 = Section 0 data (Output)
+<span class="lineNum">    1426 </span>            :  *     ns0 = length of is0 (16 is fine) (Input)
+<span class="lineNum">    1427 </span>            :  *     is1 = Section 1 data (Output)
+<span class="lineNum">    1428 </span>            :  *     ns1 = length of is1 (21 is fine) (Input)
+<span class="lineNum">    1429 </span>            :  *     is2 = Section 2 data (Output)
+<span class="lineNum">    1430 </span>            :  *     ns2 = length of is2 () (Input)
+<span class="lineNum">    1431 </span>            :  *     is3 = Section 3 data (Output)
+<span class="lineNum">    1432 </span>            :  *     ns3 = length of is3 (96 or 1600) (Input)
+<span class="lineNum">    1433 </span>            :  *     is4 = Section 4 data (Output)
+<span class="lineNum">    1434 </span>            :  *     ns4 = length of is4 (60) (Input)
+<span class="lineNum">    1435 </span>            :  *     is5 = Section 5 data (Output)
+<span class="lineNum">    1436 </span>            :  *     ns5 = length of is5 (49 is fine) (Input)
+<span class="lineNum">    1437 </span>            :  *     is6 = Section 6 data (Output)
+<span class="lineNum">    1438 </span>            :  *     ns6 = length of is6 (6 is fine) (Input)
+<span class="lineNum">    1439 </span>            :  *     is7 = Section 7 data (Output)
+<span class="lineNum">    1440 </span>            :  *     ns7 = length of is7 (8 is fine) (Input)
+<span class="lineNum">    1441 </span>            :  *      ib = Bitmap if user requested it, and it was packed (Output)
+<span class="lineNum">    1442 </span>            :  * ibitmap = 0 means ib is invalid, 1 means ib is valid. (Output)
+<span class="lineNum">    1443 </span>            :  *   ipack = The message to unpack (This is assumed to be Big endian) (Input)
+<span class="lineNum">    1444 </span>            :  *     nd5 = The size of ipack (Input)
+<span class="lineNum">    1445 </span>            :  *  xmissp = The floating point representation for the primary missing value.
+<span class="lineNum">    1446 </span>            :  *           (Input/Output)
+<span class="lineNum">    1447 </span>            :  *  xmisss = The floating point representation for the secondary missing
+<span class="lineNum">    1448 </span>            :  *           value (Input/Output)
+<span class="lineNum">    1449 </span>            :  *     new = 1 if this is the first grid to be unpacked, else 0. (Input)
+<span class="lineNum">    1450 </span>            :  *  iclean = 1 means the user wants the unpacked data returned without
+<span class="lineNum">    1451 </span>            :  *           missing values in it. 0 means embed the missing values. (Input)
+<span class="lineNum">    1452 </span>            :  *  l3264b = Integer word length in bits (32 or 64) (Input)
+<span class="lineNum">    1453 </span>            :  *  iendpk = A 1 means no more grids in this message, a 0 means more grids.
+<span class="lineNum">    1454 </span>            :  *           (Output)
+<span class="lineNum">    1455 </span>            :  * jer(ndjer,2) = error codes along with severity. (Output)
+<span class="lineNum">    1456 </span>            :  *   ndjer = 1/2 length of jer. (&gt;= 15) (Input)
+<span class="lineNum">    1457 </span>            :  *    kjer = number of error messages stored in jer. (Output)
+<span class="lineNum">    1458 </span>            :  *
+<span class="lineNum">    1459 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">    1460 </span>            :  *
+<span class="lineNum">    1461 </span>            :  * RETURNS: void
+<span class="lineNum">    1462 </span>            :  *
+<span class="lineNum">    1463 </span>            :  * HISTORY
+<span class="lineNum">    1464 </span>            :  *  12/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">    1465 </span>            :  *
+<span class="lineNum">    1466 </span>            :  * NOTES
+<span class="lineNum">    1467 </span>            :  * Inefficiencies: have to memswap ipack multiple times.
+<span class="lineNum">    1468 </span>            :  * MDL handles is5[12], is5[23], and is5[27] in an &quot;interesting&quot; manner.
+<span class="lineNum">    1469 </span>            :  * MDL attempts to always return grids in scan mode 0100????
+<span class="lineNum">    1470 </span>            :  * ToDo: Check length of parameters better.
+<span class="lineNum">    1471 </span>            :  *
+<span class="lineNum">    1472 </span>            :  * According to MDL's unpk_grib2.f, it currently supports (so for others we
+<span class="lineNum">    1473 </span>            :  * call the NCEP routines):
+<span class="lineNum">    1474 </span>            :  *    TEMPLATE 3.0   EQUIDISTANT CYLINDRICAL LATITUDE/LONGITUDE
+<span class="lineNum">    1475 </span>            :  *    TEMPLATE 3.10  MERCATOR
+<span class="lineNum">    1476 </span>            :  *    TEMPLATE 3.20  POLAR STEREOGRAPHIC
+<span class="lineNum">    1477 </span>            :  *    TEMPLATE 3.30  LAMBERT
+<span class="lineNum">    1478 </span>            :  *    TEMPLATE 3.90  ORTHOGRAPHIC SPACE VIEW
+<span class="lineNum">    1479 </span>            :  *    TEMPLATE 3.110 EQUATORIAL AZIMUTHAL EQUIDISTANT
+<span class="lineNum">    1480 </span>            :  *    TEMPLATE 3.120 AZIMUTH-RANGE (RADAR)
+<span class="lineNum">    1481 </span>            :  *
+<span class="lineNum">    1482 </span>            :  *    TEMPLATE 4.0  ANALYSIS OR FORECAST AT A LEVEL AND POINT
+<span class="lineNum">    1483 </span>            :  *    TEMPLATE 4.1  INDIVIDUAL ENSEMBLE
+<span class="lineNum">    1484 </span>            :  *    TEMPLATE 4.2  DERIVED FORECAST BASED ON ENSEMBLES
+<span class="lineNum">    1485 </span>            :  *    TEMPLATE 4.8  AVERAGE, ACCUMULATION, EXTREMES
+<span class="lineNum">    1486 </span>            :  *    TEMPLATE 4.20 RADAR
+<span class="lineNum">    1487 </span>            :  *    TEMPLATE 4.30 SATELLITE
+<span class="lineNum">    1488 </span>            :  *
+<span class="lineNum">    1489 </span>            :  *    TEMPLATE 5.0  SIMPLE PACKING
+<span class="lineNum">    1490 </span>            :  *    TEMPLATE 5.2  COMPLEX PACKING
+<span class="lineNum">    1491 </span>            :  *    TEMPLATE 5.3  COMPLEX PACKING AND SPATIAL DIFFERENCING
+<span class="lineNum">    1492 </span>            :  *
+<span class="lineNum">    1493 </span>            :  * Correction to &quot;unpk_grib2.f&quot; : It also supports:
+<span class="lineNum">    1494 </span>            :  *    TEMPLATE 4.9  Probability forecast in a time interval
+<span class="lineNum">    1495 </span>            :  *
+<span class="lineNum">    1496 </span>            :  *****************************************************************************
+<span class="lineNum">    1497 </span>            :  */
+<span class="lineNum">    1498 </span>            : #ifdef unused_by_GDAL
+<span class="lineNum">    1499 </span>            : void unpk_grib2(sInt4 *kfildo, float *ain, sInt4 *iain, sInt4 *nd2x3,
+<span class="lineNum">    1500 </span>            :                 sInt4 *idat, sInt4 *nidat, float *rdat, sInt4 *nrdat,
+<span class="lineNum">    1501 </span>            :                 sInt4 *is0, sInt4 *ns0, sInt4 *is1, sInt4 *ns1,
+<span class="lineNum">    1502 </span>            :                 sInt4 *is2, sInt4 *ns2, sInt4 *is3, sInt4 *ns3,
+<span class="lineNum">    1503 </span>            :                 sInt4 *is4, sInt4 *ns4, sInt4 *is5, sInt4 *ns5,
+<span class="lineNum">    1504 </span>            :                 sInt4 *is6, sInt4 *ns6, sInt4 *is7, sInt4 *ns7,
+<span class="lineNum">    1505 </span>            :                 sInt4 *ib, sInt4 *ibitmap, sInt4 *ipack, sInt4 *nd5,
+<span class="lineNum">    1506 </span>            :                 float *xmissp, float *xmisss, sInt4 *inew,
+<span class="lineNum">    1507 </span>            :                 sInt4 *iclean, sInt4 *l3264b, sInt4 *iendpk, sInt4 *jer,
+<span class="lineNum">    1508 </span>            :                 sInt4 *ndjer, sInt4 *kjer)
+<span class="lineNum">    1509 </span>            : {
+<span class="lineNum">    1510 </span>            :    unsigned char *c_ipack; /* The compressed data as char instead of sInt4 so
+<span class="lineNum">    1511 </span>            :                             * it is easier to work with. */
+<span class="lineNum">    1512 </span>            : #if 0
+<span class="lineNum">    1513 </span>            :    char f_useMDL = 0;   /* Instructed 3/8/2005 10:30 to not use MDL. */
+<span class="lineNum">    1514 </span>            : #endif
+<span class="lineNum">    1515 </span>            : 
+<span class="lineNum">    1516 </span>            :    /* Since NCEP's code works with byte level stuff, we need to un-do the
+<span class="lineNum">    1517 </span>            :     * byte swap of the (int *) data, then cast it to an (unsigned char *) */
+<span class="lineNum">    1518 </span>            : #ifndef WORDS_BIGENDIAN
+<span class="lineNum">    1519 </span>            :    /* Can't make this dependent on inew, since they could have a sequence of
+<span class="lineNum">    1520 </span>            :     * get first message... do stuff, get second message, which unfortunately
+<span class="lineNum">    1521 </span>            :     * means they would have to get the first message again, causing 2 swaps,
+<span class="lineNum">    1522 </span>            :     * and breaking their second request for the first message (as well as
+<span class="lineNum">    1523 </span>            :     * their second message). */
+<span class="lineNum">    1524 </span>            :    memswp(ipack, sizeof(sInt4), *nd5);
+<span class="lineNum">    1525 </span>            : #endif
+<span class="lineNum">    1526 </span>            :    c_ipack = (unsigned char *)ipack;
+<span class="lineNum">    1527 </span>            :    unpk_g2ncep(kfildo, ain, iain, nd2x3, idat, nidat, rdat, nrdat, is0,
+<span class="lineNum">    1528 </span>            :                ns0, is1, ns1, is2, ns2, is3, ns3, is4, ns4, is5, ns5,
+<span class="lineNum">    1529 </span>            :                is6, ns6, is7, ns7, ib, ibitmap, c_ipack, nd5, xmissp,
+<span class="lineNum">    1530 </span>            :                xmisss, inew, iclean, l3264b, iendpk, jer, ndjer, kjer);
+<span class="lineNum">    1531 </span>            : 
+<span class="lineNum">    1532 </span>            : #ifndef WORDS_BIGENDIAN
+<span class="lineNum">    1533 </span>            :    /* Swap back because we could be called again for the subgrid data. */
+<span class="lineNum">    1534 </span>            :    memswp(ipack, sizeof(sInt4), *nd5);
+<span class="lineNum">    1535 </span>            : #endif
+<span class="lineNum">    1536 </span>            : }
+<span class="lineNum">    1537 </span>            : #endif
+<span class="lineNum">    1538 </span>            : 
+<span class="lineNum">    1539 </span>            : /*****************************************************************************
+<span class="lineNum">    1540 </span>            :  * C_pkGrib2() --
+<span class="lineNum">    1541 </span>            :  *
+<span class="lineNum">    1542 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">    1543 </span>            :  *
+<span class="lineNum">    1544 </span>            :  * PURPOSE
+<span class="lineNum">    1545 </span>            :  *   This procedure is the main API for encoding GRIB2 messages.  It is
+<span class="lineNum">    1546 </span>            :  * intended to call NCEP's GRIB2 library.
+<span class="lineNum">    1547 </span>            :  *
+<span class="lineNum">    1548 </span>            :  * RETURNS: void
+<span class="lineNum">    1549 </span>            :  *
+<span class="lineNum">    1550 </span>            :  * HISTORY
+<span class="lineNum">    1551 </span>            :  *   1/2004 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">    1552 </span>            :  *
+<span class="lineNum">    1553 </span>            :  * NOTES
+<span class="lineNum">    1554 </span>            :  *****************************************************************************
+<span class="lineNum">    1555 </span>            :  */
+<span class="lineNum">    1556 </span>            : 
+<span class="lineNum">    1557 </span>            : #ifdef unused_by_GDAL
+<span class="lineNum">    1558 </span>            : int C_pkGrib2(unsigned char *cgrib, sInt4 *sec0, sInt4 *sec1,
+<span class="lineNum">    1559 </span>            :               unsigned char *csec2, sInt4 lcsec2,
+<span class="lineNum">    1560 </span>            :               sInt4 *igds, sInt4 *igdstmpl, sInt4 *ideflist,
+<span class="lineNum">    1561 </span>            :               sInt4 idefnum, sInt4 ipdsnum, sInt4 *ipdstmpl,
+<span class="lineNum">    1562 </span>            :               float *coordlist, sInt4 numcoord, sInt4 idrsnum,
+<span class="lineNum">    1563 </span>            :               sInt4 *idrstmpl, float *fld, sInt4 ngrdpts,
+<span class="lineNum">    1564 </span>            :               sInt4 ibmap, sInt4 *bmap)
+<span class="lineNum">    1565 </span>            : {
+<span class="lineNum">    1566 </span>            :    int ierr;            /* error value from grib2 library. */
+<span class="lineNum">    1567 </span>            : 
+<span class="lineNum">    1568 </span>            :    if ((ierr = g2_create(cgrib, sec0, sec1)) == -1) {
+<span class="lineNum">    1569 </span>            :       /* Tried to use for version other than GRIB Ed 2 */
+<span class="lineNum">    1570 </span>            :       return -1;
+<span class="lineNum">    1571 </span>            :    }
+<span class="lineNum">    1572 </span>            : 
+<span class="lineNum">    1573 </span>            :    if ((ierr = g2_addlocal(cgrib, csec2, lcsec2)) &lt; 0) {
+<span class="lineNum">    1574 </span>            :       /* Some how got a bad section 2.  Should be impossible unless an assert
+<span class="lineNum">    1575 </span>            :        * was broken. */
+<span class="lineNum">    1576 </span>            :       return -2;
+<span class="lineNum">    1577 </span>            :    }
+<span class="lineNum">    1578 </span>            : 
+<span class="lineNum">    1579 </span>            :    if ((ierr = g2_addgrid(cgrib, igds, igdstmpl, ideflist, idefnum)) &lt; 0) {
+<span class="lineNum">    1580 </span>            :       /* Some how got a bad section 3.  Only way would be should be with an
+<span class="lineNum">    1581 </span>            :        * unsupported template number unless an assert was broken. */
+<span class="lineNum">    1582 </span>            :       return -3;
+<span class="lineNum">    1583 </span>            :    }
+<span class="lineNum">    1584 </span>            : 
+<span class="lineNum">    1585 </span>            :    if ((ierr = g2_addfield(cgrib, ipdsnum, ipdstmpl, coordlist, numcoord,
+<span class="lineNum">    1586 </span>            :                            idrsnum, idrstmpl, fld, ngrdpts, ibmap,
+<span class="lineNum">    1587 </span>            :                            bmap)) &lt; 0) {
+<span class="lineNum">    1588 </span>            :       return -4;
+<span class="lineNum">    1589 </span>            :    }
+<span class="lineNum">    1590 </span>            : 
+<span class="lineNum">    1591 </span>            :    if ((ierr = g2_gribend(cgrib)) &lt; 0) {
+<span class="lineNum">    1592 </span>            :       return -5;
+<span class="lineNum">    1593 </span>            :    }
+<span class="lineNum">    1594 </span>            : 
+<span class="lineNum">    1595 </span>            :    return ierr;
+<span class="lineNum">    1596 </span>            : }
+<span class="lineNum">    1597 </span>            : #endif /* unused_by_GDAL */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

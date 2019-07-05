@@ -1,0 +1,287 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/mrf/Packer_RLE.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/mrf</a> - Packer_RLE.cpp<span style="font-size: 80%;"> (source / <a href="Packer_RLE.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">79</td>
+            <td class="headerCovTableEntry">84</td>
+            <td class="headerCovTableEntryHi">94.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">9</td>
+            <td class="headerCovTableEntry">9</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            : Copyright 2016-2017 Esri
+<span class="lineNum">       3 </span>            : Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineNum">       4 </span>            : you may not use this file except in compliance with the License.
+<span class="lineNum">       5 </span>            : You may obtain a copy of the License at
+<span class="lineNum">       6 </span>            : http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineNum">       7 </span>            : Unless required by applicable law or agreed to in writing, software
+<span class="lineNum">       8 </span>            : distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineNum">       9 </span>            : WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineNum">      10 </span>            : See the License for the specific language governing permissions and
+<span class="lineNum">      11 </span>            : limitations under the License.
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : Contributors:  Lucian Plesea
+<span class="lineNum">      14 </span>            : */
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : //
+<span class="lineNum">      17 </span>            : // Implements an RLE codec packer.  The RLE uses a dedicated marker code
+<span class="lineNum">      18 </span>            : // This particular packer picks the least used byte value as marker,
+<span class="lineNum">      19 </span>            : // which makes the worst case data expansion more reasonable, at the expense
+<span class="lineNum">      20 </span>            : // of taking two passes over the input data
+<span class="lineNum">      21 </span>            : //
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : // For memset
+<span class="lineNum">      24 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      25 </span>            : #include &lt;vector&gt;
+<span class="lineNum">      26 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      27 </span>            : #include &quot;marfa.h&quot;
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;Packer_RLE.h&quot;
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : NAMESPACE_MRF_START
+<span class="lineNum">      32 </span>            : //
+<span class="lineNum">      33 </span>            : // RLE yarn codec, uses a dedicated code as marker, default value is 0xC3
+<span class="lineNum">      34 </span>            : // This is the C implementation, there is also a C++ one
+<span class="lineNum">      35 </span>            : // For yarnball compression, it performs better than using a double char marker
+<span class="lineNum">      36 </span>            : //
+<span class="lineNum">      37 </span>            : // Includes both encoder and decoder
+<span class="lineNum">      38 </span>            : // Worst case input:output ratio is 1:2, when the input is 1,2 or three marker codes
+<span class="lineNum">      39 </span>            : // For long input streams, the input:output ratio is between
+<span class="lineNum">      40 </span>            : // 13260.6:1 (best) and 1:1.75 (worst)
+<span class="lineNum">      41 </span>            : //
+<span class="lineNum">      42 </span>            : // Could be a byte stream filter which needs very little local storage
+<span class="lineNum">      43 </span>            : //
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : constexpr int MAX_RUN = 768 + 0xffff;
+<span class="lineNum">      46 </span>            : typedef unsigned char Byte;
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : #define UC(X) static_cast&lt;Byte&gt;(X)
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : // Encode helper function
+<a name="51"><span class="lineNum">      51 </span>            : // It returns how many times the byte at *s is repeated</a>
+<span class="lineNum">      52 </span>            : // a value between 1 and min(max_count, MAX_RUN)
+<span class="lineNum">      53 </span><span class="lineCov">       1340 : inline static int run_length(const Byte *s, int max_count)</span>
+<span class="lineNum">      54 </span>            : {
+<span class="lineNum">      55 </span><span class="lineCov">       1340 :   if (max_count &gt; MAX_RUN)</span>
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :     max_count = MAX_RUN;</span>
+<span class="lineNum">      57 </span><span class="lineCov">       1340 :   const Byte c = *s++;</span>
+<span class="lineNum">      58 </span><span class="lineCov">     393387 :   for (int count = 1; count &lt; max_count; count++)</span>
+<span class="lineNum">      59 </span><span class="lineCov">     393375 :     if (c != *s++)</span>
+<span class="lineNum">      60 </span><span class="lineCov">       1328 :       return count;</span>
+<span class="lineNum">      61 </span><span class="lineCov">         12 :   return max_count;</span>
+<a name="62"><span class="lineNum">      62 </span>            : }</a>
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span><span class="lineCov">         20 : static void ret_now_debug()</span>
+<span class="lineNum">      65 </span>            : {
+<span class="lineNum">      66 </span><span class="lineCov">         20 : }</span>
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            : #define RET_NOW do { ret_now_debug(); return static_cast&lt;size_t&gt;(next - reinterpret_cast&lt;Byte *&gt;(obuf)); } while(0)
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : //
+<span class="lineNum">      71 </span>            : // C compress function, returns compressed size
+<span class="lineNum">      72 </span>            : // len is the size of the input buffer
+<span class="lineNum">      73 </span>            : // caller should ensure that output buffer is at least 2 * N to be safe, 
+<span class="lineNum">      74 </span>            : // dropping to N * 7/4 for larger input
+<span class="lineNum">      75 </span>            : // If the Code is chosen to be the least present value in input, the
+<a name="76"><span class="lineNum">      76 </span>            : // output size requirement is bound by N / 256 + N</a>
+<span class="lineNum">      77 </span>            : //
+<span class="lineNum">      78 </span><span class="lineCov">         12 : static size_t toYarn(const char *ibuffer, char *obuf, size_t len, Byte CODE = 0xC3) {</span>
+<span class="lineNum">      79 </span><span class="lineCov">         12 :   Byte *next = reinterpret_cast&lt;Byte *&gt;(obuf);</span>
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span><span class="lineCov">       1364 :   while (len) {</span>
+<span class="lineNum">      82 </span><span class="lineCov">       1340 :     Byte b = static_cast&lt;Byte&gt;(*ibuffer);</span>
+<span class="lineNum">      83 </span><span class="lineCov">       1340 :     int run = run_length(reinterpret_cast&lt;const Byte *&gt;(ibuffer), static_cast&lt;int&gt;(len));</span>
+<span class="lineNum">      84 </span><span class="lineCov">       1340 :     if (run &lt; 4) { // Encoded as single bytes, stored as such, CODE followed by a zero</span>
+<span class="lineNum">      85 </span><span class="lineCov">        482 :       run = 1;</span>
+<span class="lineNum">      86 </span><span class="lineCov">        482 :       *next++ = b;</span>
+<span class="lineNum">      87 </span><span class="lineCov">        482 :       if (CODE == b)</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :         *next++ = 0;</span>
+<span class="lineNum">      89 </span>            :     }
+<span class="lineNum">      90 </span>            :     else { // Encoded as a sequence
+<span class="lineNum">      91 </span><span class="lineCov">        858 :       *next++ = CODE; // Start with Marker code, always present</span>
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span><span class="lineCov">        858 :       if (run &gt; 767) { // long sequence</span>
+<span class="lineNum">      94 </span><span class="lineCov">         12 :         ibuffer += 768; // May be unsafe to read *ibuffer</span>
+<span class="lineNum">      95 </span><span class="lineCov">         12 :         len -= 768;</span>
+<span class="lineNum">      96 </span><span class="lineCov">         12 :         run -= 768;</span>
+<span class="lineNum">      97 </span><span class="lineCov">         12 :         *next++ = 3;</span>
+<span class="lineNum">      98 </span><span class="lineCov">         12 :         *next++ = UC(run &gt;&gt; 8); // Forced high count</span>
+<span class="lineNum">      99 </span>            :       }
+<span class="lineNum">     100 </span><span class="lineCov">        846 :       else if (run &gt; 255) { // Between 256 and 767, medium sequence</span>
+<span class="lineNum">     101 </span><span class="lineCov">        292 :         *next++ = UC(run &gt;&gt; 8); // High count</span>
+<span class="lineNum">     102 </span>            :       }
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span><span class="lineCov">        858 :       *next++ = UC(run &amp; 0xff); // Low count, always present</span>
+<span class="lineNum">     105 </span><span class="lineCov">        858 :       *next++ = b;   // End with Value, always present</span>
+<span class="lineNum">     106 </span>            :     }
+<span class="lineNum">     107 </span><span class="lineCov">       1340 :     ibuffer += run;</span>
+<span class="lineNum">     108 </span><span class="lineCov">       1340 :     len -= run;</span>
+<span class="lineNum">     109 </span>            :   }
+<span class="lineNum">     110 </span><span class="lineCov">         12 :   RET_NOW;</span>
+<span class="lineNum">     111 </span>            : }
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span>            : // Check that another input byte can be read, return now otherwise
+<span class="lineNum">     114 </span>            : // Adjusts the input length too
+<span class="lineNum">     115 </span>            : #define CHECK_INPUT if (ilen == 0) RET_NOW
+<span class="lineNum">     116 </span>            : // Reads a byte and adjust the input pointer
+<span class="lineNum">     117 </span>            : #define NEXT_BYTE UC(*ibuffer++)
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span>            : //
+<span class="lineNum">     120 </span>            : // C decompress function, returns actual decompressed size
+<span class="lineNum">     121 </span>            : // Stops when either olen is reached or when ilen is exhausted
+<a name="122"><span class="lineNum">     122 </span>            : // returns the number of output bytes written</a>
+<span class="lineNum">     123 </span>            : //
+<span class="lineNum">     124 </span><span class="lineCov">          8 : static size_t fromYarn(const char *ibuffer, size_t ilen, char *obuf, size_t olen, Byte CODE = 0xC3) {</span>
+<span class="lineNum">     125 </span><span class="lineCov">          8 :   Byte *next = reinterpret_cast&lt;Byte *&gt;(obuf);</span>
+<span class="lineNum">     126 </span><span class="lineCov">        807 :   while (ilen &gt; 0 &amp;&amp; olen &gt; 0) {</span>
+<span class="lineNum">     127 </span>            :     // It is safe to read and write one byte
+<span class="lineNum">     128 </span><span class="lineCov">        791 :     Byte b = NEXT_BYTE;</span>
+<span class="lineNum">     129 </span><span class="lineCov">        791 :     ilen--;</span>
+<span class="lineNum">     130 </span><span class="lineCov">        791 :     if (b != CODE) { // Copy single chars</span>
+<span class="lineNum">     131 </span><span class="lineCov">        314 :       *next++ = b;</span>
+<span class="lineNum">     132 </span><span class="lineCov">        314 :       olen--;</span>
+<span class="lineNum">     133 </span>            :     }
+<span class="lineNum">     134 </span>            :     else { // Marker found, which type of sequence is it?
+<span class="lineNum">     135 </span><span class="lineCov">        477 :       CHECK_INPUT;</span>
+<span class="lineNum">     136 </span><span class="lineCov">        477 :       b = NEXT_BYTE;</span>
+<span class="lineNum">     137 </span><span class="lineCov">        477 :       ilen--;</span>
+<span class="lineNum">     138 </span><span class="lineCov">        477 :       if (b == 0) { // Emit one code</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :         *next++ = CODE;</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :         olen--;</span>
+<span class="lineNum">     141 </span>            :       }
+<span class="lineNum">     142 </span>            :       else { // Sequence
+<span class="lineNum">     143 </span><span class="lineCov">        477 :         size_t run = 0;</span>
+<span class="lineNum">     144 </span><span class="lineCov">        477 :         if (b &lt; 4) {</span>
+<span class="lineNum">     145 </span><span class="lineCov">        164 :           run = 256 * b;</span>
+<span class="lineNum">     146 </span><span class="lineCov">        164 :           if (3 == b) { // Second byte of high count</span>
+<span class="lineNum">     147 </span><span class="lineCov">          8 :             CHECK_INPUT;</span>
+<span class="lineNum">     148 </span><span class="lineCov">          8 :             run += 256 * NEXT_BYTE;</span>
+<span class="lineNum">     149 </span><span class="lineCov">          8 :             ilen--;</span>
+<span class="lineNum">     150 </span>            :           }
+<span class="lineNum">     151 </span><span class="lineCov">        164 :           CHECK_INPUT;</span>
+<span class="lineNum">     152 </span><span class="lineCov">        164 :           run += NEXT_BYTE;</span>
+<span class="lineNum">     153 </span><span class="lineCov">        164 :           ilen--;</span>
+<span class="lineNum">     154 </span>            :         }
+<span class="lineNum">     155 </span>            :         else { // Single byte count
+<span class="lineNum">     156 </span><span class="lineCov">        313 :           run = b;</span>
+<span class="lineNum">     157 </span>            :         }
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :         // Write the sequence out, after checking
+<span class="lineNum">     160 </span><span class="lineCov">        477 :         if (olen &lt; run) RET_NOW;</span>
+<span class="lineNum">     161 </span><span class="lineCov">        477 :         CHECK_INPUT;</span>
+<span class="lineNum">     162 </span><span class="lineCov">        477 :         b = NEXT_BYTE;</span>
+<span class="lineNum">     163 </span><span class="lineCov">        477 :         ilen--;</span>
+<span class="lineNum">     164 </span><span class="lineCov">        477 :         memset(next, b, run);</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineCov">        477 :         next += run;</span>
+<span class="lineNum">     167 </span><span class="lineCov">        477 :         olen -= run;</span>
+<span class="lineNum">     168 </span>            :       }
+<span class="lineNum">     169 </span>            :     }
+<span class="lineNum">     170 </span>            :   }
+<span class="lineNum">     171 </span><span class="lineCov">          8 :   RET_NOW;</span>
+<span class="lineNum">     172 </span>            : }
+<span class="lineNum">     173 </span>            : 
+<a name="174"><span class="lineNum">     174 </span>            : </a>
+<span class="lineNum">     175 </span>            : // Returns the least used byte value from a buffer
+<span class="lineNum">     176 </span><span class="lineCov">         12 : static Byte getLeastUsed(const Byte *src, size_t len) {</span>
+<span class="lineNum">     177 </span><span class="lineCov">         12 :   std::vector&lt;unsigned int&gt; hist(256, 0);</span>
+<span class="lineNum">     178 </span><span class="lineCov">     393240 :   while (len--)</span>
+<span class="lineNum">     179 </span><span class="lineCov">     393216 :     hist[*src++]++;</span>
+<span class="lineNum">     180 </span><span class="lineCov">         12 :   return UC(std::min_element(hist.begin(), hist.end()) - hist.begin());</span>
+<span class="lineNum">     181 </span>            : }
+<span class="lineNum">     182 </span>            : 
+<a name="183"><span class="lineNum">     183 </span>            : // Read from a packed source until the src is exhausted</a>
+<span class="lineNum">     184 </span>            : // Returns true if all output buffer was filled, 0 otherwise
+<span class="lineNum">     185 </span><span class="lineCov">          8 : int RLEC3Packer::load(storage_manager *src, storage_manager *dst)</span>
+<span class="lineNum">     186 </span>            : {
+<span class="lineNum">     187 </span>            :   // Use the first char in the input buffer as marker code
+<span class="lineNum">     188 </span><span class="lineCov">         16 :   return dst-&gt;size == fromYarn(src-&gt;buffer + 1, src-&gt;size - 1,</span>
+<span class="lineNum">     189 </span><span class="lineCov">         16 :     dst-&gt;buffer, dst-&gt;size, *src-&gt;buffer);</span>
+<span class="lineNum">     190 </span>            : }
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            : //
+<span class="lineNum">     193 </span>            : // Picks the least use value as the marker code and stores it first in the data
+<span class="lineNum">     194 </span>            : // This choice improves the worst case expansion, which becomes (1 + N / 256 + N) : N
+<span class="lineNum">     195 </span>            : // It also improves compression in general
+<span class="lineNum">     196 </span>            : // Makes best case marginally worse because the chosen code adds one byte to the output
+<a name="197"><span class="lineNum">     197 </span>            : //</a>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineCov">         12 : int RLEC3Packer::store(storage_manager *src, storage_manager *dst)</span>
+<span class="lineNum">     200 </span>            : {
+<span class="lineNum">     201 </span><span class="lineCov">         12 :   size_t N = src-&gt;size;</span>
+<span class="lineNum">     202 </span><span class="lineCov">         12 :   if (dst-&gt;size &lt; 1 + N + N / 256)</span>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :     return 0; // Failed, destination might overflow</span>
+<span class="lineNum">     204 </span><span class="lineCov">         12 :   Byte c = getLeastUsed(reinterpret_cast&lt;const Byte *&gt;(src-&gt;buffer), src-&gt;size);</span>
+<span class="lineNum">     205 </span><span class="lineCov">         12 :   *dst-&gt;buffer++ = static_cast&lt;char&gt;(c);</span>
+<span class="lineNum">     206 </span><span class="lineCov">         12 :   dst-&gt;size = 1 + toYarn(src-&gt;buffer, dst-&gt;buffer, src-&gt;size, c);</span>
+<span class="lineNum">     207 </span><span class="lineCov">         12 :   return 1; // Success, size is in dst-&gt;size</span>
+<a name="208"><span class="lineNum">     208 </span>            : }</a>
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span><span class="lineCov">       2976 : NAMESPACE_MRF_END</span>
+<span class="lineNum">     211 </span>            : 
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

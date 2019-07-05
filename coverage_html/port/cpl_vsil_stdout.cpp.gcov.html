@@ -1,0 +1,525 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_vsil_stdout.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_vsil_stdout.cpp<span style="font-size: 80%;"> (source / <a href="cpl_vsil_stdout.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">58</td>
+            <td class="headerCovTableEntry">81</td>
+            <td class="headerCovTableEntryLo">71.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">27</td>
+            <td class="headerCovTableEntry">34</td>
+            <td class="headerCovTableEntryMed">79.4 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /**********************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  CPL - Common Portability Library
+<span class="lineNum">       4 </span>            :  * Purpose:  Implement VSI large file api for stdout
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  **********************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2010-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+<span class="lineNum">      21 </span>            :  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      33 </span>            : #include &lt;cstdio&gt;
+<span class="lineNum">      34 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      35 </span>            : #if HAVE_FCNTL_H
+<span class="lineNum">      36 </span>            : #  include &lt;fcntl.h&gt;
+<span class="lineNum">      37 </span>            : #endif
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_vsi_virtual.h&quot;
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : #ifdef WIN32
+<span class="lineNum">      43 </span>            : #include &lt;io.h&gt;
+<span class="lineNum">      44 </span>            : #include &lt;fcntl.h&gt;
+<span class="lineNum">      45 </span>            : #endif
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<a name="48"><span class="lineNum">      48 </span>            : </a>
+<span class="lineNum">      49 </span>            : static VSIWriteFunction pWriteFunction = fwrite;
+<span class="lineNum">      50 </span><span class="lineCov">        992 : static FILE* pWriteStream = stdout;</span>
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : /************************************************************************/
+<span class="lineNum">      53 </span>            : /*                        VSIStdoutSetRedirection()                     */
+<span class="lineNum">      54 </span>            : /************************************************************************/
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : /** Set an alternative write function and output file handle instead of
+<span class="lineNum">      57 </span>            :  *  fwrite() / stdout.
+<span class="lineNum">      58 </span>            :  *
+<span class="lineNum">      59 </span>            :  * @param pFct Function with same signature as fwrite()
+<span class="lineNum">      60 </span>            :  * @param stream File handle on which to output. Passed to pFct.
+<span class="lineNum">      61 </span>            :  *
+<a name="62"><span class="lineNum">      62 </span>            :  * @since GDAL 2.0</a>
+<span class="lineNum">      63 </span>            :  */
+<span class="lineNum">      64 </span><span class="lineCov">          2 : void VSIStdoutSetRedirection( VSIWriteFunction pFct, FILE* stream )</span>
+<span class="lineNum">      65 </span>            : {
+<span class="lineNum">      66 </span><span class="lineCov">          2 :     pWriteFunction = pFct;</span>
+<span class="lineNum">      67 </span><span class="lineCov">          2 :     pWriteStream = stream;</span>
+<span class="lineNum">      68 </span><span class="lineCov">          2 : }</span>
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            : /************************************************************************/
+<span class="lineNum">      73 </span>            : /* ==================================================================== */
+<span class="lineNum">      74 </span>            : /*                       VSIStdoutFilesystemHandler                     */
+<span class="lineNum">      75 </span>            : /* ==================================================================== */
+<a name="76"><span class="lineNum">      76 </span>            : /************************************************************************/</a>
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span><span class="lineCov">       1438 : class VSIStdoutFilesystemHandler final : public VSIFilesystemHandler</span>
+<span class="lineNum">      79 </span>            : {
+<span class="lineNum">      80 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSIStdoutFilesystemHandler)
+<a name="81"><span class="lineNum">      81 </span>            : </a>
+<span class="lineNum">      82 </span>            :   public:
+<span class="lineNum">      83 </span><span class="lineCov">        988 :     VSIStdoutFilesystemHandler() = default;</span>
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            :     VSIVirtualHandle *Open( const char *pszFilename,
+<span class="lineNum">      86 </span>            :                             const char *pszAccess,
+<span class="lineNum">      87 </span>            :                             bool bSetError ) override;
+<span class="lineNum">      88 </span>            :     int Stat( const char *pszFilename, VSIStatBufL *pStatBuf,
+<span class="lineNum">      89 </span>            :               int nFlags ) override;
+<span class="lineNum">      90 </span>            : };
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            : /************************************************************************/
+<span class="lineNum">      93 </span>            : /* ==================================================================== */
+<span class="lineNum">      94 </span>            : /*                        VSIStdoutHandle                               */
+<span class="lineNum">      95 </span>            : /* ==================================================================== */
+<span class="lineNum">      96 </span>            : /************************************************************************/
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            : class VSIStdoutHandle final : public VSIVirtualHandle
+<span class="lineNum">      99 </span>            : {
+<span class="lineNum">     100 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSIStdoutHandle)
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            :     vsi_l_offset      m_nOffset = 0;
+<a name="103"><span class="lineNum">     103 </span>            : </a>
+<a name="104"><span class="lineNum">     104 </span>            :   public:</a>
+<span class="lineNum">     105 </span><span class="lineCov">          4 :     VSIStdoutHandle() = default;</span>
+<span class="lineNum">     106 </span><span class="lineCov">          8 :     ~VSIStdoutHandle() override = default;</span>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            :     int Seek( vsi_l_offset nOffset, int nWhence ) override;
+<span class="lineNum">     109 </span>            :     vsi_l_offset Tell() override;
+<span class="lineNum">     110 </span>            :     size_t Read( void *pBuffer, size_t nSize, size_t nMemb ) override;
+<span class="lineNum">     111 </span>            :     size_t Write( const void *pBuffer, size_t nSize, size_t nMemb ) override;
+<span class="lineNum">     112 </span>            :     int Eof() override;
+<span class="lineNum">     113 </span>            :     int Flush() override;
+<span class="lineNum">     114 </span>            :     int Close() override;
+<span class="lineNum">     115 </span>            : };
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : /************************************************************************/
+<span class="lineNum">     118 </span>            : /*                                Seek()                                */
+<a name="119"><span class="lineNum">     119 </span>            : /************************************************************************/</a>
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 : int VSIStdoutHandle::Seek( vsi_l_offset nOffset, int nWhence )</span>
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            : {
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :     if( nOffset == 0 &amp;&amp; (nWhence == SEEK_END || nWhence == SEEK_CUR) )</span>
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :     if( nWhence == SEEK_SET &amp;&amp; nOffset == Tell() )</span>
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :     CPLError(CE_Failure, CPLE_NotSupported, &quot;Seek() unsupported on /vsistdout&quot;);</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     130 </span>            : }
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            : /************************************************************************/
+<span class="lineNum">     133 </span>            : /*                                Tell()                                */
+<a name="134"><span class="lineNum">     134 </span>            : /************************************************************************/</a>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 : vsi_l_offset VSIStdoutHandle::Tell()</span>
+<span class="lineNum">     137 </span>            : {
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :     return m_nOffset;</span>
+<span class="lineNum">     139 </span>            : }
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span>            : /************************************************************************/
+<span class="lineNum">     142 </span>            : /*                               Flush()                                */
+<a name="143"><span class="lineNum">     143 </span>            : /************************************************************************/</a>
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span><span class="lineCov">          5 : int VSIStdoutHandle::Flush()</span>
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span>            : {
+<span class="lineNum">     148 </span><span class="lineCov">          5 :     if( pWriteStream == stdout )</span>
+<span class="lineNum">     149 </span><span class="lineCov">          4 :         return fflush( stdout );</span>
+<span class="lineNum">     150 </span>            :     else
+<span class="lineNum">     151 </span><span class="lineCov">          1 :         return 0;</span>
+<span class="lineNum">     152 </span>            : }
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            : /************************************************************************/
+<span class="lineNum">     155 </span>            : /*                                Read()                                */
+<a name="156"><span class="lineNum">     156 </span>            : /************************************************************************/</a>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 : size_t VSIStdoutHandle::Read( void * /* pBuffer */,</span>
+<span class="lineNum">     159 </span>            :                               size_t /* nSize */,
+<span class="lineNum">     160 </span>            :                               size_t /* nCount */ )
+<span class="lineNum">     161 </span>            : {
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :     CPLError(CE_Failure, CPLE_NotSupported, &quot;Read() unsupported on /vsistdout&quot;);</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     164 </span>            : }
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : /************************************************************************/
+<span class="lineNum">     167 </span>            : /*                               Write()                                */
+<a name="168"><span class="lineNum">     168 </span>            : /************************************************************************/</a>
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span><span class="lineCov">         25 : size_t VSIStdoutHandle::Write( const void * pBuffer, size_t nSize,</span>
+<span class="lineNum">     171 </span>            :                                size_t nCount )
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            : {
+<span class="lineNum">     174 </span><span class="lineCov">         25 :     size_t nRet = pWriteFunction(pBuffer, nSize, nCount, pWriteStream);</span>
+<span class="lineNum">     175 </span><span class="lineCov">         25 :     m_nOffset += nSize * nRet;</span>
+<span class="lineNum">     176 </span><span class="lineCov">         25 :     return nRet;</span>
+<span class="lineNum">     177 </span>            : }
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            : /************************************************************************/
+<span class="lineNum">     180 </span>            : /*                                Eof()                                 */
+<a name="181"><span class="lineNum">     181 </span>            : /************************************************************************/</a>
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 : int VSIStdoutHandle::Eof()</span>
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            : {
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     187 </span>            : }
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span>            : /************************************************************************/
+<span class="lineNum">     190 </span>            : /*                               Close()                                */
+<a name="191"><span class="lineNum">     191 </span>            : /************************************************************************/</a>
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span><span class="lineCov">          4 : int VSIStdoutHandle::Close()</span>
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            : {
+<span class="lineNum">     196 </span><span class="lineCov">          4 :     return Flush();</span>
+<span class="lineNum">     197 </span>            : }
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span>            : /************************************************************************/
+<span class="lineNum">     200 </span>            : /* ==================================================================== */
+<span class="lineNum">     201 </span>            : /*                       VSIStdoutFilesystemHandler                     */
+<span class="lineNum">     202 </span>            : /* ==================================================================== */
+<span class="lineNum">     203 </span>            : /************************************************************************/
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span>            : /************************************************************************/
+<span class="lineNum">     206 </span>            : /*                                Open()                                */
+<span class="lineNum">     207 </span>            : /************************************************************************/
+<a name="208"><span class="lineNum">     208 </span>            : </a>
+<span class="lineNum">     209 </span>            : VSIVirtualHandle *
+<span class="lineNum">     210 </span><span class="lineCov">          7 : VSIStdoutFilesystemHandler::Open( const char * /* pszFilename */,</span>
+<span class="lineNum">     211 </span>            :                                   const char *pszAccess,
+<span class="lineNum">     212 </span>            :                                   bool /* bSetError */ )
+<span class="lineNum">     213 </span>            : {
+<span class="lineNum">     214 </span><span class="lineCov">         11 :     if ( strchr(pszAccess, 'r') != nullptr ||</span>
+<span class="lineNum">     215 </span><span class="lineCov">          4 :          strchr(pszAccess, '+') != nullptr )</span>
+<span class="lineNum">     216 </span>            :     {
+<span class="lineNum">     217 </span>            :         CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     218 </span><span class="lineCov">          3 :                  &quot;Read or update mode not supported on /vsistdout&quot;);</span>
+<span class="lineNum">     219 </span><span class="lineCov">          3 :         return nullptr;</span>
+<span class="lineNum">     220 </span>            :     }
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span>            : #ifdef WIN32
+<span class="lineNum">     223 </span>            :     if ( strchr(pszAccess, 'b') != nullptr )
+<span class="lineNum">     224 </span>            :         setmode( fileno( stdout ), O_BINARY );
+<span class="lineNum">     225 </span>            : #endif
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineCov">          4 :     return new VSIStdoutHandle;</span>
+<span class="lineNum">     228 </span>            : }
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span>            : /************************************************************************/
+<span class="lineNum">     231 </span>            : /*                                Stat()                                */
+<a name="232"><span class="lineNum">     232 </span>            : /************************************************************************/</a>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineCov">         14 : int VSIStdoutFilesystemHandler::Stat( const char * /* pszFilename */,</span>
+<span class="lineNum">     235 </span>            :                                       VSIStatBufL * pStatBuf,
+<span class="lineNum">     236 </span>            :                                       int /* nFlags */ )
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span>            : {
+<span class="lineNum">     239 </span><span class="lineCov">         14 :     memset( pStatBuf, 0, sizeof(VSIStatBufL) );</span>
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span><span class="lineCov">         14 :     return -1;</span>
+<span class="lineNum">     242 </span>            : }
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span>            : /************************************************************************/
+<span class="lineNum">     245 </span>            : /* ==================================================================== */
+<span class="lineNum">     246 </span>            : /*                   VSIStdoutRedirectFilesystemHandler                 */
+<span class="lineNum">     247 </span>            : /* ==================================================================== */
+<a name="248"><span class="lineNum">     248 </span>            : /************************************************************************/</a>
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span><span class="lineCov">       2426 : class VSIStdoutRedirectFilesystemHandler final : public VSIFilesystemHandler</span>
+<span class="lineNum">     251 </span>            : {
+<span class="lineNum">     252 </span>            :   public:
+<span class="lineNum">     253 </span>            :     VSIVirtualHandle *Open( const char *pszFilename,
+<span class="lineNum">     254 </span>            :                             const char *pszAccess,
+<span class="lineNum">     255 </span>            :                             bool bSetError ) override;
+<span class="lineNum">     256 </span>            :     int Stat( const char *pszFilename, VSIStatBufL *pStatBuf,
+<span class="lineNum">     257 </span>            :               int nFlags ) override;
+<span class="lineNum">     258 </span>            : };
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            : /************************************************************************/
+<span class="lineNum">     261 </span>            : /* ==================================================================== */
+<span class="lineNum">     262 </span>            : /*                        VSIStdoutRedirectHandle                       */
+<span class="lineNum">     263 </span>            : /* ==================================================================== */
+<span class="lineNum">     264 </span>            : /************************************************************************/
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            : class VSIStdoutRedirectHandle final : public VSIVirtualHandle
+<span class="lineNum">     267 </span>            : {
+<span class="lineNum">     268 </span>            :     VSIVirtualHandle* m_poHandle = nullptr;
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSIStdoutRedirectHandle)
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span>            :   public:
+<span class="lineNum">     273 </span>            :     explicit VSIStdoutRedirectHandle( VSIVirtualHandle* poHandle );
+<span class="lineNum">     274 </span>            :     ~VSIStdoutRedirectHandle() override;
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span>            :     int Seek( vsi_l_offset nOffset, int nWhence ) override;
+<span class="lineNum">     277 </span>            :     vsi_l_offset Tell() override;
+<span class="lineNum">     278 </span>            :     size_t Read( void *pBuffer, size_t nSize, size_t nMemb ) override;
+<span class="lineNum">     279 </span>            :     size_t Write( const void *pBuffer, size_t nSize, size_t nMemb ) override;
+<span class="lineNum">     280 </span>            :     int Eof() override;
+<span class="lineNum">     281 </span>            :     int Flush() override;
+<span class="lineNum">     282 </span>            :     int Close() override;
+<span class="lineNum">     283 </span>            : };
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span>            : /************************************************************************/
+<span class="lineNum">     286 </span>            : /*                        VSIStdoutRedirectHandle()                    */
+<a name="287"><span class="lineNum">     287 </span>            : /************************************************************************/</a>
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span><span class="lineCov">          4 : VSIStdoutRedirectHandle::VSIStdoutRedirectHandle(VSIVirtualHandle* poHandle):</span>
+<span class="lineNum">     290 </span><span class="lineCov">          4 :     m_poHandle(poHandle)</span>
+<span class="lineNum">     291 </span>            : {
+<span class="lineNum">     292 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span>            : /************************************************************************/
+<span class="lineNum">     295 </span>            : /*                        ~VSIStdoutRedirectHandle()                    */
+<a name="296"><span class="lineNum">     296 </span>            : /************************************************************************/</a>
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span><span class="lineCov">         12 : VSIStdoutRedirectHandle::~VSIStdoutRedirectHandle()</span>
+<span class="lineNum">     299 </span>            : {
+<span class="lineNum">     300 </span><span class="lineCov">          4 :     delete m_poHandle;</span>
+<span class="lineNum">     301 </span><span class="lineCov">          8 : }</span>
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span>            : /************************************************************************/
+<span class="lineNum">     304 </span>            : /*                                Seek()                                */
+<a name="305"><span class="lineNum">     305 </span>            : /************************************************************************/</a>
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 : int VSIStdoutRedirectHandle::Seek( vsi_l_offset /* nOffset */,</span>
+<span class="lineNum">     308 </span>            :                                    int /* nWhence */ )
+<span class="lineNum">     309 </span>            : {
+<span class="lineNum">     310 </span>            :     CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :              &quot;Seek() unsupported on /vsistdout_redirect&quot;);</span>
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     313 </span>            : }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            : /************************************************************************/
+<span class="lineNum">     316 </span>            : /*                                Tell()                                */
+<a name="317"><span class="lineNum">     317 </span>            : /************************************************************************/</a>
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span><span class="lineCov">        271 : vsi_l_offset VSIStdoutRedirectHandle::Tell()</span>
+<span class="lineNum">     320 </span>            : {
+<span class="lineNum">     321 </span><span class="lineCov">        271 :     return m_poHandle-&gt;Tell();</span>
+<span class="lineNum">     322 </span>            : }
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span>            : /************************************************************************/
+<span class="lineNum">     325 </span>            : /*                               Flush()                                */
+<a name="326"><span class="lineNum">     326 </span>            : /************************************************************************/</a>
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span><span class="lineCov">          2 : int VSIStdoutRedirectHandle::Flush()</span>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            : {
+<span class="lineNum">     331 </span><span class="lineCov">          2 :     return m_poHandle-&gt;Flush();</span>
+<span class="lineNum">     332 </span>            : }
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span>            : /************************************************************************/
+<span class="lineNum">     335 </span>            : /*                                Read()                                */
+<a name="336"><span class="lineNum">     336 </span>            : /************************************************************************/</a>
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 : size_t VSIStdoutRedirectHandle::Read( void * /* pBuffer */,</span>
+<span class="lineNum">     339 </span>            :                                       size_t /* nSize */,
+<span class="lineNum">     340 </span>            :                                       size_t /* nCount */ )
+<span class="lineNum">     341 </span>            : {
+<span class="lineNum">     342 </span>            :     CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :              &quot;Read() unsupported on /vsistdout_redirect&quot;);</span>
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     345 </span>            : }
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span>            : /************************************************************************/
+<span class="lineNum">     348 </span>            : /*                               Write()                                */
+<a name="349"><span class="lineNum">     349 </span>            : /************************************************************************/</a>
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span><span class="lineCov">        283 : size_t VSIStdoutRedirectHandle::Write( const void * pBuffer, size_t nSize,</span>
+<span class="lineNum">     352 </span>            :                                        size_t nCount )
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span>            : {
+<span class="lineNum">     355 </span><span class="lineCov">        283 :     return m_poHandle-&gt;Write(pBuffer, nSize, nCount);</span>
+<span class="lineNum">     356 </span>            : }
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span>            : /************************************************************************/
+<span class="lineNum">     359 </span>            : /*                                Eof()                                 */
+<a name="360"><span class="lineNum">     360 </span>            : /************************************************************************/</a>
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 : int VSIStdoutRedirectHandle::Eof()</span>
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span>            : {
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :     return m_poHandle-&gt;Eof();</span>
+<span class="lineNum">     366 </span>            : }
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span>            : /************************************************************************/
+<span class="lineNum">     369 </span>            : /*                               Close()                                */
+<a name="370"><span class="lineNum">     370 </span>            : /************************************************************************/</a>
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineCov">          4 : int VSIStdoutRedirectHandle::Close()</span>
+<span class="lineNum">     373 </span>            : 
+<span class="lineNum">     374 </span>            : {
+<span class="lineNum">     375 </span><span class="lineCov">          4 :     return m_poHandle-&gt;Close();</span>
+<span class="lineNum">     376 </span>            : }
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span>            : /************************************************************************/
+<span class="lineNum">     379 </span>            : /* ==================================================================== */
+<span class="lineNum">     380 </span>            : /*                 VSIStdoutRedirectFilesystemHandler                   */
+<span class="lineNum">     381 </span>            : /* ==================================================================== */
+<span class="lineNum">     382 </span>            : /************************************************************************/
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span>            : /************************************************************************/
+<span class="lineNum">     385 </span>            : /*                                Open()                                */
+<span class="lineNum">     386 </span>            : /************************************************************************/
+<a name="387"><span class="lineNum">     387 </span>            : </a>
+<span class="lineNum">     388 </span>            : VSIVirtualHandle *
+<span class="lineNum">     389 </span><span class="lineCov">         12 : VSIStdoutRedirectFilesystemHandler::Open( const char *pszFilename,</span>
+<span class="lineNum">     390 </span>            :                                           const char *pszAccess,
+<span class="lineNum">     391 </span>            :                                           bool /* bSetError */ )
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            : {
+<span class="lineNum">     394 </span><span class="lineCov">         16 :     if ( strchr(pszAccess, 'r') != nullptr ||</span>
+<span class="lineNum">     395 </span><span class="lineCov">          4 :          strchr(pszAccess, '+') != nullptr )</span>
+<span class="lineNum">     396 </span>            :     {
+<span class="lineNum">     397 </span>            :         CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     398 </span><span class="lineCov">          8 :                  &quot;Read or update mode not supported on /vsistdout_redirect&quot;);</span>
+<span class="lineNum">     399 </span><span class="lineCov">          8 :         return nullptr;</span>
+<span class="lineNum">     400 </span>            :     }
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span>            :     VSIVirtualHandle* poHandle = reinterpret_cast&lt;VSIVirtualHandle*&gt;(
+<span class="lineNum">     403 </span><span class="lineCov">          4 :         VSIFOpenL(pszFilename + strlen(&quot;/vsistdout_redirect/&quot;), pszAccess));</span>
+<span class="lineNum">     404 </span><span class="lineCov">          4 :     if (poHandle == nullptr)</span>
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span><span class="lineCov">          4 :     return new VSIStdoutRedirectHandle(poHandle);</span>
+<span class="lineNum">     408 </span>            : }
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span>            : /************************************************************************/
+<span class="lineNum">     411 </span>            : /*                                Stat()                                */
+<a name="412"><span class="lineNum">     412 </span>            : /************************************************************************/</a>
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineCov">         14 : int VSIStdoutRedirectFilesystemHandler::Stat( const char * /* pszFilename */,</span>
+<span class="lineNum">     415 </span>            :                                               VSIStatBufL * pStatBuf,
+<span class="lineNum">     416 </span>            :                                               int /* nFlags */ )
+<span class="lineNum">     417 </span>            : {
+<span class="lineNum">     418 </span><span class="lineCov">         14 :     memset( pStatBuf, 0, sizeof(VSIStatBufL) );</span>
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span><span class="lineCov">         14 :     return -1;</span>
+<span class="lineNum">     421 </span>            : }
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span>            : //! @endcond
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            : /************************************************************************/
+<span class="lineNum">     426 </span>            : /*                       VSIInstallStdoutHandler()                      */
+<span class="lineNum">     427 </span>            : /************************************************************************/
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span>            : /**
+<span class="lineNum">     430 </span>            :  * \brief Install /vsistdout/ file system handler
+<span class="lineNum">     431 </span>            :  *
+<span class="lineNum">     432 </span>            :  * A special file handler is installed that allows writing to the standard
+<span class="lineNum">     433 </span>            :  * output stream.
+<span class="lineNum">     434 </span>            :  *
+<span class="lineNum">     435 </span>            :  * The file operations available are of course limited to Write().
+<span class="lineNum">     436 </span>            :  *
+<span class="lineNum">     437 </span>            :  * A variation of this file system exists as the /vsistdout_redirect/ file
+<span class="lineNum">     438 </span>            :  * system handler, where the output function can be defined with
+<span class="lineNum">     439 </span>            :  * VSIStdoutSetRedirection().
+<span class="lineNum">     440 </span>            :  *
+<span class="lineNum">     441 </span>            :  * @since GDAL 1.8.0
+<a name="442"><span class="lineNum">     442 </span>            :  */</a>
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span><span class="lineCov">        988 : void VSIInstallStdoutHandler()</span>
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span>            : {
+<a name="447"><span class="lineNum">     447 </span><span class="lineCov">        988 :     VSIFileManager::InstallHandler( &quot;/vsistdout/&quot;, new VSIStdoutFilesystemHandler );</span></a>
+<span class="lineNum">     448 </span><span class="lineCov">        988 :     VSIFileManager::InstallHandler( &quot;/vsistdout_redirect/&quot;, new VSIStdoutRedirectFilesystemHandler );</span>
+<span class="lineNum">     449 </span><span class="lineCov">       3964 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

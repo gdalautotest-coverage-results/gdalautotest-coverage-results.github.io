@@ -1,0 +1,1540 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/dxf/ogrdxf_leader.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/dxf</a> - ogrdxf_leader.cpp<span style="font-size: 80%;"> (source / <a href="ogrdxf_leader.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">578</td>
+            <td class="headerCovTableEntry">623</td>
+            <td class="headerCovTableEntryHi">92.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  DXF Translator
+<span class="lineNum">       4 </span>            :  * Purpose:  Implements translation support for LEADER and MULTILEADER
+<span class="lineNum">       5 </span>            :  *           elements as a part of the OGRDXFLayer class.
+<span class="lineNum">       6 </span>            :  * Author:   Alan Thomas, alant@outlook.com.au
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  ******************************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2017, Alan Thomas &lt;alant@outlook.com.au&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;ogr_dxf.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;../../../alg/gdallinearsystem.h&quot;
+<span class="lineNum">      33 </span>            : #include &lt;stdexcept&gt;
+<span class="lineNum">      34 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : static void InterpolateSpline( OGRLineString* const poLine,
+<span class="lineNum">      39 </span>            :     const DXFTriple&amp; oEndTangentDirection );
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : /************************************************************************/
+<span class="lineNum">      42 </span>            : /*                             PointDist()                              */
+<a name="43"><span class="lineNum">      43 </span>            : /************************************************************************/</a>
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span><span class="lineCov">         62 : inline static double PointDist( double x1, double y1, double x2, double y2 )</span>
+<span class="lineNum">      46 </span>            : {
+<span class="lineNum">      47 </span><span class="lineCov">         62 :     return sqrt( (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1) );</span>
+<a name="48"><span class="lineNum">      48 </span>            : }</a>
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span><span class="lineCov">         10 : inline static double PointDist( double x1, double y1, double z1, double x2,</span>
+<span class="lineNum">      51 </span>            :     double y2, double z2 )
+<span class="lineNum">      52 </span>            : {
+<span class="lineNum">      53 </span><span class="lineCov">         10 :     return sqrt( (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1) +</span>
+<span class="lineNum">      54 </span><span class="lineCov">         10 :         (z2 - z1) * (z2 - z1) );</span>
+<span class="lineNum">      55 </span>            : }
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : /************************************************************************/
+<span class="lineNum">      58 </span>            : /*                          TranslateLEADER()                           */
+<a name="59"><span class="lineNum">      59 </span>            : /************************************************************************/</a>
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span><span class="lineCov">         14 : OGRDXFFeature *OGRDXFLayer::TranslateLEADER()</span>
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            : {
+<span class="lineNum">      64 </span>            :     char szLineBuf[257];
+<span class="lineNum">      65 </span>            :     int nCode;
+<span class="lineNum">      66 </span><span class="lineCov">         14 :     OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );</span>
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span><span class="lineCov">         14 :     OGRLineString *poLine = new OGRLineString();</span>
+<span class="lineNum">      69 </span><span class="lineCov">         14 :     bool bHaveX = false;</span>
+<span class="lineNum">      70 </span><span class="lineCov">         14 :     bool bHaveY = false;</span>
+<span class="lineNum">      71 </span><span class="lineCov">         14 :     bool bHaveZ = false;</span>
+<span class="lineNum">      72 </span><span class="lineCov">         14 :     double dfCurrentX = 0.0;</span>
+<span class="lineNum">      73 </span><span class="lineCov">         14 :     double dfCurrentY = 0.0;</span>
+<span class="lineNum">      74 </span><span class="lineCov">         14 :     double dfCurrentZ = 0.0;</span>
+<span class="lineNum">      75 </span><span class="lineCov">         14 :     int nNumVertices = 0;</span>
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span><span class="lineCov">         14 :     bool bHorizontalDirectionFlip = true;</span>
+<span class="lineNum">      78 </span><span class="lineCov">         14 :     double dfHorizontalDirectionX = 1.0;</span>
+<span class="lineNum">      79 </span><span class="lineCov">         14 :     double dfHorizontalDirectionY = 0.0;</span>
+<span class="lineNum">      80 </span><span class="lineCov">         14 :     double dfHorizontalDirectionZ = 0.0;</span>
+<span class="lineNum">      81 </span><span class="lineCov">         14 :     bool bHasTextAnnotation = false;</span>
+<span class="lineNum">      82 </span><span class="lineCov">         14 :     double dfTextAnnotationWidth = 0.0;</span>
+<span class="lineNum">      83 </span><span class="lineCov">         14 :     bool bIsSpline = false;</span>
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            :     // spec is silent as to default, but AutoCAD assumes true
+<span class="lineNum">      86 </span><span class="lineCov">         14 :     bool bWantArrowhead = true;</span>
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span><span class="lineCov">         14 :     bool bReadyForDimstyleOverride = false;</span>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineCov">         14 :     std::map&lt;CPLString,CPLString&gt; oDimStyleProperties;</span>
+<span class="lineNum">      91 </span><span class="lineCov">         14 :     poDS-&gt;PopulateDefaultDimStyleProperties(oDimStyleProperties);</span>
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span><span class="lineCov">        414 :     while( (nCode = poDS-&gt;ReadValue(szLineBuf,sizeof(szLineBuf))) &gt; 0 )</span>
+<span class="lineNum">      94 </span>            :     {
+<span class="lineNum">      95 </span><span class="lineCov">        386 :         switch( nCode )</span>
+<span class="lineNum">      96 </span>            :         {
+<span class="lineNum">      97 </span>            :           case 3:
+<span class="lineNum">      98 </span>            :             // 3 is the dimension style name. We don't need to store it,
+<span class="lineNum">      99 </span>            :             // let's just fetch the dimension style properties
+<span class="lineNum">     100 </span><span class="lineCov">         14 :             poDS-&gt;LookupDimStyle(szLineBuf, oDimStyleProperties);</span>
+<span class="lineNum">     101 </span><span class="lineCov">         14 :             break;</span>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :           case 10:
+<span class="lineNum">     104 </span>            :             // add the previous point onto the linestring
+<span class="lineNum">     105 </span><span class="lineCov">         52 :             if( bHaveX &amp;&amp; bHaveY &amp;&amp; bHaveZ ) {</span>
+<span class="lineNum">     106 </span>            :                 poLine-&gt;setPoint( nNumVertices++,
+<span class="lineNum">     107 </span><span class="lineCov">         38 :                     dfCurrentX, dfCurrentY, dfCurrentZ );</span>
+<span class="lineNum">     108 </span><span class="lineCov">         38 :                 bHaveY = bHaveZ = false;</span>
+<span class="lineNum">     109 </span>            :             }
+<span class="lineNum">     110 </span><span class="lineCov">         52 :             dfCurrentX = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     111 </span><span class="lineCov">         52 :             bHaveX = true;</span>
+<span class="lineNum">     112 </span><span class="lineCov">         52 :             break;</span>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span>            :           case 20:
+<span class="lineNum">     115 </span>            :             // add the previous point onto the linestring
+<span class="lineNum">     116 </span><span class="lineCov">         52 :             if( bHaveX &amp;&amp; bHaveY &amp;&amp; bHaveZ ) {</span>
+<span class="lineNum">     117 </span>            :                 poLine-&gt;setPoint( nNumVertices++,
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :                     dfCurrentX, dfCurrentY, dfCurrentZ );</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :                 bHaveX = bHaveZ = false;</span>
+<span class="lineNum">     120 </span>            :             }
+<span class="lineNum">     121 </span><span class="lineCov">         52 :             dfCurrentY = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     122 </span><span class="lineCov">         52 :             bHaveY = true;</span>
+<span class="lineNum">     123 </span><span class="lineCov">         52 :             break;</span>
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span>            :           case 30:
+<span class="lineNum">     126 </span>            :             // add the previous point onto the linestring
+<span class="lineNum">     127 </span><span class="lineCov">         52 :             if( bHaveX &amp;&amp; bHaveY &amp;&amp; bHaveZ ) {</span>
+<span class="lineNum">     128 </span>            :                 poLine-&gt;setPoint( nNumVertices++,
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :                     dfCurrentX, dfCurrentY, dfCurrentZ );</span>
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :                 bHaveX = bHaveY = false;</span>
+<span class="lineNum">     131 </span>            :             }
+<span class="lineNum">     132 </span><span class="lineCov">         52 :             dfCurrentZ = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     133 </span><span class="lineCov">         52 :             bHaveZ = true;</span>
+<span class="lineNum">     134 </span><span class="lineCov">         52 :             break;</span>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            :           case 41:
+<span class="lineNum">     137 </span><span class="lineCov">          6 :             dfTextAnnotationWidth = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     138 </span><span class="lineCov">          6 :             break;</span>
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span>            :           case 71:
+<span class="lineNum">     141 </span><span class="lineCov">          2 :             bWantArrowhead = atoi(szLineBuf) != 0;</span>
+<span class="lineNum">     142 </span><span class="lineCov">          2 :             break;</span>
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            :           case 72:
+<span class="lineNum">     145 </span><span class="lineCov">          2 :             bIsSpline = atoi(szLineBuf) != 0;</span>
+<span class="lineNum">     146 </span><span class="lineCov">          2 :             break;</span>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            :           case 73:
+<span class="lineNum">     149 </span><span class="lineCov">          6 :             bHasTextAnnotation = atoi(szLineBuf) == 0;</span>
+<span class="lineNum">     150 </span><span class="lineCov">          6 :             break;</span>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            :           case 74:
+<span class="lineNum">     153 </span>            :             // DXF spec seems to have this backwards. A value of 0 actually
+<span class="lineNum">     154 </span>            :             // indicates no flipping occurs, and 1 (flip) is the default
+<span class="lineNum">     155 </span><span class="lineCov">          4 :             bHorizontalDirectionFlip = atoi(szLineBuf) != 0;</span>
+<span class="lineNum">     156 </span><span class="lineCov">          4 :             break;</span>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span>            :           case 211:
+<span class="lineNum">     159 </span><span class="lineCov">          2 :             dfHorizontalDirectionX = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     160 </span><span class="lineCov">          2 :             break;</span>
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            :           case 221:
+<span class="lineNum">     163 </span><span class="lineCov">          2 :             dfHorizontalDirectionY = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     164 </span><span class="lineCov">          2 :             break;</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            :           case 231:
+<span class="lineNum">     167 </span><span class="lineCov">          2 :             dfHorizontalDirectionZ = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     168 </span><span class="lineCov">          2 :             break;</span>
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            :           case 1001:
+<span class="lineNum">     171 </span><span class="lineCov">         10 :             bReadyForDimstyleOverride = EQUAL(szLineBuf, &quot;ACAD&quot;);</span>
+<span class="lineNum">     172 </span><span class="lineCov">         10 :             break;</span>
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span>            :           case 1070:
+<span class="lineNum">     175 </span><span class="lineCov">         28 :             if( bReadyForDimstyleOverride )</span>
+<span class="lineNum">     176 </span>            :             {
+<span class="lineNum">     177 </span>            :                 // Store DIMSTYLE override values in the dimension
+<span class="lineNum">     178 </span>            :                 // style property map. The nInnerCode values match the
+<span class="lineNum">     179 </span>            :                 // group codes used in the DIMSTYLE table.
+<span class="lineNum">     180 </span><span class="lineCov">         28 :                 const int nInnerCode = atoi(szLineBuf);</span>
+<span class="lineNum">     181 </span><span class="lineCov">         28 :                 const char* pszProperty = ACGetDimStylePropertyName(nInnerCode);</span>
+<span class="lineNum">     182 </span><span class="lineCov">         28 :                 if( pszProperty )</span>
+<span class="lineNum">     183 </span>            :                 {
+<span class="lineNum">     184 </span><span class="lineCov">         24 :                     nCode = poDS-&gt;ReadValue(szLineBuf,sizeof(szLineBuf));</span>
+<span class="lineNum">     185 </span><span class="lineCov">         24 :                     if( nCode == 1005 || nCode == 1040 || nCode == 1070 )</span>
+<span class="lineNum">     186 </span><span class="lineCov">         24 :                         oDimStyleProperties[pszProperty] = szLineBuf;</span>
+<span class="lineNum">     187 </span>            :                 }
+<span class="lineNum">     188 </span>            :             }
+<span class="lineNum">     189 </span><span class="lineCov">         28 :             break;</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            :           default:
+<span class="lineNum">     192 </span><span class="lineCov">        152 :             TranslateGenericProperty( poFeature, nCode, szLineBuf );</span>
+<span class="lineNum">     193 </span><span class="lineCov">        152 :             break;</span>
+<span class="lineNum">     194 </span>            :         }
+<span class="lineNum">     195 </span>            :     }
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">         14 :     if( nCode == 0 )</span>
+<span class="lineNum">     198 </span><span class="lineCov">         14 :         poDS-&gt;UnreadValue();</span>
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span><span class="lineCov">         14 :     if( bHaveX &amp;&amp; bHaveY &amp;&amp; bHaveZ )</span>
+<span class="lineNum">     201 </span><span class="lineCov">         14 :         poLine-&gt;setPoint( nNumVertices++, dfCurrentX, dfCurrentY, dfCurrentZ );</span>
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span>            :     // Unpack the dimension style
+<span class="lineNum">     204 </span><span class="lineCov">         14 :     bool bWantExtension = atoi(oDimStyleProperties[&quot;DIMTAD&quot;]) &gt; 0;</span>
+<span class="lineNum">     205 </span><span class="lineCov">         14 :     double dfTextOffset = CPLAtof(oDimStyleProperties[&quot;DIMGAP&quot;]);</span>
+<span class="lineNum">     206 </span><span class="lineCov">         14 :     double dfScale = CPLAtof(oDimStyleProperties[&quot;DIMSCALE&quot;]);</span>
+<span class="lineNum">     207 </span><span class="lineCov">         14 :     double dfArrowheadSize = CPLAtof(oDimStyleProperties[&quot;DIMASZ&quot;]);</span>
+<span class="lineNum">     208 </span><span class="lineCov">         14 :     int nLeaderColor = atoi(oDimStyleProperties[&quot;DIMCLRD&quot;]);</span>
+<span class="lineNum">     209 </span>            :     // DIMLDRBLK is the entity handle of the BLOCK_RECORD table entry that
+<span class="lineNum">     210 </span>            :     // corresponds to the arrowhead block.
+<span class="lineNum">     211 </span><span class="lineCov">         14 :     CPLString osArrowheadBlockHandle = oDimStyleProperties[&quot;DIMLDRBLK&quot;];</span>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span>            :     // Zero scale has a special meaning which we aren't interested in,
+<span class="lineNum">     214 </span>            :     // so we can change it to 1.0
+<span class="lineNum">     215 </span><span class="lineCov">         14 :     if( dfScale == 0.0 )</span>
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :         dfScale = 1.0;</span>
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            :     // Use the color from the dimension style if it is not ByBlock
+<span class="lineNum">     219 </span><span class="lineCov">         14 :     if( nLeaderColor &gt; 0 )</span>
+<span class="lineNum">     220 </span><span class="lineCov">          2 :         poFeature-&gt;oStyleProperties[&quot;Color&quot;] = oDimStyleProperties[&quot;DIMCLRD&quot;];</span>
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     223 </span>            : /*      Add an arrowhead to the start of the leader line.               */
+<span class="lineNum">     224 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineCov">         14 :     if( bWantArrowhead &amp;&amp; nNumVertices &gt;= 2 )</span>
+<span class="lineNum">     227 </span>            :     {
+<span class="lineNum">     228 </span>            :         InsertArrowhead( poFeature, osArrowheadBlockHandle, poLine,
+<span class="lineNum">     229 </span><span class="lineCov">         12 :             dfArrowheadSize * dfScale );</span>
+<span class="lineNum">     230 </span>            :     }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span><span class="lineCov">         14 :     if( bHorizontalDirectionFlip )</span>
+<span class="lineNum">     234 </span>            :     {
+<span class="lineNum">     235 </span><span class="lineCov">         10 :         dfHorizontalDirectionX *= -1;</span>
+<span class="lineNum">     236 </span><span class="lineCov">         10 :         dfHorizontalDirectionX *= -1;</span>
+<span class="lineNum">     237 </span><span class="lineCov">         10 :         dfHorizontalDirectionX *= -1;</span>
+<span class="lineNum">     238 </span>            :     }
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     241 </span>            : /*      For a spline leader, determine the end tangent direction        */
+<span class="lineNum">     242 </span>            : /*      and interpolate the spline vertices.                            */
+<span class="lineNum">     243 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span><span class="lineCov">         14 :     if( bIsSpline )</span>
+<span class="lineNum">     246 </span>            :     {
+<span class="lineNum">     247 </span><span class="lineCov">          2 :         DXFTriple oEndTangent;</span>
+<span class="lineNum">     248 </span><span class="lineCov">          2 :         if( bHasTextAnnotation )</span>
+<span class="lineNum">     249 </span>            :         {
+<span class="lineNum">     250 </span>            :             oEndTangent = DXFTriple( dfHorizontalDirectionX,
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :                 dfHorizontalDirectionY, dfHorizontalDirectionZ );</span>
+<span class="lineNum">     252 </span>            :         }
+<span class="lineNum">     253 </span><span class="lineCov">          2 :         InterpolateSpline( poLine, oEndTangent );</span>
+<span class="lineNum">     254 </span>            :     }
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     257 </span>            : /*      Add an extension to the end of the leader line. This is not     */
+<span class="lineNum">     258 </span>            : /*      properly documented in the DXF spec, but it is needed to        */
+<span class="lineNum">     259 </span>            : /*      replicate the way AutoCAD displays leader objects.              */
+<span class="lineNum">     260 </span>            : /*                                                                      */
+<span class="lineNum">     261 </span>            : /*      When $DIMTAD (77) is nonzero, the leader line is extended       */
+<span class="lineNum">     262 </span>            : /*      under the text annotation. This extension is not stored as an   */
+<span class="lineNum">     263 </span>            : /*      additional vertex, so we need to create it ourselves.           */
+<span class="lineNum">     264 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span><span class="lineCov">         14 :     if( bWantExtension &amp;&amp; bHasTextAnnotation &amp;&amp; poLine-&gt;getNumPoints() &gt;= 2 )</span>
+<span class="lineNum">     267 </span>            :     {
+<span class="lineNum">     268 </span><span class="lineCov">          4 :         OGRPoint oLastVertex;</span>
+<span class="lineNum">     269 </span><span class="lineCov">          4 :         poLine-&gt;getPoint( poLine-&gt;getNumPoints() - 1, &amp;oLastVertex );</span>
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span><span class="lineCov">          4 :         double dfExtensionX = oLastVertex.getX();</span>
+<span class="lineNum">     272 </span><span class="lineCov">          4 :         double dfExtensionY = oLastVertex.getY();</span>
+<span class="lineNum">     273 </span><span class="lineCov">          4 :         double dfExtensionZ = oLastVertex.getZ();</span>
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span><span class="lineCov">          4 :         double dfExtensionLength = ( dfTextOffset * dfScale ) +</span>
+<span class="lineNum">     276 </span><span class="lineCov">          4 :             dfTextAnnotationWidth;</span>
+<span class="lineNum">     277 </span><span class="lineCov">          4 :         dfExtensionX += dfHorizontalDirectionX * dfExtensionLength;</span>
+<span class="lineNum">     278 </span><span class="lineCov">          4 :         dfExtensionY += dfHorizontalDirectionY * dfExtensionLength;</span>
+<span class="lineNum">     279 </span><span class="lineCov">          4 :         dfExtensionZ += dfHorizontalDirectionZ * dfExtensionLength;</span>
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span><span class="lineCov">          4 :         poLine-&gt;setPoint( poLine-&gt;getNumPoints(), dfExtensionX, dfExtensionY,</span>
+<span class="lineNum">     282 </span><span class="lineCov">          8 :             dfExtensionZ );</span>
+<span class="lineNum">     283 </span>            :     }
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span><span class="lineCov">         14 :     poFeature-&gt;SetGeometryDirectly( poLine );</span>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span><span class="lineCov">         14 :     PrepareLineStyle( poFeature );</span>
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span><span class="lineCov">         14 :     return poFeature;</span>
+<span class="lineNum">     290 </span>            : }
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            : /************************************************************************/
+<span class="lineNum">     293 </span>            : /*       DXFMLEADERVertex, DXFMLEADERLeaderLine, DXFMLEADERLeader       */
+<a name="294"><span class="lineNum">     294 </span>            : /************************************************************************/</a>
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span><span class="lineCov">        258 : struct DXFMLEADERVertex {</span>
+<span class="lineNum">     297 </span>            :     DXFTriple                oCoords;
+<a name="298"><span class="lineNum">     298 </span>            :     std::vector&lt;std::pair&lt;DXFTriple, DXFTriple&gt;&gt; aoBreaks;</a>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">         34 :     DXFMLEADERVertex( double dfX, double dfY )</span>
+<span class="lineNum">     301 </span><span class="lineCov">         34 :         : oCoords( DXFTriple( dfX, dfY, 0.0 ) ) {}</span>
+<a name="302"><span class="lineNum">     302 </span>            : };</a>
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span><span class="lineCov">        144 : struct DXFMLEADERLeader {</span>
+<span class="lineNum">     305 </span>            :     double                   dfLandingX;
+<span class="lineNum">     306 </span>            :     double                   dfLandingY;
+<span class="lineNum">     307 </span>            :     double                   dfDoglegVectorX;
+<span class="lineNum">     308 </span>            :     double                   dfDoglegVectorY;
+<span class="lineNum">     309 </span>            :     double                   dfDoglegLength;
+<span class="lineNum">     310 </span>            :     std::vector&lt;std::pair&lt;DXFTriple, DXFTriple&gt;&gt; aoDoglegBreaks;
+<span class="lineNum">     311 </span>            :     std::vector&lt;std::vector&lt;DXFMLEADERVertex&gt;&gt; aaoLeaderLines;
+<span class="lineNum">     312 </span>            : };
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            : /************************************************************************/
+<span class="lineNum">     315 </span>            : /*                         TranslateMLEADER()                           */
+<a name="316"><span class="lineNum">     316 </span>            : /************************************************************************/</a>
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span><span class="lineCov">         18 : OGRDXFFeature *OGRDXFLayer::TranslateMLEADER()</span>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span>            : {
+<span class="lineNum">     321 </span>            :     char szLineBuf[257];
+<span class="lineNum">     322 </span><span class="lineCov">         18 :     int nCode = 0;</span>
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span>            :     // This is a dummy feature object used to store style properties
+<span class="lineNum">     325 </span>            :     // and the like. We end up deleting it without returning it
+<span class="lineNum">     326 </span><span class="lineCov">         18 :     OGRDXFFeature *poOverallFeature = new OGRDXFFeature( poFeatureDefn );</span>
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span><span class="lineCov">         18 :     DXFMLEADERLeader oLeader;</span>
+<span class="lineNum">     329 </span><span class="lineCov">         36 :     std::vector&lt;DXFMLEADERLeader&gt; aoLeaders;</span>
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineCov">         36 :     std::vector&lt;DXFMLEADERVertex&gt; oLeaderLine;</span>
+<span class="lineNum">     332 </span><span class="lineCov">         18 :     double dfCurrentX = 0.0;</span>
+<span class="lineNum">     333 </span><span class="lineCov">         18 :     double dfCurrentY = 0.0;</span>
+<span class="lineNum">     334 </span><span class="lineCov">         18 :     double dfCurrentX2 = 0.0;</span>
+<span class="lineNum">     335 </span><span class="lineCov">         18 :     double dfCurrentY2 = 0.0;</span>
+<span class="lineNum">     336 </span><span class="lineCov">         18 :     size_t nCurrentVertex = 0;</span>
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span><span class="lineCov">         18 :     double dfScale = 1.0;</span>
+<span class="lineNum">     339 </span><span class="lineCov">         18 :     bool bHasDogleg = true;</span>
+<span class="lineNum">     340 </span><span class="lineCov">         36 :     CPLString osLeaderColor = &quot;0&quot;;</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineCov">         36 :     CPLString osText;</span>
+<span class="lineNum">     343 </span><span class="lineCov">         36 :     CPLString osTextStyleHandle;</span>
+<span class="lineNum">     344 </span><span class="lineCov">         18 :     double dfTextX = 0.0;</span>
+<span class="lineNum">     345 </span><span class="lineCov">         18 :     double dfTextY = 0.0;</span>
+<span class="lineNum">     346 </span><span class="lineCov">         18 :     int nTextAlignment = 1; // 1 = left, 2 = center, 3 = right</span>
+<span class="lineNum">     347 </span><span class="lineCov">         18 :     double dfTextAngle = 0.0;</span>
+<span class="lineNum">     348 </span><span class="lineCov">         18 :     double dfTextHeight = 4.0;</span>
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span><span class="lineCov">         36 :     CPLString osBlockHandle;</span>
+<span class="lineNum">     351 </span><span class="lineCov">         36 :     OGRDXFInsertTransformer oBlockTransformer;</span>
+<span class="lineNum">     352 </span><span class="lineCov">         36 :     CPLString osBlockAttributeHandle;</span>
+<span class="lineNum">     353 </span>            :     // Map of ATTDEF handles to attribute text
+<span class="lineNum">     354 </span><span class="lineCov">         36 :     std::map&lt;CPLString, CPLString&gt; oBlockAttributes;</span>
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span><span class="lineCov">         36 :     CPLString osArrowheadBlockHandle;</span>
+<span class="lineNum">     357 </span><span class="lineCov">         18 :     double dfArrowheadSize = 4.0;</span>
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span>            :     // The different leader line types
+<span class="lineNum">     360 </span><span class="lineCov">         18 :     const int MLT_NONE = 0;</span>
+<span class="lineNum">     361 </span><span class="lineCov">         18 :     const int MLT_STRAIGHT = 1;</span>
+<span class="lineNum">     362 </span><span class="lineCov">         18 :     const int MLT_SPLINE = 2;</span>
+<span class="lineNum">     363 </span><span class="lineCov">         18 :     int nLeaderLineType = MLT_STRAIGHT;</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            :     // Group codes mean different things in different sections of the
+<span class="lineNum">     366 </span>            :     // MLEADER entity. We need to keep track of the section we are in.
+<span class="lineNum">     367 </span><span class="lineCov">         18 :     const int MLS_COMMON = 0;</span>
+<span class="lineNum">     368 </span><span class="lineCov">         18 :     const int MLS_CONTEXT_DATA = 1;</span>
+<span class="lineNum">     369 </span><span class="lineCov">         18 :     const int MLS_LEADER = 2;</span>
+<span class="lineNum">     370 </span><span class="lineCov">         18 :     const int MLS_LEADER_LINE = 3;</span>
+<span class="lineNum">     371 </span><span class="lineCov">         18 :     int nSection = MLS_COMMON;</span>
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span>            :     // The way the 30x group codes work is missing from the DXF docs.
+<span class="lineNum">     374 </span>            :     // We assume that the sections are always nested as follows:
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span>            :     // ... [this part is identified as MLS_COMMON]
+<span class="lineNum">     377 </span>            :     // 300 CONTEXT_DATA{
+<span class="lineNum">     378 </span>            :     //   ...
+<span class="lineNum">     379 </span>            :     //   302 LEADER{
+<span class="lineNum">     380 </span>            :     //     ...
+<span class="lineNum">     381 </span>            :     //     304 LEADER_LINE{
+<span class="lineNum">     382 </span>            :     //       ...
+<span class="lineNum">     383 </span>            :     //     305 }
+<span class="lineNum">     384 </span>            :     //     304 LEADER_LINE{
+<span class="lineNum">     385 </span>            :     //       ...
+<span class="lineNum">     386 </span>            :     //     305 }
+<span class="lineNum">     387 </span>            :     //     ...
+<span class="lineNum">     388 </span>            :     //   303 }
+<span class="lineNum">     389 </span>            :     //   302 LEADER{
+<span class="lineNum">     390 </span>            :     //     ...
+<span class="lineNum">     391 </span>            :     //   303 }
+<span class="lineNum">     392 </span>            :     //   ...
+<span class="lineNum">     393 </span>            :     // 301 }
+<span class="lineNum">     394 </span>            :     // ... [MLS_COMMON]
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">       2228 :     while( (nCode = poDS-&gt;ReadValue(szLineBuf,sizeof(szLineBuf))) &gt; 0 )</span>
+<span class="lineNum">     397 </span>            :     {
+<span class="lineNum">     398 </span><span class="lineCov">       2192 :         switch( nSection )</span>
+<span class="lineNum">     399 </span>            :         {
+<span class="lineNum">     400 </span>            :           case MLS_COMMON:
+<span class="lineNum">     401 </span><span class="lineCov">        758 :             switch( nCode )</span>
+<span class="lineNum">     402 </span>            :             {
+<span class="lineNum">     403 </span>            :               case 300:
+<span class="lineNum">     404 </span><span class="lineCov">         18 :                 nSection = MLS_CONTEXT_DATA;</span>
+<span class="lineNum">     405 </span><span class="lineCov">         18 :                 break;</span>
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span>            :               case 342:
+<span class="lineNum">     408 </span>            :                 // 342 is the entity handle of the BLOCK_RECORD table entry that
+<span class="lineNum">     409 </span>            :                 // corresponds to the arrowhead block.
+<span class="lineNum">     410 </span><span class="lineCov">          4 :                 osArrowheadBlockHandle = szLineBuf;</span>
+<span class="lineNum">     411 </span><span class="lineCov">          4 :                 break;</span>
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span>            :               case 42:
+<span class="lineNum">     414 </span>            :                 // TODO figure out difference between 42 and 140 for arrowheadsize
+<span class="lineNum">     415 </span><span class="lineCov">         18 :                 dfArrowheadSize = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     416 </span><span class="lineCov">         18 :                 break;</span>
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span>            :               case 330:
+<span class="lineNum">     419 </span><span class="lineCov">         24 :                 osBlockAttributeHandle = szLineBuf;</span>
+<span class="lineNum">     420 </span><span class="lineCov">         24 :                 break;</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span>            :               case 302:
+<span class="lineNum">     423 </span><span class="lineCov">          6 :                 if( osBlockAttributeHandle != &quot;&quot; )</span>
+<span class="lineNum">     424 </span>            :                 {
+<span class="lineNum">     425 </span><span class="lineCov">         12 :                     oBlockAttributes[osBlockAttributeHandle] =</span>
+<span class="lineNum">     426 </span><span class="lineCov">          6 :                         TextUnescape( szLineBuf, true );</span>
+<span class="lineNum">     427 </span><span class="lineCov">          6 :                     osBlockAttributeHandle = &quot;&quot;;</span>
+<span class="lineNum">     428 </span>            :                 }
+<span class="lineNum">     429 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     430 </span>            : 
+<span class="lineNum">     431 </span>            :               case 91:
+<span class="lineNum">     432 </span><span class="lineCov">         18 :                 osLeaderColor = szLineBuf;</span>
+<span class="lineNum">     433 </span><span class="lineCov">         18 :                 break;</span>
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span>            :               case 170:
+<span class="lineNum">     436 </span><span class="lineCov">         18 :                 nLeaderLineType = atoi(szLineBuf);</span>
+<span class="lineNum">     437 </span><span class="lineCov">         18 :                 break;</span>
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span>            :               case 291:
+<span class="lineNum">     440 </span><span class="lineCov">         18 :                 bHasDogleg = atoi(szLineBuf) != 0;</span>
+<span class="lineNum">     441 </span><span class="lineCov">         18 :                 break;</span>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span>            :               default:
+<span class="lineNum">     444 </span><span class="lineCov">        634 :                 TranslateGenericProperty( poOverallFeature, nCode, szLineBuf );</span>
+<span class="lineNum">     445 </span><span class="lineCov">        634 :                 break;</span>
+<span class="lineNum">     446 </span>            :             }
+<span class="lineNum">     447 </span><span class="lineCov">        758 :             break;</span>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span>            :           case MLS_CONTEXT_DATA:
+<span class="lineNum">     450 </span><span class="lineCov">        956 :             switch( nCode )</span>
+<span class="lineNum">     451 </span>            :             {
+<span class="lineNum">     452 </span>            :               case 301:
+<span class="lineNum">     453 </span><span class="lineCov">         18 :                 nSection = MLS_COMMON;</span>
+<span class="lineNum">     454 </span><span class="lineCov">         18 :                 break;</span>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span>            :               case 302:
+<span class="lineNum">     457 </span><span class="lineCov">         20 :                 nSection = MLS_LEADER;</span>
+<span class="lineNum">     458 </span><span class="lineCov">         20 :                 break;</span>
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span>            :               case 304:
+<span class="lineNum">     461 </span><span class="lineCov">         10 :                 osText = TextUnescape(szLineBuf, true);</span>
+<span class="lineNum">     462 </span><span class="lineCov">         10 :                 break;</span>
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span>            :               case 40:
+<span class="lineNum">     465 </span><span class="lineCov">         18 :                 dfScale = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     466 </span><span class="lineCov">         18 :                 break;</span>
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span>            :               case 340:
+<span class="lineNum">     469 </span>            :                 // 340 is the entity handle of the STYLE table entry that
+<span class="lineNum">     470 </span>            :                 // corresponds to the text style.
+<span class="lineNum">     471 </span><span class="lineCov">         10 :                 osTextStyleHandle = szLineBuf;</span>
+<span class="lineNum">     472 </span><span class="lineCov">         10 :                 break;</span>
+<span class="lineNum">     473 </span>            : 
+<span class="lineNum">     474 </span>            :               case 12:
+<span class="lineNum">     475 </span><span class="lineCov">         10 :                 dfTextX = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     476 </span><span class="lineCov">         10 :                 break;</span>
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span>            :               case 22:
+<span class="lineNum">     479 </span><span class="lineCov">         10 :                 dfTextY = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     480 </span><span class="lineCov">         10 :                 break;</span>
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span>            :               case 41:
+<span class="lineNum">     483 </span><span class="lineCov">         18 :                 dfTextHeight = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     484 </span><span class="lineCov">         18 :                 break;</span>
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span>            :               case 42:
+<span class="lineNum">     487 </span><span class="lineCov">         10 :                 dfTextAngle = CPLAtof( szLineBuf ) * 180 / M_PI;</span>
+<span class="lineNum">     488 </span><span class="lineCov">         10 :                 break;</span>
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span>            :               case 171:
+<span class="lineNum">     491 </span><span class="lineCov">         10 :                 nTextAlignment = atoi( szLineBuf );</span>
+<span class="lineNum">     492 </span><span class="lineCov">         10 :                 break;</span>
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span>            :               case 341:
+<span class="lineNum">     495 </span>            :                 // 341 is the entity handle of the BLOCK_RECORD table entry that
+<span class="lineNum">     496 </span>            :                 // corresponds to the block content of this MLEADER.
+<span class="lineNum">     497 </span><span class="lineCov">          6 :                 osBlockHandle = szLineBuf;</span>
+<span class="lineNum">     498 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span>            :               case 15:
+<span class="lineNum">     501 </span><span class="lineCov">          6 :                 oBlockTransformer.dfXOffset = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     502 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span>            :               case 25:
+<span class="lineNum">     505 </span><span class="lineCov">          6 :                 oBlockTransformer.dfYOffset = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     506 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span>            :               case 16:
+<span class="lineNum">     509 </span><span class="lineCov">          6 :                 oBlockTransformer.dfXScale = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     510 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span>            :               case 26:
+<span class="lineNum">     513 </span><span class="lineCov">          6 :                 oBlockTransformer.dfYScale = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     514 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     515 </span>            : 
+<span class="lineNum">     516 </span>            :               case 46:
+<span class="lineNum">     517 </span><span class="lineCov">          6 :                 oBlockTransformer.dfAngle = CPLAtof( szLineBuf );</span>
+<span class="lineNum">     518 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     519 </span>            :             }
+<span class="lineNum">     520 </span><span class="lineCov">        956 :             break;</span>
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span>            :           case MLS_LEADER:
+<span class="lineNum">     523 </span><span class="lineCov">        288 :             switch( nCode )</span>
+<span class="lineNum">     524 </span>            :             {
+<span class="lineNum">     525 </span>            :               case 303:
+<span class="lineNum">     526 </span><span class="lineCov">         20 :                 nSection = MLS_CONTEXT_DATA;</span>
+<span class="lineNum">     527 </span><span class="lineCov">         20 :                 aoLeaders.push_back( oLeader );</span>
+<span class="lineNum">     528 </span><span class="lineCov">         20 :                 oLeader = DXFMLEADERLeader();</span>
+<span class="lineNum">     529 </span><span class="lineCov">         20 :                 break;</span>
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span>            :               case 304:
+<span class="lineNum">     532 </span><span class="lineCov">         24 :                 nSection = MLS_LEADER_LINE;</span>
+<span class="lineNum">     533 </span><span class="lineCov">         24 :                 break;</span>
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span>            :               case 10:
+<span class="lineNum">     536 </span><span class="lineCov">         20 :                 oLeader.dfLandingX = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     537 </span><span class="lineCov">         20 :                 break;</span>
+<span class="lineNum">     538 </span>            : 
+<span class="lineNum">     539 </span>            :               case 20:
+<span class="lineNum">     540 </span><span class="lineCov">         20 :                 oLeader.dfLandingY = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     541 </span><span class="lineCov">         20 :                 break;</span>
+<span class="lineNum">     542 </span>            : 
+<span class="lineNum">     543 </span>            :               case 11:
+<span class="lineNum">     544 </span><span class="lineCov">         20 :                 oLeader.dfDoglegVectorX = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     545 </span><span class="lineCov">         20 :                 break;</span>
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span>            :               case 21:
+<span class="lineNum">     548 </span><span class="lineCov">         20 :                 oLeader.dfDoglegVectorY = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     549 </span><span class="lineCov">         20 :                 break;</span>
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span>            :               case 12:
+<span class="lineNum">     552 </span><span class="lineCov">          4 :                 dfCurrentX = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     553 </span><span class="lineCov">          4 :                 break;</span>
+<span class="lineNum">     554 </span>            : 
+<span class="lineNum">     555 </span>            :               case 22:
+<span class="lineNum">     556 </span><span class="lineCov">          4 :                 dfCurrentY = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     557 </span><span class="lineCov">          4 :                 break;</span>
+<span class="lineNum">     558 </span>            : 
+<span class="lineNum">     559 </span>            :               case 13:
+<span class="lineNum">     560 </span><span class="lineCov">          4 :                 dfCurrentX2 = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     561 </span><span class="lineCov">          4 :                 break;</span>
+<span class="lineNum">     562 </span>            : 
+<span class="lineNum">     563 </span>            :               case 23:
+<span class="lineNum">     564 </span><span class="lineCov">          4 :                 dfCurrentY2 = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     565 </span>            :                 oLeader.aoDoglegBreaks.push_back( std::make_pair(
+<span class="lineNum">     566 </span>            :                     DXFTriple( dfCurrentX, dfCurrentY, 0.0 ),
+<span class="lineNum">     567 </span><span class="lineCov">          4 :                     DXFTriple( dfCurrentX2, dfCurrentY2, 0.0 ) ) );</span>
+<span class="lineNum">     568 </span><span class="lineCov">          4 :                 break;</span>
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span>            :               case 40:
+<span class="lineNum">     571 </span><span class="lineCov">         20 :                 oLeader.dfDoglegLength = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     572 </span><span class="lineCov">         20 :                 break;</span>
+<span class="lineNum">     573 </span>            :             }
+<span class="lineNum">     574 </span><span class="lineCov">        288 :             break;</span>
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span>            :           case MLS_LEADER_LINE:
+<span class="lineNum">     577 </span><span class="lineCov">        190 :             switch( nCode )</span>
+<span class="lineNum">     578 </span>            :             {
+<span class="lineNum">     579 </span>            :               case 305:
+<span class="lineNum">     580 </span><span class="lineCov">         24 :                 nSection = MLS_LEADER;</span>
+<span class="lineNum">     581 </span><span class="lineCov">         24 :                 oLeader.aaoLeaderLines.push_back( oLeaderLine );</span>
+<span class="lineNum">     582 </span><span class="lineCov">         24 :                 oLeaderLine.clear();</span>
+<span class="lineNum">     583 </span><span class="lineCov">         24 :                 break;</span>
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span>            :               case 10:
+<span class="lineNum">     586 </span><span class="lineCov">         34 :                 dfCurrentX = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     587 </span><span class="lineCov">         34 :                 break;</span>
+<span class="lineNum">     588 </span>            : 
+<span class="lineNum">     589 </span>            :               case 20:
+<span class="lineNum">     590 </span><span class="lineCov">         34 :                 dfCurrentY = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     591 </span>            :                 oLeaderLine.push_back(
+<span class="lineNum">     592 </span><span class="lineCov">         34 :                     DXFMLEADERVertex( dfCurrentX, dfCurrentY ) );</span>
+<span class="lineNum">     593 </span><span class="lineCov">         34 :                 break;</span>
+<span class="lineNum">     594 </span>            : 
+<span class="lineNum">     595 </span>            :               case 90:
+<span class="lineNum">     596 </span><span class="lineCov">          4 :                 nCurrentVertex = atoi(szLineBuf);</span>
+<span class="lineNum">     597 </span><span class="lineCov">          4 :                 if( nCurrentVertex &gt;= oLeaderLine.size() )</span>
+<span class="lineNum">     598 </span>            :                 {
+<span class="lineNum">     599 </span>            :                     CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :                         &quot;Wrong group code 90 in LEADER_LINE: %s&quot;, szLineBuf );</span>
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :                     DXF_LAYER_READER_ERROR();</span>
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :                     delete poOverallFeature;</span>
+<span class="lineNum">     603 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">     604 </span>            :                 }
+<span class="lineNum">     605 </span><span class="lineCov">          4 :                 break;</span>
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span>            :               case 11:
+<span class="lineNum">     608 </span><span class="lineCov">          6 :                 dfCurrentX = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     609 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     610 </span>            : 
+<span class="lineNum">     611 </span>            :               case 21:
+<span class="lineNum">     612 </span><span class="lineCov">          6 :                 dfCurrentY = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     613 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span>            :               case 12:
+<span class="lineNum">     616 </span><span class="lineCov">          6 :                 dfCurrentX2 = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     617 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     618 </span>            : 
+<span class="lineNum">     619 </span>            :               case 22:
+<span class="lineNum">     620 </span><span class="lineCov">          6 :                 if( nCurrentVertex &gt;= oLeaderLine.size() )</span>
+<span class="lineNum">     621 </span>            :                 {
+<span class="lineNum">     622 </span>            :                     CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :                         &quot;Misplaced group code 22 in LEADER_LINE&quot; );</span>
+<span class="lineNum">     624 </span><span class="lineNoCov">          0 :                     DXF_LAYER_READER_ERROR();</span>
+<span class="lineNum">     625 </span><span class="lineNoCov">          0 :                     delete poOverallFeature;</span>
+<span class="lineNum">     626 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">     627 </span>            :                 }
+<span class="lineNum">     628 </span><span class="lineCov">          6 :                 dfCurrentY2 = CPLAtof(szLineBuf);</span>
+<span class="lineNum">     629 </span><span class="lineCov">          6 :                 oLeaderLine[nCurrentVertex].aoBreaks.push_back( std::make_pair(</span>
+<span class="lineNum">     630 </span>            :                     DXFTriple( dfCurrentX, dfCurrentY, 0.0 ),
+<span class="lineNum">     631 </span><span class="lineCov">         12 :                     DXFTriple( dfCurrentX2, dfCurrentY2, 0.0 ) ) );</span>
+<span class="lineNum">     632 </span><span class="lineCov">          6 :                 break;</span>
+<span class="lineNum">     633 </span>            :             }
+<span class="lineNum">     634 </span><span class="lineCov">        190 :             break;</span>
+<span class="lineNum">     635 </span>            :         }
+<span class="lineNum">     636 </span>            :     }
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span><span class="lineCov">         18 :     if( nCode &lt; 0 )</span>
+<span class="lineNum">     639 </span>            :     {
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :         DXF_LAYER_READER_ERROR();</span>
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 :         delete poOverallFeature;</span>
+<span class="lineNum">     642 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     643 </span>            :     }
+<span class="lineNum">     644 </span><span class="lineCov">         18 :     if( nCode == 0 )</span>
+<span class="lineNum">     645 </span><span class="lineCov">         18 :         poDS-&gt;UnreadValue();</span>
+<span class="lineNum">     646 </span>            : 
+<span class="lineNum">     647 </span>            :     // Convert the block handle to a block name. If there is no block,
+<span class="lineNum">     648 </span>            :     // osBlockName will remain empty.
+<span class="lineNum">     649 </span><span class="lineCov">         18 :     CPLString osBlockName;</span>
+<span class="lineNum">     650 </span>            : 
+<span class="lineNum">     651 </span><span class="lineCov">         18 :     if( osBlockHandle != &quot;&quot; )</span>
+<span class="lineNum">     652 </span><span class="lineCov">          6 :         osBlockName = poDS-&gt;GetBlockNameByRecordHandle( osBlockHandle );</span>
+<span class="lineNum">     653 </span>            : 
+<span class="lineNum">     654 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     655 </span>            : /*      Add the landing and arrowhead onto each leader line, and add    */
+<span class="lineNum">     656 </span>            : /*      the dogleg, if present, onto the leader.                        */
+<span class="lineNum">     657 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     658 </span><span class="lineCov">         18 :     OGRDXFFeature* poLeaderFeature = poOverallFeature-&gt;CloneDXFFeature();</span>
+<span class="lineNum">     659 </span><span class="lineCov">         18 :     poLeaderFeature-&gt;oStyleProperties[&quot;Color&quot;] = osLeaderColor;</span>
+<span class="lineNum">     660 </span>            : 
+<span class="lineNum">     661 </span><span class="lineCov">         18 :     OGRMultiLineString *poMLS = new OGRMultiLineString();</span>
+<span class="lineNum">     662 </span>            : 
+<span class="lineNum">     663 </span>            :     // Arrowheads should be the same color as the leader line. If the leader
+<span class="lineNum">     664 </span>            :     // line is ByBlock or ByLayer then the arrowhead should be &quot;owned&quot; by the
+<span class="lineNum">     665 </span>            :     // overall feature for styling purposes.
+<span class="lineNum">     666 </span><span class="lineCov">         18 :     OGRDXFFeature* poArrowheadOwningFeature = poLeaderFeature;</span>
+<span class="lineNum">     667 </span><span class="lineCov">         18 :     if( ( atoi(osLeaderColor) &amp; 0xC2000000 ) == 0xC0000000 )</span>
+<span class="lineNum">     668 </span><span class="lineCov">         16 :         poArrowheadOwningFeature = poOverallFeature;</span>
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span><span class="lineCov">        114 :     for( std::vector&lt;DXFMLEADERLeader&gt;::iterator oIt = aoLeaders.begin();</span>
+<span class="lineNum">     671 </span><span class="lineCov">        114 :          nLeaderLineType != MLT_NONE &amp;&amp; oIt != aoLeaders.end();</span>
+<span class="lineNum">     672 </span>            :          ++oIt )
+<span class="lineNum">     673 </span>            :     {
+<span class="lineNum">     674 </span><span class="lineCov">         16 :         const bool bLeaderHasDogleg = bHasDogleg &amp;&amp;</span>
+<span class="lineNum">     675 </span><span class="lineCov">         14 :             nLeaderLineType != MLT_SPLINE &amp;&amp;</span>
+<span class="lineNum">     676 </span><span class="lineCov">         62 :             oIt-&gt;dfDoglegLength != 0.0 &amp;&amp;</span>
+<span class="lineNum">     677 </span><span class="lineCov">         34 :             ( oIt-&gt;dfDoglegVectorX != 0.0 || oIt-&gt;dfDoglegVectorY != 0.0 );</span>
+<span class="lineNum">     678 </span>            : 
+<span class="lineNum">     679 </span>            :         // We assume that the dogleg vector in the DXF is a unit vector.
+<span class="lineNum">     680 </span>            :         // Safe assumption? Who knows. The documentation is so bad.
+<span class="lineNum">     681 </span><span class="lineCov">         20 :         const double dfDoglegX = oIt-&gt;dfLandingX +</span>
+<span class="lineNum">     682 </span><span class="lineCov">         20 :             oIt-&gt;dfDoglegVectorX * oIt-&gt;dfDoglegLength;</span>
+<span class="lineNum">     683 </span><span class="lineCov">         20 :         const double dfDoglegY = oIt-&gt;dfLandingY +</span>
+<span class="lineNum">     684 </span><span class="lineCov">         20 :             oIt-&gt;dfDoglegVectorY * oIt-&gt;dfDoglegLength;</span>
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span>            :         // When the dogleg is turned off or we are in spline mode, it seems
+<span class="lineNum">     687 </span>            :         // that the dogleg and landing data are still present in the DXF file,
+<span class="lineNum">     688 </span>            :         // but they are not supposed to be drawn.
+<span class="lineNum">     689 </span><span class="lineCov">         20 :         if( !bHasDogleg || nLeaderLineType == MLT_SPLINE )</span>
+<span class="lineNum">     690 </span>            :         {
+<span class="lineNum">     691 </span><span class="lineCov">          6 :             oIt-&gt;dfLandingX = dfDoglegX;</span>
+<span class="lineNum">     692 </span><span class="lineCov">          6 :             oIt-&gt;dfLandingY = dfDoglegY;</span>
+<span class="lineNum">     693 </span>            :         }
+<span class="lineNum">     694 </span>            : 
+<span class="lineNum">     695 </span>            :         // Iterate through each leader line
+<span class="lineNum">     696 </span><span class="lineCov">         44 :         for( const auto&amp; aoLineVertices : oIt-&gt;aaoLeaderLines )</span>
+<span class="lineNum">     697 </span>            :         {
+<span class="lineNum">     698 </span><span class="lineCov">         24 :             if( aoLineVertices.empty() )</span>
+<span class="lineNum">     699 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span><span class="lineCov">         24 :             OGRLineString* poLeaderLine = new OGRLineString();</span>
+<span class="lineNum">     702 </span>            : 
+<span class="lineNum">     703 </span>            :             // Get the first line segment for arrowhead purposes
+<span class="lineNum">     704 </span>            :             poLeaderLine-&gt;addPoint(
+<span class="lineNum">     705 </span><span class="lineCov">         24 :                 aoLineVertices[0].oCoords.dfX,</span>
+<span class="lineNum">     706 </span><span class="lineCov">         48 :                 aoLineVertices[0].oCoords.dfY );</span>
+<span class="lineNum">     707 </span>            : 
+<span class="lineNum">     708 </span><span class="lineCov">         24 :             if( aoLineVertices.size() &gt; 1 )</span>
+<span class="lineNum">     709 </span>            :             {
+<span class="lineNum">     710 </span>            :                 poLeaderLine-&gt;addPoint(
+<span class="lineNum">     711 </span><span class="lineCov">          6 :                     aoLineVertices[1].oCoords.dfX,</span>
+<span class="lineNum">     712 </span><span class="lineCov">         12 :                     aoLineVertices[1].oCoords.dfY );</span>
+<span class="lineNum">     713 </span>            :             }
+<span class="lineNum">     714 </span>            :             else
+<span class="lineNum">     715 </span>            :             {
+<span class="lineNum">     716 </span><span class="lineCov">         18 :                 poLeaderLine-&gt;addPoint( oIt-&gt;dfLandingX, oIt-&gt;dfLandingY );</span>
+<span class="lineNum">     717 </span>            :             }
+<span class="lineNum">     718 </span>            : 
+<span class="lineNum">     719 </span>            :             // Add an arrowhead if required
+<span class="lineNum">     720 </span>            :             InsertArrowhead( poArrowheadOwningFeature,
+<span class="lineNum">     721 </span>            :                 osArrowheadBlockHandle, poLeaderLine,
+<span class="lineNum">     722 </span><span class="lineCov">         24 :                 dfArrowheadSize * dfScale );</span>
+<span class="lineNum">     723 </span>            : 
+<span class="lineNum">     724 </span><span class="lineCov">         24 :             poLeaderLine-&gt;setNumPoints( 1 );</span>
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span>            :             // Go through the vertices of the leader line, adding them,
+<span class="lineNum">     727 </span>            :             // as well as break start and end points, to the linestring.
+<span class="lineNum">     728 </span><span class="lineCov">         58 :             for( size_t iVertex = 0; iVertex &lt; aoLineVertices.size();</span>
+<span class="lineNum">     729 </span>            :                  iVertex++ )
+<span class="lineNum">     730 </span>            :             {
+<span class="lineNum">     731 </span><span class="lineCov">         34 :                 if( iVertex &gt; 0 )</span>
+<span class="lineNum">     732 </span>            :                 {
+<span class="lineNum">     733 </span>            :                     poLeaderLine-&gt;addPoint(
+<span class="lineNum">     734 </span><span class="lineCov">         10 :                         aoLineVertices[iVertex].oCoords.dfX,</span>
+<span class="lineNum">     735 </span><span class="lineCov">         20 :                         aoLineVertices[iVertex].oCoords.dfY );</span>
+<span class="lineNum">     736 </span>            :                 }
+<span class="lineNum">     737 </span>            : 
+<span class="lineNum">     738 </span>            :                 // Breaks are ignored for spline leaders
+<span class="lineNum">     739 </span><span class="lineCov">         34 :                 if( nLeaderLineType != MLT_SPLINE )</span>
+<span class="lineNum">     740 </span>            :                 {
+<span class="lineNum">     741 </span><span class="lineCov">         34 :                     for( const auto&amp; oBreak :</span>
+<span class="lineNum">     742 </span><span class="lineCov">         34 :                          aoLineVertices[iVertex].aoBreaks )</span>
+<span class="lineNum">     743 </span>            :                     {
+<span class="lineNum">     744 </span>            :                         poLeaderLine-&gt;addPoint( oBreak.first.dfX,
+<span class="lineNum">     745 </span><span class="lineCov">          6 :                             oBreak.first.dfY );</span>
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span><span class="lineCov">          6 :                         poMLS-&gt;addGeometryDirectly( poLeaderLine );</span>
+<span class="lineNum">     748 </span><span class="lineCov">          6 :                         poLeaderLine = new OGRLineString();</span>
+<span class="lineNum">     749 </span>            : 
+<span class="lineNum">     750 </span>            :                         poLeaderLine-&gt;addPoint( oBreak.second.dfX,
+<span class="lineNum">     751 </span><span class="lineCov">          6 :                             oBreak.second.dfY );</span>
+<span class="lineNum">     752 </span>            :                     }
+<span class="lineNum">     753 </span>            :                 }
+<span class="lineNum">     754 </span>            :             }
+<span class="lineNum">     755 </span>            : 
+<span class="lineNum">     756 </span>            :             // Add the final vertex (the landing) to the end of the line
+<span class="lineNum">     757 </span><span class="lineCov">         24 :             poLeaderLine-&gt;addPoint( oIt-&gt;dfLandingX, oIt-&gt;dfLandingY );</span>
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span>            :             // Make the spline geometry for spline leaders
+<span class="lineNum">     760 </span><span class="lineCov">         24 :             if( nLeaderLineType == MLT_SPLINE )</span>
+<span class="lineNum">     761 </span>            :             {
+<span class="lineNum">     762 </span><span class="lineCov">          4 :                 DXFTriple oEndTangent;</span>
+<span class="lineNum">     763 </span><span class="lineCov">          4 :                 if( osBlockName.empty() )</span>
+<span class="lineNum">     764 </span>            :                 {
+<span class="lineNum">     765 </span><span class="lineCov">          4 :                     oEndTangent = DXFTriple( oIt-&gt;dfDoglegVectorX,</span>
+<span class="lineNum">     766 </span><span class="lineCov">          8 :                         oIt-&gt;dfDoglegVectorY, 0 );</span>
+<span class="lineNum">     767 </span>            :                 }
+<span class="lineNum">     768 </span><span class="lineCov">          4 :                 InterpolateSpline( poLeaderLine, oEndTangent );</span>
+<span class="lineNum">     769 </span>            :             }
+<span class="lineNum">     770 </span>            : 
+<span class="lineNum">     771 </span><span class="lineCov">         24 :             poMLS-&gt;addGeometryDirectly( poLeaderLine );</span>
+<span class="lineNum">     772 </span>            :         }
+<span class="lineNum">     773 </span>            : 
+<span class="lineNum">     774 </span>            :         // Add the dogleg as a separate line in the MLS
+<span class="lineNum">     775 </span><span class="lineCov">         20 :         if( bLeaderHasDogleg )</span>
+<span class="lineNum">     776 </span>            :         {
+<span class="lineNum">     777 </span><span class="lineCov">         14 :             OGRLineString *poDoglegLine = new OGRLineString();</span>
+<span class="lineNum">     778 </span><span class="lineCov">         14 :             poDoglegLine-&gt;addPoint( oIt-&gt;dfLandingX, oIt-&gt;dfLandingY );</span>
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span>            :             // Interrupt the dogleg line at breaks
+<span class="lineNum">     781 </span><span class="lineCov">         18 :             for( const auto&amp; oBreak : oIt-&gt;aoDoglegBreaks )</span>
+<span class="lineNum">     782 </span>            :             {
+<span class="lineNum">     783 </span>            :                 poDoglegLine-&gt;addPoint( oBreak.first.dfX,
+<span class="lineNum">     784 </span><span class="lineCov">          4 :                     oBreak.first.dfY );</span>
+<span class="lineNum">     785 </span>            : 
+<span class="lineNum">     786 </span><span class="lineCov">          4 :                 poMLS-&gt;addGeometryDirectly( poDoglegLine );</span>
+<span class="lineNum">     787 </span><span class="lineCov">          4 :                 poDoglegLine = new OGRLineString();</span>
+<span class="lineNum">     788 </span>            : 
+<span class="lineNum">     789 </span>            :                 poDoglegLine-&gt;addPoint( oBreak.second.dfX,
+<span class="lineNum">     790 </span><span class="lineCov">          4 :                     oBreak.second.dfY );</span>
+<span class="lineNum">     791 </span>            :             }
+<span class="lineNum">     792 </span>            : 
+<span class="lineNum">     793 </span><span class="lineCov">         14 :             poDoglegLine-&gt;addPoint( dfDoglegX, dfDoglegY );</span>
+<span class="lineNum">     794 </span><span class="lineCov">         14 :             poMLS-&gt;addGeometryDirectly( poDoglegLine );</span>
+<span class="lineNum">     795 </span>            :         }
+<span class="lineNum">     796 </span>            :     }
+<span class="lineNum">     797 </span>            : 
+<span class="lineNum">     798 </span><span class="lineCov">         18 :     poLeaderFeature-&gt;SetGeometryDirectly( poMLS );</span>
+<span class="lineNum">     799 </span>            : 
+<span class="lineNum">     800 </span><span class="lineCov">         18 :     PrepareLineStyle( poLeaderFeature, poOverallFeature );</span>
+<span class="lineNum">     801 </span>            : 
+<span class="lineNum">     802 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     803 </span>            : /*      If we have block content, insert that block.                    */
+<span class="lineNum">     804 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     805 </span>            : 
+<span class="lineNum">     806 </span><span class="lineCov">         18 :     if( osBlockName != &quot;&quot; )</span>
+<span class="lineNum">     807 </span>            :     {
+<span class="lineNum">     808 </span><span class="lineCov">          6 :         oBlockTransformer.dfXScale *= dfScale;</span>
+<span class="lineNum">     809 </span><span class="lineCov">          6 :         oBlockTransformer.dfYScale *= dfScale;</span>
+<span class="lineNum">     810 </span>            : 
+<span class="lineNum">     811 </span><span class="lineCov">          6 :         DXFBlockDefinition *poBlock = poDS-&gt;LookupBlock( osBlockName );</span>
+<span class="lineNum">     812 </span>            : 
+<span class="lineNum">     813 </span><span class="lineCov">          6 :         std::map&lt;OGRDXFFeature *, CPLString&gt; oBlockAttributeValues;</span>
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span>            :         // If we have block attributes and will need to output them,
+<span class="lineNum">     816 </span>            :         // go through all the features on this block, looking for
+<span class="lineNum">     817 </span>            :         // ATTDEFs whose handle is in our list of attribute handles
+<span class="lineNum">     818 </span><span class="lineCov">         18 :         if( poBlock &amp;&amp; !oBlockAttributes.empty() &amp;&amp;</span>
+<span class="lineNum">     819 </span><span class="lineCov">          6 :             ( poDS-&gt;InlineBlocks() ||</span>
+<span class="lineNum">     820 </span><span class="lineNoCov">          0 :             poOverallFeature-&gt;GetFieldIndex( &quot;BlockAttributes&quot; ) != -1 ) )</span>
+<span class="lineNum">     821 </span>            :         {
+<span class="lineNum">     822 </span><span class="lineCov">         54 :             for( std::vector&lt;OGRDXFFeature *&gt;::iterator oIt =</span>
+<span class="lineNum">     823 </span><span class="lineCov">          6 :                 poBlock-&gt;apoFeatures.begin();</span>
+<span class="lineNum">     824 </span><span class="lineCov">         36 :                 oIt != poBlock-&gt;apoFeatures.end();</span>
+<span class="lineNum">     825 </span>            :                 ++oIt )
+<span class="lineNum">     826 </span>            :             {
+<span class="lineNum">     827 </span>            :                 const char* pszHandle =
+<span class="lineNum">     828 </span><span class="lineCov">         12 :                     (*oIt)-&gt;GetFieldAsString( &quot;EntityHandle&quot; );</span>
+<span class="lineNum">     829 </span>            : 
+<span class="lineNum">     830 </span><span class="lineCov">         12 :                 if( pszHandle &amp;&amp; oBlockAttributes.count( pszHandle ) &gt; 0 )</span>
+<span class="lineNum">     831 </span><span class="lineCov">          6 :                     oBlockAttributeValues[*oIt] = oBlockAttributes[pszHandle];</span>
+<span class="lineNum">     832 </span>            :             }
+<span class="lineNum">     833 </span>            :         }
+<span class="lineNum">     834 </span>            : 
+<span class="lineNum">     835 </span><span class="lineCov">          6 :         OGRDXFFeature *poBlockFeature = poOverallFeature-&gt;CloneDXFFeature();</span>
+<span class="lineNum">     836 </span>            : 
+<span class="lineNum">     837 </span>            :         // If not inlining the block, insert a reference and add attributes
+<span class="lineNum">     838 </span>            :         // to this feature.
+<span class="lineNum">     839 </span><span class="lineCov">          6 :         if( !poDS-&gt;InlineBlocks() )</span>
+<span class="lineNum">     840 </span>            :         {
+<span class="lineNum">     841 </span>            :             poBlockFeature = InsertBlockReference( osBlockName,
+<span class="lineNum">     842 </span><span class="lineNoCov">          0 :                 oBlockTransformer, poBlockFeature );</span>
+<span class="lineNum">     843 </span>            : 
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :             if( !oBlockAttributes.empty() &amp;&amp; </span>
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :                 poOverallFeature-&gt;GetFieldIndex( &quot;BlockAttributes&quot; ) != -1 )</span>
+<span class="lineNum">     846 </span>            :             {
+<span class="lineNum">     847 </span><span class="lineNoCov">          0 :                 std::vector&lt;char *&gt; apszAttribs;</span>
+<span class="lineNum">     848 </span>            : 
+<span class="lineNum">     849 </span><span class="lineNoCov">          0 :                 for( std::map&lt;OGRDXFFeature *, CPLString&gt;::iterator oIt =</span>
+<span class="lineNum">     850 </span><span class="lineNoCov">          0 :                     oBlockAttributeValues.begin();</span>
+<span class="lineNum">     851 </span><span class="lineNoCov">          0 :                     oIt != oBlockAttributeValues.end();</span>
+<span class="lineNum">     852 </span>            :                     ++oIt )
+<span class="lineNum">     853 </span>            :                 {
+<span class="lineNum">     854 </span>            :                     // Store the attribute tag and the text value as
+<span class="lineNum">     855 </span>            :                     // a space-separated entry in the BlockAttributes field
+<span class="lineNum">     856 </span><span class="lineNoCov">          0 :                     CPLString osAttribString = oIt-&gt;first-&gt;osAttributeTag;</span>
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 :                     osAttribString += &quot; &quot;;</span>
+<span class="lineNum">     858 </span><span class="lineNoCov">          0 :                     osAttribString += oIt-&gt;second;</span>
+<span class="lineNum">     859 </span>            : 
+<span class="lineNum">     860 </span>            :                     apszAttribs.push_back(
+<span class="lineNum">     861 </span><span class="lineNoCov">          0 :                         new char[osAttribString.length() + 1] );</span>
+<span class="lineNum">     862 </span><span class="lineNoCov">          0 :                     CPLStrlcpy( apszAttribs.back(), osAttribString.c_str(),</span>
+<span class="lineNum">     863 </span><span class="lineNoCov">          0 :                         osAttribString.length() + 1 );</span>
+<span class="lineNum">     864 </span><span class="lineNoCov">          0 :                 }</span>
+<span class="lineNum">     865 </span>            : 
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 :                 apszAttribs.push_back( nullptr );</span>
+<span class="lineNum">     867 </span>            : 
+<span class="lineNum">     868 </span><span class="lineNoCov">          0 :                 poBlockFeature-&gt;SetField( &quot;BlockAttributes&quot;, &amp;apszAttribs[0] );</span>
+<span class="lineNum">     869 </span>            :             }
+<span class="lineNum">     870 </span>            : 
+<span class="lineNum">     871 </span><span class="lineNoCov">          0 :             apoPendingFeatures.push( poBlockFeature );</span>
+<span class="lineNum">     872 </span>            :         }
+<span class="lineNum">     873 </span>            :         else
+<span class="lineNum">     874 </span>            :         {
+<span class="lineNum">     875 </span>            :             // Insert the block inline.
+<span class="lineNum">     876 </span><span class="lineCov">          6 :             OGRDXFFeatureQueue apoExtraFeatures;</span>
+<span class="lineNum">     877 </span>            :             try
+<span class="lineNum">     878 </span>            :             {
+<span class="lineNum">     879 </span>            :                 poBlockFeature = InsertBlockInline(
+<span class="lineNum">     880 </span>            :                     CPLGetErrorCounter(), osBlockName,
+<span class="lineNum">     881 </span>            :                     oBlockTransformer, poBlockFeature, apoExtraFeatures,
+<span class="lineNum">     882 </span><span class="lineCov">          6 :                     true, poDS-&gt;ShouldMergeBlockGeometries() );</span>
+<span class="lineNum">     883 </span>            :             }
+<span class="lineNum">     884 </span>            :             catch( const std::invalid_argument&amp; )
+<span class="lineNum">     885 </span>            :             {
+<span class="lineNum">     886 </span>            :                 // Block doesn't exist
+<span class="lineNum">     887 </span>            :                 delete poBlockFeature;
+<span class="lineNum">     888 </span>            :                 poBlockFeature = nullptr;
+<span class="lineNum">     889 </span>            :             }
+<span class="lineNum">     890 </span>            : 
+<span class="lineNum">     891 </span>            :             // Add the block geometries to the pending feature stack.
+<span class="lineNum">     892 </span><span class="lineCov">          6 :             if( poBlockFeature )</span>
+<span class="lineNum">     893 </span>            :             {
+<span class="lineNum">     894 </span><span class="lineCov">          6 :                 apoPendingFeatures.push( poBlockFeature );</span>
+<span class="lineNum">     895 </span>            :             }
+<span class="lineNum">     896 </span><span class="lineCov">         12 :             while( !apoExtraFeatures.empty() )</span>
+<span class="lineNum">     897 </span>            :             {
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 :                 apoPendingFeatures.push( apoExtraFeatures.front() );</span>
+<span class="lineNum">     899 </span><span class="lineNoCov">          0 :                 apoExtraFeatures.pop();</span>
+<span class="lineNum">     900 </span>            :             }
+<span class="lineNum">     901 </span>            : 
+<span class="lineNum">     902 </span>            :             // Also add any attributes to the pending feature stack.
+<span class="lineNum">     903 </span><span class="lineCov">         36 :             for( std::map&lt;OGRDXFFeature *, CPLString&gt;::iterator oIt =</span>
+<span class="lineNum">     904 </span><span class="lineCov">          6 :                      oBlockAttributeValues.begin();</span>
+<span class="lineNum">     905 </span><span class="lineCov">         24 :                  oIt != oBlockAttributeValues.end();</span>
+<span class="lineNum">     906 </span>            :                  ++oIt )
+<span class="lineNum">     907 </span>            :             {
+<span class="lineNum">     908 </span><span class="lineCov">          6 :                 OGRDXFFeature *poAttribFeature = oIt-&gt;first-&gt;CloneDXFFeature();</span>
+<span class="lineNum">     909 </span>            : 
+<span class="lineNum">     910 </span><span class="lineCov">          6 :                 poAttribFeature-&gt;SetField( &quot;Text&quot;, oIt-&gt;second );</span>
+<span class="lineNum">     911 </span>            : 
+<span class="lineNum">     912 </span>            :                 // Replace text in the style string
+<span class="lineNum">     913 </span><span class="lineCov">          6 :                 const char* poStyleString = poAttribFeature-&gt;GetStyleString();</span>
+<span class="lineNum">     914 </span><span class="lineCov">          6 :                 if( poStyleString &amp;&amp; STARTS_WITH(poStyleString, &quot;LABEL(&quot;) )</span>
+<span class="lineNum">     915 </span>            :                 {
+<span class="lineNum">     916 </span><span class="lineCov">          6 :                     CPLString osNewStyle = poStyleString;</span>
+<span class="lineNum">     917 </span><span class="lineCov">          6 :                     const size_t nTextStartPos = osNewStyle.find( &quot;,t:\&quot;&quot; );</span>
+<span class="lineNum">     918 </span><span class="lineCov">          6 :                     if( nTextStartPos != std::string::npos )</span>
+<span class="lineNum">     919 </span>            :                     {
+<span class="lineNum">     920 </span><span class="lineCov">          6 :                         size_t nTextEndPos = nTextStartPos + 4;</span>
+<span class="lineNum">     921 </span><span class="lineCov">         18 :                         while( nTextEndPos &lt; osNewStyle.size() &amp;&amp;</span>
+<span class="lineNum">     922 </span><span class="lineCov">          6 :                             osNewStyle[nTextEndPos] != '\&quot;' )</span>
+<span class="lineNum">     923 </span>            :                         {
+<span class="lineNum">     924 </span><span class="lineNoCov">          0 :                             nTextEndPos++;</span>
+<span class="lineNum">     925 </span><span class="lineNoCov">          0 :                             if( osNewStyle[nTextEndPos] == '\\' )</span>
+<span class="lineNum">     926 </span><span class="lineNoCov">          0 :                                 nTextEndPos++;</span>
+<span class="lineNum">     927 </span>            :                         }
+<span class="lineNum">     928 </span>            : 
+<span class="lineNum">     929 </span><span class="lineCov">          6 :                         if( nTextEndPos &lt; osNewStyle.size() )</span>
+<span class="lineNum">     930 </span>            :                         {
+<span class="lineNum">     931 </span>            :                             osNewStyle.replace( nTextStartPos + 4,
+<span class="lineNum">     932 </span>            :                                 nTextEndPos - ( nTextStartPos + 4 ),
+<span class="lineNum">     933 </span><span class="lineCov">          6 :                                 oIt-&gt;second );</span>
+<span class="lineNum">     934 </span><span class="lineCov">          6 :                             poAttribFeature-&gt;SetStyleString( osNewStyle );</span>
+<span class="lineNum">     935 </span>            :                         }
+<span class="lineNum">     936 </span><span class="lineCov">          6 :                     }</span>
+<span class="lineNum">     937 </span>            :                 }
+<span class="lineNum">     938 </span>            : 
+<span class="lineNum">     939 </span>            :                 // The following bits are copied from
+<span class="lineNum">     940 </span>            :                 // OGRDXFLayer::InsertBlockInline
+<span class="lineNum">     941 </span><span class="lineCov">          6 :                 if( poAttribFeature-&gt;GetGeometryRef() )</span>
+<span class="lineNum">     942 </span>            :                 {
+<span class="lineNum">     943 </span><span class="lineCov">          6 :                     poAttribFeature-&gt;GetGeometryRef()-&gt;transform(</span>
+<span class="lineNum">     944 </span><span class="lineCov">          6 :                         &amp;oBlockTransformer );</span>
+<span class="lineNum">     945 </span>            :                 }
+<span class="lineNum">     946 </span>            : 
+<span class="lineNum">     947 </span><span class="lineCov">         12 :                 if( EQUAL( poAttribFeature-&gt;GetFieldAsString( &quot;Layer&quot; ), &quot;0&quot; ) &amp;&amp;</span>
+<span class="lineNum">     948 </span><span class="lineCov">          6 :                     !EQUAL( poOverallFeature-&gt;GetFieldAsString( &quot;Layer&quot; ), &quot;&quot; ) )</span>
+<span class="lineNum">     949 </span>            :                 {
+<span class="lineNum">     950 </span>            :                     poAttribFeature-&gt;SetField( &quot;Layer&quot;,
+<span class="lineNum">     951 </span><span class="lineCov">          6 :                         poOverallFeature-&gt;GetFieldAsString( &quot;Layer&quot; ) );</span>
+<span class="lineNum">     952 </span>            :                 }
+<span class="lineNum">     953 </span>            : 
+<span class="lineNum">     954 </span><span class="lineCov">          6 :                 PrepareFeatureStyle( poAttribFeature, poOverallFeature );</span>
+<span class="lineNum">     955 </span>            : 
+<span class="lineNum">     956 </span><span class="lineCov">          6 :                 ACAdjustText( oBlockTransformer.dfAngle * 180 / M_PI,</span>
+<span class="lineNum">     957 </span>            :                     oBlockTransformer.dfXScale, oBlockTransformer.dfYScale,
+<span class="lineNum">     958 </span><span class="lineCov">         12 :                     poAttribFeature );</span>
+<span class="lineNum">     959 </span>            : 
+<span class="lineNum">     960 </span><span class="lineCov">          6 :                 if ( !EQUAL( poOverallFeature-&gt;GetFieldAsString(</span>
+<span class="lineNum">     961 </span>            :                     &quot;EntityHandle&quot; ), &quot;&quot; ) )
+<span class="lineNum">     962 </span>            :                 {
+<span class="lineNum">     963 </span>            :                     poAttribFeature-&gt;SetField( &quot;EntityHandle&quot;,
+<span class="lineNum">     964 </span><span class="lineCov">          6 :                         poOverallFeature-&gt;GetFieldAsString( &quot;EntityHandle&quot; ) );</span>
+<span class="lineNum">     965 </span>            :                 }
+<span class="lineNum">     966 </span>            : 
+<span class="lineNum">     967 </span><span class="lineCov">          6 :                 apoPendingFeatures.push( poAttribFeature );</span>
+<span class="lineNum">     968 </span><span class="lineCov">          6 :             }</span>
+<span class="lineNum">     969 </span><span class="lineCov">          6 :         }</span>
+<span class="lineNum">     970 </span>            :     }
+<span class="lineNum">     971 </span>            : 
+<span class="lineNum">     972 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     973 </span>            : /*      Prepare a new feature to serve as the leader text label         */
+<span class="lineNum">     974 </span>            : /*      refeature.  We will push it onto the layer as a pending           */
+<span class="lineNum">     975 </span>            : /*      feature for the next feature read.                              */
+<span class="lineNum">     976 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     977 </span>            : 
+<span class="lineNum">     978 </span><span class="lineCov">         18 :     if( osText.empty() || osText == &quot; &quot; )</span>
+<span class="lineNum">     979 </span>            :     {
+<span class="lineNum">     980 </span><span class="lineCov">          8 :         delete poOverallFeature;</span>
+<span class="lineNum">     981 </span><span class="lineCov">          8 :         return poLeaderFeature;</span>
+<span class="lineNum">     982 </span>            :     }
+<span class="lineNum">     983 </span>            : 
+<span class="lineNum">     984 </span><span class="lineCov">         10 :     OGRDXFFeature *poLabelFeature = poOverallFeature-&gt;CloneDXFFeature();</span>
+<span class="lineNum">     985 </span>            : 
+<span class="lineNum">     986 </span><span class="lineCov">         10 :     poLabelFeature-&gt;SetField( &quot;Text&quot;, osText );</span>
+<span class="lineNum">     987 </span><span class="lineCov">         10 :     poLabelFeature-&gt;SetGeometryDirectly( new OGRPoint( dfTextX, dfTextY ) );</span>
+<span class="lineNum">     988 </span>            : 
+<span class="lineNum">     989 </span><span class="lineCov">         20 :     CPLString osStyle;</span>
+<span class="lineNum">     990 </span>            :     char szBuffer[64];
+<span class="lineNum">     991 </span>            : 
+<span class="lineNum">     992 </span>            :     const CPLString osStyleName =
+<span class="lineNum">     993 </span><span class="lineCov">         20 :         poDS-&gt;GetTextStyleNameByHandle( osTextStyleHandle );</span>
+<span class="lineNum">     994 </span>            : 
+<span class="lineNum">     995 </span>            :     // Font name
+<span class="lineNum">     996 </span><span class="lineCov">         10 :     osStyle.Printf(&quot;LABEL(f:\&quot;&quot;);</span>
+<span class="lineNum">     997 </span>            : 
+<span class="lineNum">     998 </span>            :     // Preserve legacy behaviour of specifying &quot;Arial&quot; as a default font name.
+<span class="lineNum">     999 </span><span class="lineCov">         10 :     osStyle += poDS-&gt;LookupTextStyleProperty( osStyleName, &quot;Font&quot;, &quot;Arial&quot; );</span>
+<span class="lineNum">    1000 </span>            : 
+<span class="lineNum">    1001 </span><span class="lineCov">         10 :     osStyle += &quot;\&quot;&quot;;</span>
+<span class="lineNum">    1002 </span>            : 
+<span class="lineNum">    1003 </span>            :     // Bold, italic
+<span class="lineNum">    1004 </span><span class="lineCov">         10 :     if( EQUAL( poDS-&gt;LookupTextStyleProperty( osStyleName,</span>
+<span class="lineNum">    1005 </span>            :         &quot;Bold&quot;, &quot;0&quot; ), &quot;1&quot; ) )
+<span class="lineNum">    1006 </span>            :     {
+<span class="lineNum">    1007 </span><span class="lineNoCov">          0 :         osStyle += &quot;,bo:1&quot;;</span>
+<span class="lineNum">    1008 </span>            :     }
+<span class="lineNum">    1009 </span><span class="lineCov">         10 :     if( EQUAL( poDS-&gt;LookupTextStyleProperty( osStyleName,</span>
+<span class="lineNum">    1010 </span>            :         &quot;Italic&quot;, &quot;0&quot; ), &quot;1&quot; ) )
+<span class="lineNum">    1011 </span>            :     {
+<span class="lineNum">    1012 </span><span class="lineCov">          2 :         osStyle += &quot;,it:1&quot;;</span>
+<span class="lineNum">    1013 </span>            :     }
+<span class="lineNum">    1014 </span>            : 
+<span class="lineNum">    1015 </span><span class="lineCov">         10 :     osStyle += CPLString().Printf(&quot;,t:\&quot;%s\&quot;,p:%d&quot;, osText.c_str(),</span>
+<span class="lineNum">    1016 </span><span class="lineCov">         20 :         nTextAlignment + 6); // 7,8,9: vertical align top</span>
+<span class="lineNum">    1017 </span>            : 
+<span class="lineNum">    1018 </span><span class="lineCov">         10 :     if( dfTextAngle != 0.0 )</span>
+<span class="lineNum">    1019 </span>            :     {
+<span class="lineNum">    1020 </span><span class="lineCov">          2 :         CPLsnprintf(szBuffer, sizeof(szBuffer), &quot;%.3g&quot;, dfTextAngle);</span>
+<span class="lineNum">    1021 </span><span class="lineCov">          2 :         osStyle += CPLString().Printf(&quot;,a:%s&quot;, szBuffer);</span>
+<span class="lineNum">    1022 </span>            :     }
+<span class="lineNum">    1023 </span>            : 
+<span class="lineNum">    1024 </span><span class="lineCov">         10 :     if( dfTextHeight != 0.0 )</span>
+<span class="lineNum">    1025 </span>            :     {
+<span class="lineNum">    1026 </span><span class="lineCov">         10 :         CPLsnprintf(szBuffer, sizeof(szBuffer), &quot;%.3g&quot;, dfTextHeight);</span>
+<span class="lineNum">    1027 </span><span class="lineCov">         10 :         osStyle += CPLString().Printf(&quot;,s:%sg&quot;, szBuffer);</span>
+<span class="lineNum">    1028 </span>            :     }
+<span class="lineNum">    1029 </span>            : 
+<span class="lineNum">    1030 </span>            :     const char *pszWidthFactor = poDS-&gt;LookupTextStyleProperty( osStyleName,
+<span class="lineNum">    1031 </span><span class="lineCov">         10 :         &quot;Width&quot;, &quot;1&quot; );</span>
+<span class="lineNum">    1032 </span><span class="lineCov">         10 :     if( pszWidthFactor &amp;&amp; CPLAtof( pszWidthFactor ) != 1.0 )</span>
+<span class="lineNum">    1033 </span>            :     {
+<span class="lineNum">    1034 </span>            :         CPLsnprintf(szBuffer, sizeof(szBuffer), &quot;%.4g&quot;,
+<span class="lineNum">    1035 </span><span class="lineCov">          2 :             CPLAtof( pszWidthFactor ) * 100.0);</span>
+<span class="lineNum">    1036 </span><span class="lineCov">          2 :         osStyle += CPLString().Printf(&quot;,w:%s&quot;, szBuffer);</span>
+<span class="lineNum">    1037 </span>            :     }
+<span class="lineNum">    1038 </span>            : 
+<span class="lineNum">    1039 </span>            :     // Color
+<span class="lineNum">    1040 </span><span class="lineCov">         10 :     osStyle += &quot;,c:&quot;;</span>
+<span class="lineNum">    1041 </span><span class="lineCov">         10 :     osStyle += poLabelFeature-&gt;GetColor( poDS );</span>
+<span class="lineNum">    1042 </span>            : 
+<span class="lineNum">    1043 </span><span class="lineCov">         10 :     osStyle += &quot;)&quot;;</span>
+<span class="lineNum">    1044 </span>            : 
+<span class="lineNum">    1045 </span><span class="lineCov">         10 :     poLabelFeature-&gt;SetStyleString( osStyle );</span>
+<span class="lineNum">    1046 </span>            : 
+<span class="lineNum">    1047 </span><span class="lineCov">         10 :     apoPendingFeatures.push( poLabelFeature );</span>
+<span class="lineNum">    1048 </span>            : 
+<span class="lineNum">    1049 </span><span class="lineCov">         10 :     delete poOverallFeature;</span>
+<span class="lineNum">    1050 </span><span class="lineCov">         46 :     return poLeaderFeature;</span>
+<span class="lineNum">    1051 </span>            : }
+<span class="lineNum">    1052 </span>            : 
+<span class="lineNum">    1053 </span>            : /************************************************************************/
+<span class="lineNum">    1054 </span>            : /*                     GenerateDefaultArrowhead()                       */
+<span class="lineNum">    1055 </span>            : /*                                                                      */
+<span class="lineNum">    1056 </span>            : /*      Generates the default DWG/DXF arrowhead (a filled triangle      */
+<span class="lineNum">    1057 </span>            : /*      with a 3:1 aspect ratio) on the end of the line segment         */
+<a name="1058"><span class="lineNum">    1058 </span>            : /*      defined by the two points.                                      */</a>
+<span class="lineNum">    1059 </span>            : /************************************************************************/
+<span class="lineNum">    1060 </span><span class="lineCov">         40 : static void GenerateDefaultArrowhead( OGRDXFFeature* const poArrowheadFeature,</span>
+<span class="lineNum">    1061 </span>            :     const OGRPoint&amp; oPoint1, const OGRPoint&amp; oPoint2,
+<span class="lineNum">    1062 </span>            :     const double dfArrowheadScale )
+<span class="lineNum">    1063 </span>            : 
+<span class="lineNum">    1064 </span>            : {
+<span class="lineNum">    1065 </span>            :     // calculate the baseline to be expanded out into arrowheads
+<span class="lineNum">    1066 </span>            :     const double dfParallelPartX = dfArrowheadScale *
+<span class="lineNum">    1067 </span><span class="lineCov">         40 :         (oPoint2.getX() - oPoint1.getX());</span>
+<span class="lineNum">    1068 </span>            :     const double dfParallelPartY = dfArrowheadScale *
+<span class="lineNum">    1069 </span><span class="lineCov">         40 :         (oPoint2.getY() - oPoint1.getY());</span>
+<span class="lineNum">    1070 </span>            :     // ...and drop a perpendicular
+<span class="lineNum">    1071 </span><span class="lineCov">         40 :     const double dfPerpPartX = dfParallelPartY;</span>
+<span class="lineNum">    1072 </span><span class="lineCov">         40 :     const double dfPerpPartY = -dfParallelPartX;</span>
+<span class="lineNum">    1073 </span>            : 
+<span class="lineNum">    1074 </span><span class="lineCov">         40 :     OGRLinearRing *poLinearRing = new OGRLinearRing();</span>
+<span class="lineNum">    1075 </span>            :     poLinearRing-&gt;setPoint( 0,
+<span class="lineNum">    1076 </span><span class="lineCov">         40 :         oPoint1.getX() + dfParallelPartX + dfPerpPartX/6,</span>
+<span class="lineNum">    1077 </span><span class="lineCov">         40 :         oPoint1.getY() + dfParallelPartY + dfPerpPartY/6,</span>
+<span class="lineNum">    1078 </span><span class="lineCov">        120 :         oPoint1.getZ() );</span>
+<span class="lineNum">    1079 </span>            :     poLinearRing-&gt;setPoint( 1,
+<span class="lineNum">    1080 </span>            :         oPoint1.getX(),
+<span class="lineNum">    1081 </span>            :         oPoint1.getY(),
+<span class="lineNum">    1082 </span><span class="lineCov">         40 :         oPoint1.getZ() );</span>
+<span class="lineNum">    1083 </span>            :     poLinearRing-&gt;setPoint( 2,
+<span class="lineNum">    1084 </span><span class="lineCov">         40 :         oPoint1.getX() + dfParallelPartX - dfPerpPartX/6,</span>
+<span class="lineNum">    1085 </span><span class="lineCov">         40 :         oPoint1.getY() + dfParallelPartY - dfPerpPartY/6,</span>
+<span class="lineNum">    1086 </span><span class="lineCov">        120 :         oPoint1.getZ() );</span>
+<span class="lineNum">    1087 </span><span class="lineCov">         40 :     poLinearRing-&gt;closeRings();</span>
+<span class="lineNum">    1088 </span>            : 
+<span class="lineNum">    1089 </span><span class="lineCov">         40 :     OGRPolygon* poPoly = new OGRPolygon();</span>
+<span class="lineNum">    1090 </span><span class="lineCov">         40 :     poPoly-&gt;addRingDirectly( poLinearRing );</span>
+<span class="lineNum">    1091 </span>            : 
+<span class="lineNum">    1092 </span><span class="lineCov">         40 :     poArrowheadFeature-&gt;SetGeometryDirectly( poPoly );</span>
+<span class="lineNum">    1093 </span><span class="lineCov">         40 : }</span>
+<span class="lineNum">    1094 </span>            : 
+<span class="lineNum">    1095 </span>            : /************************************************************************/
+<span class="lineNum">    1096 </span>            : /*                          InsertArrowhead()                           */
+<span class="lineNum">    1097 </span>            : /*                                                                      */
+<span class="lineNum">    1098 </span>            : /*      Inserts the specified arrowhead block at the start of the       */
+<span class="lineNum">    1099 </span>            : /*      first segment of the given line string (or the end of the       */
+<span class="lineNum">    1100 </span>            : /*      last segment if bReverse is false).  2D only.                   */
+<span class="lineNum">    1101 </span>            : /*                                                                      */
+<a name="1102"><span class="lineNum">    1102 </span>            : /*      The first (last) point of the line string may be updated.       */</a>
+<span class="lineNum">    1103 </span>            : /************************************************************************/
+<span class="lineNum">    1104 </span><span class="lineCov">         62 : void OGRDXFLayer::InsertArrowhead( OGRDXFFeature* const poFeature,</span>
+<span class="lineNum">    1105 </span>            :     const CPLString&amp; osBlockHandle, OGRLineString* const poLine,
+<span class="lineNum">    1106 </span>            :     const double dfArrowheadSize, const bool bReverse /* = false */ )
+<span class="lineNum">    1107 </span>            : {
+<span class="lineNum">    1108 </span><span class="lineCov">        112 :     OGRPoint oPoint1, oPoint2;</span>
+<span class="lineNum">    1109 </span><span class="lineCov">         62 :     poLine-&gt;getPoint( bReverse ? poLine-&gt;getNumPoints() - 1 : 0, &amp;oPoint1 );</span>
+<span class="lineNum">    1110 </span><span class="lineCov">         62 :     poLine-&gt;getPoint( bReverse ? poLine-&gt;getNumPoints() - 2 : 1, &amp;oPoint2 );</span>
+<span class="lineNum">    1111 </span>            : 
+<span class="lineNum">    1112 </span>            :     const double dfFirstSegmentLength = PointDist( oPoint1.getX(),
+<span class="lineNum">    1113 </span><span class="lineCov">         62 :         oPoint1.getY(), oPoint2.getX(), oPoint2.getY() );</span>
+<span class="lineNum">    1114 </span>            : 
+<span class="lineNum">    1115 </span>            :     // AutoCAD only displays an arrowhead if the length of the arrowhead
+<span class="lineNum">    1116 </span>            :     // is less than or equal to half the length of the line segment
+<span class="lineNum">    1117 </span><span class="lineCov">        122 :     if( dfArrowheadSize == 0.0 || dfFirstSegmentLength == 0.0 ||</span>
+<span class="lineNum">    1118 </span><span class="lineCov">         60 :         dfArrowheadSize &gt; 0.5 * dfFirstSegmentLength )</span>
+<span class="lineNum">    1119 </span>            :     {
+<span class="lineNum">    1120 </span><span class="lineCov">         74 :         return;</span>
+<span class="lineNum">    1121 </span>            :     }
+<span class="lineNum">    1122 </span>            : 
+<span class="lineNum">    1123 </span><span class="lineCov">         50 :     OGRDXFFeature *poArrowheadFeature = poFeature-&gt;CloneDXFFeature();</span>
+<span class="lineNum">    1124 </span>            : 
+<span class="lineNum">    1125 </span>            :     // Convert the block handle to a block name.
+<span class="lineNum">    1126 </span><span class="lineCov">        100 :     CPLString osBlockName = &quot;&quot;;</span>
+<span class="lineNum">    1127 </span>            : 
+<span class="lineNum">    1128 </span><span class="lineCov">         50 :     if( osBlockHandle != &quot;&quot; )</span>
+<span class="lineNum">    1129 </span><span class="lineCov">         12 :         osBlockName = poDS-&gt;GetBlockNameByRecordHandle( osBlockHandle );</span>
+<span class="lineNum">    1130 </span>            : 
+<span class="lineNum">    1131 </span><span class="lineCov">        100 :     OGRDXFFeatureQueue apoExtraFeatures;</span>
+<span class="lineNum">    1132 </span>            : 
+<span class="lineNum">    1133 </span>            :     // If the block doesn't exist, we need to fall back to the
+<span class="lineNum">    1134 </span>            :     // default arrowhead.
+<span class="lineNum">    1135 </span><span class="lineCov">         50 :     if( osBlockName == &quot;&quot; )</span>
+<span class="lineNum">    1136 </span>            :     {
+<span class="lineNum">    1137 </span>            :         GenerateDefaultArrowhead( poArrowheadFeature, oPoint1, oPoint2,
+<span class="lineNum">    1138 </span><span class="lineCov">         40 :             dfArrowheadSize / dfFirstSegmentLength );</span>
+<span class="lineNum">    1139 </span>            : 
+<span class="lineNum">    1140 </span><span class="lineCov">         40 :         PrepareBrushStyle( poArrowheadFeature );</span>
+<span class="lineNum">    1141 </span>            :     }
+<span class="lineNum">    1142 </span>            :     else
+<span class="lineNum">    1143 </span>            :     {
+<span class="lineNum">    1144 </span>            :         // Build a transformer to insert the arrowhead block with the
+<span class="lineNum">    1145 </span>            :         // required location, angle and scale.
+<span class="lineNum">    1146 </span><span class="lineCov">         10 :         OGRDXFInsertTransformer oTransformer;</span>
+<span class="lineNum">    1147 </span><span class="lineCov">         10 :         oTransformer.dfXOffset = oPoint1.getX();</span>
+<span class="lineNum">    1148 </span><span class="lineCov">         10 :         oTransformer.dfYOffset = oPoint1.getY();</span>
+<span class="lineNum">    1149 </span><span class="lineCov">         10 :         oTransformer.dfZOffset = oPoint1.getZ();</span>
+<span class="lineNum">    1150 </span>            :         // Arrowhead blocks always point to the right (---&gt;)
+<span class="lineNum">    1151 </span><span class="lineCov">         10 :         oTransformer.dfAngle = atan2( oPoint2.getY() - oPoint1.getY(),</span>
+<span class="lineNum">    1152 </span><span class="lineCov">         20 :             oPoint2.getX() - oPoint1.getX() ) + M_PI;</span>
+<span class="lineNum">    1153 </span>            :         oTransformer.dfXScale = oTransformer.dfYScale =
+<span class="lineNum">    1154 </span><span class="lineCov">         10 :             oTransformer.dfZScale = dfArrowheadSize;</span>
+<span class="lineNum">    1155 </span>            : 
+<span class="lineNum">    1156 </span>            :         // Insert the block.
+<span class="lineNum">    1157 </span>            :         try
+<span class="lineNum">    1158 </span>            :         {
+<span class="lineNum">    1159 </span>            :             poArrowheadFeature = InsertBlockInline(
+<span class="lineNum">    1160 </span>            :                 CPLGetErrorCounter(), osBlockName,
+<span class="lineNum">    1161 </span>            :                 oTransformer, poArrowheadFeature, apoExtraFeatures,
+<span class="lineNum">    1162 </span><span class="lineCov">         16 :                 true, false );</span>
+<span class="lineNum">    1163 </span>            :         }
+<span class="lineNum">    1164 </span><span class="lineCov">         12 :         catch( const std::invalid_argument&amp; )</span>
+<span class="lineNum">    1165 </span>            :         {
+<span class="lineNum">    1166 </span>            :             // Supposedly the block doesn't exist. But what has probably
+<span class="lineNum">    1167 </span>            :             // happened is that the block exists in the DXF, but it contains
+<span class="lineNum">    1168 </span>            :             // no entities, so the data source didn't read it in.
+<span class="lineNum">    1169 </span>            :             // In this case, no arrowhead is required.
+<span class="lineNum">    1170 </span><span class="lineCov">          6 :             delete poArrowheadFeature;</span>
+<span class="lineNum">    1171 </span><span class="lineCov">          6 :             poArrowheadFeature = nullptr;</span>
+<span class="lineNum">    1172 </span><span class="lineCov">         10 :         }</span>
+<span class="lineNum">    1173 </span>            :     }
+<span class="lineNum">    1174 </span>            : 
+<span class="lineNum">    1175 </span>            :     // Add the arrowhead geometries to the pending feature stack.
+<span class="lineNum">    1176 </span><span class="lineCov">         50 :     if( poArrowheadFeature )</span>
+<span class="lineNum">    1177 </span>            :     {
+<span class="lineNum">    1178 </span><span class="lineCov">         40 :         apoPendingFeatures.push( poArrowheadFeature );</span>
+<span class="lineNum">    1179 </span>            :     }
+<span class="lineNum">    1180 </span><span class="lineCov">        108 :     while( !apoExtraFeatures.empty() )</span>
+<span class="lineNum">    1181 </span>            :     {
+<span class="lineNum">    1182 </span><span class="lineCov">          8 :         apoPendingFeatures.push( apoExtraFeatures.front() );</span>
+<span class="lineNum">    1183 </span><span class="lineCov">          8 :         apoExtraFeatures.pop();</span>
+<span class="lineNum">    1184 </span>            :     }
+<span class="lineNum">    1185 </span>            : 
+<span class="lineNum">    1186 </span>            :     // Move the endpoint of the line out of the way of the arrowhead.
+<span class="lineNum">    1187 </span>            :     // We assume that arrowheads are 1 unit long, except for a list
+<span class="lineNum">    1188 </span>            :     // of specific block names which are treated as having no length
+<span class="lineNum">    1189 </span>            : 
+<span class="lineNum">    1190 </span>            :     static const char* apszSpecialArrowheads[] = {
+<span class="lineNum">    1191 </span>            :         &quot;_ArchTick&quot;,
+<span class="lineNum">    1192 </span>            :         &quot;_DotSmall&quot;,
+<span class="lineNum">    1193 </span>            :         &quot;_Integral&quot;,
+<span class="lineNum">    1194 </span>            :         &quot;_None&quot;,
+<span class="lineNum">    1195 </span>            :         &quot;_Oblique&quot;,
+<span class="lineNum">    1196 </span>            :         &quot;_Small&quot;
+<span class="lineNum">    1197 </span>            :     };
+<span class="lineNum">    1198 </span>            : 
+<span class="lineNum">    1199 </span><span class="lineCov">         50 :     if( std::find( apszSpecialArrowheads, apszSpecialArrowheads + 6,</span>
+<span class="lineNum">    1200 </span><span class="lineCov">         50 :         osBlockName ) == ( apszSpecialArrowheads + 6 ) )</span>
+<span class="lineNum">    1201 </span>            :     {
+<span class="lineNum">    1202 </span><span class="lineCov">         88 :         oPoint1.setX( oPoint1.getX() + dfArrowheadSize *</span>
+<span class="lineNum">    1203 </span><span class="lineCov">         88 :             ( oPoint2.getX() - oPoint1.getX() ) / dfFirstSegmentLength );</span>
+<span class="lineNum">    1204 </span><span class="lineCov">         88 :         oPoint1.setY( oPoint1.getY() + dfArrowheadSize *</span>
+<span class="lineNum">    1205 </span><span class="lineCov">         88 :             ( oPoint2.getY() - oPoint1.getY() ) / dfFirstSegmentLength );</span>
+<span class="lineNum">    1206 </span>            : 
+<span class="lineNum">    1207 </span><span class="lineCov">         12 :         poLine-&gt;setPoint( bReverse ? poLine-&gt;getNumPoints() - 1 : 0,</span>
+<span class="lineNum">    1208 </span><span class="lineCov">         56 :             &amp;oPoint1 );</span>
+<span class="lineNum">    1209 </span><span class="lineCov">         50 :     }</span>
+<span class="lineNum">    1210 </span>            : }
+<span class="lineNum">    1211 </span>            : 
+<span class="lineNum">    1212 </span>            : /************************************************************************/
+<span class="lineNum">    1213 </span>            : /*                        basis(), rbspline2()                          */
+<span class="lineNum">    1214 </span>            : /*                                                                      */
+<span class="lineNum">    1215 </span>            : /*      Spline calculation functions defined in intronurbs.cpp.         */
+<span class="lineNum">    1216 </span>            : /************************************************************************/
+<span class="lineNum">    1217 </span>            : void basis( int c, double t, int npts, double x[], double N[] );
+<span class="lineNum">    1218 </span>            : void rbspline2( int npts,int k,int p1,double b[],double h[],
+<span class="lineNum">    1219 </span>            :     bool bCalculateKnots, double x[], double p[] );
+<span class="lineNum">    1220 </span>            : 
+<span class="lineNum">    1221 </span>            : /************************************************************************/
+<span class="lineNum">    1222 </span>            : /*                      GetBSplineControlPoints()                       */
+<span class="lineNum">    1223 </span>            : /*                                                                      */
+<span class="lineNum">    1224 </span>            : /*      Evaluates the control points for the B-spline of given degree   */
+<span class="lineNum">    1225 </span>            : /*      that interpolates the given data points, using the given        */
+<span class="lineNum">    1226 </span>            : /*      parameters, start tangent and end tangent.  The parameters      */
+<span class="lineNum">    1227 </span>            : /*      and knot vector must be increasing sequences with first         */
+<span class="lineNum">    1228 </span>            : /*      element 0 and last element 1.  Given n data points, there       */
+<span class="lineNum">    1229 </span>            : /*      must be n parameters and n + nDegree + 3 knots.                 */
+<span class="lineNum">    1230 </span>            : /*                                                                      */
+<span class="lineNum">    1231 </span>            : /*      It is recommended to match AutoCAD by generating a knot         */
+<span class="lineNum">    1232 </span>            : /*      vector from the parameters as follows:                          */
+<span class="lineNum">    1233 </span>            : /*              0 0 ... 0 adfParameters 1 1 ... 1                       */
+<span class="lineNum">    1234 </span>            : /*        (nDegree zeros)               (nDegree ones)                  */
+<span class="lineNum">    1235 </span>            : /*      To fully match AutoCAD's behaviour, a chord-length              */
+<span class="lineNum">    1236 </span>            : /*      parameterisation should be used, and the start and end          */
+<span class="lineNum">    1237 </span>            : /*      tangent vectors should be multiplied by the total chord         */
+<span class="lineNum">    1238 </span>            : /*      length of all chords.                                           */
+<span class="lineNum">    1239 </span>            : /*                                                                      */
+<span class="lineNum">    1240 </span>            : /*      Reference: Piegl, L., Tiller, W. (1995), The NURBS Book,        */
+<span class="lineNum">    1241 </span>            : /*      2nd ed. (Springer), sections 2.2 and 9.2.                       */
+<span class="lineNum">    1242 </span>            : /*      Although this book contains implementations of algorithms,      */
+<span class="lineNum">    1243 </span>            : /*      this function is an original implementation based on the        */
+<span class="lineNum">    1244 </span>            : /*      concepts discussed in the book and was written without          */
+<a name="1245"><span class="lineNum">    1245 </span>            : /*      reference to Piegl and Tiller's implementations.                */</a>
+<span class="lineNum">    1246 </span>            : /************************************************************************/
+<span class="lineNum">    1247 </span><span class="lineCov">          6 : static std::vector&lt;DXFTriple&gt; GetBSplineControlPoints(</span>
+<span class="lineNum">    1248 </span>            :     const std::vector&lt;double&gt;&amp; adfParameters,
+<span class="lineNum">    1249 </span>            :     const std::vector&lt;double&gt;&amp; adfKnots,
+<span class="lineNum">    1250 </span>            :     const std::vector&lt;DXFTriple&gt;&amp; aoDataPoints, const int nDegree,
+<span class="lineNum">    1251 </span>            :     DXFTriple oStartTangent, DXFTriple oEndTangent )
+<span class="lineNum">    1252 </span>            : {
+<span class="lineNum">    1253 </span><span class="lineCov">          6 :     CPLAssert( nDegree &gt; 1 );</span>
+<span class="lineNum">    1254 </span>            : 
+<span class="lineNum">    1255 </span>            :     // Count the number of data points
+<span class="lineNum">    1256 </span>            :     // Note: The literature often sets n to one less than the number of data
+<span class="lineNum">    1257 </span>            :     // points for some reason, but we don't do that here
+<span class="lineNum">    1258 </span><span class="lineCov">          6 :     const int nPoints = static_cast&lt;int&gt;( aoDataPoints.size() );</span>
+<span class="lineNum">    1259 </span>            : 
+<span class="lineNum">    1260 </span><span class="lineCov">          6 :     CPLAssert( nPoints &gt; 0 );</span>
+<span class="lineNum">    1261 </span><span class="lineCov">          6 :     CPLAssert( nPoints == static_cast&lt;int&gt;( adfParameters.size() ) );</span>
+<span class="lineNum">    1262 </span>            : 
+<span class="lineNum">    1263 </span>            :     // RAM consumption is quadratic in the number of control points.
+<span class="lineNum">    1264 </span><span class="lineCov">          6 :     if( nPoints &gt; atoi(CPLGetConfigOption(</span>
+<span class="lineNum">    1265 </span><span class="lineCov">          6 :                         &quot;DXF_MAX_BSPLINE_CONTROL_POINTS&quot;, &quot;2000&quot;)) )</span>
+<span class="lineNum">    1266 </span>            :     {
+<span class="lineNum">    1267 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1268 </span>            :                  &quot;Too many control points (%d) for spline leader. &quot;
+<span class="lineNum">    1269 </span>            :                  &quot;Set DXF_MAX_BSPLINE_CONTROL_POINTS configuration &quot;
+<span class="lineNum">    1270 </span>            :                  &quot;option to a higher value to remove this limitation &quot;
+<span class="lineNum">    1271 </span><span class="lineCov">          3 :                  &quot;(at the cost of significant RAM consumption)&quot;, nPoints);</span>
+<span class="lineNum">    1272 </span><span class="lineCov">          3 :         return std::vector&lt;DXFTriple&gt;();</span>
+<span class="lineNum">    1273 </span>            :     }
+<span class="lineNum">    1274 </span>            : 
+<span class="lineNum">    1275 </span>            :     // We want to solve the linear system NP=D for P, where N is a coefficient
+<span class="lineNum">    1276 </span>            :     // matrix made up of values of the basis functions at each parameter
+<span class="lineNum">    1277 </span>            :     // value, with two additional rows for the endpoint tangent information.
+<span class="lineNum">    1278 </span>            :     // Each row relates to a different parameter.
+<span class="lineNum">    1279 </span><span class="lineCov">          3 :     std::vector&lt;double&gt; adfN( (nPoints + 2) * (nPoints + 2), 0.0 );</span>
+<span class="lineNum">    1280 </span>            : 
+<span class="lineNum">    1281 </span>            : #define ACCESS_adfN(row,col) adfN[(row) * (nPoints + 2) + (col)]
+<span class="lineNum">    1282 </span>            : 
+<span class="lineNum">    1283 </span>            :     // Set up D as a matrix consisting initially of the data points
+<span class="lineNum">    1284 </span><span class="lineCov">          6 :     std::vector&lt;double&gt; adfD( (nPoints + 2) * 3, 0.0 );</span>
+<span class="lineNum">    1285 </span>            : 
+<span class="lineNum">    1286 </span><span class="lineCov">          3 :     aoDataPoints[0].ToArray( &amp;adfD[0] );</span>
+<span class="lineNum">    1287 </span><span class="lineCov">          5 :     for( int iIndex = 1; iIndex &lt; nPoints - 1; iIndex++ )</span>
+<span class="lineNum">    1288 </span><span class="lineCov">          2 :         aoDataPoints[iIndex].ToArray( &amp;adfD[(iIndex + 1) * 3] );</span>
+<span class="lineNum">    1289 </span><span class="lineCov">          3 :     aoDataPoints[nPoints - 1].ToArray( &amp;adfD[(nPoints + 1) * 3] );</span>
+<span class="lineNum">    1290 </span>            : 
+<span class="lineNum">    1291 </span><span class="lineCov">          3 :     const double dfStartMultiplier = adfKnots[nDegree + 1] / nDegree;</span>
+<span class="lineNum">    1292 </span><span class="lineCov">          3 :     oStartTangent *= dfStartMultiplier;</span>
+<span class="lineNum">    1293 </span><span class="lineCov">          3 :     oStartTangent.ToArray( &amp;adfD[3] );</span>
+<span class="lineNum">    1294 </span>            : 
+<span class="lineNum">    1295 </span><span class="lineCov">          3 :     const double dfEndMultiplier = ( 1.0 - adfKnots[nPoints + 1] ) / nDegree;</span>
+<span class="lineNum">    1296 </span><span class="lineCov">          3 :     oEndTangent *= dfEndMultiplier;</span>
+<span class="lineNum">    1297 </span><span class="lineCov">          3 :     oEndTangent.ToArray( &amp;adfD[nPoints * 3] );</span>
+<span class="lineNum">    1298 </span>            : 
+<span class="lineNum">    1299 </span>            :     // First control point will be the first data point
+<span class="lineNum">    1300 </span><span class="lineCov">          3 :     ACCESS_adfN(0,0) = 1.0;</span>
+<span class="lineNum">    1301 </span>            : 
+<span class="lineNum">    1302 </span>            :     // Start tangent determines the second control point
+<span class="lineNum">    1303 </span><span class="lineCov">          3 :     ACCESS_adfN(1,0) = -1.0;</span>
+<span class="lineNum">    1304 </span><span class="lineCov">          3 :     ACCESS_adfN(1,1) = 1.0;</span>
+<span class="lineNum">    1305 </span>            : 
+<span class="lineNum">    1306 </span>            :     // Fill the middle rows of the matrix with basis function values. We
+<span class="lineNum">    1307 </span>            :     // have to use a temporary vector, because intronurbs' basis function
+<span class="lineNum">    1308 </span>            :     // requires an additional nDegree entries for temporary storage.
+<span class="lineNum">    1309 </span><span class="lineCov">          6 :     std::vector&lt;double&gt; adfTempRow( nPoints + 2 + nDegree, 0.0 );</span>
+<span class="lineNum">    1310 </span><span class="lineCov">          5 :     for( int iRow = 2; iRow &lt; nPoints; iRow++ )</span>
+<span class="lineNum">    1311 </span>            :     {
+<span class="lineNum">    1312 </span><span class="lineCov">          2 :         basis( nDegree + 1, adfParameters[iRow - 1], nPoints + 2,</span>
+<span class="lineNum">    1313 </span><span class="lineCov">          4 :             const_cast&lt;double *&gt;( &amp;adfKnots[0] ) - 1, &amp;adfTempRow[0] - 1 );</span>
+<span class="lineNum">    1314 </span>            :         std::copy_n( adfTempRow.begin(), nPoints + 2,
+<span class="lineNum">    1315 </span><span class="lineCov">          2 :             adfN.begin() + iRow * (nPoints + 2) );</span>
+<span class="lineNum">    1316 </span>            :     }
+<span class="lineNum">    1317 </span>            : 
+<span class="lineNum">    1318 </span>            :     // End tangent determines the second-last control point
+<span class="lineNum">    1319 </span><span class="lineCov">          3 :     ACCESS_adfN(nPoints,nPoints) = -1.0;</span>
+<span class="lineNum">    1320 </span><span class="lineCov">          3 :     ACCESS_adfN(nPoints,nPoints + 1) = 1.0;</span>
+<span class="lineNum">    1321 </span>            : 
+<span class="lineNum">    1322 </span>            :     // Last control point will be the last data point
+<span class="lineNum">    1323 </span><span class="lineCov">          3 :     ACCESS_adfN(nPoints + 1,nPoints + 1) = 1.0;</span>
+<span class="lineNum">    1324 </span>            : 
+<span class="lineNum">    1325 </span>            :     // Solve the linear system
+<span class="lineNum">    1326 </span><span class="lineCov">          6 :     std::vector&lt;double&gt; adfP( (nPoints + 2) * 3 );</span>
+<span class="lineNum">    1327 </span><span class="lineCov">          3 :     GDALLinearSystemSolve( nPoints + 2, 3, &amp;adfN[0], &amp;adfD[0], &amp;adfP[0] );</span>
+<span class="lineNum">    1328 </span>            : 
+<span class="lineNum">    1329 </span><span class="lineCov">          6 :     std::vector&lt;DXFTriple&gt; aoControlPoints( nPoints + 2 );</span>
+<span class="lineNum">    1330 </span><span class="lineCov">         17 :     for( int iRow = 0; iRow &lt; nPoints + 2; iRow++ )</span>
+<span class="lineNum">    1331 </span>            :     {
+<span class="lineNum">    1332 </span><span class="lineCov">         14 :         aoControlPoints[iRow].dfX = adfP[iRow * 3];</span>
+<span class="lineNum">    1333 </span><span class="lineCov">         14 :         aoControlPoints[iRow].dfY = adfP[iRow * 3 + 1];</span>
+<span class="lineNum">    1334 </span><span class="lineCov">         14 :         aoControlPoints[iRow].dfZ = adfP[iRow * 3 + 2];</span>
+<span class="lineNum">    1335 </span>            :     }
+<span class="lineNum">    1336 </span>            : 
+<span class="lineNum">    1337 </span><span class="lineCov">          6 :     return aoControlPoints;</span>
+<span class="lineNum">    1338 </span>            : }
+<span class="lineNum">    1339 </span>            : 
+<span class="lineNum">    1340 </span>            : /************************************************************************/
+<span class="lineNum">    1341 </span>            : /*                         InterpolateSpline()                          */
+<span class="lineNum">    1342 </span>            : /*                                                                      */
+<span class="lineNum">    1343 </span>            : /*      Interpolates a cubic spline between the data points of the      */
+<span class="lineNum">    1344 </span>            : /*      given line string. The line string is updated with the new      */
+<span class="lineNum">    1345 </span>            : /*      spline geometry.                                                */
+<span class="lineNum">    1346 </span>            : /*                                                                      */
+<span class="lineNum">    1347 </span>            : /*      If an end tangent of (0,0,0) is given, the direction vector     */
+<a name="1348"><span class="lineNum">    1348 </span>            : /*      of the last chord (line segment) is used.                       */</a>
+<span class="lineNum">    1349 </span>            : /************************************************************************/
+<span class="lineNum">    1350 </span><span class="lineCov">          6 : static void InterpolateSpline( OGRLineString* const poLine,</span>
+<span class="lineNum">    1351 </span>            :     const DXFTriple&amp; oEndTangentDirection )
+<span class="lineNum">    1352 </span>            : {
+<span class="lineNum">    1353 </span><span class="lineCov">          6 :     int nDataPoints = static_cast&lt;int&gt;( poLine-&gt;getNumPoints() );</span>
+<span class="lineNum">    1354 </span><span class="lineCov">          6 :     if ( nDataPoints &lt; 2 )</span>
+<span class="lineNum">    1355 </span><span class="lineCov">          3 :         return;</span>
+<span class="lineNum">    1356 </span>            : 
+<span class="lineNum">    1357 </span>            :     // Transfer line vertices into DXFTriple objects
+<span class="lineNum">    1358 </span><span class="lineCov">          6 :     std::vector&lt;DXFTriple&gt; aoDataPoints;</span>
+<span class="lineNum">    1359 </span><span class="lineCov">          9 :     OGRPoint oPrevPoint;</span>
+<span class="lineNum">    1360 </span><span class="lineCov">         22 :     for( int iIndex = 0; iIndex &lt; nDataPoints; iIndex++ )</span>
+<span class="lineNum">    1361 </span>            :     {
+<span class="lineNum">    1362 </span><span class="lineCov">         16 :         OGRPoint oPoint;</span>
+<span class="lineNum">    1363 </span><span class="lineCov">         16 :         poLine-&gt;getPoint( iIndex, &amp;oPoint );</span>
+<span class="lineNum">    1364 </span>            : 
+<span class="lineNum">    1365 </span>            :         // Remove sequential duplicate points
+<span class="lineNum">    1366 </span><span class="lineCov">         16 :         if( iIndex &gt; 0 &amp;&amp; oPrevPoint.Equals( &amp;oPoint ) )</span>
+<span class="lineNum">    1367 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">    1368 </span>            : 
+<span class="lineNum">    1369 </span>            :         aoDataPoints.push_back( DXFTriple( oPoint.getX(), oPoint.getY(),
+<span class="lineNum">    1370 </span><span class="lineCov">         16 :             oPoint.getZ() ) );</span>
+<span class="lineNum">    1371 </span><span class="lineCov">         16 :         oPrevPoint = oPoint;</span>
+<span class="lineNum">    1372 </span><span class="lineCov">         16 :     }</span>
+<span class="lineNum">    1373 </span><span class="lineCov">          6 :     nDataPoints = static_cast&lt;int&gt;( aoDataPoints.size() );</span>
+<span class="lineNum">    1374 </span><span class="lineCov">          6 :     if( nDataPoints &lt; 2 )</span>
+<span class="lineNum">    1375 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1376 </span>            : 
+<span class="lineNum">    1377 </span>            :     // Work out the chord length parameterisation
+<span class="lineNum">    1378 </span><span class="lineCov">          9 :     std::vector&lt;double&gt; adfParameters;</span>
+<span class="lineNum">    1379 </span><span class="lineCov">          6 :     adfParameters.push_back( 0.0 );</span>
+<span class="lineNum">    1380 </span><span class="lineCov">         16 :     for( int iIndex = 1; iIndex &lt; nDataPoints; iIndex++ )</span>
+<span class="lineNum">    1381 </span>            :     {
+<span class="lineNum">    1382 </span><span class="lineCov">         20 :         const double dfParameter = adfParameters[iIndex - 1] +</span>
+<span class="lineNum">    1383 </span><span class="lineCov">         10 :             PointDist( aoDataPoints[iIndex - 1].dfX,</span>
+<span class="lineNum">    1384 </span><span class="lineCov">         10 :                 aoDataPoints[iIndex - 1].dfY,</span>
+<span class="lineNum">    1385 </span><span class="lineCov">         10 :                 aoDataPoints[iIndex - 1].dfZ,</span>
+<span class="lineNum">    1386 </span><span class="lineCov">         10 :                 aoDataPoints[iIndex].dfX,</span>
+<span class="lineNum">    1387 </span><span class="lineCov">         10 :                 aoDataPoints[iIndex].dfY,</span>
+<span class="lineNum">    1388 </span><span class="lineCov">         70 :                 aoDataPoints[iIndex].dfZ );</span>
+<span class="lineNum">    1389 </span>            : 
+<span class="lineNum">    1390 </span>            :         // Bail out in pathological cases. This will happen when
+<span class="lineNum">    1391 </span>            :         // some lengths are very large (above 10^16) and others are
+<span class="lineNum">    1392 </span>            :         // very small (such as 1)
+<span class="lineNum">    1393 </span><span class="lineCov">         10 :         if( dfParameter == adfParameters[iIndex - 1] )</span>
+<span class="lineNum">    1394 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">    1395 </span>            : 
+<span class="lineNum">    1396 </span><span class="lineCov">         10 :         adfParameters.push_back( dfParameter );</span>
+<span class="lineNum">    1397 </span>            :     }
+<span class="lineNum">    1398 </span>            : 
+<span class="lineNum">    1399 </span><span class="lineCov">          6 :     const double dfTotalChordLength = adfParameters[adfParameters.size() - 1];</span>
+<span class="lineNum">    1400 </span>            : 
+<span class="lineNum">    1401 </span>            :     // Start tangent can be worked out from the first chord
+<span class="lineNum">    1402 </span><span class="lineCov">         12 :     DXFTriple oStartTangent( aoDataPoints[1].dfX - aoDataPoints[0].dfX,</span>
+<span class="lineNum">    1403 </span><span class="lineCov">         12 :         aoDataPoints[1].dfY - aoDataPoints[0].dfY,</span>
+<span class="lineNum">    1404 </span><span class="lineCov">         30 :         aoDataPoints[1].dfZ - aoDataPoints[0].dfZ );</span>
+<span class="lineNum">    1405 </span><span class="lineCov">          6 :     oStartTangent *= dfTotalChordLength / adfParameters[1];</span>
+<span class="lineNum">    1406 </span>            : 
+<span class="lineNum">    1407 </span>            :     // If end tangent is zero, it is worked out from the last chord
+<span class="lineNum">    1408 </span><span class="lineCov">          6 :     DXFTriple oEndTangent = oEndTangentDirection;</span>
+<span class="lineNum">    1409 </span><span class="lineCov">          8 :     if( oEndTangent.dfX == 0.0 &amp;&amp; oEndTangent.dfY == 0.0 &amp;&amp;</span>
+<span class="lineNum">    1410 </span><span class="lineCov">          2 :         oEndTangent.dfZ == 0.0 )</span>
+<span class="lineNum">    1411 </span>            :     {
+<span class="lineNum">    1412 </span>            :         oEndTangent = DXFTriple(
+<span class="lineNum">    1413 </span><span class="lineCov">          2 :             aoDataPoints[nDataPoints - 1].dfX -</span>
+<span class="lineNum">    1414 </span><span class="lineCov">          2 :                 aoDataPoints[nDataPoints - 2].dfX,</span>
+<span class="lineNum">    1415 </span><span class="lineCov">          2 :             aoDataPoints[nDataPoints - 1].dfY -</span>
+<span class="lineNum">    1416 </span><span class="lineCov">          2 :                 aoDataPoints[nDataPoints - 2].dfY,</span>
+<span class="lineNum">    1417 </span><span class="lineCov">          2 :             aoDataPoints[nDataPoints - 1].dfZ -</span>
+<span class="lineNum">    1418 </span><span class="lineCov">         10 :                 aoDataPoints[nDataPoints - 2].dfZ );</span>
+<span class="lineNum">    1419 </span><span class="lineCov">          2 :         oEndTangent /= dfTotalChordLength - adfParameters[nDataPoints - 2];</span>
+<span class="lineNum">    1420 </span>            :     }
+<span class="lineNum">    1421 </span>            : 
+<span class="lineNum">    1422 </span>            :     // End tangent direction is multiplied by total chord length
+<span class="lineNum">    1423 </span><span class="lineCov">          6 :     oEndTangent *= dfTotalChordLength;</span>
+<span class="lineNum">    1424 </span>            : 
+<span class="lineNum">    1425 </span>            :     // Normalise the parameter vector
+<span class="lineNum">    1426 </span><span class="lineCov">         16 :     for( int iIndex = 1; iIndex &lt; nDataPoints; iIndex++ )</span>
+<span class="lineNum">    1427 </span><span class="lineCov">         10 :         adfParameters[iIndex] /= dfTotalChordLength;</span>
+<span class="lineNum">    1428 </span>            : 
+<span class="lineNum">    1429 </span>            :     // Generate a knot vector
+<span class="lineNum">    1430 </span><span class="lineCov">          6 :     const int nDegree = 3;</span>
+<span class="lineNum">    1431 </span><span class="lineCov">          9 :     std::vector&lt;double&gt; adfKnots( aoDataPoints.size() + nDegree + 3, 0.0 );</span>
+<span class="lineNum">    1432 </span>            :     std::copy( adfParameters.begin(), adfParameters.end(),
+<span class="lineNum">    1433 </span><span class="lineCov">          6 :         adfKnots.begin() + nDegree );</span>
+<span class="lineNum">    1434 </span><span class="lineCov">          6 :     std::fill( adfKnots.end() - nDegree, adfKnots.end(), 1.0 );</span>
+<span class="lineNum">    1435 </span>            : 
+<span class="lineNum">    1436 </span>            :     // Calculate the spline control points
+<span class="lineNum">    1437 </span>            :     std::vector&lt;DXFTriple&gt; aoControlPoints = GetBSplineControlPoints(
+<span class="lineNum">    1438 </span>            :         adfParameters, adfKnots, aoDataPoints, nDegree,
+<span class="lineNum">    1439 </span><span class="lineCov">          9 :         oStartTangent, oEndTangent );</span>
+<span class="lineNum">    1440 </span><span class="lineCov">          6 :     const int nControlPoints = static_cast&lt;int&gt;( aoControlPoints.size() );</span>
+<span class="lineNum">    1441 </span>            : 
+<span class="lineNum">    1442 </span><span class="lineCov">          6 :     if( nControlPoints == 0 )</span>
+<span class="lineNum">    1443 </span><span class="lineCov">          3 :         return;</span>
+<span class="lineNum">    1444 </span>            : 
+<span class="lineNum">    1445 </span>            :     // Interpolate the spline using the intronurbs code
+<span class="lineNum">    1446 </span><span class="lineCov">          3 :     int nWantedPoints = nControlPoints * 8;</span>
+<span class="lineNum">    1447 </span><span class="lineCov">          6 :     std::vector&lt;double&gt; adfWeights( nControlPoints, 1.0 );</span>
+<span class="lineNum">    1448 </span><span class="lineCov">          6 :     std::vector&lt;double&gt; adfPoints( 3 * nWantedPoints, 0.0 );</span>
+<span class="lineNum">    1449 </span>            : 
+<span class="lineNum">    1450 </span>            :     rbspline2( nControlPoints, nDegree + 1, nWantedPoints,
+<span class="lineNum">    1451 </span><span class="lineCov">          3 :         reinterpret_cast&lt;double*&gt;( &amp;aoControlPoints[0] ) - 1,</span>
+<span class="lineNum">    1452 </span><span class="lineCov">          6 :         &amp;adfWeights[0] - 1, false, &amp;adfKnots[0] - 1, &amp;adfPoints[0] - 1 );</span>
+<span class="lineNum">    1453 </span>            : 
+<span class="lineNum">    1454 </span>            :     // Preserve 2D/3D status as we add the interpolated points to the line
+<span class="lineNum">    1455 </span><span class="lineCov">          3 :     const int bIs3D = poLine-&gt;Is3D();</span>
+<span class="lineNum">    1456 </span><span class="lineCov">          3 :     poLine-&gt;empty();</span>
+<span class="lineNum">    1457 </span><span class="lineCov">        115 :     for( int iIndex = 0; iIndex &lt; nWantedPoints; iIndex++ )</span>
+<span class="lineNum">    1458 </span>            :     {
+<span class="lineNum">    1459 </span><span class="lineCov">        224 :         poLine-&gt;addPoint( adfPoints[iIndex * 3], adfPoints[iIndex * 3 + 1],</span>
+<span class="lineNum">    1460 </span><span class="lineCov">        336 :             adfPoints[iIndex * 3 + 2] );</span>
+<span class="lineNum">    1461 </span>            :     }
+<span class="lineNum">    1462 </span><span class="lineCov">          3 :     if( !bIs3D )</span>
+<span class="lineNum">    1463 </span><span class="lineCov">          5 :         poLine-&gt;flattenTo2D();</span>
+<span class="lineNum">    1464 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,745 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/prf/phprfdataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/prf</a> - phprfdataset.cpp<span style="font-size: 80%;"> (source / <a href="phprfdataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">269</td>
+            <td class="headerCovTableEntry">293</td>
+            <td class="headerCovTableEntryHi">91.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">19</td>
+            <td class="headerCovTableEntry">19</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  * Purpose:  Racurs PHOTOMOD tiled format reader (http://www.racurs.ru)
+<span class="lineNum">       3 </span>            :  * Author:   Andrew Sudorgin (drons [a] list dot ru)
+<span class="lineNum">       4 </span>            :  ******************************************************************************
+<span class="lineNum">       5 </span>            :  * Copyright (c) 2016, Andrew Sudorgin
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">       8 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">       9 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      10 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      11 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      12 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      13 </span>            :  *
+<span class="lineNum">      14 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      15 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      18 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      19 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      20 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      21 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      22 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      23 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      24 </span>            :  ****************************************************************************/
+<span class="lineNum">      25 </span>            : 
+<span class="lineNum">      26 </span>            : #include &lt;cpl_minixml.h&gt;
+<span class="lineNum">      27 </span>            : #include &lt;gdal.h&gt;
+<span class="lineNum">      28 </span>            : #include &lt;gdal_priv.h&gt;
+<span class="lineNum">      29 </span>            : #include &lt;gdal_proxy.h&gt;
+<span class="lineNum">      30 </span>            : #include &quot;../vrt/vrtdataset.h&quot;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : enum ph_format
+<span class="lineNum">      33 </span>            : {
+<span class="lineNum">      34 </span>            :     ph_megatiff,
+<span class="lineNum">      35 </span>            :     ph_xdem
+<span class="lineNum">      36 </span>            : };
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #define PH_PRF_DRIVER       &quot;PRF&quot;
+<span class="lineNum">      39 </span>            : #define PH_PRF_EXT          &quot;prf&quot;
+<span class="lineNum">      40 </span>            : #define PH_DEM_EXT          &quot;x-dem&quot;
+<a name="41"><span class="lineNum">      41 </span>            : #define PH_GEOREF_SHIFT_Y   (1.0)</a>
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span><span class="lineCov">         12 : class PhPrfBand : public VRTSourcedRasterBand</span>
+<span class="lineNum">      44 </span>            : {
+<a name="45"><span class="lineNum">      45 </span>            :     std::vector&lt;GDALRasterBand*&gt; osOverview;</a>
+<span class="lineNum">      46 </span>            : public:
+<span class="lineNum">      47 </span><span class="lineCov">          6 :     PhPrfBand( GDALDataset* poDataset, int nBandCount, GDALDataType eType,</span>
+<span class="lineNum">      48 </span>            :                int nXSize, int nYSize ) :
+<span class="lineNum">      49 </span><span class="lineCov">          6 :         VRTSourcedRasterBand( poDataset, nBandCount, eType, nXSize, nYSize )</span>
+<a name="50"><span class="lineNum">      50 </span><span class="lineCov">          6 :     {}</span></a>
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span><span class="lineCov">          3 :     void AddOverview( GDALRasterBand* ov )</span>
+<span class="lineNum">      53 </span>            :     {
+<span class="lineNum">      54 </span><span class="lineCov">          3 :         osOverview.push_back( ov );</span>
+<a name="55"><span class="lineNum">      55 </span><span class="lineCov">          3 :     }</span></a>
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span><span class="lineCov">          2 :     int GetOverviewCount() override</span>
+<span class="lineNum">      58 </span>            :     {
+<span class="lineNum">      59 </span><span class="lineCov">          2 :         if( !osOverview.empty() )</span>
+<span class="lineNum">      60 </span>            :         {
+<span class="lineNum">      61 </span><span class="lineCov">          1 :             return static_cast&lt;int&gt;( osOverview.size() );</span>
+<span class="lineNum">      62 </span>            :         }
+<span class="lineNum">      63 </span>            :         else
+<span class="lineNum">      64 </span>            :         {
+<span class="lineNum">      65 </span><span class="lineCov">          1 :             return VRTSourcedRasterBand::GetOverviewCount();</span>
+<span class="lineNum">      66 </span>            :         }
+<a name="67"><span class="lineNum">      67 </span>            :     }</a>
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span><span class="lineCov">          1 :     GDALRasterBand* GetOverview( int i ) override</span>
+<span class="lineNum">      70 </span>            :     {
+<span class="lineNum">      71 </span><span class="lineCov">          1 :         size_t n = static_cast&lt;size_t&gt;( i );</span>
+<span class="lineNum">      72 </span><span class="lineCov">          1 :         if( n &lt; osOverview.size() )</span>
+<span class="lineNum">      73 </span>            :         {
+<span class="lineNum">      74 </span><span class="lineCov">          1 :             return osOverview[ n ];</span>
+<span class="lineNum">      75 </span>            :         }
+<span class="lineNum">      76 </span>            :         else
+<span class="lineNum">      77 </span>            :         {
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :             return VRTSourcedRasterBand::GetOverview( i );</span>
+<span class="lineNum">      79 </span>            :         }
+<span class="lineNum">      80 </span>            :     }
+<span class="lineNum">      81 </span>            : };
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            : class PhPrfDataset : public VRTDataset
+<span class="lineNum">      84 </span>            : {
+<span class="lineNum">      85 </span>            :     std::vector&lt;GDALDataset*&gt;    osSubTiles;
+<span class="lineNum">      86 </span>            : public:
+<span class="lineNum">      87 </span>            :     PhPrfDataset( GDALAccess eAccess, int nSizeX, int nSizeY, int nBandCount,
+<span class="lineNum">      88 </span>            :                   GDALDataType eType, const char* pszName );
+<span class="lineNum">      89 </span>            :     ~PhPrfDataset();
+<span class="lineNum">      90 </span>            :     bool AddTile( const char* pszPartName, GDALAccess eAccess, int nWidth,
+<span class="lineNum">      91 </span>            :                   int nHeight, int nOffsetX, int nOffsetY, int nScale );
+<span class="lineNum">      92 </span>            :     int CloseDependentDatasets() override;
+<span class="lineNum">      93 </span>            :     static int Identify( GDALOpenInfo* poOpenInfo );
+<span class="lineNum">      94 </span>            :     static GDALDataset* Open( GDALOpenInfo* poOpenInfo );
+<a name="95"><span class="lineNum">      95 </span>            : };</a>
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span><span class="lineCov">          6 : PhPrfDataset::PhPrfDataset( GDALAccess _eAccess, int nSizeX, int nSizeY,</span>
+<span class="lineNum">      98 </span>            :                             int nBandCount, GDALDataType eType,
+<span class="lineNum">      99 </span>            :                             const char* pszName ) :
+<span class="lineNum">     100 </span><span class="lineCov">          6 :     VRTDataset( nSizeX, nSizeY )</span>
+<span class="lineNum">     101 </span>            : {
+<span class="lineNum">     102 </span><span class="lineCov">          6 :     poDriver = (GDALDriver*)GDALGetDriverByName( PH_PRF_DRIVER );</span>
+<span class="lineNum">     103 </span><span class="lineCov">          6 :     eAccess = _eAccess;</span>
+<span class="lineNum">     104 </span><span class="lineCov">          6 :     SetWritable( FALSE );   //Avoid rewrite of *.prf file with 'vrt' file</span>
+<span class="lineNum">     105 </span><span class="lineCov">          6 :     SetDescription( pszName );</span>
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span><span class="lineCov">         12 :     for( int i = 0; i != nBandCount; ++i )</span>
+<span class="lineNum">     108 </span>            :     {
+<span class="lineNum">     109 </span><span class="lineCov">          6 :         PhPrfBand* poBand = new PhPrfBand( this, i + 1, eType, nSizeX, nSizeY );</span>
+<span class="lineNum">     110 </span><span class="lineCov">          6 :         SetBand( i + 1, poBand );</span>
+<span class="lineNum">     111 </span>            :     }
+<a name="112"><span class="lineNum">     112 </span><span class="lineCov">          6 : }</span></a>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineCov">         18 : PhPrfDataset::~PhPrfDataset()</span>
+<span class="lineNum">     115 </span>            : {
+<span class="lineNum">     116 </span><span class="lineCov">          6 :     CloseDependentDatasets();</span>
+<a name="117"><span class="lineNum">     117 </span><span class="lineCov">         12 : }</span></a>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineCov">         33 : bool PhPrfDataset::AddTile( const char* pszPartName, GDALAccess eAccessType,</span>
+<span class="lineNum">     120 </span>            :                             int nWidth, int nHeight
+<span class="lineNum">     121 </span>            :                             , int nOffsetX, int nOffsetY, int nScale )
+<span class="lineNum">     122 </span>            : {
+<span class="lineNum">     123 </span>            :     GDALProxyPoolDataset*   poTileDataset;
+<span class="lineNum">     124 </span>            :     poTileDataset = new GDALProxyPoolDataset( pszPartName, nWidth, nHeight,
+<span class="lineNum">     125 </span><span class="lineCov">         33 :                                               eAccessType, FALSE );</span>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineCov">         66 :     for( int nBand = 1; nBand != GetRasterCount() + 1; ++nBand )</span>
+<span class="lineNum">     128 </span>            :     {
+<span class="lineNum">     129 </span><span class="lineCov">         33 :         PhPrfBand* poBand = dynamic_cast&lt;PhPrfBand*&gt;( GetRasterBand( nBand ) );</span>
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span><span class="lineCov">         33 :         if( poBand == nullptr )</span>
+<span class="lineNum">     132 </span>            :         {
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :             delete poTileDataset;</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     135 </span>            :         }
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span>            :         //! \todo What reason for nBlockXSize&amp;nBlockYSize passed to AddSrcBandDescription
+<span class="lineNum">     138 </span><span class="lineCov">         33 :         poTileDataset-&gt;AddSrcBandDescription(poBand-&gt;GetRasterDataType(), 0, 0);</span>
+<span class="lineNum">     139 </span><span class="lineCov">         33 :         GDALRasterBand* poTileBand = poTileDataset-&gt;GetRasterBand( nBand );</span>
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span><span class="lineCov">         33 :         if( 0 == nScale )</span>
+<span class="lineNum">     142 </span>            :         {
+<span class="lineNum">     143 </span>            :             poBand-&gt;AddSimpleSource( poTileBand, 0, 0, nWidth, nHeight,
+<span class="lineNum">     144 </span><span class="lineCov">         30 :                                      nOffsetX, nOffsetY, nWidth, nHeight );</span>
+<span class="lineNum">     145 </span>            :         }
+<span class="lineNum">     146 </span>            :         else
+<span class="lineNum">     147 </span>            :         {
+<span class="lineNum">     148 </span><span class="lineCov">          3 :             poBand-&gt;AddOverview( poTileBand );</span>
+<span class="lineNum">     149 </span>            :         }
+<span class="lineNum">     150 </span>            :     }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">         33 :     osSubTiles.push_back( poTileDataset );</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineCov">         33 :     return true;</span>
+<a name="155"><span class="lineNum">     155 </span>            : }</a>
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span><span class="lineCov">          6 : int PhPrfDataset::CloseDependentDatasets()</span>
+<span class="lineNum">     158 </span>            : {
+<span class="lineNum">     159 </span><span class="lineCov">          6 :     int bDroppedRef = VRTDataset::CloseDependentDatasets();</span>
+<span class="lineNum">     160 </span><span class="lineCov">        117 :     for( std::vector&lt;GDALDataset*&gt;::iterator ii( osSubTiles.begin() );</span>
+<span class="lineNum">     161 </span><span class="lineCov">         78 :          ii != osSubTiles.end();</span>
+<span class="lineNum">     162 </span>            :          ++ii )
+<span class="lineNum">     163 </span>            :     {
+<span class="lineNum">     164 </span><span class="lineCov">         33 :         delete (*ii);</span>
+<span class="lineNum">     165 </span><span class="lineCov">         33 :         bDroppedRef = TRUE;</span>
+<span class="lineNum">     166 </span>            :     }
+<span class="lineNum">     167 </span><span class="lineCov">          6 :     osSubTiles.clear();</span>
+<span class="lineNum">     168 </span><span class="lineCov">          6 :     return bDroppedRef;</span>
+<a name="169"><span class="lineNum">     169 </span>            : }</a>
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span><span class="lineCov">      32289 : int PhPrfDataset::Identify( GDALOpenInfo* poOpenInfo )</span>
+<span class="lineNum">     172 </span>            : {
+<span class="lineNum">     173 </span><span class="lineCov">      34215 :     if( poOpenInfo-&gt;pabyHeader == nullptr ||</span>
+<span class="lineNum">     174 </span><span class="lineCov">       1926 :         poOpenInfo-&gt;nHeaderBytes &lt; 20 )</span>
+<span class="lineNum">     175 </span>            :     {
+<span class="lineNum">     176 </span><span class="lineCov">      30495 :         return FALSE;</span>
+<span class="lineNum">     177 </span>            :     }
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span><span class="lineCov">       1794 :     if( strstr( reinterpret_cast&lt;char *&gt;( poOpenInfo-&gt;pabyHeader ),</span>
+<span class="lineNum">     180 </span><span class="lineCov">       1794 :                 &quot;phini&quot; ) == nullptr )</span>
+<span class="lineNum">     181 </span>            :     {
+<span class="lineNum">     182 </span><span class="lineCov">       1788 :         return FALSE;</span>
+<span class="lineNum">     183 </span>            :     }
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span><span class="lineCov">          6 :     if( EQUAL( CPLGetExtension( poOpenInfo-&gt;pszFilename ), PH_PRF_EXT ) )</span>
+<span class="lineNum">     186 </span>            :     {
+<span class="lineNum">     187 </span><span class="lineCov">          3 :         return TRUE;</span>
+<span class="lineNum">     188 </span>            :     }
+<span class="lineNum">     189 </span>            :     else
+<span class="lineNum">     190 </span><span class="lineCov">          3 :     if( EQUAL( CPLGetExtension( poOpenInfo-&gt;pszFilename ), PH_DEM_EXT ) )</span>
+<span class="lineNum">     191 </span>            :     {
+<span class="lineNum">     192 </span><span class="lineCov">          3 :         return TRUE;</span>
+<span class="lineNum">     193 </span>            :     }
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :     return FALSE;</span>
+<a name="196"><span class="lineNum">     196 </span>            : }</a>
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span><span class="lineCov">        639 : static void GetXmlNameValuePair( const CPLXMLNode* psElt, CPLString&amp; osName,</span>
+<span class="lineNum">     199 </span>            :                                  CPLString&amp; osValue )
+<span class="lineNum">     200 </span>            : {
+<span class="lineNum">     201 </span><span class="lineCov">       1776 :     for( const CPLXMLNode* psAttr = psElt-&gt;psChild;</span>
+<span class="lineNum">     202 </span>            :          psAttr != nullptr;
+<span class="lineNum">     203 </span>            :          psAttr = psAttr-&gt;psNext )
+<span class="lineNum">     204 </span>            :     {
+<span class="lineNum">     205 </span><span class="lineCov">       1833 :         if( psAttr-&gt;eType != CXT_Attribute ||</span>
+<span class="lineNum">     206 </span><span class="lineCov">       1392 :             psAttr-&gt;pszValue == nullptr ||</span>
+<span class="lineNum">     207 </span><span class="lineCov">       1392 :             psAttr-&gt;psChild == nullptr ||</span>
+<span class="lineNum">     208 </span><span class="lineCov">        696 :             psAttr-&gt;psChild-&gt;pszValue == nullptr )</span>
+<span class="lineNum">     209 </span>            :         {
+<span class="lineNum">     210 </span><span class="lineCov">        441 :             continue;</span>
+<span class="lineNum">     211 </span>            :         }
+<span class="lineNum">     212 </span><span class="lineCov">        696 :         if( EQUAL( psAttr-&gt;pszValue, &quot;n&quot; ) )</span>
+<span class="lineNum">     213 </span>            :         {
+<span class="lineNum">     214 </span><span class="lineCov">        372 :             osName = psAttr-&gt;psChild-&gt;pszValue;</span>
+<span class="lineNum">     215 </span>            :         }
+<span class="lineNum">     216 </span>            :         else
+<span class="lineNum">     217 </span><span class="lineCov">        324 :         if( EQUAL( psAttr-&gt;pszValue, &quot;v&quot; ) )</span>
+<span class="lineNum">     218 </span>            :         {
+<span class="lineNum">     219 </span><span class="lineCov">        324 :             osValue = psAttr-&gt;psChild-&gt;pszValue;</span>
+<span class="lineNum">     220 </span>            :         }
+<span class="lineNum">     221 </span>            :     }
+<a name="222"><span class="lineNum">     222 </span><span class="lineCov">        639 : }</span></a>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span><span class="lineCov">         33 : static CPLString GetXmlAttribute( const CPLXMLNode* psElt,</span>
+<span class="lineNum">     225 </span>            :                                   const CPLString&amp; osAttrName,
+<span class="lineNum">     226 </span>            :                                   const CPLString&amp; osDef = CPLString() )
+<span class="lineNum">     227 </span>            : {
+<span class="lineNum">     228 </span><span class="lineCov">         33 :     for( const CPLXMLNode* psAttr = psElt-&gt;psChild;</span>
+<span class="lineNum">     229 </span>            :          psAttr != nullptr;
+<span class="lineNum">     230 </span>            :          psAttr = psAttr-&gt;psNext )
+<span class="lineNum">     231 </span>            :     {
+<span class="lineNum">     232 </span><span class="lineCov">         66 :         if( psAttr-&gt;eType != CXT_Attribute ||</span>
+<span class="lineNum">     233 </span><span class="lineCov">         66 :             psAttr-&gt;pszValue == nullptr ||</span>
+<span class="lineNum">     234 </span><span class="lineCov">         66 :             psAttr-&gt;psChild == nullptr ||</span>
+<span class="lineNum">     235 </span><span class="lineCov">         33 :             psAttr-&gt;psChild-&gt;pszValue == nullptr )</span>
+<span class="lineNum">     236 </span>            :         {
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     238 </span>            :         }
+<span class="lineNum">     239 </span><span class="lineCov">         33 :         if( EQUAL( psAttr-&gt;pszValue, osAttrName ) )</span>
+<span class="lineNum">     240 </span>            :         {
+<span class="lineNum">     241 </span><span class="lineCov">         33 :             return psAttr-&gt;psChild-&gt;pszValue;</span>
+<span class="lineNum">     242 </span>            :         }
+<span class="lineNum">     243 </span>            :     }
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :     return osDef;</span>
+<a name="245"><span class="lineNum">     245 </span>            : }</a>
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span><span class="lineCov">          3 : static bool ParseGeoref( const CPLXMLNode* psGeorefElt, double* padfGeoTrans )</span>
+<span class="lineNum">     248 </span>            : {
+<span class="lineNum">     249 </span><span class="lineCov">          3 :     bool abOk[6] = { false, false, false, false, false, false };</span>
+<span class="lineNum">     250 </span>            :     static const char* const apszGeoKeys[6] = { &quot;A_0&quot;, &quot;A_1&quot;, &quot;A_2&quot;,
+<span class="lineNum">     251 </span>            :                                                 &quot;B_0&quot;, &quot;B_1&quot;, &quot;B_2&quot; };
+<span class="lineNum">     252 </span><span class="lineCov">         24 :     for( const CPLXMLNode* elt = psGeorefElt-&gt;psChild;</span>
+<span class="lineNum">     253 </span>            :          elt != nullptr;
+<span class="lineNum">     254 </span>            :          elt = elt-&gt;psNext )
+<span class="lineNum">     255 </span>            :     {
+<span class="lineNum">     256 </span><span class="lineCov">         21 :         CPLString osName;</span>
+<span class="lineNum">     257 </span><span class="lineCov">         42 :         CPLString osValue;</span>
+<span class="lineNum">     258 </span><span class="lineCov">         21 :         GetXmlNameValuePair( elt, osName, osValue );</span>
+<span class="lineNum">     259 </span><span class="lineCov">        147 :         for( int k = 0; k != 6; ++k )</span>
+<span class="lineNum">     260 </span>            :         {
+<span class="lineNum">     261 </span><span class="lineCov">        126 :             if( EQUAL( osName, apszGeoKeys[k] ) )</span>
+<span class="lineNum">     262 </span>            :             {
+<span class="lineNum">     263 </span><span class="lineCov">         18 :                 padfGeoTrans[k] = CPLAtof( osValue );</span>
+<span class="lineNum">     264 </span><span class="lineCov">         18 :                 abOk[k] = true;</span>
+<span class="lineNum">     265 </span>            :             }
+<span class="lineNum">     266 </span>            :         }
+<span class="lineNum">     267 </span><span class="lineCov">         21 :     }</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineCov">         18 :     for( int k = 0; k != 6; ++k )</span>
+<span class="lineNum">     270 </span>            :     {
+<span class="lineNum">     271 </span><span class="lineCov">         18 :         if( !abOk[k] )</span>
+<span class="lineNum">     272 </span>            :         {
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     274 </span>            :         }
+<span class="lineNum">     275 </span><span class="lineCov">         18 :         if( k == 5 )</span>
+<span class="lineNum">     276 </span>            :         {
+<span class="lineNum">     277 </span><span class="lineCov">          3 :             padfGeoTrans[3] -= PH_GEOREF_SHIFT_Y * padfGeoTrans[4];</span>
+<span class="lineNum">     278 </span><span class="lineCov">          3 :             padfGeoTrans[3] -= PH_GEOREF_SHIFT_Y * padfGeoTrans[5];</span>
+<span class="lineNum">     279 </span><span class="lineCov">          3 :             return true;</span>
+<span class="lineNum">     280 </span>            :         }
+<span class="lineNum">     281 </span>            :     }
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :     return false;</span>
+<a name="283"><span class="lineNum">     283 </span>            : }</a>
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span><span class="lineCov">          3 : static bool ParseDemShift( const CPLXMLNode* psDemShiftElt,</span>
+<span class="lineNum">     286 </span>            :                            double* padfDemShift )
+<span class="lineNum">     287 </span>            : {
+<span class="lineNum">     288 </span><span class="lineCov">          3 :     bool abOk[6] = { false,false,false, false, false, false };</span>
+<span class="lineNum">     289 </span>            :     static const char* const apszDemShiftKeys[6] =
+<span class="lineNum">     290 </span>            :         { &quot;x&quot;, &quot;y&quot;, &quot;z&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot; };
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span><span class="lineCov">         15 :     for( const CPLXMLNode* elt = psDemShiftElt-&gt;psChild;</span>
+<span class="lineNum">     293 </span>            :          elt != nullptr;
+<span class="lineNum">     294 </span>            :          elt = elt-&gt;psNext )
+<span class="lineNum">     295 </span>            :     {
+<span class="lineNum">     296 </span><span class="lineCov">         12 :         CPLString osName;</span>
+<span class="lineNum">     297 </span><span class="lineCov">         24 :         CPLString osValue;</span>
+<span class="lineNum">     298 </span><span class="lineCov">         12 :         GetXmlNameValuePair( elt, osName, osValue );</span>
+<span class="lineNum">     299 </span><span class="lineCov">         48 :         for( int k = 0; k != 3; ++k )</span>
+<span class="lineNum">     300 </span>            :         {
+<span class="lineNum">     301 </span><span class="lineCov">         36 :             if( EQUAL( osName, apszDemShiftKeys[k] ) )</span>
+<span class="lineNum">     302 </span>            :             {
+<span class="lineNum">     303 </span><span class="lineCov">          9 :                 padfDemShift[k] = CPLAtof( osValue );</span>
+<span class="lineNum">     304 </span><span class="lineCov">          9 :                 abOk[k] = true;</span>
+<span class="lineNum">     305 </span>            :             }
+<span class="lineNum">     306 </span>            :         }
+<span class="lineNum">     307 </span><span class="lineCov">         12 :     }</span>
+<span class="lineNum">     308 </span><span class="lineCov">          3 :     return abOk[0] &amp;&amp; abOk[1] &amp;&amp; abOk[2];</span>
+<a name="309"><span class="lineNum">     309 </span>            : }</a>
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span><span class="lineCov">          6 : static GDALDataType ParseChannelsInfo( const CPLXMLNode* psElt )</span>
+<span class="lineNum">     312 </span>            : {
+<span class="lineNum">     313 </span><span class="lineCov">          6 :     CPLString osType;</span>
+<span class="lineNum">     314 </span><span class="lineCov">         12 :     CPLString osBytesPS;</span>
+<span class="lineNum">     315 </span><span class="lineCov">         12 :     CPLString osChannels;</span>
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineCov">         30 :     for( const CPLXMLNode* psChild = psElt-&gt;psChild;</span>
+<span class="lineNum">     318 </span>            :          psChild != nullptr;
+<span class="lineNum">     319 </span>            :          psChild = psChild-&gt;psNext )
+<span class="lineNum">     320 </span>            :     {
+<span class="lineNum">     321 </span><span class="lineCov">         24 :         if( psChild-&gt;eType != CXT_Element )</span>
+<span class="lineNum">     322 </span>            :         {
+<span class="lineNum">     323 </span><span class="lineCov">          6 :             continue;</span>
+<span class="lineNum">     324 </span>            :         }
+<span class="lineNum">     325 </span>            : 
+<span class="lineNum">     326 </span><span class="lineCov">         18 :         CPLString osName;</span>
+<span class="lineNum">     327 </span><span class="lineCov">         36 :         CPLString osValue;</span>
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span><span class="lineCov">         18 :         GetXmlNameValuePair( psChild, osName, osValue );</span>
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineCov">         18 :         if( EQUAL( osName, &quot;type&quot; ) )</span>
+<span class="lineNum">     332 </span>            :         {
+<span class="lineNum">     333 </span><span class="lineCov">          6 :             osType = osValue;</span>
+<span class="lineNum">     334 </span>            :         }
+<span class="lineNum">     335 </span><span class="lineCov">         12 :         else if( EQUAL( osName, &quot;bytes_ps&quot; ) )</span>
+<span class="lineNum">     336 </span>            :         {
+<span class="lineNum">     337 </span><span class="lineCov">          6 :             osBytesPS = osValue;</span>
+<span class="lineNum">     338 </span>            :         }
+<span class="lineNum">     339 </span><span class="lineCov">          6 :         else if( EQUAL( osName, &quot;channels&quot; ) )</span>
+<span class="lineNum">     340 </span>            :         {
+<span class="lineNum">     341 </span><span class="lineCov">          6 :             osChannels = osValue;</span>
+<span class="lineNum">     342 </span>            :         }
+<span class="lineNum">     343 </span><span class="lineCov">         18 :     }</span>
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineCov">          6 :     const int nDataTypeSize = atoi( osBytesPS );</span>
+<span class="lineNum">     346 </span><span class="lineCov">          6 :     if( osType == &quot;U&quot; )</span>
+<span class="lineNum">     347 </span>            :     {
+<span class="lineNum">     348 </span><span class="lineCov">          3 :         switch( nDataTypeSize )</span>
+<span class="lineNum">     349 </span>            :         {
+<span class="lineNum">     350 </span>            :         case 1:
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :             return GDT_Byte;</span>
+<span class="lineNum">     352 </span>            :         case 2:
+<span class="lineNum">     353 </span><span class="lineCov">          3 :             return GDT_UInt16;</span>
+<span class="lineNum">     354 </span>            :         case 4:
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :             return GDT_UInt32;</span>
+<span class="lineNum">     356 </span>            :         default:
+<span class="lineNum">     357 </span>            :             CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :                       &quot;Unsupported datatype size %d&quot;, nDataTypeSize );</span>
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :             return GDT_Unknown;</span>
+<span class="lineNum">     360 </span>            :         }
+<span class="lineNum">     361 </span>            :     }
+<span class="lineNum">     362 </span><span class="lineCov">          3 :     else if( osType == &quot;F&quot; )</span>
+<span class="lineNum">     363 </span>            :     {
+<span class="lineNum">     364 </span><span class="lineCov">          3 :         switch( nDataTypeSize )</span>
+<span class="lineNum">     365 </span>            :         {
+<span class="lineNum">     366 </span>            :         case 4:
+<span class="lineNum">     367 </span><span class="lineCov">          3 :             return GDT_Float32;</span>
+<span class="lineNum">     368 </span>            :         case 8:
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :             return GDT_Float64;</span>
+<span class="lineNum">     370 </span>            :         default:
+<span class="lineNum">     371 </span>            :             CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :                       &quot;Unsupported datatype size %d&quot;, nDataTypeSize );</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :             return GDT_Unknown;</span>
+<span class="lineNum">     374 </span>            :         }
+<span class="lineNum">     375 </span>            :     }
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineCov">          6 :     return GDT_Unknown;</span>
+<a name="378"><span class="lineNum">     378 </span>            : }</a>
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span><span class="lineCov">       7305 : GDALDataset* PhPrfDataset::Open( GDALOpenInfo* poOpenInfo )</span>
+<span class="lineNum">     381 </span>            : {
+<span class="lineNum">     382 </span>            :     ph_format eFormat;
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span><span class="lineCov">       7305 :     if( EQUAL( CPLGetExtension(poOpenInfo-&gt;pszFilename), PH_PRF_EXT ) )</span>
+<span class="lineNum">     385 </span>            :     {
+<span class="lineNum">     386 </span><span class="lineCov">          3 :         eFormat = ph_megatiff;</span>
+<span class="lineNum">     387 </span>            :     }
+<span class="lineNum">     388 </span><span class="lineCov">       7289 :     else if( EQUAL( CPLGetExtension(poOpenInfo-&gt;pszFilename), PH_DEM_EXT ) )</span>
+<span class="lineNum">     389 </span>            :     {
+<span class="lineNum">     390 </span><span class="lineCov">          3 :         eFormat = ph_xdem;</span>
+<span class="lineNum">     391 </span>            :     }
+<span class="lineNum">     392 </span>            :     else
+<span class="lineNum">     393 </span>            :     {
+<span class="lineNum">     394 </span><span class="lineCov">       7304 :         return nullptr;</span>
+<span class="lineNum">     395 </span>            :     }
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span><span class="lineCov">          6 :     CPLXMLTreeCloser oDoc( CPLParseXMLFile( poOpenInfo-&gt;pszFilename ) );</span>
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span><span class="lineCov">          6 :     if( oDoc.get() == nullptr )</span>
+<span class="lineNum">     400 </span>            :     {
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     402 </span>            :     }
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span><span class="lineCov">          6 :     const CPLXMLNode* psPhIni( CPLSearchXMLNode( oDoc.get(), &quot;=phini&quot; ) );</span>
+<span class="lineNum">     405 </span><span class="lineCov">          6 :     if( psPhIni == nullptr )</span>
+<span class="lineNum">     406 </span>            :     {
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     408 </span>            :     }
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span><span class="lineCov">          6 :     int          nSizeX = 0;</span>
+<span class="lineNum">     411 </span><span class="lineCov">          6 :     int          nSizeY = 0;</span>
+<span class="lineNum">     412 </span><span class="lineCov">          6 :     int          nBandCount = 0;</span>
+<span class="lineNum">     413 </span><span class="lineCov">          6 :     GDALDataType eResultDatatype = GDT_Unknown;</span>
+<span class="lineNum">     414 </span><span class="lineCov">         12 :     CPLString    osPartsBasePath( CPLGetPath( poOpenInfo-&gt;pszFilename ) );</span>
+<span class="lineNum">     415 </span><span class="lineCov">         18 :     CPLString    osPartsPath( osPartsBasePath + &quot;/&quot; +</span>
+<span class="lineNum">     416 </span><span class="lineCov">         18 :                               CPLGetBasename( poOpenInfo-&gt;pszFilename ) );</span>
+<span class="lineNum">     417 </span><span class="lineCov">         12 :     CPLString    osPartsExt;</span>
+<span class="lineNum">     418 </span><span class="lineCov">          6 :     double       adfGeoTrans[6] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };</span>
+<span class="lineNum">     419 </span><span class="lineCov">          6 :     bool         bGeoTransOk = false;</span>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span><span class="lineCov">          6 :     double       adfDemShift[3] = { 0.0, 0.0, 0.0 };</span>
+<span class="lineNum">     422 </span><span class="lineCov">          6 :     bool         bDemShiftOk = false;</span>
+<span class="lineNum">     423 </span><span class="lineCov">          6 :     const int    nDemMDCount = 7;</span>
+<span class="lineNum">     424 </span>            :     bool         abDemMetadataOk[nDemMDCount] =
+<span class="lineNum">     425 </span><span class="lineCov">          6 :         { false, false, false, false, false, false, false };</span>
+<span class="lineNum">     426 </span>            :     double       adfDemMetadata[nDemMDCount] =
+<span class="lineNum">     427 </span><span class="lineCov">          6 :         { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };</span>
+<span class="lineNum">     428 </span>            :     static const char* const apszDemKeys[nDemMDCount] = { &quot;XR_0&quot;, &quot;XR_1&quot;,
+<span class="lineNum">     429 </span>            :                                                           &quot;YR_0&quot;, &quot;YR_1&quot;,
+<span class="lineNum">     430 </span>            :                                                           &quot;ZR_0&quot;, &quot;ZR_1&quot;,
+<span class="lineNum">     431 </span>            :                                                           &quot;BadZ&quot; };
+<span class="lineNum">     432 </span><span class="lineCov">          6 :     if( eFormat == ph_megatiff )</span>
+<span class="lineNum">     433 </span>            :     {
+<span class="lineNum">     434 </span><span class="lineCov">          3 :         osPartsExt = &quot;.tif&quot;;</span>
+<span class="lineNum">     435 </span>            :     }
+<span class="lineNum">     436 </span><span class="lineCov">          3 :     else if( eFormat == ph_xdem )</span>
+<span class="lineNum">     437 </span>            :     {
+<span class="lineNum">     438 </span><span class="lineCov">          3 :         osPartsExt = &quot;.demtif&quot;;</span>
+<span class="lineNum">     439 </span>            :     }
+<span class="lineNum">     440 </span>            : 
+<span class="lineNum">     441 </span><span class="lineCov">        162 :     for( const CPLXMLNode* psElt = psPhIni-&gt;psChild;</span>
+<span class="lineNum">     442 </span>            :          psElt != nullptr;
+<span class="lineNum">     443 </span>            :          psElt = psElt-&gt;psNext )
+<span class="lineNum">     444 </span>            :     {
+<span class="lineNum">     445 </span><span class="lineCov">        159 :         if( !EQUAL(psElt-&gt;pszValue,&quot;s&quot;) ||</span>
+<span class="lineNum">     446 </span><span class="lineCov">          3 :             psElt-&gt;eType != CXT_Element )</span>
+<span class="lineNum">     447 </span>            :         {
+<span class="lineNum">     448 </span><span class="lineCov">        153 :             continue;</span>
+<span class="lineNum">     449 </span>            :         }
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span><span class="lineCov">          3 :         CPLString osName;</span>
+<span class="lineNum">     452 </span><span class="lineCov">          6 :         CPLString osValue;</span>
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span><span class="lineCov">          3 :         GetXmlNameValuePair( psElt, osName, osValue );</span>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          3 :         if( EQUAL( osName, &quot;parts_ext&quot; ) )</span>
+<span class="lineNum">     457 </span>            :         {
+<span class="lineNum">     458 </span><span class="lineCov">          3 :             osPartsExt = &quot;.&quot; + osValue;</span>
+<span class="lineNum">     459 </span>            :         }
+<span class="lineNum">     460 </span><span class="lineCov">          3 :     }</span>
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span><span class="lineCov">        162 :     for( const CPLXMLNode* psElt = psPhIni-&gt;psChild;</span>
+<span class="lineNum">     463 </span>            :          psElt != nullptr;
+<span class="lineNum">     464 </span>            :          psElt = psElt-&gt;psNext )
+<span class="lineNum">     465 </span>            :     {
+<span class="lineNum">     466 </span><span class="lineCov">        156 :         CPLString osName;</span>
+<span class="lineNum">     467 </span><span class="lineCov">        312 :         CPLString osValue;</span>
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span><span class="lineCov">        156 :         GetXmlNameValuePair( psElt, osName, osValue );</span>
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span><span class="lineCov">        156 :         if( EQUAL( osName, &quot;ChannelsInfo&quot; ) )</span>
+<span class="lineNum">     472 </span>            :         {
+<span class="lineNum">     473 </span><span class="lineCov">          6 :             eResultDatatype = ParseChannelsInfo( psElt );</span>
+<span class="lineNum">     474 </span>            :         }
+<span class="lineNum">     475 </span><span class="lineCov">        150 :         else if( EQUAL( osName, &quot;Width&quot; ) )</span>
+<span class="lineNum">     476 </span>            :         {
+<span class="lineNum">     477 </span><span class="lineCov">          6 :             nSizeX = atoi( osValue );</span>
+<span class="lineNum">     478 </span>            :         }
+<span class="lineNum">     479 </span><span class="lineCov">        144 :         else if( EQUAL( osName, &quot;Height&quot; ) )</span>
+<span class="lineNum">     480 </span>            :         {
+<span class="lineNum">     481 </span><span class="lineCov">          6 :             nSizeY = atoi( osValue );</span>
+<span class="lineNum">     482 </span>            :         }
+<span class="lineNum">     483 </span><span class="lineCov">        138 :         else if( EQUAL( osName, &quot;QChans&quot; ) )</span>
+<span class="lineNum">     484 </span>            :         {
+<span class="lineNum">     485 </span><span class="lineCov">          6 :             nBandCount = atoi( osValue );</span>
+<span class="lineNum">     486 </span>            :         }
+<span class="lineNum">     487 </span><span class="lineCov">        132 :         else if( EQUAL( osName, &quot;GeoRef&quot; ) )</span>
+<span class="lineNum">     488 </span>            :         {
+<span class="lineNum">     489 </span><span class="lineCov">          3 :             bGeoTransOk = ParseGeoref( psElt, adfGeoTrans );</span>
+<span class="lineNum">     490 </span>            :         }
+<span class="lineNum">     491 </span><span class="lineCov">        129 :         else if( EQUAL( osName, &quot;DemShift&quot; ) )</span>
+<span class="lineNum">     492 </span>            :         {
+<span class="lineNum">     493 </span><span class="lineCov">          3 :             bDemShiftOk = ParseDemShift( psElt, adfDemShift );</span>
+<span class="lineNum">     494 </span>            :         }
+<span class="lineNum">     495 </span>            :         else
+<span class="lineNum">     496 </span>            :         {
+<span class="lineNum">     497 </span><span class="lineCov">       1008 :             for( int n = 0; n != nDemMDCount; ++n )</span>
+<span class="lineNum">     498 </span>            :             {
+<span class="lineNum">     499 </span><span class="lineCov">        882 :                 if( EQUAL( osName, apszDemKeys[n] ) )</span>
+<span class="lineNum">     500 </span>            :                 {
+<span class="lineNum">     501 </span><span class="lineCov">         21 :                     adfDemMetadata[n] = CPLAtof( osValue );</span>
+<span class="lineNum">     502 </span><span class="lineCov">         21 :                     abDemMetadataOk[n] = true;</span>
+<span class="lineNum">     503 </span>            :                 }
+<span class="lineNum">     504 </span>            :             }
+<span class="lineNum">     505 </span>            :         }
+<span class="lineNum">     506 </span><span class="lineCov">        156 :     }</span>
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span><span class="lineCov">          6 :     if( eResultDatatype == GDT_Unknown )</span>
+<span class="lineNum">     509 </span>            :     {
+<span class="lineNum">     510 </span>            :         CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :                   &quot;GDAL Dataset datatype not found&quot; );</span>
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     513 </span>            :     }
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span><span class="lineCov">          6 :     if( nSizeX &lt;= 0 || nSizeY &lt;= 0 || nBandCount &lt;= 0 )</span>
+<span class="lineNum">     516 </span>            :     {
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     518 </span>            :     }
+<span class="lineNum">     519 </span>            : 
+<span class="lineNum">     520 </span>            :     PhPrfDataset* poDataset =
+<span class="lineNum">     521 </span>            :         new PhPrfDataset( GA_ReadOnly, nSizeX, nSizeY, nBandCount,
+<span class="lineNum">     522 </span><span class="lineCov">          6 :                           eResultDatatype, poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span><span class="lineCov">          6 :     if( !GDALCheckDatasetDimensions( poDataset-&gt;GetRasterXSize(),</span>
+<span class="lineNum">     525 </span><span class="lineCov">          6 :                                      poDataset-&gt;GetRasterYSize() ) )</span>
+<span class="lineNum">     526 </span>            :     {
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :         delete poDataset;</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     529 </span>            :     }
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span><span class="lineCov">        162 :     for( const CPLXMLNode* psElt = psPhIni-&gt;psChild;</span>
+<span class="lineNum">     532 </span>            :          psElt != nullptr;
+<span class="lineNum">     533 </span>            :          psElt = psElt-&gt;psNext )
+<span class="lineNum">     534 </span>            :     {
+<span class="lineNum">     535 </span><span class="lineCov">        156 :         int nWidth = 0;</span>
+<span class="lineNum">     536 </span><span class="lineCov">        156 :         int nHeight = 0;</span>
+<span class="lineNum">     537 </span><span class="lineCov">        156 :         int nOffsetX = 0;</span>
+<span class="lineNum">     538 </span><span class="lineCov">        156 :         int nOffsetY = 0;</span>
+<span class="lineNum">     539 </span><span class="lineCov">        156 :         int nScale = 0;</span>
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span><span class="lineCov">        585 :         for( const CPLXMLNode* psItem = psElt-&gt;psChild;</span>
+<span class="lineNum">     542 </span>            :              psItem != nullptr;
+<span class="lineNum">     543 </span>            :              psItem = psItem-&gt;psNext )
+<span class="lineNum">     544 </span>            :         {
+<span class="lineNum">     545 </span><span class="lineCov">        429 :             CPLString osName;</span>
+<span class="lineNum">     546 </span><span class="lineCov">        858 :             CPLString osValue;</span>
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span><span class="lineCov">        429 :             GetXmlNameValuePair( psItem, osName, osValue );</span>
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span><span class="lineCov">        429 :             if( EQUAL( osName, &quot;Width&quot; ) )</span>
+<span class="lineNum">     551 </span>            :             {
+<span class="lineNum">     552 </span><span class="lineCov">         33 :                 nWidth = atoi( osValue );</span>
+<span class="lineNum">     553 </span>            :             }
+<span class="lineNum">     554 </span>            :             else
+<span class="lineNum">     555 </span><span class="lineCov">        396 :             if( EQUAL( osName, &quot;Height&quot; ) )</span>
+<span class="lineNum">     556 </span>            :             {
+<span class="lineNum">     557 </span><span class="lineCov">         33 :                 nHeight = atoi( osValue );</span>
+<span class="lineNum">     558 </span>            :             }
+<span class="lineNum">     559 </span>            :             else
+<span class="lineNum">     560 </span><span class="lineCov">        363 :             if( EQUAL( osName, &quot;DispX&quot; ) )</span>
+<span class="lineNum">     561 </span>            :             {
+<span class="lineNum">     562 </span><span class="lineCov">         30 :                 nOffsetX = atoi( osValue );</span>
+<span class="lineNum">     563 </span>            :             }
+<span class="lineNum">     564 </span>            :             else
+<span class="lineNum">     565 </span><span class="lineCov">        333 :             if( EQUAL( osName, &quot;DispY&quot; ) )</span>
+<span class="lineNum">     566 </span>            :             {
+<span class="lineNum">     567 </span><span class="lineCov">         30 :                 nOffsetY = atoi( osValue );</span>
+<span class="lineNum">     568 </span>            :             }
+<span class="lineNum">     569 </span>            :             else
+<span class="lineNum">     570 </span><span class="lineCov">        303 :             if( EQUAL( osName, &quot;Scale&quot; ) )</span>
+<span class="lineNum">     571 </span>            :             {
+<span class="lineNum">     572 </span><span class="lineCov">          3 :                 nScale = atoi( osValue );</span>
+<span class="lineNum">     573 </span>            :             }
+<span class="lineNum">     574 </span><span class="lineCov">        429 :         }</span>
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineCov">        156 :         if( nWidth == 0 || nHeight == 0 )</span>
+<span class="lineNum">     577 </span>            :         {
+<span class="lineNum">     578 </span><span class="lineCov">        123 :             continue;</span>
+<span class="lineNum">     579 </span>            :         }
+<span class="lineNum">     580 </span>            : 
+<span class="lineNum">     581 </span><span class="lineCov">         99 :         CPLString osPartName( osPartsPath + &quot;/&quot; +</span>
+<span class="lineNum">     582 </span><span class="lineCov">         66 :                               GetXmlAttribute( psElt, &quot;n&quot; ) +</span>
+<span class="lineNum">     583 </span><span class="lineCov">         66 :                               osPartsExt );</span>
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span><span class="lineCov">         33 :         if( !poDataset-&gt;AddTile( osPartName, GA_ReadOnly, nWidth, nHeight,</span>
+<span class="lineNum">     586 </span><span class="lineCov">         33 :                                  nOffsetX, nOffsetY, nScale ) )</span>
+<span class="lineNum">     587 </span>            :         {
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :             delete poDataset;</span>
+<span class="lineNum">     589 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     590 </span>            :         }
+<span class="lineNum">     591 </span><span class="lineCov">         33 :     }</span>
+<span class="lineNum">     592 </span>            : 
+<span class="lineNum">     593 </span><span class="lineCov">          6 :     if( eFormat == ph_megatiff &amp;&amp; bGeoTransOk )</span>
+<span class="lineNum">     594 </span>            :     {
+<span class="lineNum">     595 </span><span class="lineCov">          3 :         poDataset-&gt;SetGeoTransform( adfGeoTrans );</span>
+<span class="lineNum">     596 </span>            :     }
+<span class="lineNum">     597 </span>            : 
+<span class="lineNum">     598 </span><span class="lineCov">          6 :     if( eFormat == ph_xdem )</span>
+<span class="lineNum">     599 </span>            :     {
+<span class="lineNum">     600 </span><span class="lineCov">          3 :         GDALRasterBand* poFirstBand = poDataset-&gt;GetRasterBand( 1 );</span>
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span><span class="lineCov">          3 :         if( poFirstBand != nullptr )</span>
+<span class="lineNum">     603 </span>            :         {
+<span class="lineNum">     604 </span><span class="lineCov">          3 :             poFirstBand-&gt;SetUnitType( &quot;m&quot; );  // Always meters.</span>
+<span class="lineNum">     605 </span>            :         }
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span><span class="lineCov">          6 :         if( abDemMetadataOk[0] &amp;&amp; abDemMetadataOk[1] &amp;&amp;</span>
+<span class="lineNum">     608 </span><span class="lineCov">          6 :             abDemMetadataOk[2] &amp;&amp; abDemMetadataOk[3] &amp;&amp;</span>
+<span class="lineNum">     609 </span><span class="lineCov">          3 :             nSizeX &gt; 1 &amp;&amp; nSizeY &gt; 1)</span>
+<span class="lineNum">     610 </span>            :         {
+<span class="lineNum">     611 </span><span class="lineCov">          3 :             adfGeoTrans[0] = adfDemMetadata[0];</span>
+<span class="lineNum">     612 </span><span class="lineCov">          3 :             adfGeoTrans[1] = (adfDemMetadata[1] - adfDemMetadata[0])/(nSizeX - 1);</span>
+<span class="lineNum">     613 </span><span class="lineCov">          3 :             adfGeoTrans[2] = 0;</span>
+<span class="lineNum">     614 </span><span class="lineCov">          3 :             adfGeoTrans[3] = adfDemMetadata[3];</span>
+<span class="lineNum">     615 </span><span class="lineCov">          3 :             adfGeoTrans[4] = 0;</span>
+<span class="lineNum">     616 </span><span class="lineCov">          3 :             adfGeoTrans[5] = (adfDemMetadata[2] - adfDemMetadata[3])/(nSizeY - 1);</span>
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span><span class="lineCov">          3 :             adfGeoTrans[0] -= 0.5 * adfGeoTrans[1];</span>
+<span class="lineNum">     619 </span><span class="lineCov">          3 :             adfGeoTrans[3] -= 0.5 * adfGeoTrans[5];</span>
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span><span class="lineCov">          3 :             if( bDemShiftOk )</span>
+<span class="lineNum">     622 </span>            :             {
+<span class="lineNum">     623 </span><span class="lineCov">          3 :                 adfGeoTrans[0] += adfDemShift[0];</span>
+<span class="lineNum">     624 </span><span class="lineCov">          3 :                 adfGeoTrans[3] += adfDemShift[1];</span>
+<span class="lineNum">     625 </span>            :             }
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span><span class="lineCov">          3 :             poDataset-&gt;SetGeoTransform( adfGeoTrans );</span>
+<span class="lineNum">     628 </span>            :         }
+<span class="lineNum">     629 </span>            : 
+<span class="lineNum">     630 </span><span class="lineCov">          3 :         if( abDemMetadataOk[4] &amp;&amp; abDemMetadataOk[5] )</span>
+<span class="lineNum">     631 </span>            :         {
+<span class="lineNum">     632 </span>            :             poFirstBand-&gt;SetMetadataItem(
+<span class="lineNum">     633 </span><span class="lineCov">          3 :                 &quot;STATISTICS_MINIMUM&quot;, CPLSPrintf( &quot;%f&quot;, adfDemMetadata[4] ) );</span>
+<span class="lineNum">     634 </span>            :             poFirstBand-&gt;SetMetadataItem(
+<span class="lineNum">     635 </span><span class="lineCov">          3 :                 &quot;STATISTICS_MAXIMUM&quot;, CPLSPrintf( &quot;%f&quot;, adfDemMetadata[5] ) );</span>
+<span class="lineNum">     636 </span>            :         }
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span><span class="lineCov">          3 :         if( abDemMetadataOk[6] )</span>
+<span class="lineNum">     639 </span>            :         {
+<span class="lineNum">     640 </span><span class="lineCov">          3 :             poFirstBand-&gt;SetNoDataValue( adfDemMetadata[6] );</span>
+<span class="lineNum">     641 </span>            :         }
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span><span class="lineCov">          3 :         if( bDemShiftOk )</span>
+<span class="lineNum">     644 </span>            :         {
+<span class="lineNum">     645 </span><span class="lineCov">          3 :             poFirstBand-&gt;SetOffset( adfDemShift[2] );</span>
+<span class="lineNum">     646 </span>            :         }
+<span class="lineNum">     647 </span>            :     }
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span><span class="lineCov">         12 :     return poDataset;</span>
+<a name="650"><span class="lineNum">     650 </span>            : }</a>
+<span class="lineNum">     651 </span>            : 
+<span class="lineNum">     652 </span><span class="lineCov">       1109 : void GDALRegister_PRF()</span>
+<span class="lineNum">     653 </span>            : {
+<span class="lineNum">     654 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( PH_PRF_DRIVER ) != nullptr )</span>
+<span class="lineNum">     655 </span><span class="lineCov">       1231 :         return;</span>
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span><span class="lineCov">        987 :     GDALDriver* poDriver = new GDALDriver;</span>
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( PH_PRF_DRIVER );</span>
+<span class="lineNum">     660 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME, &quot;Racurs PHOTOMOD PRF&quot; );</span>
+<span class="lineNum">     661 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VIRTUALIO, &quot;YES&quot; );</span>
+<span class="lineNum">     662 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">     663 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_EXTENSION, &quot;prf&quot; );</span>
+<span class="lineNum">     664 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_HELPTOPIC, &quot;frmt_prf.html&quot; );</span>
+<span class="lineNum">     665 </span><span class="lineCov">        987 :     poDriver-&gt;pfnIdentify = PhPrfDataset::Identify;</span>
+<span class="lineNum">     666 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = PhPrfDataset::Open;</span>
+<span class="lineNum">     667 </span><span class="lineCov">        987 :     GDALRegisterDriver( (GDALDriverH)poDriver );</span>
+<span class="lineNum">     668 </span>            : }
+<span class="lineNum">     669 </span>            : 
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,1591 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/rasterlite/rasterlitedataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/rasterlite</a> - rasterlitedataset.cpp<span style="font-size: 80%;"> (source / <a href="rasterlitedataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">515</td>
+            <td class="headerCovTableEntry">638</td>
+            <td class="headerCovTableEntryMed">80.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">22</td>
+            <td class="headerCovTableEntry">25</td>
+            <td class="headerCovTableEntryMed">88.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL Rasterlite driver
+<span class="lineNum">       4 </span>            :  * Purpose:  Implement GDAL Rasterlite support using OGR SQLite driver
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  **********************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2009-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;gdal_frmts.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;ogr_api.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;ogr_srs_api.h&quot;
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : #include &quot;rasterlitedataset.h&quot;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #if defined(DEBUG) || defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION) || defined(ALLOW_FORMAT_DUMPS)
+<span class="lineNum">      39 </span>            : // Enable accepting a SQL dump (starting with a &quot;-- SQL SQLITE&quot; or
+<span class="lineNum">      40 </span>            : // &quot;-- SQL RASTERLITE&quot; line) as a valid
+<span class="lineNum">      41 </span>            : // file. This makes fuzzer life easier
+<span class="lineNum">      42 </span>            : #define ENABLE_SQL_SQLITE_FORMAT
+<span class="lineNum">      43 </span>            : #endif
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : /************************************************************************/
+<span class="lineNum">      48 </span>            : /*                        RasterliteOpenSQLiteDB()                      */
+<a name="49"><span class="lineNum">      49 </span>            : /************************************************************************/</a>
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span><span class="lineCov">         32 : OGRDataSourceH RasterliteOpenSQLiteDB(const char* pszFilename,</span>
+<span class="lineNum">      52 </span>            :                                       GDALAccess eAccess)
+<span class="lineNum">      53 </span>            : {
+<span class="lineNum">      54 </span><span class="lineCov">         32 :     const char* const apszAllowedDrivers[] = { &quot;SQLITE&quot;, nullptr };</span>
+<span class="lineNum">      55 </span>            :     return reinterpret_cast&lt;OGRDataSourceH&gt;(
+<span class="lineNum">      56 </span>            :         GDALOpenEx( pszFilename,
+<span class="lineNum">      57 </span>            :                     GDAL_OF_VECTOR |
+<span class="lineNum">      58 </span>            :                     ((eAccess == GA_Update) ? GDAL_OF_UPDATE : 0),
+<span class="lineNum">      59 </span><span class="lineCov">         32 :                     apszAllowedDrivers, nullptr, nullptr ));</span>
+<span class="lineNum">      60 </span>            : }
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span>            : /************************************************************************/
+<span class="lineNum">      63 </span>            : /*                       RasterliteGetPixelSizeCond()                   */
+<a name="64"><span class="lineNum">      64 </span>            : /************************************************************************/</a>
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span><span class="lineCov">         69 : CPLString RasterliteGetPixelSizeCond(double dfPixelXSize,</span>
+<span class="lineNum">      67 </span>            :                                      double dfPixelYSize,
+<span class="lineNum">      68 </span>            :                                      const char* pszTablePrefixWithDot)
+<span class="lineNum">      69 </span>            : {
+<span class="lineNum">      70 </span><span class="lineCov">         69 :     CPLString osCond;</span>
+<span class="lineNum">      71 </span>            :     osCond.Printf(&quot;((%spixel_x_size &gt;= %s AND %spixel_x_size &lt;= %s) AND &quot;
+<span class="lineNum">      72 </span>            :                    &quot;(%spixel_y_size &gt;= %s AND %spixel_y_size &lt;= %s))&quot;,
+<span class="lineNum">      73 </span>            :                   pszTablePrefixWithDot,
+<span class="lineNum">      74 </span><span class="lineCov">        138 :                   CPLString().FormatC(dfPixelXSize - 1e-15,&quot;%.15f&quot;).c_str(),</span>
+<span class="lineNum">      75 </span>            :                   pszTablePrefixWithDot,
+<span class="lineNum">      76 </span><span class="lineCov">        138 :                   CPLString().FormatC(dfPixelXSize + 1e-15,&quot;%.15f&quot;).c_str(),</span>
+<span class="lineNum">      77 </span>            :                   pszTablePrefixWithDot,
+<span class="lineNum">      78 </span><span class="lineCov">        138 :                   CPLString().FormatC(dfPixelYSize - 1e-15,&quot;%.15f&quot;).c_str(),</span>
+<span class="lineNum">      79 </span>            :                   pszTablePrefixWithDot,
+<span class="lineNum">      80 </span><span class="lineCov">        345 :                   CPLString().FormatC(dfPixelYSize + 1e-15,&quot;%.15f&quot;).c_str());</span>
+<span class="lineNum">      81 </span><span class="lineCov">         69 :     return osCond;</span>
+<span class="lineNum">      82 </span>            : }
+<span class="lineNum">      83 </span>            : /************************************************************************/
+<span class="lineNum">      84 </span>            : /*                     RasterliteGetSpatialFilterCond()                 */
+<a name="85"><span class="lineNum">      85 </span>            : /************************************************************************/</a>
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span><span class="lineCov">         25 : CPLString RasterliteGetSpatialFilterCond(double minx, double miny,</span>
+<span class="lineNum">      88 </span>            :                                          double maxx, double maxy)
+<span class="lineNum">      89 </span>            : {
+<span class="lineNum">      90 </span><span class="lineCov">         25 :     CPLString osCond;</span>
+<span class="lineNum">      91 </span>            :     osCond.Printf(&quot;(xmin &lt; %s AND xmax &gt; %s AND ymin &lt; %s AND ymax &gt; %s)&quot;,
+<span class="lineNum">      92 </span><span class="lineCov">         50 :                   CPLString().FormatC(maxx,&quot;%.15f&quot;).c_str(),</span>
+<span class="lineNum">      93 </span><span class="lineCov">         50 :                   CPLString().FormatC(minx,&quot;%.15f&quot;).c_str(),</span>
+<span class="lineNum">      94 </span><span class="lineCov">         50 :                   CPLString().FormatC(maxy,&quot;%.15f&quot;).c_str(),</span>
+<span class="lineNum">      95 </span><span class="lineCov">        125 :                   CPLString().FormatC(miny,&quot;%.15f&quot;).c_str());</span>
+<span class="lineNum">      96 </span><span class="lineCov">         25 :     return osCond;</span>
+<span class="lineNum">      97 </span>            : }
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span>            : /************************************************************************/
+<span class="lineNum">     100 </span>            : /*                            RasterliteBand()                          */
+<a name="101"><span class="lineNum">     101 </span>            : /************************************************************************/</a>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span><span class="lineCov">         53 : RasterliteBand::RasterliteBand( RasterliteDataset* poDSIn, int nBandIn,</span>
+<span class="lineNum">     104 </span>            :                                 GDALDataType eDataTypeIn,
+<span class="lineNum">     105 </span><span class="lineCov">         53 :                                 int nBlockXSizeIn, int nBlockYSizeIn )</span>
+<span class="lineNum">     106 </span>            : {
+<span class="lineNum">     107 </span><span class="lineCov">         53 :     poDS = poDSIn;</span>
+<span class="lineNum">     108 </span><span class="lineCov">         53 :     nBand = nBandIn;</span>
+<span class="lineNum">     109 </span><span class="lineCov">         53 :     eDataType = eDataTypeIn;</span>
+<span class="lineNum">     110 </span><span class="lineCov">         53 :     nBlockXSize = nBlockXSizeIn;</span>
+<span class="lineNum">     111 </span><span class="lineCov">         53 :     nBlockYSize = nBlockYSizeIn;</span>
+<span class="lineNum">     112 </span><span class="lineCov">         53 : }</span>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span>            : /************************************************************************/
+<span class="lineNum">     115 </span>            : /*                            IReadBlock()                              */
+<span class="lineNum">     116 </span>            : /************************************************************************/
+<span class="lineNum">     117 </span>            : 
+<a name="118"><span class="lineNum">     118 </span>            : //#define RASTERLITE_DEBUG</a>
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span><span class="lineCov">         22 : CPLErr RasterliteBand::IReadBlock( int nBlockXOff, int nBlockYOff, void * pImage)</span>
+<span class="lineNum">     121 </span>            : {
+<span class="lineNum">     122 </span><span class="lineCov">         22 :     RasterliteDataset* poGDS = reinterpret_cast&lt;RasterliteDataset *&gt;( poDS );</span>
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span><span class="lineCov">         22 :     double minx = poGDS-&gt;adfGeoTransform[0] +</span>
+<span class="lineNum">     125 </span><span class="lineCov">         22 :                   nBlockXOff * nBlockXSize * poGDS-&gt;adfGeoTransform[1];</span>
+<span class="lineNum">     126 </span><span class="lineCov">         22 :     double maxx = poGDS-&gt;adfGeoTransform[0] +</span>
+<span class="lineNum">     127 </span><span class="lineCov">         22 :                   (nBlockXOff + 1) * nBlockXSize * poGDS-&gt;adfGeoTransform[1];</span>
+<span class="lineNum">     128 </span><span class="lineCov">         22 :     double maxy = poGDS-&gt;adfGeoTransform[3] +</span>
+<span class="lineNum">     129 </span><span class="lineCov">         22 :                   nBlockYOff * nBlockYSize * poGDS-&gt;adfGeoTransform[5];</span>
+<span class="lineNum">     130 </span><span class="lineCov">         22 :     double miny = poGDS-&gt;adfGeoTransform[3] +</span>
+<span class="lineNum">     131 </span><span class="lineCov">         22 :                   (nBlockYOff + 1) * nBlockYSize * poGDS-&gt;adfGeoTransform[5];</span>
+<span class="lineNum">     132 </span><span class="lineCov">         22 :     int nDataTypeSize = GDALGetDataTypeSize(eDataType) / 8;</span>
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            : #ifdef RASTERLITE_DEBUG
+<span class="lineNum">     135 </span>            :     if (nBand == 1)
+<span class="lineNum">     136 </span>            :     {
+<span class="lineNum">     137 </span>            :         printf(&quot;nBlockXOff = %d, nBlockYOff = %d, nBlockXSize = %d, nBlockYSize = %d\n&quot; /*ok*/
+<span class="lineNum">     138 </span>            :                &quot;minx=%.15f miny=%.15f maxx=%.15f maxy=%.15f\n&quot;,
+<span class="lineNum">     139 </span>            :                 nBlockXOff, nBlockYOff, nBlockXSize, nBlockYSize, minx, miny, maxx, maxy);
+<span class="lineNum">     140 </span>            :     }
+<span class="lineNum">     141 </span>            : #endif
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span><span class="lineCov">         22 :     CPLString osSQL;</span>
+<span class="lineNum">     144 </span>            :     osSQL.Printf(&quot;SELECT m.geometry, r.raster, m.id, m.width, m.height FROM \&quot;%s_metadata\&quot; AS m, &quot;
+<span class="lineNum">     145 </span>            :                  &quot;\&quot;%s_rasters\&quot; AS r WHERE m.rowid IN &quot;
+<span class="lineNum">     146 </span>            :                  &quot;(SELECT pkid FROM \&quot;idx_%s_metadata_geometry\&quot; &quot;
+<span class="lineNum">     147 </span>            :                   &quot;WHERE %s) AND %s AND r.id = m.id&quot;,
+<span class="lineNum">     148 </span>            :                  poGDS-&gt;osTableName.c_str(),
+<span class="lineNum">     149 </span>            :                  poGDS-&gt;osTableName.c_str(),
+<span class="lineNum">     150 </span>            :                  poGDS-&gt;osTableName.c_str(),
+<span class="lineNum">     151 </span>            :                  RasterliteGetSpatialFilterCond(minx, miny, maxx, maxy).c_str(),
+<span class="lineNum">     152 </span><span class="lineCov">         22 :                  RasterliteGetPixelSizeCond(poGDS-&gt;adfGeoTransform[1], -poGDS-&gt;adfGeoTransform[5], &quot;m.&quot;).c_str());</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineCov">         22 :     OGRLayerH hSQLLyr = OGR_DS_ExecuteSQL(poGDS-&gt;hDS, osSQL.c_str(), nullptr, nullptr);</span>
+<span class="lineNum">     155 </span><span class="lineCov">         22 :     if (hSQLLyr == nullptr)</span>
+<span class="lineNum">     156 </span>            :     {
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :         memset(pImage, 0, nBlockXSize * nBlockYSize * nDataTypeSize);</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineCov">         44 :     CPLString osMemFileName;</span>
+<span class="lineNum">     162 </span><span class="lineCov">         22 :     osMemFileName.Printf(&quot;/vsimem/%p&quot;, this);</span>
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            : #ifdef RASTERLITE_DEBUG
+<span class="lineNum">     165 </span>            :     if (nBand == 1)
+<span class="lineNum">     166 </span>            :     {
+<span class="lineNum">     167 </span>            :         printf(&quot;nTiles = %d\n&quot;, static_cast&lt;int&gt;(/*ok*/
+<span class="lineNum">     168 </span>            :             OGR_L_GetFeatureCount(hSQLLyr, TRUE) ));
+<span class="lineNum">     169 </span>            :     }
+<span class="lineNum">     170 </span>            : #endif
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span><span class="lineCov">         22 :     bool bHasFoundTile = false;</span>
+<span class="lineNum">     173 </span><span class="lineCov">         22 :     bool bHasMemsetTile = false;</span>
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span>            :     OGRFeatureH hFeat;
+<span class="lineNum">     176 </span><span class="lineCov">         22 :     CPLErr eErr = CE_None;</span>
+<span class="lineNum">     177 </span><span class="lineCov">         66 :     while( (hFeat = OGR_L_GetNextFeature(hSQLLyr)) != nullptr &amp;&amp; eErr == CE_None )</span>
+<span class="lineNum">     178 </span>            :     {
+<span class="lineNum">     179 </span><span class="lineCov">         22 :         OGRGeometryH hGeom = OGR_F_GetGeometryRef(hFeat);</span>
+<span class="lineNum">     180 </span><span class="lineCov">         22 :         if (hGeom == nullptr)</span>
+<span class="lineNum">     181 </span>            :         {
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :             CPLError(CE_Failure, CPLE_AppDefined, &quot;null geometry found&quot;);</span>
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :             OGR_F_Destroy(hFeat);</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :             OGR_DS_ReleaseResultSet(poGDS-&gt;hDS, hSQLLyr);</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :             return CE_Failure;</span>
+<span class="lineNum">     186 </span>            :         }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineCov">         22 :         OGREnvelope oEnvelope;</span>
+<span class="lineNum">     189 </span><span class="lineCov">         22 :         OGR_G_GetEnvelope(hGeom, &amp;oEnvelope);</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineCov">         22 :         const int nTileId = OGR_F_GetFieldAsInteger(hFeat, 1);</span>
+<span class="lineNum">     192 </span><span class="lineCov">         22 :         if( poGDS-&gt;m_nLastBadTileId == nTileId )</span>
+<span class="lineNum">     193 </span>            :         {
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :             OGR_F_Destroy(hFeat);</span>
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     196 </span>            :         }
+<span class="lineNum">     197 </span><span class="lineCov">         22 :         const int nTileXSize = OGR_F_GetFieldAsInteger(hFeat, 2);</span>
+<span class="lineNum">     198 </span><span class="lineCov">         22 :         const int nTileYSize = OGR_F_GetFieldAsInteger(hFeat, 3);</span>
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span>            :         int nDstXOff = static_cast&lt;int&gt;(
+<span class="lineNum">     201 </span><span class="lineCov">         22 :             ( oEnvelope.MinX - minx ) / poGDS-&gt;adfGeoTransform[1] + 0.5 );</span>
+<span class="lineNum">     202 </span>            :         int nDstYOff = static_cast&lt;int&gt;(
+<span class="lineNum">     203 </span><span class="lineCov">         22 :             ( maxy - oEnvelope.MaxY ) / ( -poGDS-&gt;adfGeoTransform[5] ) + 0.5 );</span>
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineCov">         22 :         int nReqXSize = nTileXSize;</span>
+<span class="lineNum">     206 </span><span class="lineCov">         22 :         int nReqYSize = nTileYSize;</span>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span>            :         int nSrcXOff, nSrcYOff;
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span><span class="lineCov">         22 :         if (nDstXOff &gt;= 0)</span>
+<span class="lineNum">     211 </span>            :         {
+<span class="lineNum">     212 </span><span class="lineCov">         21 :             nSrcXOff = 0;</span>
+<span class="lineNum">     213 </span>            :         }
+<span class="lineNum">     214 </span>            :         else
+<span class="lineNum">     215 </span>            :         {
+<span class="lineNum">     216 </span><span class="lineCov">          1 :             nSrcXOff = -nDstXOff;</span>
+<span class="lineNum">     217 </span><span class="lineCov">          1 :             nReqXSize += nDstXOff;</span>
+<span class="lineNum">     218 </span><span class="lineCov">          1 :             nDstXOff = 0;</span>
+<span class="lineNum">     219 </span>            :         }
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span><span class="lineCov">         22 :         if (nDstYOff &gt;= 0)</span>
+<span class="lineNum">     222 </span>            :         {
+<span class="lineNum">     223 </span><span class="lineCov">         21 :             nSrcYOff = 0;</span>
+<span class="lineNum">     224 </span>            :         }
+<span class="lineNum">     225 </span>            :         else
+<span class="lineNum">     226 </span>            :         {
+<span class="lineNum">     227 </span><span class="lineCov">          1 :             nSrcYOff = -nDstYOff;</span>
+<span class="lineNum">     228 </span><span class="lineCov">          1 :             nReqYSize += nDstYOff;</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :             nDstYOff = 0;</span>
+<span class="lineNum">     230 </span>            :         }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span><span class="lineCov">         22 :         if (nDstXOff + nReqXSize &gt; nBlockXSize)</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :             nReqXSize = nBlockXSize - nDstXOff;</span>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span><span class="lineCov">         22 :         if (nDstYOff + nReqYSize &gt; nBlockYSize)</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :             nReqYSize = nBlockYSize - nDstYOff;</span>
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span>            : #ifdef RASTERLITE_DEBUG
+<span class="lineNum">     239 </span>            :         if (nBand == 1)
+<span class="lineNum">     240 </span>            :         {
+<span class="lineNum">     241 </span>            :             printf(&quot;id = %d, minx=%.15f miny=%.15f maxx=%.15f maxy=%.15f\n&quot;/*ok*/
+<span class="lineNum">     242 </span>            :                    &quot;nDstXOff = %d, nDstYOff = %d, nSrcXOff = %d, nSrcYOff = %d, &quot;
+<span class="lineNum">     243 </span>            :                    &quot;nReqXSize=%d, nReqYSize=%d\n&quot;,
+<span class="lineNum">     244 </span>            :                    nTileId,
+<span class="lineNum">     245 </span>            :                    oEnvelope.MinX, oEnvelope.MinY, oEnvelope.MaxX, oEnvelope.MaxY,
+<span class="lineNum">     246 </span>            :                    nDstXOff, nDstYOff,
+<span class="lineNum">     247 </span>            :                    nSrcXOff, nSrcYOff, nReqXSize, nReqYSize);
+<span class="lineNum">     248 </span>            :         }
+<span class="lineNum">     249 </span>            : #endif
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineCov">         22 :         if (nReqXSize &gt; 0 &amp;&amp; nReqYSize &gt; 0 &amp;&amp;</span>
+<span class="lineNum">     252 </span><span class="lineCov">         22 :             nSrcXOff &lt; nTileXSize &amp;&amp; nSrcYOff &lt; nTileYSize)</span>
+<span class="lineNum">     253 </span>            :         {
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span>            : #ifdef RASTERLITE_DEBUG
+<span class="lineNum">     256 </span>            :             if (nBand == 1)
+<span class="lineNum">     257 </span>            :             {
+<span class="lineNum">     258 </span>            :                 printf(&quot;id = %d, selected !\n&quot;,  nTileId);/*ok*/
+<span class="lineNum">     259 </span>            :             }
+<span class="lineNum">     260 </span>            : #endif
+<span class="lineNum">     261 </span><span class="lineCov">         22 :             int nDataSize = 0;</span>
+<span class="lineNum">     262 </span><span class="lineCov">         22 :             GByte* pabyData = OGR_F_GetFieldAsBinary(hFeat, 0, &amp;nDataSize);</span>
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span>            :             VSILFILE * fp = VSIFileFromMemBuffer( osMemFileName.c_str(), pabyData,
+<span class="lineNum">     265 </span><span class="lineCov">         22 :                                               nDataSize, FALSE);</span>
+<span class="lineNum">     266 </span><span class="lineCov">         22 :             VSIFCloseL(fp);</span>
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span>            :             GDALDatasetH hDSTile = GDALOpenEx(osMemFileName.c_str(),
+<span class="lineNum">     269 </span>            :                                               GDAL_OF_RASTER | GDAL_OF_INTERNAL,
+<span class="lineNum">     270 </span><span class="lineCov">         22 :                                               nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     271 </span><span class="lineCov">         22 :             int nTileBands = 0;</span>
+<span class="lineNum">     272 </span><span class="lineCov">         22 :             if (hDSTile &amp;&amp; (nTileBands = GDALGetRasterCount(hDSTile)) == 0)</span>
+<span class="lineNum">     273 </span>            :             {
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :                 GDALClose(hDSTile);</span>
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 :                 hDSTile = nullptr;</span>
+<span class="lineNum">     276 </span>            :             }
+<span class="lineNum">     277 </span><span class="lineCov">         22 :             if (hDSTile == nullptr)</span>
+<span class="lineNum">     278 </span>            :             {
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :                 poGDS-&gt;m_nLastBadTileId = nTileId;</span>
+<span class="lineNum">     280 </span>            :                 CPLError(CE_Failure, CPLE_AppDefined, &quot;Can't open tile %d&quot;,
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :                          nTileId);</span>
+<span class="lineNum">     282 </span>            :             }
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineCov">         22 :             int nReqBand = 1;</span>
+<span class="lineNum">     285 </span><span class="lineCov">         22 :             if (nTileBands == poGDS-&gt;nBands)</span>
+<span class="lineNum">     286 </span><span class="lineCov">         21 :                 nReqBand = nBand;</span>
+<span class="lineNum">     287 </span><span class="lineCov">          1 :             else if (eDataType == GDT_Byte &amp;&amp; nTileBands == 1 &amp;&amp; poGDS-&gt;nBands == 3)</span>
+<span class="lineNum">     288 </span><span class="lineCov">          1 :                 nReqBand = 1;</span>
+<span class="lineNum">     289 </span>            :             else
+<span class="lineNum">     290 </span>            :             {
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :                 poGDS-&gt;m_nLastBadTileId = nTileId;</span>
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :                 GDALClose(hDSTile);</span>
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :                 hDSTile = nullptr;</span>
+<span class="lineNum">     294 </span>            :             }
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span><span class="lineCov">         22 :             if( hDSTile )</span>
+<span class="lineNum">     297 </span>            :             {
+<span class="lineNum">     298 </span><span class="lineCov">         44 :                 if( GDALGetRasterXSize(hDSTile) != nTileXSize ||</span>
+<span class="lineNum">     299 </span><span class="lineCov">         22 :                     GDALGetRasterYSize(hDSTile) != nTileYSize )</span>
+<span class="lineNum">     300 </span>            :                 {
+<span class="lineNum">     301 </span>            :                     CPLError(CE_Failure, CPLE_AppDefined, &quot;Invalid dimensions for tile %d&quot;,
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :                              nTileId);</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :                     poGDS-&gt;m_nLastBadTileId = nTileId;</span>
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 :                     GDALClose(hDSTile);</span>
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :                     hDSTile = nullptr;</span>
+<span class="lineNum">     306 </span>            :                 }
+<span class="lineNum">     307 </span>            :             }
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span><span class="lineCov">         22 :             if (hDSTile)</span>
+<span class="lineNum">     310 </span>            :             {
+<span class="lineNum">     311 </span><span class="lineCov">         22 :                 bHasFoundTile = true;</span>
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span><span class="lineCov">         22 :                 bool bHasJustMemsetTileBand1 = false;</span>
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            :                 /* If the source tile doesn't fit the entire block size, then */
+<span class="lineNum">     316 </span>            :                 /* we memset 0 before */
+<span class="lineNum">     317 </span><span class="lineCov">         44 :                 if (!(nDstXOff == 0 &amp;&amp; nDstYOff == 0 &amp;&amp;</span>
+<span class="lineNum">     318 </span><span class="lineCov">         45 :                       nReqXSize == nBlockXSize &amp;&amp; nReqYSize == nBlockYSize) &amp;&amp;</span>
+<span class="lineNum">     319 </span><span class="lineCov">          6 :                     !bHasMemsetTile)</span>
+<span class="lineNum">     320 </span>            :                 {
+<span class="lineNum">     321 </span><span class="lineCov">          6 :                     memset(pImage, 0, nBlockXSize * nBlockYSize * nDataTypeSize);</span>
+<span class="lineNum">     322 </span><span class="lineCov">          6 :                     bHasMemsetTile = true;</span>
+<span class="lineNum">     323 </span><span class="lineCov">          6 :                     bHasJustMemsetTileBand1 = true;</span>
+<span class="lineNum">     324 </span>            :                 }
+<span class="lineNum">     325 </span>            : 
+<span class="lineNum">     326 </span>            :                 GDALColorTable* poTileCT =
+<span class="lineNum">     327 </span>            :                     reinterpret_cast&lt;GDALColorTable *&gt;(
+<span class="lineNum">     328 </span>            :                         GDALGetRasterColorTable(
+<span class="lineNum">     329 </span><span class="lineCov">         22 :                             GDALGetRasterBand( hDSTile, 1 ) ) );</span>
+<span class="lineNum">     330 </span><span class="lineCov">         22 :                 unsigned char* pabyTranslationTable = nullptr;</span>
+<span class="lineNum">     331 </span><span class="lineCov">         22 :                 if (poGDS-&gt;nBands == 1 &amp;&amp; poGDS-&gt;poCT != nullptr &amp;&amp; poTileCT != nullptr)</span>
+<span class="lineNum">     332 </span>            :                 {
+<span class="lineNum">     333 </span>            :                     pabyTranslationTable =
+<span class="lineNum">     334 </span>            :                         reinterpret_cast&lt;GDALRasterBand *&gt;(
+<span class="lineNum">     335 </span><span class="lineCov">          1 :                             GDALGetRasterBand( hDSTile, 1 ) )-&gt;</span>
+<span class="lineNum">     336 </span><span class="lineCov">          2 :                                 GetIndexColorTranslationTo(this, nullptr, nullptr);</span>
+<span class="lineNum">     337 </span>            :                 }
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     340 </span>            : /*      Read tile data                                                  */
+<span class="lineNum">     341 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     342 </span>            :                 eErr = GDALRasterIO(
+<span class="lineNum">     343 </span>            :                     GDALGetRasterBand(hDSTile, nReqBand), GF_Read,
+<span class="lineNum">     344 </span>            :                     nSrcXOff, nSrcYOff, nReqXSize, nReqYSize,
+<span class="lineNum">     345 </span>            :                     reinterpret_cast&lt;char*&gt;( pImage )
+<span class="lineNum">     346 </span><span class="lineCov">         44 :                     + (nDstXOff + nDstYOff * nBlockXSize) * nDataTypeSize,</span>
+<span class="lineNum">     347 </span>            :                     nReqXSize, nReqYSize,
+<span class="lineNum">     348 </span><span class="lineCov">         66 :                     eDataType, nDataTypeSize, nBlockXSize * nDataTypeSize);</span>
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span><span class="lineCov">         22 :                 if (eDataType == GDT_Byte &amp;&amp; pabyTranslationTable)</span>
+<span class="lineNum">     351 </span>            :                 {
+<span class="lineNum">     352 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     353 </span>            : /*      Convert from tile CT to band CT                                 */
+<span class="lineNum">     354 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :                     for( int j = nDstYOff; j &lt; nDstYOff + nReqYSize; j++ )</span>
+<span class="lineNum">     356 </span>            :                     {
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :                         for( int i = nDstXOff; i &lt; nDstXOff + nReqXSize; i++ )</span>
+<span class="lineNum">     358 </span>            :                         {
+<span class="lineNum">     359 </span>            :                             GByte* pPixel = reinterpret_cast&lt;GByte *&gt;( pImage )
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :                                 + i + j * nBlockXSize;</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :                             *pPixel = pabyTranslationTable[*pPixel];</span>
+<span class="lineNum">     362 </span>            :                         }
+<span class="lineNum">     363 </span>            :                     }
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :                     CPLFree(pabyTranslationTable);</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :                     pabyTranslationTable = nullptr;</span>
+<span class="lineNum">     366 </span>            :                 }
+<span class="lineNum">     367 </span><span class="lineCov">         39 :                 else if (eDataType == GDT_Byte &amp;&amp; nTileBands == 1 &amp;&amp;</span>
+<span class="lineNum">     368 </span><span class="lineCov">         18 :                          poGDS-&gt;nBands == 3 &amp;&amp; poTileCT != nullptr)</span>
+<span class="lineNum">     369 </span>            :                 {
+<span class="lineNum">     370 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     371 </span>            : /*      Expand from PCT to RGB                                          */
+<span class="lineNum">     372 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     373 </span>            :                     GByte abyCT[256];
+<span class="lineNum">     374 </span><span class="lineCov">          1 :                     const int nEntries = std::min(256, poTileCT-&gt;GetColorEntryCount());</span>
+<span class="lineNum">     375 </span><span class="lineCov">        257 :                     for( int i = 0; i &lt; nEntries; i++ )</span>
+<span class="lineNum">     376 </span>            :                     {
+<span class="lineNum">     377 </span><span class="lineCov">        256 :                         const GDALColorEntry* psEntry = poTileCT-&gt;GetColorEntry(i);</span>
+<span class="lineNum">     378 </span><span class="lineCov">        256 :                         if (nBand == 1)</span>
+<span class="lineNum">     379 </span><span class="lineCov">        256 :                             abyCT[i] = static_cast&lt;GByte&gt;( psEntry-&gt;c1 );</span>
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :                         else if (nBand == 2)</span>
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :                             abyCT[i] = static_cast&lt;GByte&gt;( psEntry-&gt;c2 );</span>
+<span class="lineNum">     382 </span>            :                         else
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :                             abyCT[i] = static_cast&lt;GByte&gt;( psEntry-&gt;c3 );</span>
+<span class="lineNum">     384 </span>            :                     }
+<span class="lineNum">     385 </span><span class="lineCov">          1 :                     for( int i = nEntries; i &lt; 256; i++ )</span>
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :                         abyCT[i] = 0;</span>
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span><span class="lineCov">        170 :                     for( int j = nDstYOff; j &lt; nDstYOff + nReqYSize; j++ )</span>
+<span class="lineNum">     389 </span>            :                     {
+<span class="lineNum">     390 </span><span class="lineCov">      57291 :                         for( int i = nDstXOff; i &lt; nDstXOff + nReqXSize; i++ )</span>
+<span class="lineNum">     391 </span>            :                         {
+<span class="lineNum">     392 </span>            :                             GByte* pPixel = reinterpret_cast&lt;GByte *&gt;( pImage )
+<span class="lineNum">     393 </span><span class="lineCov">      57122 :                                 + i + j * nBlockXSize;</span>
+<span class="lineNum">     394 </span><span class="lineCov">      57122 :                             *pPixel = abyCT[*pPixel];</span>
+<span class="lineNum">     395 </span>            :                         }
+<span class="lineNum">     396 </span>            :                     }
+<span class="lineNum">     397 </span>            :                 }
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     400 </span>            : /*      Put in the block cache the data for this block into other bands */
+<span class="lineNum">     401 </span>            : /*      while the underlying dataset is opened                          */
+<span class="lineNum">     402 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     403 </span><span class="lineCov">         22 :                 if (nBand == 1 &amp;&amp; poGDS-&gt;nBands &gt; 1)</span>
+<span class="lineNum">     404 </span>            :                 {
+<span class="lineNum">     405 </span><span class="lineCov">         36 :                     for( int iOtherBand = 2;</span>
+<span class="lineNum">     406 </span><span class="lineCov">         30 :                          iOtherBand&lt;=poGDS-&gt;nBands &amp;&amp; eErr == CE_None;</span>
+<span class="lineNum">     407 </span>            :                          iOtherBand++ )
+<span class="lineNum">     408 </span>            :                     {
+<span class="lineNum">     409 </span>            :                         GDALRasterBlock *poBlock
+<span class="lineNum">     410 </span>            :                             = poGDS-&gt;GetRasterBand(iOtherBand)-&gt;
+<span class="lineNum">     411 </span><span class="lineCov">         12 :                             GetLockedBlockRef(nBlockXOff,nBlockYOff, TRUE);</span>
+<span class="lineNum">     412 </span><span class="lineCov">         12 :                         if (poBlock == nullptr)</span>
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :                             break;</span>
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span>            :                         GByte* pabySrcBlock = reinterpret_cast&lt;GByte *&gt;(
+<span class="lineNum">     416 </span><span class="lineCov">         12 :                             poBlock-&gt;GetDataRef() );</span>
+<span class="lineNum">     417 </span><span class="lineCov">         12 :                         if( pabySrcBlock == nullptr )</span>
+<span class="lineNum">     418 </span>            :                         {
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :                             poBlock-&gt;DropLock();</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :                             break;</span>
+<span class="lineNum">     421 </span>            :                         }
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span><span class="lineCov">         12 :                         if (nTileBands == 1)</span>
+<span class="lineNum">     424 </span><span class="lineCov">          2 :                             nReqBand = 1;</span>
+<span class="lineNum">     425 </span>            :                         else
+<span class="lineNum">     426 </span><span class="lineCov">         10 :                             nReqBand = iOtherBand;</span>
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span><span class="lineCov">         12 :                         if (bHasJustMemsetTileBand1)</span>
+<span class="lineNum">     429 </span>            :                             memset(pabySrcBlock, 0,
+<span class="lineNum">     430 </span><span class="lineCov">          2 :                                    nBlockXSize * nBlockYSize * nDataTypeSize);</span>
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     433 </span>            : /*      Read tile data                                                  */
+<span class="lineNum">     434 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     435 </span>            :                         eErr = GDALRasterIO(
+<span class="lineNum">     436 </span>            :                             GDALGetRasterBand(hDSTile, nReqBand), GF_Read,
+<span class="lineNum">     437 </span>            :                             nSrcXOff, nSrcYOff, nReqXSize, nReqYSize,
+<span class="lineNum">     438 </span><span class="lineCov">         12 :                             reinterpret_cast&lt;char *&gt;( pabySrcBlock ) +</span>
+<span class="lineNum">     439 </span><span class="lineCov">         12 :                             (nDstXOff + nDstYOff * nBlockXSize) * nDataTypeSize,</span>
+<span class="lineNum">     440 </span>            :                             nReqXSize, nReqYSize,
+<span class="lineNum">     441 </span>            :                             eDataType, nDataTypeSize,
+<span class="lineNum">     442 </span><span class="lineCov">         36 :                             nBlockXSize * nDataTypeSize);</span>
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span><span class="lineCov">         14 :                         if (eDataType == GDT_Byte &amp;&amp; nTileBands == 1 &amp;&amp;</span>
+<span class="lineNum">     445 </span><span class="lineCov">          4 :                             poGDS-&gt;nBands == 3 &amp;&amp; poTileCT != nullptr)</span>
+<span class="lineNum">     446 </span>            :                         {
+<span class="lineNum">     447 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     448 </span>            : /*      Expand from PCT to RGB                                          */
+<span class="lineNum">     449 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span>            :                             GByte abyCT[256];
+<span class="lineNum">     452 </span>            :                             const int nEntries
+<span class="lineNum">     453 </span><span class="lineCov">          2 :                                 = std::min(256, poTileCT-&gt;GetColorEntryCount());</span>
+<span class="lineNum">     454 </span><span class="lineCov">        514 :                             for( int i=0; i &lt; nEntries; i++ )</span>
+<span class="lineNum">     455 </span>            :                             {
+<span class="lineNum">     456 </span><span class="lineCov">        512 :                                 const GDALColorEntry* psEntry = poTileCT-&gt;GetColorEntry(i);</span>
+<span class="lineNum">     457 </span><span class="lineCov">        512 :                                 if (iOtherBand == 1)</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :                                     abyCT[i] = static_cast&lt;GByte&gt;( psEntry-&gt;c1 );</span>
+<span class="lineNum">     459 </span><span class="lineCov">        512 :                                 else if (iOtherBand == 2)</span>
+<span class="lineNum">     460 </span><span class="lineCov">        256 :                                     abyCT[i] = static_cast&lt;GByte&gt;( psEntry-&gt;c2 );</span>
+<span class="lineNum">     461 </span>            :                                 else
+<span class="lineNum">     462 </span><span class="lineCov">        256 :                                     abyCT[i] = static_cast&lt;GByte&gt;( psEntry-&gt;c3 );</span>
+<span class="lineNum">     463 </span>            :                             }
+<span class="lineNum">     464 </span><span class="lineCov">          2 :                             for( int i = nEntries; i &lt; 256; i++ )</span>
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :                                 abyCT[i] = 0;</span>
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span><span class="lineCov">        340 :                             for( int j = nDstYOff; j &lt; nDstYOff + nReqYSize; j++ )</span>
+<span class="lineNum">     468 </span>            :                             {
+<span class="lineNum">     469 </span><span class="lineCov">     114582 :                                 for( int i = nDstXOff; i &lt; nDstXOff + nReqXSize; i++ )</span>
+<span class="lineNum">     470 </span>            :                                 {
+<span class="lineNum">     471 </span>            :                                   GByte* pPixel
+<span class="lineNum">     472 </span>            :                                       = reinterpret_cast&lt;GByte*&gt;( pabySrcBlock )
+<span class="lineNum">     473 </span><span class="lineCov">     114244 :                                       + i + j * nBlockXSize;</span>
+<span class="lineNum">     474 </span><span class="lineCov">     114244 :                                     *pPixel = abyCT[*pPixel];</span>
+<span class="lineNum">     475 </span>            :                                 }
+<span class="lineNum">     476 </span>            :                             }
+<span class="lineNum">     477 </span>            :                         }
+<span class="lineNum">     478 </span>            : 
+<span class="lineNum">     479 </span><span class="lineCov">         12 :                         poBlock-&gt;DropLock();</span>
+<span class="lineNum">     480 </span>            :                     }
+<span class="lineNum">     481 </span>            :                 }
+<span class="lineNum">     482 </span><span class="lineCov">         22 :                 GDALClose(hDSTile);</span>
+<span class="lineNum">     483 </span>            :             }
+<span class="lineNum">     484 </span>            : 
+<span class="lineNum">     485 </span><span class="lineCov">         22 :             VSIUnlink(osMemFileName.c_str());</span>
+<span class="lineNum">     486 </span>            :         }
+<span class="lineNum">     487 </span>            :         else
+<span class="lineNum">     488 </span>            :         {
+<span class="lineNum">     489 </span>            : #ifdef RASTERLITE_DEBUG
+<span class="lineNum">     490 </span>            :             if (nBand == 1)
+<span class="lineNum">     491 </span>            :             {
+<span class="lineNum">     492 </span>            :                 printf(&quot;id = %d, NOT selected !\n&quot;,  nTileId);/*ok*/
+<span class="lineNum">     493 </span>            :             }
+<span class="lineNum">     494 </span>            : #endif
+<span class="lineNum">     495 </span>            :         }
+<span class="lineNum">     496 </span><span class="lineCov">         22 :         OGR_F_Destroy(hFeat);</span>
+<span class="lineNum">     497 </span>            :     }
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span><span class="lineCov">         22 :     VSIUnlink(osMemFileName.c_str());</span>
+<span class="lineNum">     500 </span><span class="lineCov">         22 :     VSIUnlink((osMemFileName + &quot;.aux.xml&quot;).c_str());</span>
+<span class="lineNum">     501 </span>            : 
+<span class="lineNum">     502 </span><span class="lineCov">         22 :     if (!bHasFoundTile)</span>
+<span class="lineNum">     503 </span>            :     {
+<span class="lineNum">     504 </span><span class="lineNoCov">          0 :         memset(pImage, 0, nBlockXSize * nBlockYSize * nDataTypeSize);</span>
+<span class="lineNum">     505 </span>            :     }
+<span class="lineNum">     506 </span>            : 
+<span class="lineNum">     507 </span><span class="lineCov">         22 :     OGR_DS_ReleaseResultSet(poGDS-&gt;hDS, hSQLLyr);</span>
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span>            : #ifdef RASTERLITE_DEBUG
+<span class="lineNum">     510 </span>            :     if (nBand == 1)
+<span class="lineNum">     511 </span>            :         printf(&quot;\n&quot;);/*ok*/
+<span class="lineNum">     512 </span>            : #endif
+<span class="lineNum">     513 </span>            : 
+<span class="lineNum">     514 </span><span class="lineCov">         44 :     return eErr;</span>
+<span class="lineNum">     515 </span>            : }
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span>            : /************************************************************************/
+<span class="lineNum">     518 </span>            : /*                         GetOverviewCount()                           */
+<a name="519"><span class="lineNum">     519 </span>            : /************************************************************************/</a>
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span><span class="lineCov">          9 : int RasterliteBand::GetOverviewCount()</span>
+<span class="lineNum">     522 </span>            : {
+<span class="lineNum">     523 </span><span class="lineCov">          9 :     RasterliteDataset* poGDS = reinterpret_cast&lt;RasterliteDataset *&gt;( poDS );</span>
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span><span class="lineCov">          9 :     if (poGDS-&gt;nLimitOvrCount &gt;= 0)</span>
+<span class="lineNum">     526 </span><span class="lineCov">          5 :         return poGDS-&gt;nLimitOvrCount;</span>
+<span class="lineNum">     527 </span><span class="lineCov">          4 :     else if (poGDS-&gt;nResolutions &gt; 1)</span>
+<span class="lineNum">     528 </span><span class="lineCov">          1 :         return poGDS-&gt;nResolutions - 1;</span>
+<span class="lineNum">     529 </span>            :     else
+<span class="lineNum">     530 </span><span class="lineCov">          3 :         return GDALPamRasterBand::GetOverviewCount();</span>
+<span class="lineNum">     531 </span>            : }
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span>            : /************************************************************************/
+<span class="lineNum">     534 </span>            : /*                              GetOverview()                           */
+<a name="535"><span class="lineNum">     535 </span>            : /************************************************************************/</a>
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span><span class="lineCov">         13 : GDALRasterBand* RasterliteBand::GetOverview(int nLevel)</span>
+<span class="lineNum">     538 </span>            : {
+<span class="lineNum">     539 </span><span class="lineCov">         13 :     RasterliteDataset* poGDS = reinterpret_cast&lt;RasterliteDataset *&gt;( poDS );</span>
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span><span class="lineCov">         13 :     if (poGDS-&gt;nLimitOvrCount &gt;= 0)</span>
+<span class="lineNum">     542 </span>            :     {
+<span class="lineNum">     543 </span><span class="lineCov">          4 :         if (nLevel &lt; 0 || nLevel &gt;= poGDS-&gt;nLimitOvrCount)</span>
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     545 </span>            :     }
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span><span class="lineCov">         13 :     if (poGDS-&gt;nResolutions == 1)</span>
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :         return GDALPamRasterBand::GetOverview(nLevel);</span>
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span><span class="lineCov">         13 :     if (nLevel &lt; 0 || nLevel &gt;= poGDS-&gt;nResolutions - 1)</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span><span class="lineCov">         13 :     GDALDataset* poOvrDS = poGDS-&gt;papoOverviews[nLevel];</span>
+<span class="lineNum">     554 </span><span class="lineCov">         13 :     if (poOvrDS)</span>
+<span class="lineNum">     555 </span><span class="lineCov">         13 :         return poOvrDS-&gt;GetRasterBand(nBand);</span>
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     558 </span>            : }
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            : /************************************************************************/
+<span class="lineNum">     561 </span>            : /*                   GetColorInterpretation()                           */
+<a name="562"><span class="lineNum">     562 </span>            : /************************************************************************/</a>
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span><span class="lineCov">          1 : GDALColorInterp RasterliteBand::GetColorInterpretation()</span>
+<span class="lineNum">     565 </span>            : {
+<span class="lineNum">     566 </span><span class="lineCov">          1 :     RasterliteDataset* poGDS = reinterpret_cast&lt;RasterliteDataset *&gt;( poDS );</span>
+<span class="lineNum">     567 </span><span class="lineCov">          1 :     if (poGDS-&gt;nBands == 1)</span>
+<span class="lineNum">     568 </span>            :     {
+<span class="lineNum">     569 </span><span class="lineCov">          1 :         if (poGDS-&gt;poCT != nullptr)</span>
+<span class="lineNum">     570 </span><span class="lineCov">          1 :             return GCI_PaletteIndex;</span>
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :         return GCI_GrayIndex;</span>
+<span class="lineNum">     573 </span>            :     }
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :     else if (poGDS-&gt;nBands == 3)</span>
+<span class="lineNum">     575 </span>            :     {
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :         if (nBand == 1)</span>
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :             return GCI_RedBand;</span>
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :         else if (nBand == 2)</span>
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :             return GCI_GreenBand;</span>
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :         else if (nBand == 3)</span>
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :             return GCI_BlueBand;</span>
+<span class="lineNum">     582 </span>            :     }
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :     return GCI_Undefined;</span>
+<span class="lineNum">     585 </span>            : }
+<span class="lineNum">     586 </span>            : 
+<span class="lineNum">     587 </span>            : /************************************************************************/
+<span class="lineNum">     588 </span>            : /*                        GetColorTable()                               */
+<a name="589"><span class="lineNum">     589 </span>            : /************************************************************************/</a>
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span><span class="lineCov">          3 : GDALColorTable* RasterliteBand::GetColorTable()</span>
+<span class="lineNum">     592 </span>            : {
+<span class="lineNum">     593 </span><span class="lineCov">          3 :     RasterliteDataset* poGDS = reinterpret_cast&lt;RasterliteDataset *&gt;( poDS );</span>
+<span class="lineNum">     594 </span><span class="lineCov">          3 :     if (poGDS-&gt;nBands == 1)</span>
+<span class="lineNum">     595 </span><span class="lineCov">          2 :         return poGDS-&gt;poCT;</span>
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span><span class="lineCov">          1 :     return nullptr;</span>
+<span class="lineNum">     598 </span>            : }
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span>            : /************************************************************************/
+<span class="lineNum">     601 </span>            : /*                         RasterliteDataset()                          */
+<a name="602"><span class="lineNum">     602 </span>            : /************************************************************************/</a>
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span><span class="lineCov">         32 : RasterliteDataset::RasterliteDataset() :</span>
+<span class="lineNum">     605 </span>            :     bMustFree(FALSE),
+<span class="lineNum">     606 </span>            :     poMainDS(nullptr),
+<span class="lineNum">     607 </span>            :     nLevel(0),
+<span class="lineNum">     608 </span>            :     papszMetadata(nullptr),
+<span class="lineNum">     609 </span><span class="lineCov">         32 :     papszImageStructure(CSLAddString(nullptr, &quot;INTERLEAVE=PIXEL&quot;)),</span>
+<span class="lineNum">     610 </span>            :     papszSubDatasets(nullptr),
+<span class="lineNum">     611 </span>            :     nResolutions(0),
+<span class="lineNum">     612 </span>            :     padfXResolutions(nullptr),
+<span class="lineNum">     613 </span>            :     padfYResolutions(nullptr),
+<span class="lineNum">     614 </span>            :     papoOverviews(nullptr),
+<span class="lineNum">     615 </span>            :     nLimitOvrCount(-1),
+<span class="lineNum">     616 </span>            :     bValidGeoTransform(FALSE),
+<span class="lineNum">     617 </span>            :     pszSRS(nullptr),
+<span class="lineNum">     618 </span>            :     poCT(nullptr),
+<span class="lineNum">     619 </span>            :     bCheckForExistingOverview(TRUE),
+<span class="lineNum">     620 </span><span class="lineCov">         64 :     hDS(nullptr)</span>
+<span class="lineNum">     621 </span>            : {
+<span class="lineNum">     622 </span><span class="lineCov">         32 :     memset( adfGeoTransform, 0, sizeof(adfGeoTransform) );</span>
+<span class="lineNum">     623 </span><span class="lineCov">         32 : }</span>
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span>            : /************************************************************************/
+<span class="lineNum">     626 </span>            : /*                         RasterliteDataset()                          */
+<a name="627"><span class="lineNum">     627 </span>            : /************************************************************************/</a>
+<span class="lineNum">     628 </span>            : 
+<span class="lineNum">     629 </span><span class="lineCov">         15 : RasterliteDataset::RasterliteDataset( RasterliteDataset* poMainDSIn,</span>
+<span class="lineNum">     630 </span>            :                                       int nLevelIn ) :
+<span class="lineNum">     631 </span>            :     bMustFree(FALSE),
+<span class="lineNum">     632 </span>            :     poMainDS(poMainDSIn),
+<span class="lineNum">     633 </span>            :     nLevel(nLevelIn),
+<span class="lineNum">     634 </span>            :     papszMetadata(poMainDSIn-&gt;papszMetadata),
+<span class="lineNum">     635 </span>            :     papszImageStructure(poMainDSIn-&gt;papszImageStructure),
+<span class="lineNum">     636 </span>            :     papszSubDatasets(poMainDS-&gt;papszSubDatasets),
+<span class="lineNum">     637 </span><span class="lineCov">         15 :     nResolutions(poMainDSIn-&gt;nResolutions - nLevelIn),</span>
+<span class="lineNum">     638 </span><span class="lineCov">         15 :     padfXResolutions(poMainDSIn-&gt;padfXResolutions + nLevelIn),</span>
+<span class="lineNum">     639 </span><span class="lineCov">         15 :     padfYResolutions(poMainDSIn-&gt;padfYResolutions + nLevelIn),</span>
+<span class="lineNum">     640 </span><span class="lineCov">         15 :     papoOverviews(poMainDSIn-&gt;papoOverviews + nLevelIn),</span>
+<span class="lineNum">     641 </span>            :     nLimitOvrCount(-1),
+<span class="lineNum">     642 </span>            :     bValidGeoTransform(TRUE),
+<span class="lineNum">     643 </span>            :     pszSRS(poMainDSIn-&gt;pszSRS),
+<span class="lineNum">     644 </span>            :     poCT(poMainDSIn-&gt;poCT),
+<span class="lineNum">     645 </span>            :     osTableName(poMainDSIn-&gt;osTableName),
+<span class="lineNum">     646 </span>            :     osFileName(poMainDSIn-&gt;osFileName),
+<span class="lineNum">     647 </span>            :     bCheckForExistingOverview(TRUE),
+<span class="lineNum">     648 </span>            :     // TODO: osOvrFileName?
+<span class="lineNum">     649 </span><span class="lineCov">         75 :     hDS(poMainDSIn-&gt;hDS)</span>
+<span class="lineNum">     650 </span>            : {
+<span class="lineNum">     651 </span><span class="lineCov">         30 :     nRasterXSize = static_cast&lt;int&gt;(poMainDS-&gt;nRasterXSize *</span>
+<span class="lineNum">     652 </span><span class="lineCov">         30 :         (poMainDS-&gt;padfXResolutions[0] / padfXResolutions[0]) + 0.5);</span>
+<span class="lineNum">     653 </span><span class="lineCov">         30 :     nRasterYSize = static_cast&lt;int&gt;(poMainDS-&gt;nRasterYSize *</span>
+<span class="lineNum">     654 </span><span class="lineCov">         30 :         (poMainDS-&gt;padfYResolutions[0] / padfYResolutions[0]) + 0.5);</span>
+<span class="lineNum">     655 </span>            : 
+<span class="lineNum">     656 </span><span class="lineCov">         15 :     memcpy(adfGeoTransform, poMainDS-&gt;adfGeoTransform, 6 * sizeof(double));</span>
+<span class="lineNum">     657 </span><span class="lineCov">         15 :     adfGeoTransform[1] = padfXResolutions[0];</span>
+<span class="lineNum">     658 </span><span class="lineCov">         15 :     adfGeoTransform[5] = - padfYResolutions[0];</span>
+<span class="lineNum">     659 </span><span class="lineCov">         15 : }</span>
+<span class="lineNum">     660 </span>            : 
+<span class="lineNum">     661 </span>            : /************************************************************************/
+<span class="lineNum">     662 </span>            : /*                        ~RasterliteDataset()                          */
+<a name="663"><span class="lineNum">     663 </span>            : /************************************************************************/</a>
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span><span class="lineCov">        141 : RasterliteDataset::~RasterliteDataset()</span>
+<span class="lineNum">     666 </span>            : {
+<span class="lineNum">     667 </span><span class="lineCov">         47 :     RasterliteDataset::CloseDependentDatasets();</span>
+<span class="lineNum">     668 </span><span class="lineCov">         94 : }</span>
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span>            : /************************************************************************/
+<span class="lineNum">     671 </span>            : /*                      CloseDependentDatasets()                        */
+<a name="672"><span class="lineNum">     672 </span>            : /************************************************************************/</a>
+<span class="lineNum">     673 </span>            : 
+<span class="lineNum">     674 </span><span class="lineCov">         67 : int RasterliteDataset::CloseDependentDatasets()</span>
+<span class="lineNum">     675 </span>            : {
+<span class="lineNum">     676 </span><span class="lineCov">         67 :     int bRet = GDALPamDataset::CloseDependentDatasets();</span>
+<span class="lineNum">     677 </span>            : 
+<span class="lineNum">     678 </span><span class="lineCov">         67 :     if (poMainDS == nullptr &amp;&amp; !bMustFree)</span>
+<span class="lineNum">     679 </span>            :     {
+<span class="lineNum">     680 </span><span class="lineCov">         43 :         CSLDestroy(papszMetadata);</span>
+<span class="lineNum">     681 </span><span class="lineCov">         43 :         papszMetadata = nullptr;</span>
+<span class="lineNum">     682 </span><span class="lineCov">         43 :         CSLDestroy(papszSubDatasets);</span>
+<span class="lineNum">     683 </span><span class="lineCov">         43 :         papszSubDatasets = nullptr;</span>
+<span class="lineNum">     684 </span><span class="lineCov">         43 :         CSLDestroy(papszImageStructure);</span>
+<span class="lineNum">     685 </span><span class="lineCov">         43 :         papszImageStructure = nullptr;</span>
+<span class="lineNum">     686 </span><span class="lineCov">         43 :         CPLFree(pszSRS);</span>
+<span class="lineNum">     687 </span><span class="lineCov">         43 :         pszSRS = nullptr;</span>
+<span class="lineNum">     688 </span>            : 
+<span class="lineNum">     689 </span><span class="lineCov">         43 :         if (papoOverviews)</span>
+<span class="lineNum">     690 </span>            :         {
+<span class="lineNum">     691 </span><span class="lineCov">         18 :             for( int i = 1; i &lt; nResolutions; i++ )</span>
+<span class="lineNum">     692 </span>            :             {
+<span class="lineNum">     693 </span><span class="lineCov">         21 :                 if (papoOverviews[i-1] != nullptr &amp;&amp;</span>
+<span class="lineNum">     694 </span><span class="lineCov">         10 :                     papoOverviews[i-1]-&gt;bMustFree)</span>
+<span class="lineNum">     695 </span>            :                 {
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :                     papoOverviews[i-1]-&gt;poMainDS = nullptr;</span>
+<span class="lineNum">     697 </span>            :                 }
+<span class="lineNum">     698 </span><span class="lineCov">         11 :                 delete papoOverviews[i-1];</span>
+<span class="lineNum">     699 </span>            :             }
+<span class="lineNum">     700 </span><span class="lineCov">          7 :             CPLFree(papoOverviews);</span>
+<span class="lineNum">     701 </span><span class="lineCov">          7 :             papoOverviews = nullptr;</span>
+<span class="lineNum">     702 </span><span class="lineCov">          7 :             nResolutions = 0;</span>
+<span class="lineNum">     703 </span><span class="lineCov">          7 :             bRet = TRUE;</span>
+<span class="lineNum">     704 </span>            :         }
+<span class="lineNum">     705 </span>            : 
+<span class="lineNum">     706 </span><span class="lineCov">         43 :         if (hDS != nullptr)</span>
+<span class="lineNum">     707 </span><span class="lineCov">         18 :             OGRReleaseDataSource(hDS);</span>
+<span class="lineNum">     708 </span><span class="lineCov">         43 :         hDS = nullptr;</span>
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span><span class="lineCov">         43 :         CPLFree(padfXResolutions);</span>
+<span class="lineNum">     711 </span><span class="lineCov">         43 :         CPLFree(padfYResolutions);</span>
+<span class="lineNum">     712 </span><span class="lineCov">         43 :         padfXResolutions = nullptr;</span>
+<span class="lineNum">     713 </span><span class="lineCov">         43 :         padfYResolutions = nullptr;</span>
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span><span class="lineCov">         43 :         delete poCT;</span>
+<span class="lineNum">     716 </span><span class="lineCov">         43 :         poCT = nullptr;</span>
+<span class="lineNum">     717 </span>            :     }
+<span class="lineNum">     718 </span><span class="lineCov">         24 :     else if (poMainDS != nullptr &amp;&amp; bMustFree)</span>
+<span class="lineNum">     719 </span>            :     {
+<span class="lineNum">     720 </span><span class="lineCov">          1 :         poMainDS-&gt;papoOverviews[nLevel-1] = nullptr;</span>
+<span class="lineNum">     721 </span><span class="lineCov">          1 :         delete poMainDS;</span>
+<span class="lineNum">     722 </span><span class="lineCov">          1 :         poMainDS = nullptr;</span>
+<span class="lineNum">     723 </span><span class="lineCov">          1 :         bRet = TRUE;</span>
+<span class="lineNum">     724 </span>            :     }
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span><span class="lineCov">         67 :     return bRet;</span>
+<span class="lineNum">     727 </span>            : }
+<span class="lineNum">     728 </span>            : 
+<span class="lineNum">     729 </span>            : /************************************************************************/
+<span class="lineNum">     730 </span>            : /*                           AddSubDataset()                            */
+<a name="731"><span class="lineNum">     731 </span>            : /************************************************************************/</a>
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span><span class="lineCov">         14 : void RasterliteDataset::AddSubDataset( const char* pszDSName)</span>
+<span class="lineNum">     734 </span>            : {
+<span class="lineNum">     735 </span>            :     char szName[80];
+<span class="lineNum">     736 </span><span class="lineCov">         14 :     const int nCount = CSLCount(papszSubDatasets ) / 2;</span>
+<span class="lineNum">     737 </span>            : 
+<span class="lineNum">     738 </span><span class="lineCov">         14 :     snprintf( szName, sizeof(szName), &quot;SUBDATASET_%d_NAME&quot;, nCount+1 );</span>
+<span class="lineNum">     739 </span>            :     papszSubDatasets =
+<span class="lineNum">     740 </span><span class="lineCov">         14 :         CSLSetNameValue( papszSubDatasets, szName, pszDSName);</span>
+<span class="lineNum">     741 </span>            : 
+<span class="lineNum">     742 </span><span class="lineCov">         14 :     snprintf( szName, sizeof(szName), &quot;SUBDATASET_%d_DESC&quot;, nCount+1 );</span>
+<span class="lineNum">     743 </span>            :     papszSubDatasets =
+<span class="lineNum">     744 </span><span class="lineCov">         14 :         CSLSetNameValue( papszSubDatasets, szName, pszDSName);</span>
+<span class="lineNum">     745 </span><span class="lineCov">         14 : }</span>
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span>            : /************************************************************************/
+<span class="lineNum">     748 </span>            : /*                      GetMetadataDomainList()                         */
+<a name="749"><span class="lineNum">     749 </span>            : /************************************************************************/</a>
+<span class="lineNum">     750 </span>            : 
+<span class="lineNum">     751 </span><span class="lineNoCov">          0 : char **RasterliteDataset::GetMetadataDomainList()</span>
+<span class="lineNum">     752 </span>            : {
+<span class="lineNum">     753 </span>            :     return BuildMetadataDomainList(GDALPamDataset::GetMetadataDomainList(),
+<span class="lineNum">     754 </span>            :                                    TRUE,
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :                                    &quot;SUBDATASETS&quot;, &quot;IMAGE_STRUCTURE&quot;, nullptr);</span>
+<span class="lineNum">     756 </span>            : }
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span>            : /************************************************************************/
+<span class="lineNum">     759 </span>            : /*                            GetMetadata()                             */
+<a name="760"><span class="lineNum">     760 </span>            : /************************************************************************/</a>
+<span class="lineNum">     761 </span>            : 
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 : char **RasterliteDataset::GetMetadata( const char *pszDomain )</span>
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span>            : {
+<span class="lineNum">     765 </span><span class="lineNoCov">          0 :     if( pszDomain != nullptr &amp;&amp; EQUAL(pszDomain,&quot;SUBDATASETS&quot;) )</span>
+<span class="lineNum">     766 </span><span class="lineNoCov">          0 :         return papszSubDatasets;</span>
+<span class="lineNum">     767 </span>            : 
+<span class="lineNum">     768 </span><span class="lineNoCov">          0 :     if( CSLCount(papszSubDatasets) &lt; 2 &amp;&amp;</span>
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :         pszDomain != nullptr &amp;&amp; EQUAL(pszDomain,&quot;IMAGE_STRUCTURE&quot;) )</span>
+<span class="lineNum">     770 </span><span class="lineNoCov">          0 :         return papszImageStructure;</span>
+<span class="lineNum">     771 </span>            : 
+<span class="lineNum">     772 </span><span class="lineNoCov">          0 :     if ( pszDomain == nullptr || EQUAL(pszDomain, &quot;&quot;) )</span>
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :         return papszMetadata;</span>
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span><span class="lineNoCov">          0 :     return GDALPamDataset::GetMetadata( pszDomain );</span>
+<span class="lineNum">     776 </span>            : }
+<span class="lineNum">     777 </span>            : 
+<span class="lineNum">     778 </span>            : /************************************************************************/
+<span class="lineNum">     779 </span>            : /*                          GetMetadataItem()                           */
+<a name="780"><span class="lineNum">     780 </span>            : /************************************************************************/</a>
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span><span class="lineCov">          2 : const char *RasterliteDataset::GetMetadataItem( const char *pszName,</span>
+<span class="lineNum">     783 </span>            :                                                 const char *pszDomain )
+<span class="lineNum">     784 </span>            : {
+<span class="lineNum">     785 </span><span class="lineCov">          2 :     if (pszDomain != nullptr &amp;&amp;EQUAL(pszDomain,&quot;OVERVIEWS&quot;) )</span>
+<span class="lineNum">     786 </span>            :     {
+<span class="lineNum">     787 </span><span class="lineCov">          2 :         if (nResolutions &gt; 1 || CSLCount(papszSubDatasets) &gt; 2)</span>
+<span class="lineNum">     788 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span><span class="lineCov">          2 :         osOvrFileName.Printf(&quot;%s_%s&quot;, osFileName.c_str(), osTableName.c_str());</span>
+<span class="lineNum">     791 </span><span class="lineCov">          4 :         if (bCheckForExistingOverview == FALSE ||</span>
+<span class="lineNum">     792 </span><span class="lineCov">          2 :             CPLCheckForFile(const_cast&lt;char *&gt;( osOvrFileName.c_str() ), nullptr))</span>
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :             return osOvrFileName.c_str();</span>
+<span class="lineNum">     794 </span>            : 
+<span class="lineNum">     795 </span><span class="lineCov">          2 :         return nullptr;</span>
+<span class="lineNum">     796 </span>            :     }
+<span class="lineNum">     797 </span>            : 
+<span class="lineNum">     798 </span><span class="lineNoCov">          0 :     return GDALPamDataset::GetMetadataItem(pszName, pszDomain);</span>
+<span class="lineNum">     799 </span>            : }
+<span class="lineNum">     800 </span>            : 
+<span class="lineNum">     801 </span>            : /************************************************************************/
+<span class="lineNum">     802 </span>            : /*                          GetGeoTransform()                           */
+<a name="803"><span class="lineNum">     803 </span>            : /************************************************************************/</a>
+<span class="lineNum">     804 </span>            : 
+<span class="lineNum">     805 </span><span class="lineCov">          4 : CPLErr RasterliteDataset::GetGeoTransform( double* padfGeoTransform )</span>
+<span class="lineNum">     806 </span>            : {
+<span class="lineNum">     807 </span><span class="lineCov">          4 :     if (bValidGeoTransform)</span>
+<span class="lineNum">     808 </span>            :     {
+<span class="lineNum">     809 </span><span class="lineCov">          4 :         memcpy(padfGeoTransform, adfGeoTransform, 6 * sizeof(double));</span>
+<span class="lineNum">     810 </span><span class="lineCov">          4 :         return CE_None;</span>
+<span class="lineNum">     811 </span>            :     }
+<span class="lineNum">     812 </span>            : 
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :     return CE_Failure;</span>
+<span class="lineNum">     814 </span>            : }
+<span class="lineNum">     815 </span>            : 
+<span class="lineNum">     816 </span>            : /************************************************************************/
+<span class="lineNum">     817 </span>            : /*                         GetProjectionRef()                           */
+<a name="818"><span class="lineNum">     818 </span>            : /************************************************************************/</a>
+<span class="lineNum">     819 </span>            : 
+<span class="lineNum">     820 </span><span class="lineCov">          4 : const char* RasterliteDataset::_GetProjectionRef()</span>
+<span class="lineNum">     821 </span>            : {
+<span class="lineNum">     822 </span><span class="lineCov">          4 :     if (pszSRS)</span>
+<span class="lineNum">     823 </span><span class="lineCov">          4 :         return pszSRS;</span>
+<span class="lineNum">     824 </span>            : 
+<span class="lineNum">     825 </span><span class="lineNoCov">          0 :     return &quot;&quot;;</span>
+<span class="lineNum">     826 </span>            : }
+<span class="lineNum">     827 </span>            : 
+<span class="lineNum">     828 </span>            : /************************************************************************/
+<span class="lineNum">     829 </span>            : /*                           GetFileList()                              */
+<a name="830"><span class="lineNum">     830 </span>            : /************************************************************************/</a>
+<span class="lineNum">     831 </span>            : 
+<span class="lineNum">     832 </span><span class="lineNoCov">          0 : char** RasterliteDataset::GetFileList()</span>
+<span class="lineNum">     833 </span>            : {
+<span class="lineNum">     834 </span>            :     char** papszFileList
+<span class="lineNum">     835 </span><span class="lineNoCov">          0 :         = CSLAddString(nullptr, osFileName);</span>
+<span class="lineNum">     836 </span><span class="lineNoCov">          0 :     return papszFileList;</span>
+<span class="lineNum">     837 </span>            : }
+<span class="lineNum">     838 </span>            : 
+<span class="lineNum">     839 </span>            : /************************************************************************/
+<span class="lineNum">     840 </span>            : /*                         GetBlockParams()                             */
+<a name="841"><span class="lineNum">     841 </span>            : /************************************************************************/</a>
+<span class="lineNum">     842 </span>            : 
+<span class="lineNum">     843 </span><span class="lineCov">         33 : int RasterliteDataset::GetBlockParams(OGRLayerH hRasterLyr, int nLevelIn,</span>
+<span class="lineNum">     844 </span>            :                                       int* pnBands, GDALDataType* peDataType,
+<span class="lineNum">     845 </span>            :                                       int* pnBlockXSize, int* pnBlockYSize)
+<span class="lineNum">     846 </span>            : {
+<span class="lineNum">     847 </span><span class="lineCov">         33 :     CPLString osSQL;</span>
+<span class="lineNum">     848 </span>            :     osSQL.Printf(&quot;SELECT m.geometry, r.raster, m.id &quot;
+<span class="lineNum">     849 </span>            :                  &quot;FROM \&quot;%s_metadata\&quot; AS m, \&quot;%s_rasters\&quot; AS r &quot;
+<span class="lineNum">     850 </span>            :                  &quot;WHERE %s AND r.id = m.id&quot;,
+<span class="lineNum">     851 </span>            :                  osTableName.c_str(), osTableName.c_str(),
+<span class="lineNum">     852 </span><span class="lineCov">         33 :                  RasterliteGetPixelSizeCond(padfXResolutions[nLevelIn],padfYResolutions[nLevelIn], &quot;m.&quot;).c_str());</span>
+<span class="lineNum">     853 </span>            : 
+<span class="lineNum">     854 </span><span class="lineCov">         33 :     OGRLayerH hSQLLyr = OGR_DS_ExecuteSQL(hDS, osSQL.c_str(), nullptr, nullptr);</span>
+<span class="lineNum">     855 </span><span class="lineCov">         33 :     if (hSQLLyr == nullptr)</span>
+<span class="lineNum">     856 </span>            :     {
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     858 </span>            :     }
+<span class="lineNum">     859 </span>            : 
+<span class="lineNum">     860 </span><span class="lineCov">         33 :     OGRFeatureH hFeat = OGR_L_GetNextFeature(hRasterLyr);</span>
+<span class="lineNum">     861 </span><span class="lineCov">         33 :     if (hFeat == nullptr)</span>
+<span class="lineNum">     862 </span>            :     {
+<span class="lineNum">     863 </span><span class="lineNoCov">          0 :         OGR_DS_ReleaseResultSet(hDS, hSQLLyr);</span>
+<span class="lineNum">     864 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     865 </span>            :     }
+<span class="lineNum">     866 </span>            : 
+<span class="lineNum">     867 </span>            :     int nDataSize;
+<span class="lineNum">     868 </span><span class="lineCov">         33 :     GByte* pabyData = OGR_F_GetFieldAsBinary(hFeat, 0, &amp;nDataSize);</span>
+<span class="lineNum">     869 </span>            : 
+<span class="lineNum">     870 </span><span class="lineCov">         66 :     if (nDataSize &gt; 32 &amp;&amp;</span>
+<span class="lineNum">     871 </span><span class="lineCov">         33 :         STARTS_WITH_CI(reinterpret_cast&lt;const char *&gt;(pabyData),</span>
+<span class="lineNum">     872 </span>            :                        &quot;StartWaveletsImage$$&quot;))
+<span class="lineNum">     873 </span>            :     {
+<span class="lineNum">     874 </span><span class="lineCov">          4 :         if (GDALGetDriverByName(&quot;EPSILON&quot;) == nullptr)</span>
+<span class="lineNum">     875 </span>            :         {
+<span class="lineNum">     876 </span>            :             CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     877 </span>            :                      &quot;Rasterlite driver doesn't support WAVELET compressed &quot;
+<span class="lineNum">     878 </span><span class="lineNoCov">          0 :                      &quot;images if EPSILON driver is not compiled&quot;);</span>
+<span class="lineNum">     879 </span><span class="lineNoCov">          0 :             OGR_F_Destroy(hFeat);</span>
+<span class="lineNum">     880 </span><span class="lineNoCov">          0 :             OGR_DS_ReleaseResultSet(hDS, hSQLLyr);</span>
+<span class="lineNum">     881 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     882 </span>            :         }
+<span class="lineNum">     883 </span>            :     }
+<span class="lineNum">     884 </span>            : 
+<span class="lineNum">     885 </span><span class="lineCov">         66 :     CPLString osMemFileName;</span>
+<span class="lineNum">     886 </span><span class="lineCov">         33 :     osMemFileName.Printf(&quot;/vsimem/%p&quot;, this);</span>
+<span class="lineNum">     887 </span>            :     VSILFILE *fp = VSIFileFromMemBuffer( osMemFileName.c_str(), pabyData,
+<span class="lineNum">     888 </span><span class="lineCov">         33 :                                          nDataSize, FALSE);</span>
+<span class="lineNum">     889 </span><span class="lineCov">         33 :     VSIFCloseL(fp);</span>
+<span class="lineNum">     890 </span>            : 
+<span class="lineNum">     891 </span><span class="lineCov">         33 :     GDALDatasetH hDSTile = GDALOpen(osMemFileName.c_str(), GA_ReadOnly);</span>
+<span class="lineNum">     892 </span><span class="lineCov">         33 :     if (hDSTile)</span>
+<span class="lineNum">     893 </span>            :     {
+<span class="lineNum">     894 </span><span class="lineCov">         33 :         *pnBands = GDALGetRasterCount(hDSTile);</span>
+<span class="lineNum">     895 </span><span class="lineCov">         33 :         if (*pnBands == 0)</span>
+<span class="lineNum">     896 </span>            :         {
+<span class="lineNum">     897 </span><span class="lineNoCov">          0 :             GDALClose(hDSTile);</span>
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 :             hDSTile = nullptr;</span>
+<span class="lineNum">     899 </span>            :         }
+<span class="lineNum">     900 </span>            :     }
+<span class="lineNum">     901 </span>            :     else
+<span class="lineNum">     902 </span>            :     {
+<span class="lineNum">     903 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Can't open tile %d&quot;,
+<span class="lineNum">     904 </span><span class="lineNoCov">          0 :                  OGR_F_GetFieldAsInteger(hFeat, 1));</span>
+<span class="lineNum">     905 </span>            :     }
+<span class="lineNum">     906 </span>            : 
+<span class="lineNum">     907 </span><span class="lineCov">         33 :     if (hDSTile)</span>
+<span class="lineNum">     908 </span>            :     {
+<span class="lineNum">     909 </span><span class="lineCov">         33 :         *peDataType = GDALGetRasterDataType(GDALGetRasterBand(hDSTile, 1));</span>
+<span class="lineNum">     910 </span>            : 
+<span class="lineNum">     911 </span><span class="lineCov">         51 :         for( int iBand = 2; iBand &lt;= *pnBands; iBand++ )</span>
+<span class="lineNum">     912 </span>            :         {
+<span class="lineNum">     913 </span><span class="lineCov">         18 :             if (*peDataType != GDALGetRasterDataType(GDALGetRasterBand(hDSTile, 1)))</span>
+<span class="lineNum">     914 </span>            :             {
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :                 CPLError(CE_Failure, CPLE_NotSupported, &quot;Band types must be identical&quot;);</span>
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :                 GDALClose(hDSTile);</span>
+<span class="lineNum">     917 </span><span class="lineNoCov">          0 :                 hDSTile = nullptr;</span>
+<span class="lineNum">     918 </span><span class="lineNoCov">          0 :                 goto end;</span>
+<span class="lineNum">     919 </span>            :             }
+<span class="lineNum">     920 </span>            :         }
+<span class="lineNum">     921 </span>            : 
+<span class="lineNum">     922 </span><span class="lineCov">         33 :         *pnBlockXSize = GDALGetRasterXSize(hDSTile);</span>
+<span class="lineNum">     923 </span><span class="lineCov">         33 :         *pnBlockYSize = GDALGetRasterYSize(hDSTile);</span>
+<span class="lineNum">     924 </span><span class="lineCov">         33 :         if (CSLFindName(papszImageStructure, &quot;COMPRESSION&quot;) == -1)</span>
+<span class="lineNum">     925 </span>            :         {
+<span class="lineNum">     926 </span>            :             const char* pszCompression =
+<span class="lineNum">     927 </span><span class="lineCov">         30 :                 GDALGetMetadataItem(hDSTile, &quot;COMPRESSION&quot;, &quot;IMAGE_STRUCTURE&quot;);</span>
+<span class="lineNum">     928 </span><span class="lineCov">         30 :             if (pszCompression != nullptr &amp;&amp; EQUAL(pszCompression, &quot;JPEG&quot;))</span>
+<span class="lineNum">     929 </span>            :                 papszImageStructure =
+<span class="lineNum">     930 </span><span class="lineCov">          4 :                     CSLAddString(papszImageStructure, &quot;COMPRESSION=JPEG&quot;);</span>
+<span class="lineNum">     931 </span>            :         }
+<span class="lineNum">     932 </span>            : 
+<span class="lineNum">     933 </span><span class="lineCov">         33 :         if (CSLFindName(papszMetadata, &quot;TILE_FORMAT&quot;) == -1)</span>
+<span class="lineNum">     934 </span>            :         {
+<span class="lineNum">     935 </span>            :             papszMetadata =
+<span class="lineNum">     936 </span>            :                 CSLSetNameValue(papszMetadata, &quot;TILE_FORMAT&quot;,
+<span class="lineNum">     937 </span><span class="lineCov">         18 :                            GDALGetDriverShortName(GDALGetDatasetDriver(hDSTile)));</span>
+<span class="lineNum">     938 </span>            :         }
+<span class="lineNum">     939 </span>            : 
+<span class="lineNum">     940 </span><span class="lineCov">         33 :         if (*pnBands == 1 &amp;&amp; this-&gt;poCT == nullptr)</span>
+<span class="lineNum">     941 </span>            :         {
+<span class="lineNum">     942 </span>            :             GDALColorTable* l_poCT =
+<span class="lineNum">     943 </span>            :                 reinterpret_cast&lt;GDALColorTable *&gt;(
+<span class="lineNum">     944 </span><span class="lineCov">         24 :                     GDALGetRasterColorTable(GDALGetRasterBand(hDSTile, 1) ) );</span>
+<span class="lineNum">     945 </span><span class="lineCov">         24 :             if (l_poCT)</span>
+<span class="lineNum">     946 </span><span class="lineCov">          2 :                 this-&gt;poCT = l_poCT-&gt;Clone();</span>
+<span class="lineNum">     947 </span>            :         }
+<span class="lineNum">     948 </span>            : 
+<span class="lineNum">     949 </span><span class="lineCov">         33 :         GDALClose(hDSTile);</span>
+<span class="lineNum">     950 </span>            :     }
+<span class="lineNum">     951 </span>            : end:
+<span class="lineNum">     952 </span><span class="lineCov">         33 :     VSIUnlink(osMemFileName.c_str());</span>
+<span class="lineNum">     953 </span><span class="lineCov">         33 :     VSIUnlink((osMemFileName + &quot;.aux.xml&quot;).c_str());</span>
+<span class="lineNum">     954 </span>            : 
+<span class="lineNum">     955 </span><span class="lineCov">         33 :     OGR_F_Destroy(hFeat);</span>
+<span class="lineNum">     956 </span>            : 
+<span class="lineNum">     957 </span><span class="lineCov">         33 :     OGR_DS_ReleaseResultSet(hDS, hSQLLyr);</span>
+<span class="lineNum">     958 </span>            : 
+<span class="lineNum">     959 </span><span class="lineCov">         66 :     return hDSTile != nullptr;</span>
+<span class="lineNum">     960 </span>            : }
+<span class="lineNum">     961 </span>            : 
+<span class="lineNum">     962 </span>            : /************************************************************************/
+<span class="lineNum">     963 </span>            : /*                             Identify()                               */
+<a name="964"><span class="lineNum">     964 </span>            : /************************************************************************/</a>
+<span class="lineNum">     965 </span>            : 
+<span class="lineNum">     966 </span><span class="lineCov">      42624 : int RasterliteDataset::Identify(GDALOpenInfo* poOpenInfo)</span>
+<span class="lineNum">     967 </span>            : {
+<span class="lineNum">     968 </span>            : 
+<span class="lineNum">     969 </span>            : #ifdef ENABLE_SQL_SQLITE_FORMAT
+<span class="lineNum">     970 </span><span class="lineCov">      48606 :     if( poOpenInfo-&gt;pabyHeader &amp;&amp;</span>
+<span class="lineNum">     971 </span><span class="lineCov">       5982 :         STARTS_WITH((const char*)poOpenInfo-&gt;pabyHeader, &quot;-- SQL RASTERLITE&quot;) )</span>
+<span class="lineNum">     972 </span>            :     {
+<span class="lineNum">     973 </span><span class="lineCov">          2 :         return TRUE;</span>
+<span class="lineNum">     974 </span>            :     }
+<span class="lineNum">     975 </span>            : #endif
+<span class="lineNum">     976 </span>            : 
+<span class="lineNum">     977 </span><span class="lineCov">     127661 :     if (!EQUAL(CPLGetExtension(poOpenInfo-&gt;pszFilename), &quot;MBTILES&quot;) &amp;&amp;</span>
+<span class="lineNum">     978 </span><span class="lineCov">      83823 :         !EQUAL(CPLGetExtension(poOpenInfo-&gt;pszFilename), &quot;GPKG&quot;) &amp;&amp;</span>
+<span class="lineNum">     979 </span><span class="lineCov">      44407 :         poOpenInfo-&gt;nHeaderBytes &gt;= 1024 &amp;&amp;</span>
+<span class="lineNum">     980 </span><span class="lineCov">       2990 :         poOpenInfo-&gt;pabyHeader &amp;&amp;</span>
+<span class="lineNum">     981 </span><span class="lineCov">      45657 :         STARTS_WITH_CI((const char*)poOpenInfo-&gt;pabyHeader, &quot;SQLite Format 3&quot;) &amp;&amp;</span>
+<span class="lineNum">     982 </span>            :         // Do not match direct Amazon S3 signed URLs that contains .mbtiles in the middle of the URL
+<span class="lineNum">     983 </span><span class="lineCov">         44 :         strstr(poOpenInfo-&gt;pszFilename, &quot;.mbtiles&quot;) == nullptr)</span>
+<span class="lineNum">     984 </span>            :     {
+<span class="lineNum">     985 </span>            :         // Could be a SQLite/Spatialite file as well
+<span class="lineNum">     986 </span><span class="lineCov">         44 :         return -1;</span>
+<span class="lineNum">     987 </span>            :     }
+<span class="lineNum">     988 </span><span class="lineCov">      42584 :     else if (STARTS_WITH_CI(poOpenInfo-&gt;pszFilename, &quot;RASTERLITE:&quot;))</span>
+<span class="lineNum">     989 </span>            :     {
+<span class="lineNum">     990 </span><span class="lineCov">         13 :         return TRUE;</span>
+<span class="lineNum">     991 </span>            :     }
+<span class="lineNum">     992 </span>            : 
+<span class="lineNum">     993 </span><span class="lineCov">      42570 :     return FALSE;</span>
+<span class="lineNum">     994 </span>            : }
+<span class="lineNum">     995 </span>            : 
+<span class="lineNum">     996 </span>            : /************************************************************************/
+<span class="lineNum">     997 </span>            : /*                                Open()                                */
+<a name="998"><span class="lineNum">     998 </span>            : /************************************************************************/</a>
+<span class="lineNum">     999 </span>            : 
+<span class="lineNum">    1000 </span><span class="lineCov">       8792 : GDALDataset* RasterliteDataset::Open(GDALOpenInfo* poOpenInfo)</span>
+<span class="lineNum">    1001 </span>            : {
+<span class="lineNum">    1002 </span><span class="lineCov">       8792 :     if( Identify(poOpenInfo) == FALSE )</span>
+<span class="lineNum">    1003 </span><span class="lineCov">       8773 :         return nullptr;</span>
+<span class="lineNum">    1004 </span>            : 
+<span class="lineNum">    1005 </span><span class="lineCov">         28 :     CPLString osFileName;</span>
+<span class="lineNum">    1006 </span><span class="lineCov">         56 :     CPLString osTableName;</span>
+<span class="lineNum">    1007 </span><span class="lineCov">         28 :     int nLevel = 0;</span>
+<span class="lineNum">    1008 </span><span class="lineCov">         28 :     double minx = 0.0;</span>
+<span class="lineNum">    1009 </span><span class="lineCov">         28 :     double miny = 0.0;</span>
+<span class="lineNum">    1010 </span><span class="lineCov">         28 :     double maxx = 0.0;</span>
+<span class="lineNum">    1011 </span><span class="lineCov">         28 :     double maxy = 0.0;</span>
+<span class="lineNum">    1012 </span><span class="lineCov">         28 :     int bMinXSet = FALSE;</span>
+<span class="lineNum">    1013 </span><span class="lineCov">         28 :     int bMinYSet = FALSE;</span>
+<span class="lineNum">    1014 </span><span class="lineCov">         28 :     int bMaxXSet = FALSE;</span>
+<span class="lineNum">    1015 </span><span class="lineCov">         28 :     int bMaxYSet = FALSE;</span>
+<span class="lineNum">    1016 </span><span class="lineCov">         28 :     int nReqBands = 0;</span>
+<span class="lineNum">    1017 </span>            : 
+<span class="lineNum">    1018 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1019 </span>            : /*      Parse &quot;file name&quot;                                               */
+<span class="lineNum">    1020 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1021 </span>            : #ifdef ENABLE_SQL_SQLITE_FORMAT
+<span class="lineNum">    1022 </span><span class="lineCov">         50 :     if( poOpenInfo-&gt;pabyHeader &amp;&amp;</span>
+<span class="lineNum">    1023 </span><span class="lineCov">         22 :         STARTS_WITH((const char*)poOpenInfo-&gt;pabyHeader, &quot;-- SQL RASTERLITE&quot;) )</span>
+<span class="lineNum">    1024 </span>            :     {
+<span class="lineNum">    1025 </span><span class="lineCov">          1 :         osFileName = poOpenInfo-&gt;pszFilename;</span>
+<span class="lineNum">    1026 </span>            :     }
+<span class="lineNum">    1027 </span>            :     else
+<span class="lineNum">    1028 </span>            : #endif
+<span class="lineNum">    1029 </span><span class="lineCov">         48 :     if (poOpenInfo-&gt;nHeaderBytes &gt;= 1024 &amp;&amp;</span>
+<span class="lineNum">    1030 </span><span class="lineCov">         21 :         STARTS_WITH_CI((const char*)poOpenInfo-&gt;pabyHeader, &quot;SQLite Format 3&quot;))</span>
+<span class="lineNum">    1031 </span>            :     {
+<span class="lineNum">    1032 </span><span class="lineCov">         21 :         osFileName = poOpenInfo-&gt;pszFilename;</span>
+<span class="lineNum">    1033 </span>            :     }
+<span class="lineNum">    1034 </span>            :     else
+<span class="lineNum">    1035 </span>            :     {
+<span class="lineNum">    1036 </span>            :         char** papszTokens = CSLTokenizeStringComplex(
+<span class="lineNum">    1037 </span><span class="lineCov">          6 :                 poOpenInfo-&gt;pszFilename + 11, &quot;,&quot;, FALSE, FALSE );</span>
+<span class="lineNum">    1038 </span><span class="lineCov">          6 :         int nTokens = CSLCount(papszTokens);</span>
+<span class="lineNum">    1039 </span><span class="lineCov">          6 :         if (nTokens == 0)</span>
+<span class="lineNum">    1040 </span>            :         {
+<span class="lineNum">    1041 </span><span class="lineNoCov">          0 :             CSLDestroy(papszTokens);</span>
+<span class="lineNum">    1042 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1043 </span>            :         }
+<span class="lineNum">    1044 </span>            : 
+<span class="lineNum">    1045 </span><span class="lineCov">          6 :         osFileName = papszTokens[0];</span>
+<span class="lineNum">    1046 </span>            : 
+<span class="lineNum">    1047 </span><span class="lineCov">         16 :         for( int i=1; i &lt; nTokens; i++)</span>
+<span class="lineNum">    1048 </span>            :         {
+<span class="lineNum">    1049 </span><span class="lineCov">         10 :             if (STARTS_WITH_CI(papszTokens[i], &quot;table=&quot;))</span>
+<span class="lineNum">    1050 </span><span class="lineCov">          4 :                 osTableName = papszTokens[i] + 6;</span>
+<span class="lineNum">    1051 </span><span class="lineCov">          6 :             else if (STARTS_WITH_CI(papszTokens[i], &quot;level=&quot;))</span>
+<span class="lineNum">    1052 </span><span class="lineCov">          1 :                 nLevel = atoi(papszTokens[i] + 6);</span>
+<span class="lineNum">    1053 </span><span class="lineCov">          5 :             else if (STARTS_WITH_CI(papszTokens[i], &quot;minx=&quot;))</span>
+<span class="lineNum">    1054 </span>            :             {
+<span class="lineNum">    1055 </span><span class="lineCov">          1 :                 bMinXSet = TRUE;</span>
+<span class="lineNum">    1056 </span><span class="lineCov">          1 :                 minx = CPLAtof(papszTokens[i] + 5);</span>
+<span class="lineNum">    1057 </span>            :             }
+<span class="lineNum">    1058 </span><span class="lineCov">          4 :             else if (STARTS_WITH_CI(papszTokens[i], &quot;miny=&quot;))</span>
+<span class="lineNum">    1059 </span>            :             {
+<span class="lineNum">    1060 </span><span class="lineCov">          1 :                 bMinYSet = TRUE;</span>
+<span class="lineNum">    1061 </span><span class="lineCov">          1 :                 miny = CPLAtof(papszTokens[i] + 5);</span>
+<span class="lineNum">    1062 </span>            :             }
+<span class="lineNum">    1063 </span><span class="lineCov">          3 :             else if (STARTS_WITH_CI(papszTokens[i], &quot;maxx=&quot;))</span>
+<span class="lineNum">    1064 </span>            :             {
+<span class="lineNum">    1065 </span><span class="lineCov">          1 :                 bMaxXSet = TRUE;</span>
+<span class="lineNum">    1066 </span><span class="lineCov">          1 :                 maxx = CPLAtof(papszTokens[i] + 5);</span>
+<span class="lineNum">    1067 </span>            :             }
+<span class="lineNum">    1068 </span><span class="lineCov">          2 :             else if (STARTS_WITH_CI(papszTokens[i], &quot;maxy=&quot;))</span>
+<span class="lineNum">    1069 </span>            :             {
+<span class="lineNum">    1070 </span><span class="lineCov">          1 :                 bMaxYSet = TRUE;</span>
+<span class="lineNum">    1071 </span><span class="lineCov">          1 :                 maxy = CPLAtof(papszTokens[i] + 5);</span>
+<span class="lineNum">    1072 </span>            :             }
+<span class="lineNum">    1073 </span><span class="lineCov">          1 :             else if (STARTS_WITH_CI(papszTokens[i], &quot;bands=&quot;))</span>
+<span class="lineNum">    1074 </span>            :             {
+<span class="lineNum">    1075 </span><span class="lineCov">          1 :                 nReqBands = atoi(papszTokens[i] + 6);</span>
+<span class="lineNum">    1076 </span>            :             }
+<span class="lineNum">    1077 </span>            :             else
+<span class="lineNum">    1078 </span>            :             {
+<span class="lineNum">    1079 </span>            :                 CPLError(CE_Warning, CPLE_AppDefined,
+<span class="lineNum">    1080 </span><span class="lineNoCov">          0 :                          &quot;Invalid option : %s&quot;, papszTokens[i]);</span>
+<span class="lineNum">    1081 </span>            :             }
+<span class="lineNum">    1082 </span>            :         }
+<span class="lineNum">    1083 </span><span class="lineCov">          6 :         CSLDestroy(papszTokens);</span>
+<span class="lineNum">    1084 </span>            :     }
+<span class="lineNum">    1085 </span>            : 
+<span class="lineNum">    1086 </span><span class="lineCov">         28 :     if (OGRGetDriverCount() == 0)</span>
+<span class="lineNum">    1087 </span><span class="lineNoCov">          0 :         OGRRegisterAll();</span>
+<span class="lineNum">    1088 </span>            : 
+<span class="lineNum">    1089 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1090 </span>            : /*      Open underlying OGR DB                                          */
+<span class="lineNum">    1091 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1092 </span>            : 
+<span class="lineNum">    1093 </span><span class="lineCov">         28 :     OGRDataSourceH hDS = RasterliteOpenSQLiteDB(osFileName.c_str(), poOpenInfo-&gt;eAccess);</span>
+<span class="lineNum">    1094 </span><span class="lineCov">         28 :     CPLDebug(&quot;RASTERLITE&quot;, &quot;SQLite DB Open&quot;);</span>
+<span class="lineNum">    1095 </span>            : 
+<span class="lineNum">    1096 </span><span class="lineCov">         28 :     RasterliteDataset* poDS = nullptr;</span>
+<span class="lineNum">    1097 </span>            : 
+<span class="lineNum">    1098 </span><span class="lineCov">         28 :     if (hDS == nullptr)</span>
+<span class="lineNum">    1099 </span><span class="lineCov">          8 :         goto end;</span>
+<span class="lineNum">    1100 </span>            : 
+<span class="lineNum">    1101 </span><span class="lineCov">         20 :     if (osTableName.empty())</span>
+<span class="lineNum">    1102 </span>            :     {
+<span class="lineNum">    1103 </span><span class="lineCov">         16 :         int nCountSubdataset = 0;</span>
+<span class="lineNum">    1104 </span><span class="lineCov">         16 :         int nLayers = OGR_DS_GetLayerCount(hDS);</span>
+<span class="lineNum">    1105 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1106 </span>            : /*      Add raster layers as subdatasets                                */
+<span class="lineNum">    1107 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1108 </span><span class="lineCov">         35 :         for( int i=0; i &lt; nLayers; i++ )</span>
+<span class="lineNum">    1109 </span>            :         {
+<span class="lineNum">    1110 </span><span class="lineCov">         19 :             OGRLayerH hLyr = OGR_DS_GetLayer(hDS, i);</span>
+<span class="lineNum">    1111 </span><span class="lineCov">         19 :             const char* pszLayerName = OGR_L_GetName(hLyr);</span>
+<span class="lineNum">    1112 </span><span class="lineCov">         19 :             if (strstr(pszLayerName, &quot;_metadata&quot;))</span>
+<span class="lineNum">    1113 </span>            :             {
+<span class="lineNum">    1114 </span><span class="lineCov">         14 :                 char* pszShortName = CPLStrdup(pszLayerName);</span>
+<span class="lineNum">    1115 </span><span class="lineCov">         14 :                 *strstr(pszShortName, &quot;_metadata&quot;) = '\0';</span>
+<span class="lineNum">    1116 </span>            : 
+<span class="lineNum">    1117 </span><span class="lineCov">         14 :                 CPLString osRasterTableName = pszShortName;</span>
+<span class="lineNum">    1118 </span><span class="lineCov">         14 :                 osRasterTableName += &quot;_rasters&quot;;</span>
+<span class="lineNum">    1119 </span>            : 
+<span class="lineNum">    1120 </span><span class="lineCov">         14 :                 if (OGR_DS_GetLayerByName(hDS, osRasterTableName.c_str()) != nullptr)</span>
+<span class="lineNum">    1121 </span>            :                 {
+<span class="lineNum">    1122 </span><span class="lineCov">         14 :                     if (poDS == nullptr)</span>
+<span class="lineNum">    1123 </span>            :                     {
+<span class="lineNum">    1124 </span><span class="lineCov">         14 :                         poDS = new RasterliteDataset();</span>
+<span class="lineNum">    1125 </span><span class="lineCov">         14 :                         osTableName = pszShortName;</span>
+<span class="lineNum">    1126 </span>            :                     }
+<span class="lineNum">    1127 </span>            : 
+<span class="lineNum">    1128 </span><span class="lineCov">         14 :                     CPLString osSubdatasetName;</span>
+<span class="lineNum">    1129 </span><span class="lineCov">         14 :                     if (!STARTS_WITH_CI(poOpenInfo-&gt;pszFilename, &quot;RASTERLITE:&quot;))</span>
+<span class="lineNum">    1130 </span><span class="lineCov">         12 :                         osSubdatasetName += &quot;RASTERLITE:&quot;;</span>
+<span class="lineNum">    1131 </span><span class="lineCov">         14 :                     osSubdatasetName += poOpenInfo-&gt;pszFilename;</span>
+<span class="lineNum">    1132 </span><span class="lineCov">         14 :                     osSubdatasetName += &quot;,table=&quot;;</span>
+<span class="lineNum">    1133 </span><span class="lineCov">         14 :                     osSubdatasetName += pszShortName;</span>
+<span class="lineNum">    1134 </span><span class="lineCov">         14 :                     poDS-&gt;AddSubDataset(osSubdatasetName.c_str());</span>
+<span class="lineNum">    1135 </span>            : 
+<span class="lineNum">    1136 </span><span class="lineCov">         14 :                     nCountSubdataset++;</span>
+<span class="lineNum">    1137 </span>            :                 }
+<span class="lineNum">    1138 </span>            : 
+<span class="lineNum">    1139 </span><span class="lineCov">         14 :                 CPLFree(pszShortName);</span>
+<span class="lineNum">    1140 </span>            :             }
+<span class="lineNum">    1141 </span>            :         }
+<span class="lineNum">    1142 </span>            : 
+<span class="lineNum">    1143 </span><span class="lineCov">         16 :         if (nCountSubdataset == 0)</span>
+<span class="lineNum">    1144 </span>            :         {
+<span class="lineNum">    1145 </span><span class="lineCov">          2 :             goto end;</span>
+<span class="lineNum">    1146 </span>            :         }
+<span class="lineNum">    1147 </span><span class="lineCov">         14 :         else if (nCountSubdataset != 1)</span>
+<span class="lineNum">    1148 </span>            :         {
+<span class="lineNum">    1149 </span><span class="lineNoCov">          0 :             poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1150 </span><span class="lineNoCov">          0 :             goto end;</span>
+<span class="lineNum">    1151 </span>            :         }
+<span class="lineNum">    1152 </span>            : 
+<span class="lineNum">    1153 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1154 </span>            : /*      If just one subdataset, then open it                            */
+<span class="lineNum">    1155 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1156 </span><span class="lineCov">         14 :         delete poDS;</span>
+<span class="lineNum">    1157 </span><span class="lineCov">         14 :         poDS = nullptr;</span>
+<span class="lineNum">    1158 </span>            :     }
+<span class="lineNum">    1159 </span>            : 
+<span class="lineNum">    1160 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1161 </span>            : /*      Build dataset                                                   */
+<span class="lineNum">    1162 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1163 </span>            :     {
+<span class="lineNum">    1164 </span>            :         GDALDataType eDataType;
+<span class="lineNum">    1165 </span>            : 
+<span class="lineNum">    1166 </span><span class="lineCov">         18 :         const CPLString osMetadataTableName = osTableName + &quot;_metadata&quot;;</span>
+<span class="lineNum">    1167 </span>            : 
+<span class="lineNum">    1168 </span>            :         OGRLayerH hMetadataLyr
+<span class="lineNum">    1169 </span><span class="lineCov">         18 :             = OGR_DS_GetLayerByName(hDS, osMetadataTableName.c_str());</span>
+<span class="lineNum">    1170 </span><span class="lineCov">         18 :         if (hMetadataLyr == nullptr)</span>
+<span class="lineNum">    1171 </span><span class="lineNoCov">          0 :             goto end;</span>
+<span class="lineNum">    1172 </span>            : 
+<span class="lineNum">    1173 </span><span class="lineCov">         36 :         const CPLString osRasterTableName = osTableName + &quot;_rasters&quot;;</span>
+<span class="lineNum">    1174 </span>            : 
+<span class="lineNum">    1175 </span>            :         OGRLayerH hRasterLyr
+<span class="lineNum">    1176 </span><span class="lineCov">         18 :             = OGR_DS_GetLayerByName(hDS, osRasterTableName.c_str());</span>
+<span class="lineNum">    1177 </span><span class="lineCov">         18 :         if (hRasterLyr == nullptr)</span>
+<span class="lineNum">    1178 </span><span class="lineNoCov">          0 :             goto end;</span>
+<span class="lineNum">    1179 </span>            : 
+<span class="lineNum">    1180 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1181 </span>            : /*      Fetch resolutions                                               */
+<span class="lineNum">    1182 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1183 </span><span class="lineCov">         36 :         CPLString osSQL;</span>
+<span class="lineNum">    1184 </span>            :         OGRLayerH hSQLLyr;
+<span class="lineNum">    1185 </span><span class="lineCov">         18 :         int nResolutions = 0;</span>
+<span class="lineNum">    1186 </span>            : 
+<span class="lineNum">    1187 </span>            :         OGRLayerH hRasterPyramidsLyr
+<span class="lineNum">    1188 </span><span class="lineCov">         18 :             = OGR_DS_GetLayerByName(hDS, &quot;raster_pyramids&quot;);</span>
+<span class="lineNum">    1189 </span><span class="lineCov">         18 :         if (hRasterPyramidsLyr)</span>
+<span class="lineNum">    1190 </span>            :         {
+<span class="lineNum">    1191 </span>            :             osSQL.Printf(&quot;SELECT pixel_x_size, pixel_y_size &quot;
+<span class="lineNum">    1192 </span>            :                          &quot;FROM raster_pyramids WHERE table_prefix = '%s' &quot;
+<span class="lineNum">    1193 </span>            :                          &quot;ORDER BY pixel_x_size ASC&quot;,
+<span class="lineNum">    1194 </span><span class="lineCov">          7 :                          osTableName.c_str());</span>
+<span class="lineNum">    1195 </span>            : 
+<span class="lineNum">    1196 </span><span class="lineCov">          7 :             hSQLLyr = OGR_DS_ExecuteSQL(hDS, osSQL.c_str(), nullptr, nullptr);</span>
+<span class="lineNum">    1197 </span><span class="lineCov">          7 :             if (hSQLLyr != nullptr)</span>
+<span class="lineNum">    1198 </span>            :             {
+<span class="lineNum">    1199 </span><span class="lineCov">          7 :                 nResolutions = static_cast&lt;int&gt;(OGR_L_GetFeatureCount(hSQLLyr, TRUE));</span>
+<span class="lineNum">    1200 </span><span class="lineCov">          7 :                 if( nResolutions == 0 )</span>
+<span class="lineNum">    1201 </span>            :                 {
+<span class="lineNum">    1202 </span><span class="lineNoCov">          0 :                     OGR_DS_ReleaseResultSet(hDS, hSQLLyr);</span>
+<span class="lineNum">    1203 </span><span class="lineNoCov">          0 :                     hSQLLyr = nullptr;</span>
+<span class="lineNum">    1204 </span>            :                 }
+<span class="lineNum">    1205 </span>            :             }
+<span class="lineNum">    1206 </span>            :         }
+<span class="lineNum">    1207 </span>            :         else
+<span class="lineNum">    1208 </span><span class="lineCov">         11 :             hSQLLyr = nullptr;</span>
+<span class="lineNum">    1209 </span>            : 
+<span class="lineNum">    1210 </span><span class="lineCov">         18 :         if( hSQLLyr == nullptr )</span>
+<span class="lineNum">    1211 </span>            :         {
+<span class="lineNum">    1212 </span>            :             osSQL.Printf(&quot;SELECT DISTINCT(pixel_x_size), pixel_y_size &quot;
+<span class="lineNum">    1213 </span>            :                          &quot;FROM \&quot;%s_metadata\&quot; WHERE pixel_x_size != 0  &quot;
+<span class="lineNum">    1214 </span>            :                          &quot;ORDER BY pixel_x_size ASC&quot;,
+<span class="lineNum">    1215 </span><span class="lineCov">         11 :                          osTableName.c_str());</span>
+<span class="lineNum">    1216 </span>            : 
+<span class="lineNum">    1217 </span><span class="lineCov">         11 :             hSQLLyr = OGR_DS_ExecuteSQL(hDS, osSQL.c_str(), nullptr, nullptr);</span>
+<span class="lineNum">    1218 </span><span class="lineCov">         11 :             if (hSQLLyr == nullptr)</span>
+<span class="lineNum">    1219 </span><span class="lineNoCov">          0 :                 goto end;</span>
+<span class="lineNum">    1220 </span>            : 
+<span class="lineNum">    1221 </span><span class="lineCov">         11 :             nResolutions = static_cast&lt;int&gt;(OGR_L_GetFeatureCount(hSQLLyr, TRUE));</span>
+<span class="lineNum">    1222 </span>            : 
+<span class="lineNum">    1223 </span><span class="lineCov">         11 :             if (nResolutions == 0)</span>
+<span class="lineNum">    1224 </span>            :             {
+<span class="lineNum">    1225 </span><span class="lineNoCov">          0 :                 OGR_DS_ReleaseResultSet(hDS, hSQLLyr);</span>
+<span class="lineNum">    1226 </span><span class="lineNoCov">          0 :                 goto end;</span>
+<span class="lineNum">    1227 </span>            :             }
+<span class="lineNum">    1228 </span>            :         }
+<span class="lineNum">    1229 </span>            : 
+<span class="lineNum">    1230 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1231 </span>            : /*      Set dataset attributes                                          */
+<span class="lineNum">    1232 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1233 </span>            : 
+<span class="lineNum">    1234 </span><span class="lineCov">         18 :         poDS = new RasterliteDataset();</span>
+<span class="lineNum">    1235 </span><span class="lineCov">         18 :         poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1236 </span><span class="lineCov">         18 :         poDS-&gt;eAccess = poOpenInfo-&gt;eAccess;</span>
+<span class="lineNum">    1237 </span><span class="lineCov">         18 :         poDS-&gt;osTableName = osTableName;</span>
+<span class="lineNum">    1238 </span><span class="lineCov">         18 :         poDS-&gt;osFileName = osFileName;</span>
+<span class="lineNum">    1239 </span><span class="lineCov">         18 :         poDS-&gt;hDS = hDS;</span>
+<span class="lineNum">    1240 </span>            : 
+<span class="lineNum">    1241 </span>            :         /* poDS will release it from now */
+<span class="lineNum">    1242 </span><span class="lineCov">         18 :         hDS = nullptr;</span>
+<span class="lineNum">    1243 </span>            : 
+<span class="lineNum">    1244 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1245 </span>            : /*      Fetch spatial extent or use the one provided by the user        */
+<span class="lineNum">    1246 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1247 </span><span class="lineCov">         18 :         OGREnvelope oEnvelope;</span>
+<span class="lineNum">    1248 </span><span class="lineCov">         18 :         if (bMinXSet &amp;&amp; bMinYSet &amp;&amp; bMaxXSet &amp;&amp; bMaxYSet)</span>
+<span class="lineNum">    1249 </span>            :         {
+<span class="lineNum">    1250 </span><span class="lineCov">          1 :             oEnvelope.MinX = minx;</span>
+<span class="lineNum">    1251 </span><span class="lineCov">          1 :             oEnvelope.MinY = miny;</span>
+<span class="lineNum">    1252 </span><span class="lineCov">          1 :             oEnvelope.MaxX = maxx;</span>
+<span class="lineNum">    1253 </span><span class="lineCov">          1 :             oEnvelope.MaxY = maxy;</span>
+<span class="lineNum">    1254 </span>            :         }
+<span class="lineNum">    1255 </span>            :         else
+<span class="lineNum">    1256 </span>            :         {
+<span class="lineNum">    1257 </span><span class="lineCov">         17 :             CPLString osOldVal = CPLGetConfigOption(&quot;OGR_SQLITE_EXACT_EXTENT&quot;, &quot;NO&quot;);</span>
+<span class="lineNum">    1258 </span><span class="lineCov">         17 :             CPLSetThreadLocalConfigOption(&quot;OGR_SQLITE_EXACT_EXTENT&quot;, &quot;YES&quot;);</span>
+<span class="lineNum">    1259 </span><span class="lineCov">         17 :             OGR_L_GetExtent(hMetadataLyr, &amp;oEnvelope, TRUE);</span>
+<span class="lineNum">    1260 </span><span class="lineCov">         17 :             CPLSetThreadLocalConfigOption(&quot;OGR_SQLITE_EXACT_EXTENT&quot;, osOldVal.c_str());</span>
+<span class="lineNum">    1261 </span>            :             //printf(&quot;minx=%.15f miny=%.15f maxx=%.15f maxy=%.15f\n&quot;,
+<span class="lineNum">    1262 </span>            :             //       oEnvelope.MinX, oEnvelope.MinY, oEnvelope.MaxX, oEnvelope.MaxY);
+<span class="lineNum">    1263 </span>            :         }
+<span class="lineNum">    1264 </span>            : 
+<span class="lineNum">    1265 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1266 </span>            : /*      Store resolutions                                               */
+<span class="lineNum">    1267 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1268 </span><span class="lineCov">         18 :         poDS-&gt;nResolutions = nResolutions;</span>
+<span class="lineNum">    1269 </span>            :         poDS-&gt;padfXResolutions = reinterpret_cast&lt;double *&gt;(
+<span class="lineNum">    1270 </span><span class="lineCov">         18 :             CPLMalloc( sizeof(double) * poDS-&gt;nResolutions ) );</span>
+<span class="lineNum">    1271 </span>            :         poDS-&gt;padfYResolutions = reinterpret_cast&lt;double *&gt;(
+<span class="lineNum">    1272 </span><span class="lineCov">         18 :             CPLMalloc( sizeof(double) * poDS-&gt;nResolutions ) );</span>
+<span class="lineNum">    1273 </span>            : 
+<span class="lineNum">    1274 </span>            :         {
+<span class="lineNum">    1275 </span>            :           // Add a scope for i.
+<span class="lineNum">    1276 </span>            :           OGRFeatureH hFeat;
+<span class="lineNum">    1277 </span><span class="lineCov">         18 :           int i = 0;</span>
+<span class="lineNum">    1278 </span><span class="lineCov">         63 :           while((hFeat = OGR_L_GetNextFeature(hSQLLyr)) != nullptr)</span>
+<span class="lineNum">    1279 </span>            :           {
+<span class="lineNum">    1280 </span><span class="lineCov">         27 :             poDS-&gt;padfXResolutions[i] = OGR_F_GetFieldAsDouble(hFeat, 0);</span>
+<span class="lineNum">    1281 </span><span class="lineCov">         27 :             poDS-&gt;padfYResolutions[i] = OGR_F_GetFieldAsDouble(hFeat, 1);</span>
+<span class="lineNum">    1282 </span>            : 
+<span class="lineNum">    1283 </span><span class="lineCov">         27 :             OGR_F_Destroy(hFeat);</span>
+<span class="lineNum">    1284 </span>            : 
+<span class="lineNum">    1285 </span>            : #ifdef RASTERLITE_DEBUG
+<span class="lineNum">    1286 </span>            :             printf(&quot;[%d] xres=%.15f yres=%.15f\n&quot;, i,/*ok*/
+<span class="lineNum">    1287 </span>            :                    poDS-&gt;padfXResolutions[i], poDS-&gt;padfYResolutions[i]);
+<span class="lineNum">    1288 </span>            : #endif
+<span class="lineNum">    1289 </span>            : 
+<span class="lineNum">    1290 </span><span class="lineCov">         27 :             if (poDS-&gt;padfXResolutions[i] &lt;= 0 || poDS-&gt;padfYResolutions[i] &lt;= 0)</span>
+<span class="lineNum">    1291 </span>            :             {
+<span class="lineNum">    1292 </span>            :                 CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1293 </span>            :                          &quot;res=%d, xres=%.15f, yres=%.15f&quot;,
+<span class="lineNum">    1294 </span><span class="lineNoCov">          0 :                          i, poDS-&gt;padfXResolutions[i], poDS-&gt;padfYResolutions[i]);</span>
+<span class="lineNum">    1295 </span><span class="lineNoCov">          0 :                 OGR_DS_ReleaseResultSet(poDS-&gt;hDS, hSQLLyr);</span>
+<span class="lineNum">    1296 </span><span class="lineNoCov">          0 :                 delete poDS;</span>
+<span class="lineNum">    1297 </span><span class="lineNoCov">          0 :                 poDS = nullptr;</span>
+<span class="lineNum">    1298 </span><span class="lineNoCov">          0 :                 goto end;</span>
+<span class="lineNum">    1299 </span>            :             }
+<span class="lineNum">    1300 </span><span class="lineCov">         27 :             i++;</span>
+<span class="lineNum">    1301 </span>            :           }
+<span class="lineNum">    1302 </span>            :         }
+<span class="lineNum">    1303 </span>            : 
+<span class="lineNum">    1304 </span><span class="lineCov">         18 :         OGR_DS_ReleaseResultSet(poDS-&gt;hDS, hSQLLyr);</span>
+<span class="lineNum">    1305 </span><span class="lineCov">         18 :         hSQLLyr = nullptr;</span>
+<span class="lineNum">    1306 </span>            : 
+<span class="lineNum">    1307 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1308 </span>            : /*      Compute raster size, geotransform and projection                */
+<span class="lineNum">    1309 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1310 </span>            :         const double dfRasterXSize =
+<span class="lineNum">    1311 </span><span class="lineCov">         18 :             (oEnvelope.MaxX - oEnvelope.MinX) / poDS-&gt;padfXResolutions[0] + 0.5;</span>
+<span class="lineNum">    1312 </span>            :         const double dfRasterYSize =
+<span class="lineNum">    1313 </span><span class="lineCov">         18 :             (oEnvelope.MaxY - oEnvelope.MinY) / poDS-&gt;padfYResolutions[0] + 0.5;</span>
+<span class="lineNum">    1314 </span><span class="lineCov">         36 :         if( !(dfRasterXSize &gt;= 1 &amp;&amp; dfRasterXSize &lt;= INT_MAX) ||</span>
+<span class="lineNum">    1315 </span><span class="lineCov">         36 :             !(dfRasterYSize &gt;= 1 &amp;&amp; dfRasterYSize &lt;= INT_MAX) )</span>
+<span class="lineNum">    1316 </span>            :         {
+<span class="lineNum">    1317 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">    1318 </span><span class="lineNoCov">          0 :             poDS = nullptr;</span>
+<span class="lineNum">    1319 </span><span class="lineNoCov">          0 :             goto end;</span>
+<span class="lineNum">    1320 </span>            :         }
+<span class="lineNum">    1321 </span><span class="lineCov">         18 :         poDS-&gt;nRasterXSize = static_cast&lt;int&gt;(dfRasterXSize);</span>
+<span class="lineNum">    1322 </span><span class="lineCov">         18 :         poDS-&gt;nRasterYSize = static_cast&lt;int&gt;(dfRasterYSize);</span>
+<span class="lineNum">    1323 </span>            : 
+<span class="lineNum">    1324 </span><span class="lineCov">         18 :         poDS-&gt;bValidGeoTransform = TRUE;</span>
+<span class="lineNum">    1325 </span><span class="lineCov">         18 :         poDS-&gt;adfGeoTransform[0] = oEnvelope.MinX;</span>
+<span class="lineNum">    1326 </span><span class="lineCov">         18 :         poDS-&gt;adfGeoTransform[1] = poDS-&gt;padfXResolutions[0];</span>
+<span class="lineNum">    1327 </span><span class="lineCov">         18 :         poDS-&gt;adfGeoTransform[2] = 0;</span>
+<span class="lineNum">    1328 </span><span class="lineCov">         18 :         poDS-&gt;adfGeoTransform[3] = oEnvelope.MaxY;</span>
+<span class="lineNum">    1329 </span><span class="lineCov">         18 :         poDS-&gt;adfGeoTransform[4] = 0;</span>
+<span class="lineNum">    1330 </span><span class="lineCov">         18 :         poDS-&gt;adfGeoTransform[5] = - poDS-&gt;padfYResolutions[0];</span>
+<span class="lineNum">    1331 </span>            : 
+<span class="lineNum">    1332 </span><span class="lineCov">         18 :         OGRSpatialReferenceH hSRS = OGR_L_GetSpatialRef(hMetadataLyr);</span>
+<span class="lineNum">    1333 </span><span class="lineCov">         18 :         if (hSRS)</span>
+<span class="lineNum">    1334 </span>            :         {
+<span class="lineNum">    1335 </span><span class="lineCov">         16 :             OSRExportToWkt(hSRS, &amp;poDS-&gt;pszSRS);</span>
+<span class="lineNum">    1336 </span>            :         }
+<span class="lineNum">    1337 </span>            : 
+<span class="lineNum">    1338 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1339 </span>            : /*      Get number of bands and block size                              */
+<span class="lineNum">    1340 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1341 </span>            : 
+<span class="lineNum">    1342 </span>            :         int nBands;
+<span class="lineNum">    1343 </span>            :         int nBlockXSize, nBlockYSize;
+<span class="lineNum">    1344 </span><span class="lineCov">         18 :         if (poDS-&gt;GetBlockParams(hRasterLyr, 0, &amp;nBands, &amp;eDataType,</span>
+<span class="lineNum">    1345 </span><span class="lineCov">         18 :                                  &amp;nBlockXSize, &amp;nBlockYSize) == FALSE)</span>
+<span class="lineNum">    1346 </span>            :         {
+<span class="lineNum">    1347 </span><span class="lineNoCov">          0 :             CPLError(CE_Failure, CPLE_AppDefined, &quot;Cannot find block characteristics&quot;);</span>
+<span class="lineNum">    1348 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">    1349 </span><span class="lineNoCov">          0 :             poDS = nullptr;</span>
+<span class="lineNum">    1350 </span><span class="lineNoCov">          0 :             goto end;</span>
+<span class="lineNum">    1351 </span>            :         }
+<span class="lineNum">    1352 </span>            : 
+<span class="lineNum">    1353 </span><span class="lineCov">         18 :         if (eDataType == GDT_Byte &amp;&amp; nBands == 1 &amp;&amp; nReqBands == 3)</span>
+<span class="lineNum">    1354 </span><span class="lineCov">          1 :             nBands = 3;</span>
+<span class="lineNum">    1355 </span><span class="lineCov">         17 :         else if (nReqBands != 0)</span>
+<span class="lineNum">    1356 </span>            :         {
+<span class="lineNum">    1357 </span>            :             CPLError(CE_Warning, CPLE_NotSupported,
+<span class="lineNum">    1358 </span><span class="lineNoCov">          0 :                      &quot;Parameters bands=%d ignored&quot;, nReqBands);</span>
+<span class="lineNum">    1359 </span>            :         }
+<span class="lineNum">    1360 </span>            : 
+<span class="lineNum">    1361 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1362 </span>            : /*      Add bands                                                       */
+<span class="lineNum">    1363 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1364 </span>            : 
+<span class="lineNum">    1365 </span><span class="lineCov">         50 :         for( int iBand=0; iBand &lt; nBands; iBand++ )</span>
+<span class="lineNum">    1366 </span>            :             poDS-&gt;SetBand(iBand+1, new RasterliteBand(poDS, iBand+1, eDataType,
+<span class="lineNum">    1367 </span><span class="lineCov">         32 :                                                       nBlockXSize, nBlockYSize));</span>
+<span class="lineNum">    1368 </span>            : 
+<span class="lineNum">    1369 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1370 </span>            : /*      Add overview levels as internal datasets                        */
+<span class="lineNum">    1371 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1372 </span><span class="lineCov">         18 :         if (nResolutions &gt; 1)</span>
+<span class="lineNum">    1373 </span>            :         {
+<span class="lineNum">    1374 </span>            :             poDS-&gt;papoOverviews = reinterpret_cast&lt;RasterliteDataset **&gt;(
+<span class="lineNum">    1375 </span><span class="lineCov">          6 :                 CPLCalloc(nResolutions - 1, sizeof(RasterliteDataset*)) );</span>
+<span class="lineNum">    1376 </span><span class="lineCov">         30 :             for( int nLev = 1; nLev &lt; nResolutions; nLev++ )</span>
+<span class="lineNum">    1377 </span>            :             {
+<span class="lineNum">    1378 </span>            :                 int nOvrBands;
+<span class="lineNum">    1379 </span>            :                 GDALDataType eOvrDataType;
+<span class="lineNum">    1380 </span><span class="lineCov">          9 :                 if (poDS-&gt;GetBlockParams(hRasterLyr, nLev, &amp;nOvrBands, &amp;eOvrDataType,</span>
+<span class="lineNum">    1381 </span><span class="lineCov">          9 :                                          &amp;nBlockXSize, &amp;nBlockYSize) == FALSE)</span>
+<span class="lineNum">    1382 </span>            :                 {
+<span class="lineNum">    1383 </span>            :                     CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1384 </span><span class="lineNoCov">          0 :                              &quot;Cannot find block characteristics for overview %d&quot;, nLev);</span>
+<span class="lineNum">    1385 </span><span class="lineNoCov">          0 :                     delete poDS;</span>
+<span class="lineNum">    1386 </span><span class="lineNoCov">          0 :                     poDS = nullptr;</span>
+<span class="lineNum">    1387 </span><span class="lineNoCov">          0 :                     goto end;</span>
+<span class="lineNum">    1388 </span>            :                 }
+<span class="lineNum">    1389 </span>            : 
+<span class="lineNum">    1390 </span><span class="lineCov">          9 :                 if (eDataType == GDT_Byte &amp;&amp; nOvrBands == 1 &amp;&amp; nReqBands == 3)</span>
+<span class="lineNum">    1391 </span><span class="lineNoCov">          0 :                     nOvrBands = 3;</span>
+<span class="lineNum">    1392 </span>            : 
+<span class="lineNum">    1393 </span><span class="lineCov">          9 :                 if (nBands != nOvrBands || eDataType != eOvrDataType)</span>
+<span class="lineNum">    1394 </span>            :                 {
+<span class="lineNum">    1395 </span>            :                     CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1396 </span><span class="lineNoCov">          0 :                              &quot;Overview %d has not the same number characteristics as main band&quot;, nLev);</span>
+<span class="lineNum">    1397 </span><span class="lineNoCov">          0 :                     delete poDS;</span>
+<span class="lineNum">    1398 </span><span class="lineNoCov">          0 :                     poDS = nullptr;</span>
+<span class="lineNum">    1399 </span><span class="lineNoCov">          0 :                     goto end;</span>
+<span class="lineNum">    1400 </span>            :                 }
+<span class="lineNum">    1401 </span>            : 
+<span class="lineNum">    1402 </span><span class="lineCov">          9 :                 poDS-&gt;papoOverviews[nLev-1] = new RasterliteDataset(poDS, nLev);</span>
+<span class="lineNum">    1403 </span>            : 
+<span class="lineNum">    1404 </span><span class="lineCov">         24 :                 for( int iBand = 0; iBand &lt; nBands; iBand++ )</span>
+<span class="lineNum">    1405 </span>            :                 {
+<span class="lineNum">    1406 </span><span class="lineCov">         15 :                     poDS-&gt;papoOverviews[nLev-1]-&gt;SetBand(iBand+1,</span>
+<span class="lineNum">    1407 </span><span class="lineCov">         15 :                         new RasterliteBand(poDS-&gt;papoOverviews[nLev-1], iBand+1, eDataType,</span>
+<span class="lineNum">    1408 </span><span class="lineCov">         45 :                                            nBlockXSize, nBlockYSize));</span>
+<span class="lineNum">    1409 </span>            :                 }
+<span class="lineNum">    1410 </span>            :             }
+<span class="lineNum">    1411 </span>            :         }
+<span class="lineNum">    1412 </span>            : 
+<span class="lineNum">    1413 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1414 </span>            : /*      Select an overview if the user has requested so                 */
+<span class="lineNum">    1415 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1416 </span><span class="lineCov">         18 :         if (nLevel == 0)</span>
+<span class="lineNum">    1417 </span>            :         {
+<span class="lineNum">    1418 </span>            :         }
+<span class="lineNum">    1419 </span><span class="lineCov">          1 :         else if (nLevel &gt;= 1 &amp;&amp; nLevel &lt;= nResolutions - 1)</span>
+<span class="lineNum">    1420 </span>            :         {
+<span class="lineNum">    1421 </span><span class="lineCov">          1 :             poDS-&gt;papoOverviews[nLevel-1]-&gt;bMustFree = TRUE;</span>
+<span class="lineNum">    1422 </span><span class="lineCov">          1 :             poDS = poDS-&gt;papoOverviews[nLevel-1];</span>
+<span class="lineNum">    1423 </span>            :         }
+<span class="lineNum">    1424 </span>            :         else
+<span class="lineNum">    1425 </span>            :         {
+<span class="lineNum">    1426 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1427 </span>            :                       &quot;Invalid requested level : %d. Must be &gt;= 0 and &lt;= %d&quot;,
+<span class="lineNum">    1428 </span><span class="lineNoCov">          0 :                       nLevel, nResolutions - 1);</span>
+<span class="lineNum">    1429 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">    1430 </span><span class="lineNoCov">          0 :             poDS = nullptr;</span>
+<span class="lineNum">    1431 </span><span class="lineCov">         18 :         }</span>
+<span class="lineNum">    1432 </span>            :     }
+<span class="lineNum">    1433 </span>            : 
+<span class="lineNum">    1434 </span><span class="lineCov">         18 :     if (poDS)</span>
+<span class="lineNum">    1435 </span>            :     {
+<span class="lineNum">    1436 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1437 </span>            : /*      Setup PAM info for this subdatasets                             */
+<span class="lineNum">    1438 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1439 </span><span class="lineCov">         18 :         poDS-&gt;SetPhysicalFilename( osFileName.c_str() );</span>
+<span class="lineNum">    1440 </span>            : 
+<span class="lineNum">    1441 </span><span class="lineCov">         18 :         CPLString osSubdatasetName;</span>
+<span class="lineNum">    1442 </span>            :         osSubdatasetName.Printf(&quot;RASTERLITE:%s:table=%s&quot;,
+<span class="lineNum">    1443 </span><span class="lineCov">         18 :                                 osFileName.c_str(), osTableName.c_str());</span>
+<span class="lineNum">    1444 </span><span class="lineCov">         18 :         poDS-&gt;SetSubdatasetName( osSubdatasetName.c_str() );</span>
+<span class="lineNum">    1445 </span><span class="lineCov">         18 :         poDS-&gt;TryLoadXML();</span>
+<span class="lineNum">    1446 </span><span class="lineCov">         18 :         poDS-&gt;oOvManager.Initialize( poDS, &quot;:::VIRTUAL:::&quot; );</span>
+<span class="lineNum">    1447 </span>            :     }
+<span class="lineNum">    1448 </span>            : 
+<span class="lineNum">    1449 </span>            : end:
+<span class="lineNum">    1450 </span><span class="lineCov">         28 :     if (hDS)</span>
+<span class="lineNum">    1451 </span><span class="lineCov">          2 :         OGRReleaseDataSource(hDS);</span>
+<span class="lineNum">    1452 </span>            : 
+<span class="lineNum">    1453 </span><span class="lineCov">         56 :     return poDS;</span>
+<span class="lineNum">    1454 </span>            : }
+<span class="lineNum">    1455 </span>            : 
+<span class="lineNum">    1456 </span>            : /************************************************************************/
+<span class="lineNum">    1457 </span>            : /*                     GDALRegister_Rasterlite()                        */
+<a name="1458"><span class="lineNum">    1458 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1459 </span>            : 
+<span class="lineNum">    1460 </span><span class="lineCov">       1109 : void GDALRegister_Rasterlite()</span>
+<span class="lineNum">    1461 </span>            : 
+<span class="lineNum">    1462 </span>            : {
+<span class="lineNum">    1463 </span><span class="lineCov">       1109 :     if( !GDAL_CHECK_VERSION(&quot;Rasterlite driver&quot;) )</span>
+<span class="lineNum">    1464 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1465 </span>            : 
+<span class="lineNum">    1466 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( &quot;Rasterlite&quot; ) != nullptr )</span>
+<span class="lineNum">    1467 </span><span class="lineCov">        122 :         return;</span>
+<span class="lineNum">    1468 </span>            : 
+<span class="lineNum">    1469 </span><span class="lineCov">        987 :     GDALDriver *poDriver = new GDALDriver();</span>
+<span class="lineNum">    1470 </span>            : 
+<span class="lineNum">    1471 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( &quot;Rasterlite&quot; );</span>
+<span class="lineNum">    1472 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">    1473 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME, &quot;Rasterlite&quot; );</span>
+<span class="lineNum">    1474 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_HELPTOPIC, &quot;frmt_rasterlite.html&quot; );</span>
+<span class="lineNum">    1475 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_EXTENSION, &quot;sqlite&quot; );</span>
+<span class="lineNum">    1476 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_SUBDATASETS, &quot;YES&quot; );</span>
+<span class="lineNum">    1477 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_CREATIONDATATYPES,
+<span class="lineNum">    1478 </span>            :                                &quot;Byte UInt16 Int16 UInt32 Int32 Float32 &quot;
+<span class="lineNum">    1479 </span><span class="lineCov">        987 :                                &quot;Float64 CInt16 CInt32 CFloat32 CFloat64&quot; );</span>
+<span class="lineNum">    1480 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_CREATIONOPTIONLIST,
+<span class="lineNum">    1481 </span>            : &quot;&lt;CreationOptionList&gt;&quot;
+<span class="lineNum">    1482 </span>            : &quot;   &lt;Option name='WIPE' type='boolean' default='NO' description='Erase all preexisting data in the specified table'/&gt;&quot;
+<span class="lineNum">    1483 </span>            : &quot;   &lt;Option name='TILED' type='boolean' default='YES' description='Use tiling'/&gt;&quot;
+<span class="lineNum">    1484 </span>            : &quot;   &lt;Option name='BLOCKXSIZE' type='int' default='256' description='Tile Width'/&gt;&quot;
+<span class="lineNum">    1485 </span>            : &quot;   &lt;Option name='BLOCKYSIZE' type='int' default='256' description='Tile Height'/&gt;&quot;
+<span class="lineNum">    1486 </span>            : &quot;   &lt;Option name='DRIVER' type='string' default='GTiff' description='GDAL driver to use for storing tiles' default='GTiff'/&gt;&quot;
+<span class="lineNum">    1487 </span>            : &quot;   &lt;Option name='COMPRESS' type='string' default='(GTiff driver) Compression method' default='NONE'/&gt;&quot;
+<span class="lineNum">    1488 </span>            : &quot;   &lt;Option name='QUALITY' type='int' description='(JPEG-compressed GTiff, JPEG and WEBP drivers) JPEG/WEBP Quality 1-100' default='75'/&gt;&quot;
+<span class="lineNum">    1489 </span>            : &quot;   &lt;Option name='PHOTOMETRIC' type='string-select' description='(GTiff driver) Photometric interpretation'&gt;&quot;
+<span class="lineNum">    1490 </span>            : &quot;       &lt;Value&gt;MINISBLACK&lt;/Value&gt;&quot;
+<span class="lineNum">    1491 </span>            : &quot;       &lt;Value&gt;MINISWHITE&lt;/Value&gt;&quot;
+<span class="lineNum">    1492 </span>            : &quot;       &lt;Value&gt;PALETTE&lt;/Value&gt;&quot;
+<span class="lineNum">    1493 </span>            : &quot;       &lt;Value&gt;RGB&lt;/Value&gt;&quot;
+<span class="lineNum">    1494 </span>            : &quot;       &lt;Value&gt;CMYK&lt;/Value&gt;&quot;
+<span class="lineNum">    1495 </span>            : &quot;       &lt;Value&gt;YCBCR&lt;/Value&gt;&quot;
+<span class="lineNum">    1496 </span>            : &quot;       &lt;Value&gt;CIELAB&lt;/Value&gt;&quot;
+<span class="lineNum">    1497 </span>            : &quot;       &lt;Value&gt;ICCLAB&lt;/Value&gt;&quot;
+<span class="lineNum">    1498 </span>            : &quot;       &lt;Value&gt;ITULAB&lt;/Value&gt;&quot;
+<span class="lineNum">    1499 </span>            : &quot;   &lt;/Option&gt;&quot;
+<span class="lineNum">    1500 </span>            : &quot;   &lt;Option name='TARGET' type='int' description='(EPSILON driver) target size reduction as a percentage of the original (0-100)' default='96'/&gt;&quot;
+<span class="lineNum">    1501 </span>            : &quot;   &lt;Option name='FILTER' type='string' description='(EPSILON driver) Filter ID' default='daub97lift'/&gt;&quot;
+<span class="lineNum">    1502 </span><span class="lineCov">        987 : &quot;&lt;/CreationOptionList&gt;&quot; );</span>
+<span class="lineNum">    1503 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VIRTUALIO, &quot;YES&quot; );</span>
+<span class="lineNum">    1504 </span>            : 
+<span class="lineNum">    1505 </span>            : #ifdef ENABLE_SQL_SQLITE_FORMAT
+<span class="lineNum">    1506 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem(&quot;ENABLE_SQL_SQLITE_FORMAT&quot;, &quot;YES&quot;);</span>
+<span class="lineNum">    1507 </span>            : #endif
+<span class="lineNum">    1508 </span>            : 
+<span class="lineNum">    1509 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = RasterliteDataset::Open;</span>
+<span class="lineNum">    1510 </span><span class="lineCov">        987 :     poDriver-&gt;pfnIdentify = RasterliteDataset::Identify;</span>
+<span class="lineNum">    1511 </span><span class="lineCov">        987 :     poDriver-&gt;pfnCreateCopy = RasterliteCreateCopy;</span>
+<span class="lineNum">    1512 </span><span class="lineCov">        987 :     poDriver-&gt;pfnDelete = RasterliteDelete;</span>
+<span class="lineNum">    1513 </span>            : 
+<span class="lineNum">    1514 </span><span class="lineCov">        987 :     GetGDALDriverManager()-&gt;RegisterDriver( poDriver );</span>
+<span class="lineNum">    1515 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

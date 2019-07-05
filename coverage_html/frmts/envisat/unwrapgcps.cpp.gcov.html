@@ -1,0 +1,267 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/envisat/unwrapgcps.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/envisat</a> - unwrapgcps.cpp<span style="font-size: 80%;"> (source / <a href="unwrapgcps.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">53</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  APP ENVISAT Support
+<span class="lineNum">       4 </span>            :  * Purpose:  GCPs Unwrapping for products crossing the WGS84 date-line
+<span class="lineNum">       5 </span>            :  * Author:   Martin Paces martin.paces@eox.at
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2013, EOX IT Services, GmbH
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      30 </span>            : #include &lt;cmath&gt;
+<span class="lineNum">      31 </span>            : #include &lt;cstdio&gt;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : // number of histogram bins (36 a 10dg)
+<span class="lineNum">      36 </span>            : constexpr int NBIN = 36;
+<span class="lineNum">      37 </span>            : // number of empty bins to guess the flip-point
+<span class="lineNum">      38 </span>            : constexpr int NEMPY = 7;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : // WGS84 bounds
+<span class="lineNum">      41 </span>            : constexpr double XMIN = -180.0;
+<span class="lineNum">      42 </span>            : // constexpr double XMAX = 180.0;
+<span class="lineNum">      43 </span>            : constexpr double XDIF = 360.0;
+<span class="lineNum">      44 </span>            : constexpr double XCNT = 0.0;
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : // max. allowed longitude extent of the GCP set
+<span class="lineNum">      47 </span>            : constexpr double XLIM = XDIF*(1.0-NEMPY*(1.0/NBIN));
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            : /* used by envisatdataset.cpp */
+<span class="lineNum">      50 </span>            : extern void EnvisatUnwrapGCPs( int cnt, GDAL_GCP *gcp );
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : // The algorithm is based on assumption that the unwrapped
+<span class="lineNum">      53 </span>            : // GCPs ('flipped' values) have smaller extent along the longitude.
+<span class="lineNum">      54 </span>            : // We further assume that the length of the striplines is limited
+<span class="lineNum">      55 </span>            : // to one orbit and does not exceeded given limit along the longitude,
+<span class="lineNum">      56 </span>            : // e.i., the wrapped-around coordinates have significantly larger
+<span class="lineNum">      57 </span>            : // extent the unwrapped. If the smaller extend exceeds the limit
+<a name="58"><span class="lineNum">      58 </span>            : // the original tiepoints are returned.</a>
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 : static double _suggest_flip_point( const int cnt, GDAL_GCP *gcp )</span>
+<span class="lineNum">      61 </span>            : {
+<span class="lineNum">      62 </span>            :     // the histogram array - it is expected to fit the stack
+<span class="lineNum">      63 </span>            :     int hist[NBIN] ;
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            :     // reset the histogram counters
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :     for( int i = 0 ; i &lt; NBIN ; i++ ) hist[i] = 0 ;</span>
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :     // accumulate the histogram
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :     for( int i = 0 ; i &lt; cnt ; i++ )</span>
+<span class="lineNum">      70 </span>            :     {
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :         double x = (gcp[i].dfGCPX-XMIN)/XDIF;</span>
+<span class="lineNum">      72 </span><span class="lineNoCov">          0 :         int idx = (int)(NBIN*(x-floor(x)));</span>
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            :         // The latitudes should lay in the +/-180 bounds
+<span class="lineNum">      75 </span>            :         // although it should never happen we check the outliers
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :         if (idx &lt; 0) idx = 0 ;</span>
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :         if (idx &gt;= NBIN ) idx = NBIN-1;</span>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :         hist[idx] += 1 ;</span>
+<span class="lineNum">      80 </span>            :     }
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            :     // Find middle of at least NEMPTY consecutive empty bins and get its middle.
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :     int i0 = -1;</span>
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :     int i1 = -1;</span>
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :     int last_is_empty = 0;</span>
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :     for( int i = 0; i &lt; (2*NBIN-1); i++ )</span>
+<span class="lineNum">      87 </span>            :     {
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :         if ( 0 == hist[i%NBIN] ) // empty</span>
+<span class="lineNum">      89 </span>            :         {
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :             if ( !last_is_empty ) // re-start counter</span>
+<span class="lineNum">      91 </span>            :             {
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :                 i0 = i ;</span>
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :                 last_is_empty = 1 ;</span>
+<span class="lineNum">      94 </span>            :             }
+<span class="lineNum">      95 </span>            :         }
+<span class="lineNum">      96 </span>            :         else // non-empty
+<span class="lineNum">      97 </span>            :         {
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :             if ( last_is_empty )</span>
+<span class="lineNum">      99 </span>            :             {
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :                 i1 = i ;</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :                 last_is_empty = 0 ;</span>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :                 // if the segment is long enough -&gt; terminate
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :                 if (( i1 - i0 )&gt;=NEMPY) break ;</span>
+<span class="lineNum">     105 </span>            :             }
+<span class="lineNum">     106 </span>            :         }
+<span class="lineNum">     107 </span>            :     }
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span>            :     // if all full or all empty the returning default value
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 :     if ( i1 &lt; 0 ) return XCNT ;</span>
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            :     // return the flip-centre
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :     double tmp = ((i1-i0)*0.5+i0)/((float)NBIN) ;</span>
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :     return (tmp-floor(tmp))*XDIF + XMIN;</span>
+<a name="117"><span class="lineNum">     117 </span>            : }</a>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 : void EnvisatUnwrapGCPs( int cnt, GDAL_GCP *gcp )</span>
+<span class="lineNum">     120 </span>            : {
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :     if ( cnt &lt; 1 ) return ;</span>
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            :     // suggest right flip-point
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :     double x_flip = _suggest_flip_point( cnt, gcp );</span>
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            :     // Find the limits along the longitude (x) for flipped and unflipped values.
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :     int cnt_flip = 0 ; // flipped values' counter</span>
+<span class="lineNum">     129 </span>            :     double x0_dif , x1_dif ;
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span>            :     {
+<span class="lineNum">     132 </span>            :         double x0_min;
+<span class="lineNum">     133 </span>            :         double x0_max;
+<span class="lineNum">     134 </span>            :         double x1_min;
+<span class="lineNum">     135 </span>            :         double x1_max;
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span>            :         {
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :             double x0 = gcp[0].dfGCPX;</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :             int  flip = (x0&gt;x_flip) ;</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :             x0_min = x0;</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :             x0_max = x0;</span>
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :             x1_min = x0 - flip*XDIF;</span>
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :             x1_max = x1_min;</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :             cnt_flip += flip ; // count the flipped values</span>
+<span class="lineNum">     145 </span>            :         }
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :         for ( int i = 1 ; i &lt; cnt ; ++i )</span>
+<span class="lineNum">     148 </span>            :         {
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :             double x0 = gcp[i].dfGCPX ;</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :             int  flip = (x0&gt;x_flip) ;</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :             double x1 = x0 - flip*XDIF ; // flipped value</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :             cnt_flip += flip ; // count the flipped values</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :             if ( x0 &gt; x0_max ) x0_max = x0 ;</span>
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :             if ( x0 &lt; x0_min ) x0_min = x0 ;</span>
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :             if ( x1 &gt; x1_max ) x1_max = x1 ;</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :             if ( x1 &lt; x1_min ) x1_min = x1 ;</span>
+<span class="lineNum">     158 </span>            :         }
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :         x0_dif = x0_max - x0_min ;</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :         x1_dif = x1_max - x1_min ;</span>
+<span class="lineNum">     162 </span>            :     }
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            :     // in case all values either flipped or non-flipped
+<span class="lineNum">     165 </span>            :     // nothing is to be done
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :     if (( cnt_flip == 0 ) || ( cnt_flip == cnt )) return ;</span>
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            :     // check whether we need to split the segment
+<span class="lineNum">     169 </span>            :     // i.e., segment is too long decide the best option
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :     if (( x0_dif &gt; XLIM ) &amp;&amp; ( x1_dif &gt; XLIM ))</span>
+<span class="lineNum">     172 </span>            :     {
+<span class="lineNum">     173 </span>            :         // this should not happen
+<span class="lineNum">     174 </span>            :         // we give-up and return the original tie-point set
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span>            :         CPLError(CE_Warning,CPLE_AppDefined,&quot;GCPs' set is too large&quot;
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :             &quot; to perform the unwrapping! The unwrapping is not performed!&quot;);</span>
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :         return ;</span>
+<span class="lineNum">     180 </span>            :     }
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :     else if ( x1_dif &lt; x0_dif )</span>
+<span class="lineNum">     182 </span>            :     {
+<span class="lineNum">     183 </span>            :         // flipped GCPs' set has smaller extent -&gt; unwrapping is performed
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :         for ( int i = 1 ; i &lt; cnt ; ++i )</span>
+<span class="lineNum">     185 </span>            :         {
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :             double x0 = gcp[i].dfGCPX ;</span>
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :             gcp[i].dfGCPX = x0 - (x0&gt;XCNT)*XDIF ;</span>
+<span class="lineNum">     189 </span>            :         }
+<span class="lineNum">     190 </span>            :     }
+<span class="lineNum">     191 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,1586 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/plmosaic/plmosaicdataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/plmosaic</a> - plmosaicdataset.cpp<span style="font-size: 80%;"> (source / <a href="plmosaicdataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">614</td>
+            <td class="headerCovTableEntry">638</td>
+            <td class="headerCovTableEntryHi">96.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">37</td>
+            <td class="headerCovTableEntry">38</td>
+            <td class="headerCovTableEntryHi">97.4 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  PLMosaic driver
+<span class="lineNum">       4 </span>            :  * Purpose:  PLMosaic driver
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys dot com&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2015-2018, Planet Labs
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_http.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;cpl_minixml.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdal_frmts.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;gdal_pam.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;ogr_spatialref.h&quot;
+<span class="lineNum">      35 </span>            : #include &quot;ogrsf_frmts.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;../vrt/gdal_vrt.h&quot;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #include &quot;ogrgeojsonreader.h&quot;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : #define SPHERICAL_RADIUS        6378137.0
+<span class="lineNum">      45 </span>            : #define GM_ORIGIN  -20037508.340
+<span class="lineNum">      46 </span>            : #define GM_ZOOM_0  ((2 * -(GM_ORIGIN)) / 256)
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : /************************************************************************/
+<span class="lineNum">      49 </span>            : /* ==================================================================== */
+<span class="lineNum">      50 </span>            : /*                           PLMosaicDataset                            */
+<span class="lineNum">      51 </span>            : /* ==================================================================== */
+<span class="lineNum">      52 </span>            : /************************************************************************/
+<a name="53"><span class="lineNum">      53 </span>            : </a>
+<span class="lineNum">      54 </span>            : class PLLinkedDataset;
+<span class="lineNum">      55 </span><span class="lineCov">         25 : class PLLinkedDataset</span>
+<span class="lineNum">      56 </span>            : {
+<span class="lineNum">      57 </span>            : public:
+<span class="lineNum">      58 </span>            :     CPLString            osKey;
+<span class="lineNum">      59 </span>            :     GDALDataset         *poDS;
+<span class="lineNum">      60 </span>            :     PLLinkedDataset       *psPrev;
+<a name="61"><span class="lineNum">      61 </span>            :     PLLinkedDataset       *psNext;</a>
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span><span class="lineCov">         25 :                         PLLinkedDataset() : poDS(nullptr), psPrev(nullptr), psNext(nullptr) {}</span>
+<span class="lineNum">      64 </span>            : };
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            : class PLMosaicRasterBand;
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            : class PLMosaicDataset final: public GDALPamDataset
+<span class="lineNum">      69 </span>            : {
+<span class="lineNum">      70 </span>            :     friend class PLMosaicRasterBand;
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            :         int                     bMustCleanPersistent;
+<span class="lineNum">      73 </span>            :         CPLString               osCachePathRoot;
+<span class="lineNum">      74 </span>            :         int                     bTrustCache;
+<span class="lineNum">      75 </span>            :         CPLString               osBaseURL;
+<span class="lineNum">      76 </span>            :         CPLString               osAPIKey;
+<span class="lineNum">      77 </span>            :         CPLString               osMosaic;
+<span class="lineNum">      78 </span>            :         char                   *pszWKT;
+<span class="lineNum">      79 </span>            :         int                     nQuadSize;
+<span class="lineNum">      80 </span>            :         CPLString               osQuadsURL;
+<span class="lineNum">      81 </span>            :         int                     bHasGeoTransform;
+<span class="lineNum">      82 </span>            :         double                  adfGeoTransform[6];
+<span class="lineNum">      83 </span>            :         int                     nZoomLevelMax;
+<span class="lineNum">      84 </span>            :         int                     bUseTMSForMain;
+<span class="lineNum">      85 </span>            :         std::vector&lt;GDALDataset*&gt; apoTMSDS;
+<span class="lineNum">      86 </span>            :         int                     nMetaTileXShift = 0;
+<span class="lineNum">      87 </span>            :         int                     nMetaTileYShift = 0;
+<span class="lineNum">      88 </span>            :         bool                    bQuadDownload = false;
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            :         int                     nCacheMaxSize;
+<span class="lineNum">      91 </span>            :         std::map&lt;CPLString, PLLinkedDataset*&gt; oMapLinkedDatasets;
+<span class="lineNum">      92 </span>            :         PLLinkedDataset        *psHead;
+<span class="lineNum">      93 </span>            :         PLLinkedDataset        *psTail;
+<span class="lineNum">      94 </span>            :         void                    FlushDatasetsCache();
+<span class="lineNum">      95 </span>            :         CPLString               GetMosaicCachePath();
+<span class="lineNum">      96 </span>            :         void                    CreateMosaicCachePathIfNecessary();
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            :         int                     nLastMetaTileX;
+<span class="lineNum">      99 </span>            :         int                     nLastMetaTileY;
+<span class="lineNum">     100 </span>            :         json_object            *poLastItemsInformation = nullptr;
+<span class="lineNum">     101 </span>            :         CPLString               osLastRetGetLocationInfo;
+<span class="lineNum">     102 </span>            :         const char             *GetLocationInfo(int nPixel, int nLine);
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            :         char                  **GetBaseHTTPOptions();
+<span class="lineNum">     105 </span>            :         CPLHTTPResult          *Download(const char* pszURL,
+<span class="lineNum">     106 </span>            :                                          int bQuiet404Error = FALSE);
+<span class="lineNum">     107 </span>            :         json_object            *RunRequest(const char* pszURL,
+<span class="lineNum">     108 </span>            :                                            int bQuiet404Error = FALSE);
+<span class="lineNum">     109 </span>            :         int                     OpenMosaic();
+<span class="lineNum">     110 </span>            :         std::vector&lt;CPLString&gt;  ListSubdatasets();
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            :         static CPLString        formatTileName(int tile_x, int tile_y);
+<span class="lineNum">     113 </span>            :         void                    InsertNewDataset(CPLString osKey, GDALDataset* poDS);
+<span class="lineNum">     114 </span>            :         GDALDataset*            OpenAndInsertNewDataset(CPLString osTmpFilename,
+<span class="lineNum">     115 </span>            :                                                         CPLString osTilename);
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            :   public:
+<span class="lineNum">     118 </span>            :                 PLMosaicDataset();
+<span class="lineNum">     119 </span>            :     virtual  ~PLMosaicDataset();
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            :     static int Identify( GDALOpenInfo * poOpenInfo );
+<span class="lineNum">     122 </span>            :     static GDALDataset  *Open( GDALOpenInfo * );
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span>            :     virtual CPLErr  IRasterIO( GDALRWFlag eRWFlag,
+<span class="lineNum">     125 </span>            :                                int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     126 </span>            :                                void * pData, int nBufXSize, int nBufYSize,
+<span class="lineNum">     127 </span>            :                                GDALDataType eBufType,
+<span class="lineNum">     128 </span>            :                                int nBandCount, int *panBandMap,
+<span class="lineNum">     129 </span>            :                                GSpacing nPixelSpace, GSpacing nLineSpace,
+<span class="lineNum">     130 </span>            :                                GSpacing nBandSpace,
+<span class="lineNum">     131 </span>            :                                GDALRasterIOExtraArg* psExtraArg) override;
+<span class="lineNum">     132 </span>            : 
+<span class="lineNum">     133 </span>            :     virtual void FlushCache(void) override;
+<a name="134"><span class="lineNum">     134 </span>            : </a>
+<span class="lineNum">     135 </span>            :     virtual const char *_GetProjectionRef() override;
+<span class="lineNum">     136 </span><span class="lineCov">          1 :     const OGRSpatialReference* GetSpatialRef() const override {</span>
+<span class="lineNum">     137 </span><span class="lineCov">          1 :         return GetSpatialRefFromOldGetProjectionRef();</span>
+<span class="lineNum">     138 </span>            :     }
+<span class="lineNum">     139 </span>            :     virtual CPLErr      GetGeoTransform(double* padfGeoTransform) override;
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span>            :     GDALDataset        *GetMetaTile(int tile_x, int tile_y);
+<span class="lineNum">     142 </span>            : };
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            : /************************************************************************/
+<span class="lineNum">     145 </span>            : /* ==================================================================== */
+<span class="lineNum">     146 </span>            : /*                         PLMosaicRasterBand                           */
+<span class="lineNum">     147 </span>            : /* ==================================================================== */
+<a name="148"><span class="lineNum">     148 </span>            : /************************************************************************/</a>
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span><span class="lineCov">         96 : class PLMosaicRasterBand final: public GDALRasterBand</span>
+<span class="lineNum">     151 </span>            : {
+<span class="lineNum">     152 </span>            :     friend class PLMosaicDataset;
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            :   public:
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span>            :                 PLMosaicRasterBand( PLMosaicDataset * poDS, int nBand,
+<span class="lineNum">     157 </span>            :                                     GDALDataType eDataType );
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :     virtual CPLErr          IReadBlock( int, int, void * ) override;
+<span class="lineNum">     160 </span>            :     virtual CPLErr          IRasterIO( GDALRWFlag eRWFlag,
+<span class="lineNum">     161 </span>            :                                   int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     162 </span>            :                                   void * pData, int nBufXSize, int nBufYSize,
+<span class="lineNum">     163 </span>            :                                   GDALDataType eBufType,
+<span class="lineNum">     164 </span>            :                                   GSpacing nPixelSpace, GSpacing nLineSpace,
+<span class="lineNum">     165 </span>            :                                   GDALRasterIOExtraArg* psExtraArg) override;
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span>            :     virtual const char     *GetMetadataItem( const char* pszName,
+<span class="lineNum">     168 </span>            :                                              const char * pszDomain = &quot;&quot; ) override;
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            :     virtual GDALColorInterp GetColorInterpretation() override;
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span>            :     virtual int             GetOverviewCount() override;
+<span class="lineNum">     173 </span>            :     virtual GDALRasterBand* GetOverview(int iOvrLevel) override;
+<span class="lineNum">     174 </span>            : };
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span>            : /************************************************************************/
+<span class="lineNum">     177 </span>            : /*                        PLMosaicRasterBand()                          */
+<a name="178"><span class="lineNum">     178 </span>            : /************************************************************************/</a>
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span><span class="lineCov">         48 : PLMosaicRasterBand::PLMosaicRasterBand( PLMosaicDataset *poDSIn, int nBandIn,</span>
+<span class="lineNum">     181 </span><span class="lineCov">         48 :                                         GDALDataType eDataTypeIn )</span>
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span>            : {
+<span class="lineNum">     184 </span><span class="lineCov">         48 :     eDataType = eDataTypeIn;</span>
+<span class="lineNum">     185 </span><span class="lineCov">         48 :     nBlockXSize = 256;</span>
+<span class="lineNum">     186 </span><span class="lineCov">         48 :     nBlockYSize = 256;</span>
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineCov">         48 :     poDS = poDSIn;</span>
+<span class="lineNum">     189 </span><span class="lineCov">         48 :     nBand = nBandIn;</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineCov">         48 :     if( eDataType == GDT_UInt16 )</span>
+<span class="lineNum">     192 </span>            :     {
+<span class="lineNum">     193 </span><span class="lineCov">          4 :         if( nBand &lt;= 3 )</span>
+<span class="lineNum">     194 </span><span class="lineCov">          3 :             SetMetadataItem(&quot;NBITS&quot;, &quot;12&quot;, &quot;IMAGE_STRUCTURE&quot;);</span>
+<span class="lineNum">     195 </span>            :     }
+<span class="lineNum">     196 </span><span class="lineCov">         48 : }</span>
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            : /************************************************************************/
+<span class="lineNum">     199 </span>            : /*                             IReadBlock()                             */
+<a name="200"><span class="lineNum">     200 </span>            : /************************************************************************/</a>
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span><span class="lineCov">         63 : CPLErr PLMosaicRasterBand::IReadBlock( int nBlockXOff, int nBlockYOff,</span>
+<span class="lineNum">     203 </span>            :                                        void *pImage )
+<span class="lineNum">     204 </span>            : {
+<span class="lineNum">     205 </span><span class="lineCov">         63 :     PLMosaicDataset* poMOSDS = reinterpret_cast&lt;PLMosaicDataset *&gt;( poDS );</span>
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     208 </span>            :     CPLDebug(&quot;PLMOSAIC&quot;, &quot;IReadBlock(band=%d, x=%d, y=%d)&quot;,
+<span class="lineNum">     209 </span>            :              nBand, nBlockYOff, nBlockYOff);
+<span class="lineNum">     210 </span>            : #endif
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineCov">         63 :     if( poMOSDS-&gt;bUseTMSForMain &amp;&amp; !poMOSDS-&gt;apoTMSDS.empty() )</span>
+<span class="lineNum">     213 </span><span class="lineCov">          1 :         return poMOSDS-&gt;apoTMSDS[0]-&gt;GetRasterBand(nBand)-&gt;ReadBlock(nBlockXOff, nBlockYOff,</span>
+<span class="lineNum">     214 </span><span class="lineCov">          2 :                                                                 pImage);</span>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineCov">         62 :     const int bottom_yblock = (nRasterYSize - nBlockYOff * nBlockYSize) / nBlockYSize - 1;</span>
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span><span class="lineCov">         62 :     const int meta_tile_x = poMOSDS-&gt;nMetaTileXShift +</span>
+<span class="lineNum">     219 </span><span class="lineCov">         62 :                             (nBlockXOff * nBlockXSize) / poMOSDS-&gt;nQuadSize;</span>
+<span class="lineNum">     220 </span><span class="lineCov">         62 :     const int meta_tile_y = poMOSDS-&gt;nMetaTileYShift +</span>
+<span class="lineNum">     221 </span><span class="lineCov">         62 :                             (bottom_yblock * nBlockYSize) / poMOSDS-&gt;nQuadSize;</span>
+<span class="lineNum">     222 </span><span class="lineCov">         62 :     const int sub_tile_x = nBlockXOff % (poMOSDS-&gt;nQuadSize / nBlockXSize);</span>
+<span class="lineNum">     223 </span><span class="lineCov">         62 :     const int sub_tile_y = nBlockYOff % (poMOSDS-&gt;nQuadSize / nBlockYSize);</span>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineCov">         62 :     GDALDataset *poMetaTileDS = poMOSDS-&gt;GetMetaTile(meta_tile_x, meta_tile_y);</span>
+<span class="lineNum">     226 </span><span class="lineCov">         62 :     if( poMetaTileDS == nullptr )</span>
+<span class="lineNum">     227 </span>            :     {
+<span class="lineNum">     228 </span>            :         memset(pImage, 0,
+<span class="lineNum">     229 </span><span class="lineCov">         38 :                nBlockXSize * nBlockYSize * (GDALGetDataTypeSize(eDataType)/8));</span>
+<span class="lineNum">     230 </span><span class="lineCov">         38 :         return CE_None;</span>
+<span class="lineNum">     231 </span>            :     }
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span>            :     return poMetaTileDS-&gt;GetRasterBand(nBand)-&gt;
+<span class="lineNum">     234 </span>            :                 RasterIO( GF_Read,
+<span class="lineNum">     235 </span>            :                         sub_tile_x * nBlockXSize,
+<span class="lineNum">     236 </span>            :                         sub_tile_y * nBlockYSize,
+<span class="lineNum">     237 </span>            :                         nBlockXSize,
+<span class="lineNum">     238 </span>            :                         nBlockYSize,
+<span class="lineNum">     239 </span>            :                         pImage, nBlockXSize, nBlockYSize,
+<span class="lineNum">     240 </span><span class="lineCov">         24 :                         eDataType, 0, 0, nullptr);</span>
+<span class="lineNum">     241 </span>            : }
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            : /************************************************************************/
+<span class="lineNum">     244 </span>            : /*                             IRasterIO()                              */
+<a name="245"><span class="lineNum">     245 </span>            : /************************************************************************/</a>
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span><span class="lineCov">         43 : CPLErr PLMosaicRasterBand::IRasterIO( GDALRWFlag eRWFlag,</span>
+<span class="lineNum">     248 </span>            :                                          int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     249 </span>            :                                          void * pData, int nBufXSize, int nBufYSize,
+<span class="lineNum">     250 </span>            :                                          GDALDataType eBufType,
+<span class="lineNum">     251 </span>            :                                          GSpacing nPixelSpace, GSpacing nLineSpace,
+<span class="lineNum">     252 </span>            :                                          GDALRasterIOExtraArg* psExtraArg )
+<span class="lineNum">     253 </span>            : {
+<span class="lineNum">     254 </span><span class="lineCov">         43 :     PLMosaicDataset* poMOSDS = reinterpret_cast&lt;PLMosaicDataset *&gt;( poDS );</span>
+<span class="lineNum">     255 </span><span class="lineCov">         43 :     if( poMOSDS-&gt;bUseTMSForMain &amp;&amp; !poMOSDS-&gt;apoTMSDS.empty() )</span>
+<span class="lineNum">     256 </span><span class="lineCov">          1 :         return poMOSDS-&gt;apoTMSDS[0]-&gt;GetRasterBand(nBand)-&gt;RasterIO(</span>
+<span class="lineNum">     257 </span>            :                                          eRWFlag, nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">     258 </span>            :                                          pData, nBufXSize, nBufYSize, eBufType,
+<span class="lineNum">     259 </span><span class="lineCov">          2 :                                          nPixelSpace, nLineSpace, psExtraArg );</span>
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span>            :     return GDALRasterBand::IRasterIO( eRWFlag, nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">     262 </span>            :                                          pData, nBufXSize, nBufYSize, eBufType,
+<span class="lineNum">     263 </span><span class="lineCov">         42 :                                          nPixelSpace, nLineSpace, psExtraArg );</span>
+<span class="lineNum">     264 </span>            : }
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            : /************************************************************************/
+<span class="lineNum">     267 </span>            : /*                         GetMetadataItem()                            */
+<a name="268"><span class="lineNum">     268 </span>            : /************************************************************************/</a>
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span><span class="lineCov">          4 : const char* PLMosaicRasterBand::GetMetadataItem( const char* pszName,</span>
+<span class="lineNum">     271 </span>            :                                                  const char* pszDomain )
+<span class="lineNum">     272 </span>            : {
+<span class="lineNum">     273 </span><span class="lineCov">          4 :     PLMosaicDataset* poMOSDS = reinterpret_cast&lt;PLMosaicDataset *&gt;( poDS );</span>
+<span class="lineNum">     274 </span>            :     int nPixel, nLine;
+<span class="lineNum">     275 </span><span class="lineCov">          8 :     if( poMOSDS-&gt;bQuadDownload &amp;&amp;</span>
+<span class="lineNum">     276 </span><span class="lineCov">          8 :         pszName != nullptr &amp;&amp; pszDomain != nullptr &amp;&amp;</span>
+<span class="lineNum">     277 </span><span class="lineCov">         12 :         EQUAL(pszDomain, &quot;LocationInfo&quot;) &amp;&amp;</span>
+<span class="lineNum">     278 </span><span class="lineCov">          4 :         sscanf(pszName, &quot;Pixel_%d_%d&quot;, &amp;nPixel, &amp;nLine) == 2 )</span>
+<span class="lineNum">     279 </span>            :     {
+<span class="lineNum">     280 </span><span class="lineCov">          4 :         return poMOSDS-&gt;GetLocationInfo(nPixel, nLine);</span>
+<span class="lineNum">     281 </span>            :     }
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :     return GDALRasterBand::GetMetadataItem(pszName, pszDomain);</span>
+<span class="lineNum">     284 </span>            : }
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            : /************************************************************************/
+<span class="lineNum">     287 </span>            : /*                         GetOverviewCount()                           */
+<a name="288"><span class="lineNum">     288 </span>            : /************************************************************************/</a>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineCov">          3 : int PLMosaicRasterBand::GetOverviewCount()</span>
+<span class="lineNum">     291 </span>            : {
+<span class="lineNum">     292 </span><span class="lineCov">          3 :     PLMosaicDataset *poGDS = reinterpret_cast&lt;PLMosaicDataset *&gt;( poDS );</span>
+<span class="lineNum">     293 </span><span class="lineCov">          3 :     return std::max(0, static_cast&lt;int&gt;(poGDS-&gt;apoTMSDS.size()) - 1);</span>
+<span class="lineNum">     294 </span>            : }
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span>            : /************************************************************************/
+<span class="lineNum">     297 </span>            : /*                            GetOverview()                             */
+<a name="298"><span class="lineNum">     298 </span>            : /************************************************************************/</a>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">          4 : GDALRasterBand* PLMosaicRasterBand::GetOverview(int iOvrLevel)</span>
+<span class="lineNum">     301 </span>            : {
+<span class="lineNum">     302 </span><span class="lineCov">          4 :     PLMosaicDataset *poGDS = reinterpret_cast&lt;PLMosaicDataset *&gt;( poDS );</span>
+<span class="lineNum">     303 </span><span class="lineCov">          7 :     if (iOvrLevel &lt; 0 ||</span>
+<span class="lineNum">     304 </span><span class="lineCov">          3 :         iOvrLevel &gt;= static_cast&lt;int&gt;(poGDS-&gt;apoTMSDS.size()) - 1)</span>
+<span class="lineNum">     305 </span><span class="lineCov">          3 :         return nullptr;</span>
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span><span class="lineCov">          1 :     poGDS-&gt;CreateMosaicCachePathIfNecessary();</span>
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span><span class="lineCov">          1 :     return poGDS-&gt;apoTMSDS[iOvrLevel+1]-&gt;GetRasterBand(nBand);</span>
+<span class="lineNum">     310 </span>            : }
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span>            : /************************************************************************/
+<span class="lineNum">     313 </span>            : /*                       GetColorInterpretation()                       */
+<a name="314"><span class="lineNum">     314 </span>            : /************************************************************************/</a>
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 : GDALColorInterp PLMosaicRasterBand::GetColorInterpretation()</span>
+<span class="lineNum">     317 </span>            : {
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :     switch( nBand )</span>
+<span class="lineNum">     319 </span>            :     {
+<span class="lineNum">     320 </span>            :         case 1:
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :             return GCI_RedBand;</span>
+<span class="lineNum">     322 </span>            :         case 2:
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :             return GCI_GreenBand;</span>
+<span class="lineNum">     324 </span>            :         case 3:
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :             return GCI_BlueBand;</span>
+<span class="lineNum">     326 </span>            :         case 4:
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :             return GCI_AlphaBand;</span>
+<span class="lineNum">     328 </span>            :         default:
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :             CPLAssert(false);</span>
+<span class="lineNum">     330 </span>            :             return GCI_GrayIndex;
+<span class="lineNum">     331 </span>            :     }
+<span class="lineNum">     332 </span>            : }
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span>            : /************************************************************************/
+<span class="lineNum">     335 </span>            : /* ==================================================================== */
+<span class="lineNum">     336 </span>            : /*                           PLMosaicDataset                            */
+<span class="lineNum">     337 </span>            : /* ==================================================================== */
+<span class="lineNum">     338 </span>            : /************************************************************************/
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span>            : /************************************************************************/
+<span class="lineNum">     341 </span>            : /*                        PLMosaicDataset()                            */
+<a name="342"><span class="lineNum">     342 </span>            : /************************************************************************/</a>
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineCov">         30 : PLMosaicDataset::PLMosaicDataset() :</span>
+<span class="lineNum">     345 </span>            :     bMustCleanPersistent(FALSE),
+<span class="lineNum">     346 </span>            :     bTrustCache(FALSE),
+<span class="lineNum">     347 </span>            :     pszWKT(nullptr),
+<span class="lineNum">     348 </span>            :     nQuadSize(0),
+<span class="lineNum">     349 </span>            :     bHasGeoTransform(FALSE),
+<span class="lineNum">     350 </span>            :     nZoomLevelMax(0),
+<span class="lineNum">     351 </span>            :     bUseTMSForMain(FALSE),
+<span class="lineNum">     352 </span>            :     nCacheMaxSize(10),
+<span class="lineNum">     353 </span>            :     psHead(nullptr),
+<span class="lineNum">     354 </span>            :     psTail(nullptr),
+<span class="lineNum">     355 </span>            :     nLastMetaTileX(-1),
+<span class="lineNum">     356 </span><span class="lineCov">         30 :     nLastMetaTileY(-1)</span>
+<span class="lineNum">     357 </span>            : {
+<span class="lineNum">     358 </span><span class="lineCov">         30 :     adfGeoTransform[0] = 0;</span>
+<span class="lineNum">     359 </span><span class="lineCov">         30 :     adfGeoTransform[1] = 1;</span>
+<span class="lineNum">     360 </span><span class="lineCov">         30 :     adfGeoTransform[2] = 0;</span>
+<span class="lineNum">     361 </span><span class="lineCov">         30 :     adfGeoTransform[3] = 0;</span>
+<span class="lineNum">     362 </span><span class="lineCov">         30 :     adfGeoTransform[4] = 0;</span>
+<span class="lineNum">     363 </span><span class="lineCov">         30 :     adfGeoTransform[5] = 1;</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineCov">         30 :     SetMetadataItem(&quot;INTERLEAVE&quot;, &quot;PIXEL&quot;, &quot;IMAGE_STRUCTURE&quot;);</span>
+<span class="lineNum">     366 </span><span class="lineCov">         30 :     osCachePathRoot = CPLGetPath(CPLGenerateTempFilename(&quot;&quot;));</span>
+<span class="lineNum">     367 </span><span class="lineCov">         30 : }</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span>            : /************************************************************************/
+<span class="lineNum">     370 </span>            : /*                         ~PLMosaicDataset()                           */
+<a name="371"><span class="lineNum">     371 </span>            : /************************************************************************/</a>
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineCov">         90 : PLMosaicDataset::~PLMosaicDataset()</span>
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span>            : {
+<span class="lineNum">     376 </span><span class="lineCov">         30 :     PLMosaicDataset::FlushCache();</span>
+<span class="lineNum">     377 </span><span class="lineCov">         30 :     CPLFree(pszWKT);</span>
+<span class="lineNum">     378 </span><span class="lineCov">        170 :     for( auto&amp; poDS: apoTMSDS )</span>
+<span class="lineNum">     379 </span><span class="lineCov">        140 :         delete poDS;</span>
+<span class="lineNum">     380 </span><span class="lineCov">         30 :     if( poLastItemsInformation )</span>
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :         json_object_put(poLastItemsInformation);</span>
+<span class="lineNum">     382 </span><span class="lineCov">         30 :     if (bMustCleanPersistent)</span>
+<span class="lineNum">     383 </span>            :     {
+<span class="lineNum">     384 </span>            :         char** papszOptions
+<span class="lineNum">     385 </span>            :             = CSLSetNameValue(nullptr, &quot;CLOSE_PERSISTENT&quot;,
+<span class="lineNum">     386 </span><span class="lineCov">         28 :                               CPLSPrintf(&quot;PLMOSAIC:%p&quot;, this));</span>
+<span class="lineNum">     387 </span><span class="lineCov">         28 :         CPLHTTPDestroyResult( CPLHTTPFetch( osBaseURL, papszOptions) );</span>
+<span class="lineNum">     388 </span><span class="lineCov">         28 :         CSLDestroy(papszOptions);</span>
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span><span class="lineCov">         60 : }</span>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span>            : /************************************************************************/
+<span class="lineNum">     393 </span>            : /*                      FlushDatasetsCache()                            */
+<a name="394"><span class="lineNum">     394 </span>            : /************************************************************************/</a>
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">         36 : void PLMosaicDataset::FlushDatasetsCache()</span>
+<span class="lineNum">     397 </span>            : {
+<span class="lineNum">     398 </span><span class="lineCov">         91 :     for( PLLinkedDataset* psIter = psHead; psIter != nullptr;  )</span>
+<span class="lineNum">     399 </span>            :     {
+<span class="lineNum">     400 </span><span class="lineCov">         19 :         PLLinkedDataset* psNext = psIter-&gt;psNext;</span>
+<span class="lineNum">     401 </span><span class="lineCov">         19 :         if( psIter-&gt;poDS )</span>
+<span class="lineNum">     402 </span><span class="lineCov">          7 :             GDALClose(psIter-&gt;poDS);</span>
+<span class="lineNum">     403 </span><span class="lineCov">         19 :         delete psIter;</span>
+<span class="lineNum">     404 </span><span class="lineCov">         19 :         psIter = psNext;</span>
+<span class="lineNum">     405 </span>            :     }
+<span class="lineNum">     406 </span><span class="lineCov">         36 :     psHead = nullptr;</span>
+<span class="lineNum">     407 </span><span class="lineCov">         36 :     psTail = nullptr;</span>
+<span class="lineNum">     408 </span><span class="lineCov">         36 :     oMapLinkedDatasets.clear();</span>
+<span class="lineNum">     409 </span><span class="lineCov">         36 : }</span>
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span>            : /************************************************************************/
+<span class="lineNum">     412 </span>            : /*                            FlushCache()                              */
+<a name="413"><span class="lineNum">     413 </span>            : /************************************************************************/</a>
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span><span class="lineCov">         35 : void PLMosaicDataset::FlushCache()</span>
+<span class="lineNum">     416 </span>            : {
+<span class="lineNum">     417 </span><span class="lineCov">         35 :     FlushDatasetsCache();</span>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineCov">         35 :     nLastMetaTileX = -1;</span>
+<span class="lineNum">     420 </span><span class="lineCov">         35 :     nLastMetaTileY = -1;</span>
+<span class="lineNum">     421 </span><span class="lineCov">         35 :     if( poLastItemsInformation )</span>
+<span class="lineNum">     422 </span><span class="lineCov">          2 :         json_object_put(poLastItemsInformation);</span>
+<span class="lineNum">     423 </span><span class="lineCov">         35 :     poLastItemsInformation = nullptr;</span>
+<span class="lineNum">     424 </span><span class="lineCov">         35 :     osLastRetGetLocationInfo.clear();</span>
+<span class="lineNum">     425 </span>            : 
+<span class="lineNum">     426 </span><span class="lineCov">         35 :     GDALDataset::FlushCache();</span>
+<span class="lineNum">     427 </span><span class="lineCov">         35 : }</span>
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span>            : /************************************************************************/
+<span class="lineNum">     430 </span>            : /*                            Identify()                                */
+<a name="431"><span class="lineNum">     431 </span>            : /************************************************************************/</a>
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span><span class="lineCov">      42478 : int PLMosaicDataset::Identify( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span>            : {
+<span class="lineNum">     436 </span><span class="lineCov">      42478 :     return STARTS_WITH_CI(poOpenInfo-&gt;pszFilename, &quot;PLMOSAIC:&quot;);</span>
+<span class="lineNum">     437 </span>            : }
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span>            : /************************************************************************/
+<span class="lineNum">     440 </span>            : /*                          GetBaseHTTPOptions()                         */
+<a name="441"><span class="lineNum">     441 </span>            : /************************************************************************/</a>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span><span class="lineCov">         55 : char** PLMosaicDataset::GetBaseHTTPOptions()</span>
+<span class="lineNum">     444 </span>            : {
+<span class="lineNum">     445 </span><span class="lineCov">         55 :     bMustCleanPersistent = TRUE;</span>
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            :     char** papszOptions
+<span class="lineNum">     448 </span><span class="lineCov">         55 :         = CSLAddString(nullptr, CPLSPrintf(&quot;PERSISTENT=PLMOSAIC:%p&quot;, this));</span>
+<span class="lineNum">     449 </span>            :     /* Use basic auth, rather than Authorization headers since curl would forward it to S3 */
+<span class="lineNum">     450 </span><span class="lineCov">         55 :     papszOptions = CSLAddString(papszOptions, CPLSPrintf(&quot;USERPWD=%s:&quot;, osAPIKey.c_str()));</span>
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span><span class="lineCov">         55 :     return papszOptions;</span>
+<span class="lineNum">     453 </span>            : }
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span>            : /************************************************************************/
+<span class="lineNum">     456 </span>            : /*                               Download()                             */
+<a name="457"><span class="lineNum">     457 </span>            : /************************************************************************/</a>
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span><span class="lineCov">         55 : CPLHTTPResult* PLMosaicDataset::Download(const char* pszURL,</span>
+<span class="lineNum">     460 </span>            :                                          int bQuiet404Error)
+<span class="lineNum">     461 </span>            : {
+<span class="lineNum">     462 </span><span class="lineCov">         55 :     char** papszOptions = CSLAddString(GetBaseHTTPOptions(), nullptr);</span>
+<span class="lineNum">     463 </span><span class="lineCov">         55 :     CPLHTTPResult *psResult = nullptr;</span>
+<span class="lineNum">     464 </span><span class="lineCov">        110 :     if( STARTS_WITH(osBaseURL, &quot;/vsimem/&quot;) &amp;&amp;</span>
+<span class="lineNum">     465 </span><span class="lineCov">         55 :         STARTS_WITH(pszURL, &quot;/vsimem/&quot;) )</span>
+<span class="lineNum">     466 </span>            :     {
+<span class="lineNum">     467 </span><span class="lineCov">         55 :         CPLDebug(&quot;PLSCENES&quot;, &quot;Fetching %s&quot;, pszURL);</span>
+<span class="lineNum">     468 </span>            :         psResult = reinterpret_cast&lt;CPLHTTPResult *&gt;(
+<span class="lineNum">     469 </span><span class="lineCov">         55 :             CPLCalloc( 1, sizeof( CPLHTTPResult ) ) );</span>
+<span class="lineNum">     470 </span><span class="lineCov">         55 :         vsi_l_offset nDataLength = 0;</span>
+<span class="lineNum">     471 </span><span class="lineCov">         55 :         CPLString osURL(pszURL);</span>
+<span class="lineNum">     472 </span><span class="lineCov">         55 :         if( osURL.back() == '/' )</span>
+<span class="lineNum">     473 </span><span class="lineCov">          1 :             osURL.resize(osURL.size()-1);</span>
+<span class="lineNum">     474 </span><span class="lineCov">         55 :         GByte* pabyBuf = VSIGetMemFileBuffer(osURL, &amp;nDataLength, FALSE);</span>
+<span class="lineNum">     475 </span><span class="lineCov">         55 :         if( pabyBuf )</span>
+<span class="lineNum">     476 </span>            :         {
+<span class="lineNum">     477 </span>            :             psResult-&gt;pabyData = reinterpret_cast&lt;GByte *&gt;(
+<span class="lineNum">     478 </span><span class="lineCov">         36 :                 VSIMalloc(1 + static_cast&lt;size_t&gt;( nDataLength ) ) );</span>
+<span class="lineNum">     479 </span><span class="lineCov">         36 :             if( psResult-&gt;pabyData )</span>
+<span class="lineNum">     480 </span>            :             {
+<span class="lineNum">     481 </span><span class="lineCov">         36 :                 memcpy(psResult-&gt;pabyData, pabyBuf, static_cast&lt;size_t&gt;( nDataLength ) );</span>
+<span class="lineNum">     482 </span><span class="lineCov">         36 :                 psResult-&gt;pabyData[nDataLength] = 0;</span>
+<span class="lineNum">     483 </span><span class="lineCov">         36 :                 psResult-&gt;nDataLen = static_cast&lt;int&gt;( nDataLength );</span>
+<span class="lineNum">     484 </span>            :             }
+<span class="lineNum">     485 </span>            :         }
+<span class="lineNum">     486 </span>            :         else
+<span class="lineNum">     487 </span>            :         {
+<span class="lineNum">     488 </span>            :             psResult-&gt;pszErrBuf =
+<span class="lineNum">     489 </span><span class="lineCov">         19 :                 CPLStrdup(CPLSPrintf(&quot;Error 404. Cannot find %s&quot;, pszURL));</span>
+<span class="lineNum">     490 </span><span class="lineCov">         55 :         }</span>
+<span class="lineNum">     491 </span>            :     }
+<span class="lineNum">     492 </span>            :     else
+<span class="lineNum">     493 </span>            :     {
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :         if( bQuiet404Error )</span>
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :             CPLPushErrorHandler(CPLQuietErrorHandler);</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :         psResult = CPLHTTPFetch( pszURL, papszOptions);</span>
+<span class="lineNum">     497 </span><span class="lineNoCov">          0 :         if( bQuiet404Error )</span>
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :             CPLPopErrorHandler();</span>
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span><span class="lineCov">         55 :     CSLDestroy(papszOptions);</span>
+<span class="lineNum">     501 </span>            : 
+<span class="lineNum">     502 </span><span class="lineCov">         55 :     if( psResult-&gt;pszErrBuf != nullptr )</span>
+<span class="lineNum">     503 </span>            :     {
+<span class="lineNum">     504 </span><span class="lineCov">         19 :         if( !(bQuiet404Error &amp;&amp; strstr(psResult-&gt;pszErrBuf, &quot;404&quot;)) )</span>
+<span class="lineNum">     505 </span>            :         {
+<span class="lineNum">     506 </span>            :             CPLError( CE_Failure, CPLE_AppDefined, &quot;%s&quot;,
+<span class="lineNum">     507 </span>            :                       psResult-&gt;pabyData ? reinterpret_cast&lt;const char*&gt;(
+<span class="lineNum">     508 </span>            :                           psResult-&gt;pabyData ) :
+<span class="lineNum">     509 </span><span class="lineCov">          2 :                       psResult-&gt;pszErrBuf );</span>
+<span class="lineNum">     510 </span>            :         }
+<span class="lineNum">     511 </span><span class="lineCov">         19 :         CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">     512 </span><span class="lineCov">         19 :         return nullptr;</span>
+<span class="lineNum">     513 </span>            :     }
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span><span class="lineCov">         36 :     if( psResult-&gt;pabyData == nullptr )</span>
+<span class="lineNum">     516 </span>            :     {
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Empty content returned by server&quot;);</span>
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 :         CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">     519 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     520 </span>            :     }
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span><span class="lineCov">         36 :     return psResult;</span>
+<span class="lineNum">     523 </span>            : }
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span>            : /************************************************************************/
+<span class="lineNum">     526 </span>            : /*                               RunRequest()                           */
+<a name="527"><span class="lineNum">     527 </span>            : /************************************************************************/</a>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineCov">         32 : json_object* PLMosaicDataset::RunRequest(const char* pszURL,</span>
+<span class="lineNum">     530 </span>            :                                          int bQuiet404Error)
+<span class="lineNum">     531 </span>            : {
+<span class="lineNum">     532 </span><span class="lineCov">         32 :     CPLHTTPResult * psResult = Download(pszURL, bQuiet404Error);</span>
+<span class="lineNum">     533 </span><span class="lineCov">         32 :     if( psResult == nullptr )</span>
+<span class="lineNum">     534 </span>            :     {
+<span class="lineNum">     535 </span><span class="lineCov">          3 :         return nullptr;</span>
+<span class="lineNum">     536 </span>            :     }
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span><span class="lineCov">         29 :     json_object* poObj = nullptr;</span>
+<span class="lineNum">     539 </span><span class="lineCov">         29 :     const char* pszText = reinterpret_cast&lt;const char*&gt;(psResult-&gt;pabyData);</span>
+<span class="lineNum">     540 </span><span class="lineCov">         29 :     if( !OGRJSonParse(pszText, &amp;poObj, true) )</span>
+<span class="lineNum">     541 </span>            :     {
+<span class="lineNum">     542 </span><span class="lineCov">          3 :         CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">     543 </span><span class="lineCov">          3 :         return nullptr;</span>
+<span class="lineNum">     544 </span>            :     }
+<span class="lineNum">     545 </span>            : 
+<span class="lineNum">     546 </span><span class="lineCov">         26 :     CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span><span class="lineCov">         26 :     if( json_object_get_type(poObj) != json_type_object )</span>
+<span class="lineNum">     549 </span>            :     {
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :         CPLError( CE_Failure, CPLE_AppDefined, &quot;Return is not a JSON dictionary&quot;);</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :         json_object_put(poObj);</span>
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 :         poObj = nullptr;</span>
+<span class="lineNum">     553 </span>            :     }
+<span class="lineNum">     554 </span>            : 
+<span class="lineNum">     555 </span><span class="lineCov">         26 :     return poObj;</span>
+<span class="lineNum">     556 </span>            : }
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span>            : /************************************************************************/
+<span class="lineNum">     559 </span>            : /*                           PLMosaicGetParameter()                     */
+<a name="560"><span class="lineNum">     560 </span>            : /************************************************************************/</a>
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span><span class="lineCov">        141 : static CPLString PLMosaicGetParameter( GDALOpenInfo * poOpenInfo,</span>
+<span class="lineNum">     563 </span>            :                                        char** papszOptions,
+<span class="lineNum">     564 </span>            :                                        const char* pszName,
+<span class="lineNum">     565 </span>            :                                        const char* pszDefaultVal )
+<span class="lineNum">     566 </span>            : {
+<span class="lineNum">     567 </span>            :     return CSLFetchNameValueDef( papszOptions, pszName,
+<span class="lineNum">     568 </span>            :         CSLFetchNameValueDef( poOpenInfo-&gt;papszOpenOptions, pszName,
+<span class="lineNum">     569 </span><span class="lineCov">        141 :                               pszDefaultVal ));</span>
+<span class="lineNum">     570 </span>            : }
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span>            : /************************************************************************/
+<span class="lineNum">     573 </span>            : /*                                Open()                                */
+<a name="574"><span class="lineNum">     574 </span>            : /************************************************************************/</a>
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineCov">       8722 : GDALDataset *PLMosaicDataset::Open( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span>            : {
+<span class="lineNum">     579 </span><span class="lineCov">       8722 :     if (!Identify(poOpenInfo) )</span>
+<span class="lineNum">     580 </span><span class="lineCov">       8690 :         return nullptr;</span>
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span><span class="lineCov">         30 :     PLMosaicDataset* poDS = new PLMosaicDataset();</span>
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span><span class="lineCov">         30 :     poDS-&gt;osBaseURL = CPLGetConfigOption(&quot;PL_URL&quot;, &quot;https://api.planet.com/basemaps/v1/mosaics&quot;);</span>
+<span class="lineNum">     585 </span>            : 
+<span class="lineNum">     586 </span>            :     char** papszOptions = CSLTokenizeStringComplex(
+<span class="lineNum">     587 </span><span class="lineCov">         30 :             poOpenInfo-&gt;pszFilename+strlen(&quot;PLMosaic:&quot;), &quot;,&quot;, TRUE, FALSE );</span>
+<span class="lineNum">     588 </span><span class="lineCov">         37 :     for( char** papszIter = papszOptions; papszIter &amp;&amp; *papszIter; papszIter ++ )</span>
+<span class="lineNum">     589 </span>            :     {
+<span class="lineNum">     590 </span><span class="lineCov">          8 :         char* pszKey = nullptr;</span>
+<span class="lineNum">     591 </span><span class="lineCov">          8 :         const char* pszValue = CPLParseNameValue(*papszIter, &amp;pszKey);</span>
+<span class="lineNum">     592 </span><span class="lineCov">          8 :         if( pszValue != nullptr )</span>
+<span class="lineNum">     593 </span>            :         {
+<span class="lineNum">     594 </span><span class="lineCov">         14 :             if( !EQUAL(pszKey, &quot;api_key&quot;) &amp;&amp;</span>
+<span class="lineNum">     595 </span><span class="lineCov">          9 :                 !EQUAL(pszKey, &quot;mosaic&quot;) &amp;&amp;</span>
+<span class="lineNum">     596 </span><span class="lineCov">          5 :                 !EQUAL(pszKey, &quot;cache_path&quot;) &amp;&amp;</span>
+<span class="lineNum">     597 </span><span class="lineCov">          3 :                 !EQUAL(pszKey, &quot;trust_cache&quot;) &amp;&amp;</span>
+<span class="lineNum">     598 </span><span class="lineCov">          1 :                 !EQUAL(pszKey, &quot;use_tiles&quot;) )</span>
+<span class="lineNum">     599 </span>            :             {
+<span class="lineNum">     600 </span><span class="lineCov">          1 :                 CPLError(CE_Failure, CPLE_NotSupported, &quot;Unsupported option %s&quot;, pszKey);</span>
+<span class="lineNum">     601 </span><span class="lineCov">          1 :                 CPLFree(pszKey);</span>
+<span class="lineNum">     602 </span><span class="lineCov">          1 :                 delete poDS;</span>
+<span class="lineNum">     603 </span><span class="lineCov">          1 :                 CSLDestroy(papszOptions);</span>
+<span class="lineNum">     604 </span><span class="lineCov">          1 :                 return nullptr;</span>
+<span class="lineNum">     605 </span>            :             }
+<span class="lineNum">     606 </span><span class="lineCov">          7 :             CPLFree(pszKey);</span>
+<span class="lineNum">     607 </span>            :         }
+<span class="lineNum">     608 </span>            :     }
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineCov">         58 :     poDS-&gt;osAPIKey = PLMosaicGetParameter(poOpenInfo, papszOptions, &quot;api_key&quot;,</span>
+<span class="lineNum">     611 </span><span class="lineCov">         29 :                                           CPLGetConfigOption(&quot;PL_API_KEY&quot;,&quot;&quot;));</span>
+<span class="lineNum">     612 </span>            : 
+<span class="lineNum">     613 </span><span class="lineCov">         29 :     if( poDS-&gt;osAPIKey.empty() )</span>
+<span class="lineNum">     614 </span>            :     {
+<span class="lineNum">     615 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     616 </span><span class="lineCov">          1 :                  &quot;Missing PL_API_KEY configuration option or API_KEY open option&quot;);</span>
+<span class="lineNum">     617 </span><span class="lineCov">          1 :         delete poDS;</span>
+<span class="lineNum">     618 </span><span class="lineCov">          1 :         CSLDestroy(papszOptions);</span>
+<span class="lineNum">     619 </span><span class="lineCov">          1 :         return nullptr;</span>
+<span class="lineNum">     620 </span>            :     }
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span><span class="lineCov">         28 :     poDS-&gt;osMosaic = PLMosaicGetParameter(poOpenInfo, papszOptions, &quot;mosaic&quot;, &quot;&quot;);</span>
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span><span class="lineCov">         56 :     poDS-&gt;osCachePathRoot = PLMosaicGetParameter(poOpenInfo, papszOptions, &quot;cache_path&quot;,</span>
+<span class="lineNum">     625 </span><span class="lineCov">         28 :                                           CPLGetConfigOption(&quot;PL_CACHE_PATH&quot;,&quot;&quot;));</span>
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span>            :     poDS-&gt;bTrustCache = CPLTestBool(PLMosaicGetParameter(
+<span class="lineNum">     628 </span><span class="lineCov">         28 :                         poOpenInfo, papszOptions, &quot;trust_cache&quot;, &quot;FALSE&quot;));</span>
+<span class="lineNum">     629 </span>            : 
+<span class="lineNum">     630 </span>            :     poDS-&gt;bUseTMSForMain = CPLTestBool(PLMosaicGetParameter(
+<span class="lineNum">     631 </span><span class="lineCov">         28 :                         poOpenInfo, papszOptions, &quot;use_tiles&quot;, &quot;FALSE&quot;));</span>
+<span class="lineNum">     632 </span>            : 
+<span class="lineNum">     633 </span><span class="lineCov">         28 :     CSLDestroy(papszOptions);</span>
+<span class="lineNum">     634 </span><span class="lineCov">         28 :     papszOptions = nullptr;</span>
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span><span class="lineCov">         28 :     if( !poDS-&gt;osMosaic.empty() )</span>
+<span class="lineNum">     637 </span>            :     {
+<span class="lineNum">     638 </span><span class="lineCov">         20 :         if( !poDS-&gt;OpenMosaic() )</span>
+<span class="lineNum">     639 </span>            :         {
+<span class="lineNum">     640 </span><span class="lineCov">          8 :             delete poDS;</span>
+<span class="lineNum">     641 </span><span class="lineCov">          8 :             poDS = nullptr;</span>
+<span class="lineNum">     642 </span>            :         }
+<span class="lineNum">     643 </span>            :     }
+<span class="lineNum">     644 </span>            :     else
+<span class="lineNum">     645 </span>            :     {
+<span class="lineNum">     646 </span><span class="lineCov">          8 :         auto aosNameList = poDS-&gt;ListSubdatasets();</span>
+<span class="lineNum">     647 </span><span class="lineCov">          8 :         if( aosNameList.empty() )</span>
+<span class="lineNum">     648 </span>            :         {
+<span class="lineNum">     649 </span><span class="lineCov">          5 :             delete poDS;</span>
+<span class="lineNum">     650 </span><span class="lineCov">          5 :             poDS = nullptr;</span>
+<span class="lineNum">     651 </span>            :         }
+<span class="lineNum">     652 </span><span class="lineCov">          3 :         else if( aosNameList.size() == 1 )</span>
+<span class="lineNum">     653 </span>            :         {
+<span class="lineNum">     654 </span><span class="lineCov">          2 :             const CPLString osOldFilename(poOpenInfo-&gt;pszFilename);</span>
+<span class="lineNum">     655 </span>            :             const CPLString osMosaicConnectionString
+<span class="lineNum">     656 </span><span class="lineCov">          4 :                 = CPLSPrintf(&quot;PLMOSAIC:mosaic=%s&quot;, aosNameList[0].c_str());</span>
+<span class="lineNum">     657 </span><span class="lineCov">          2 :             delete poDS;</span>
+<span class="lineNum">     658 </span><span class="lineCov">          4 :             GDALOpenInfo oOpenInfo(osMosaicConnectionString.c_str(), GA_ReadOnly);</span>
+<span class="lineNum">     659 </span><span class="lineCov">          2 :             oOpenInfo.papszOpenOptions = poOpenInfo-&gt;papszOpenOptions;</span>
+<span class="lineNum">     660 </span><span class="lineCov">          2 :             poDS = reinterpret_cast&lt;PLMosaicDataset *&gt;( Open(&amp;oOpenInfo) );</span>
+<span class="lineNum">     661 </span><span class="lineCov">          2 :             if( poDS )</span>
+<span class="lineNum">     662 </span><span class="lineCov">          4 :                 poDS-&gt;SetDescription(osOldFilename);</span>
+<span class="lineNum">     663 </span>            :         }
+<span class="lineNum">     664 </span>            :         else
+<span class="lineNum">     665 </span>            :         {
+<span class="lineNum">     666 </span><span class="lineCov">          1 :             CPLStringList aosSubdatasets;</span>
+<span class="lineNum">     667 </span><span class="lineCov">          3 :             for( const auto&amp; osName: aosNameList )</span>
+<span class="lineNum">     668 </span>            :             {
+<span class="lineNum">     669 </span><span class="lineCov">          2 :                 const int nDatasetIdx = aosSubdatasets.Count() / 2 + 1;</span>
+<span class="lineNum">     670 </span>            :                 aosSubdatasets.AddNameValue(
+<span class="lineNum">     671 </span>            :                     CPLSPrintf(&quot;SUBDATASET_%d_NAME&quot;, nDatasetIdx),
+<span class="lineNum">     672 </span><span class="lineCov">          2 :                     CPLSPrintf(&quot;PLMOSAIC:mosaic=%s&quot;, osName.c_str()));</span>
+<span class="lineNum">     673 </span>            :                 aosSubdatasets.AddNameValue(
+<span class="lineNum">     674 </span>            :                     CPLSPrintf(&quot;SUBDATASET_%d_DESC&quot;, nDatasetIdx),
+<span class="lineNum">     675 </span><span class="lineCov">          2 :                     CPLSPrintf(&quot;Mosaic %s&quot;, osName.c_str()));</span>
+<span class="lineNum">     676 </span>            :             }
+<span class="lineNum">     677 </span><span class="lineCov">          1 :             poDS-&gt;SetMetadata(aosSubdatasets.List(), &quot;SUBDATASETS&quot;);</span>
+<span class="lineNum">     678 </span><span class="lineCov">          8 :         }</span>
+<span class="lineNum">     679 </span>            :     }
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span><span class="lineCov">         28 :     if( poDS )</span>
+<span class="lineNum">     682 </span><span class="lineCov">         15 :         poDS-&gt;SetPamFlags(0);</span>
+<span class="lineNum">     683 </span>            : 
+<span class="lineNum">     684 </span><span class="lineCov">         28 :     return poDS;</span>
+<span class="lineNum">     685 </span>            : }
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span>            : /************************************************************************/
+<span class="lineNum">     688 </span>            : /*                           ReplaceSubString()                         */
+<a name="689"><span class="lineNum">     689 </span>            : /************************************************************************/</a>
+<span class="lineNum">     690 </span>            : 
+<span class="lineNum">     691 </span><span class="lineCov">         36 : static void ReplaceSubString(CPLString &amp;osTarget,</span>
+<span class="lineNum">     692 </span>            :                              CPLString osPattern,
+<span class="lineNum">     693 </span>            :                              CPLString osReplacement)
+<span class="lineNum">     694 </span>            : 
+<span class="lineNum">     695 </span>            : {
+<span class="lineNum">     696 </span>            :     // Assumes only one occurrence of osPattern.
+<span class="lineNum">     697 </span><span class="lineCov">         36 :     size_t pos = osTarget.find(osPattern);</span>
+<span class="lineNum">     698 </span><span class="lineCov">         36 :     if( pos == CPLString::npos )</span>
+<span class="lineNum">     699 </span><span class="lineCov">         36 :         return;</span>
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span><span class="lineCov">         36 :     osTarget.replace(pos, osPattern.size(), osReplacement);</span>
+<span class="lineNum">     702 </span>            : }
+<span class="lineNum">     703 </span>            : 
+<span class="lineNum">     704 </span>            : /************************************************************************/
+<span class="lineNum">     705 </span>            : /*                            GetMosaicCachePath()                      */
+<a name="706"><span class="lineNum">     706 </span>            : /************************************************************************/</a>
+<span class="lineNum">     707 </span>            : 
+<span class="lineNum">     708 </span><span class="lineCov">         30 : CPLString PLMosaicDataset::GetMosaicCachePath()</span>
+<span class="lineNum">     709 </span>            : {
+<span class="lineNum">     710 </span><span class="lineCov">         30 :     if( !osCachePathRoot.empty() )</span>
+<span class="lineNum">     711 </span>            :     {
+<span class="lineNum">     712 </span>            :         const CPLString osCachePath(
+<span class="lineNum">     713 </span><span class="lineCov">         28 :             CPLFormFilename(osCachePathRoot, &quot;plmosaic_cache&quot;, nullptr));</span>
+<span class="lineNum">     714 </span>            :         const CPLString osMosaicPath(
+<span class="lineNum">     715 </span><span class="lineCov">         56 :             CPLFormFilename(osCachePath, osMosaic, nullptr));</span>
+<span class="lineNum">     716 </span>            : 
+<span class="lineNum">     717 </span><span class="lineCov">         56 :         return osMosaicPath;</span>
+<span class="lineNum">     718 </span>            :     }
+<span class="lineNum">     719 </span><span class="lineCov">          2 :     return &quot;&quot;;</span>
+<span class="lineNum">     720 </span>            : }
+<span class="lineNum">     721 </span>            : 
+<span class="lineNum">     722 </span>            : /************************************************************************/
+<span class="lineNum">     723 </span>            : /*                     CreateMosaicCachePathIfNecessary()               */
+<a name="724"><span class="lineNum">     724 </span>            : /************************************************************************/</a>
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span><span class="lineCov">          8 : void PLMosaicDataset::CreateMosaicCachePathIfNecessary()</span>
+<span class="lineNum">     727 </span>            : {
+<span class="lineNum">     728 </span><span class="lineCov">          8 :     if( !osCachePathRoot.empty() )</span>
+<span class="lineNum">     729 </span>            :     {
+<span class="lineNum">     730 </span>            :         const CPLString osCachePath(
+<span class="lineNum">     731 </span><span class="lineCov">          6 :             CPLFormFilename(osCachePathRoot, &quot;plmosaic_cache&quot;, nullptr));</span>
+<span class="lineNum">     732 </span>            :         const CPLString osMosaicPath(
+<span class="lineNum">     733 </span><span class="lineCov">         12 :             CPLFormFilename(osCachePath, osMosaic, nullptr));</span>
+<span class="lineNum">     734 </span>            : 
+<span class="lineNum">     735 </span>            :         VSIStatBufL sStatBuf;
+<span class="lineNum">     736 </span><span class="lineCov">          6 :         if( VSIStatL(osMosaicPath, &amp;sStatBuf) != 0 )</span>
+<span class="lineNum">     737 </span>            :         {
+<span class="lineNum">     738 </span><span class="lineCov">          5 :             CPLPushErrorHandler(CPLQuietErrorHandler);</span>
+<span class="lineNum">     739 </span><span class="lineCov">          5 :             VSIMkdir(osCachePathRoot, 0755);</span>
+<span class="lineNum">     740 </span><span class="lineCov">          5 :             VSIMkdir(osCachePath, 0755);</span>
+<span class="lineNum">     741 </span><span class="lineCov">          5 :             VSIMkdir(osMosaicPath, 0755);</span>
+<span class="lineNum">     742 </span><span class="lineCov">          5 :             CPLPopErrorHandler();</span>
+<span class="lineNum">     743 </span><span class="lineCov">          6 :         }</span>
+<span class="lineNum">     744 </span>            :     }
+<span class="lineNum">     745 </span><span class="lineCov">          8 : }</span>
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span>            : /************************************************************************/
+<span class="lineNum">     748 </span>            : /*                     LongLatToSphericalMercator()                     */
+<a name="749"><span class="lineNum">     749 </span>            : /************************************************************************/</a>
+<span class="lineNum">     750 </span>            : 
+<span class="lineNum">     751 </span><span class="lineCov">          2 : static void LongLatToSphericalMercator(double* x, double* y)</span>
+<span class="lineNum">     752 </span>            : {
+<span class="lineNum">     753 </span><span class="lineCov">          2 :   double X = SPHERICAL_RADIUS * (*x) / 180 * M_PI;</span>
+<span class="lineNum">     754 </span><span class="lineCov">          2 :   double Y = SPHERICAL_RADIUS * log( tan(M_PI / 4 + 0.5 * (*y) / 180 * M_PI) );</span>
+<span class="lineNum">     755 </span><span class="lineCov">          2 :   *x = X;</span>
+<span class="lineNum">     756 </span><span class="lineCov">          2 :   *y = Y;</span>
+<span class="lineNum">     757 </span><span class="lineCov">          2 : }</span>
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span>            : /************************************************************************/
+<span class="lineNum">     760 </span>            : /*                               OpenMosaic()                           */
+<a name="761"><span class="lineNum">     761 </span>            : /************************************************************************/</a>
+<span class="lineNum">     762 </span>            : 
+<span class="lineNum">     763 </span><span class="lineCov">         20 : int PLMosaicDataset::OpenMosaic()</span>
+<span class="lineNum">     764 </span>            : {
+<span class="lineNum">     765 </span><span class="lineCov">         20 :     CPLString osURL;</span>
+<span class="lineNum">     766 </span>            : 
+<span class="lineNum">     767 </span><span class="lineCov">         20 :     osURL = osBaseURL;</span>
+<span class="lineNum">     768 </span><span class="lineCov">         20 :     if( osURL.back() != '/' )</span>
+<span class="lineNum">     769 </span><span class="lineCov">         20 :         osURL += '/';</span>
+<span class="lineNum">     770 </span><span class="lineCov">         20 :     char* pszEscaped = CPLEscapeString(osMosaic, -1, CPLES_URL);</span>
+<span class="lineNum">     771 </span><span class="lineCov">         20 :     osURL += &quot;?name__is=&quot; + CPLString(pszEscaped);</span>
+<span class="lineNum">     772 </span><span class="lineCov">         20 :     CPLFree(pszEscaped);</span>
+<span class="lineNum">     773 </span>            : 
+<span class="lineNum">     774 </span><span class="lineCov">         20 :     json_object* poObj = RunRequest(osURL);</span>
+<span class="lineNum">     775 </span><span class="lineCov">         20 :     if( poObj == nullptr )</span>
+<span class="lineNum">     776 </span>            :     {
+<span class="lineNum">     777 </span><span class="lineCov">          2 :         return FALSE;</span>
+<span class="lineNum">     778 </span>            :     }
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span><span class="lineCov">         18 :     json_object* poMosaics = CPL_json_object_object_get(poObj, &quot;mosaics&quot;);</span>
+<span class="lineNum">     781 </span><span class="lineCov">         18 :     json_object* poMosaic = nullptr;</span>
+<span class="lineNum">     782 </span><span class="lineCov">         35 :     if( poMosaics == nullptr ||</span>
+<span class="lineNum">     783 </span><span class="lineCov">         34 :         json_object_get_type(poMosaics) != json_type_array ||</span>
+<span class="lineNum">     784 </span><span class="lineCov">         34 :         json_object_array_length(poMosaics) != 1 ||</span>
+<span class="lineNum">     785 </span><span class="lineCov">         35 :         (poMosaic = json_object_array_get_idx(poMosaics, 0)) == nullptr ||</span>
+<span class="lineNum">     786 </span><span class="lineCov">         17 :         json_object_get_type(poMosaic) != json_type_object )</span>
+<span class="lineNum">     787 </span>            :     {
+<span class="lineNum">     788 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     789 </span><span class="lineCov">          1 :                  &quot;No mosaic %s&quot;, osMosaic.c_str());</span>
+<span class="lineNum">     790 </span><span class="lineCov">          1 :         json_object_put(poObj);</span>
+<span class="lineNum">     791 </span><span class="lineCov">          1 :         return FALSE;</span>
+<span class="lineNum">     792 </span>            :     }
+<span class="lineNum">     793 </span>            : 
+<span class="lineNum">     794 </span><span class="lineCov">         17 :     json_object* poId = CPL_json_object_object_get(poMosaic, &quot;id&quot;);</span>
+<span class="lineNum">     795 </span><span class="lineCov">         17 :     json_object* poCoordinateSystem = CPL_json_object_object_get(poMosaic, &quot;coordinate_system&quot;);</span>
+<span class="lineNum">     796 </span><span class="lineCov">         17 :     json_object* poDataType = CPL_json_object_object_get(poMosaic, &quot;datatype&quot;);</span>
+<span class="lineNum">     797 </span><span class="lineCov">         17 :     json_object* poQuadSize = json_ex_get_object_by_path(poMosaic, &quot;grid.quad_size&quot;);</span>
+<span class="lineNum">     798 </span><span class="lineCov">         17 :     json_object* poResolution = json_ex_get_object_by_path(poMosaic, &quot;grid.resolution&quot;);</span>
+<span class="lineNum">     799 </span><span class="lineCov">         17 :     json_object* poLinks = CPL_json_object_object_get(poMosaic, &quot;_links&quot;);</span>
+<span class="lineNum">     800 </span><span class="lineCov">         17 :     json_object* poLinksTiles = nullptr;</span>
+<span class="lineNum">     801 </span><span class="lineCov">         17 :     json_object* poBBox = CPL_json_object_object_get(poMosaic, &quot;bbox&quot;);</span>
+<span class="lineNum">     802 </span><span class="lineCov">         17 :     if( poLinks != nullptr &amp;&amp; json_object_get_type(poLinks) == json_type_object )</span>
+<span class="lineNum">     803 </span>            :     {
+<span class="lineNum">     804 </span><span class="lineCov">         11 :         poLinksTiles = CPL_json_object_object_get(poLinks, &quot;tiles&quot;);</span>
+<span class="lineNum">     805 </span>            :     }
+<span class="lineNum">     806 </span><span class="lineCov">         34 :     if( poId == nullptr || json_object_get_type(poId) != json_type_string ||</span>
+<span class="lineNum">     807 </span><span class="lineCov">         16 :         poCoordinateSystem == nullptr || json_object_get_type(poCoordinateSystem) != json_type_string ||</span>
+<span class="lineNum">     808 </span><span class="lineCov">         16 :         poDataType == nullptr || json_object_get_type(poDataType) != json_type_string ||</span>
+<span class="lineNum">     809 </span><span class="lineCov">         16 :         poQuadSize == nullptr || json_object_get_type(poQuadSize) != json_type_int ||</span>
+<span class="lineNum">     810 </span><span class="lineCov">         49 :         poResolution == nullptr || (json_object_get_type(poResolution) != json_type_int &amp;&amp;</span>
+<span class="lineNum">     811 </span><span class="lineCov">         16 :                                  json_object_get_type(poResolution) != json_type_double) )</span>
+<span class="lineNum">     812 </span>            :     {
+<span class="lineNum">     813 </span><span class="lineCov">          1 :         CPLError(CE_Failure, CPLE_NotSupported, &quot;Missing required parameter&quot;);</span>
+<span class="lineNum">     814 </span><span class="lineCov">          1 :         json_object_put(poObj);</span>
+<span class="lineNum">     815 </span><span class="lineCov">          1 :         return FALSE;</span>
+<span class="lineNum">     816 </span>            :     }
+<span class="lineNum">     817 </span>            : 
+<span class="lineNum">     818 </span><span class="lineCov">         32 :     CPLString osId(json_object_get_string(poId));</span>
+<span class="lineNum">     819 </span>            : 
+<span class="lineNum">     820 </span><span class="lineCov">         16 :     const char* pszSRS = json_object_get_string(poCoordinateSystem);</span>
+<span class="lineNum">     821 </span><span class="lineCov">         16 :     if( !EQUAL(pszSRS, &quot;EPSG:3857&quot;) )</span>
+<span class="lineNum">     822 </span>            :     {
+<span class="lineNum">     823 </span>            :         CPLError(CE_Failure, CPLE_NotSupported, &quot;Unsupported coordinate_system = %s&quot;,
+<span class="lineNum">     824 </span><span class="lineCov">          1 :                  pszSRS);</span>
+<span class="lineNum">     825 </span><span class="lineCov">          1 :         json_object_put(poObj);</span>
+<span class="lineNum">     826 </span><span class="lineCov">          1 :         return FALSE;</span>
+<span class="lineNum">     827 </span>            :     }
+<span class="lineNum">     828 </span>            : 
+<span class="lineNum">     829 </span><span class="lineCov">         30 :     OGRSpatialReference oSRS;</span>
+<span class="lineNum">     830 </span><span class="lineCov">         15 :     oSRS.SetFromUserInput(pszSRS);</span>
+<span class="lineNum">     831 </span><span class="lineCov">         15 :     oSRS.exportToWkt(&amp;pszWKT);</span>
+<span class="lineNum">     832 </span>            : 
+<span class="lineNum">     833 </span>            :     json_object* poQuadDownload = CPL_json_object_object_get(
+<span class="lineNum">     834 </span><span class="lineCov">         15 :                                         poMosaic, &quot;quad_download&quot;);</span>
+<span class="lineNum">     835 </span><span class="lineCov">         15 :     bQuadDownload = CPL_TO_BOOL(json_object_get_boolean(poQuadDownload));</span>
+<span class="lineNum">     836 </span>            : 
+<span class="lineNum">     837 </span><span class="lineCov">         15 :     GDALDataType eDT = GDT_Unknown;</span>
+<span class="lineNum">     838 </span><span class="lineCov">         15 :     const char* pszDataType = json_object_get_string(poDataType);</span>
+<span class="lineNum">     839 </span><span class="lineCov">         15 :     if( EQUAL(pszDataType, &quot;byte&quot;) )</span>
+<span class="lineNum">     840 </span><span class="lineCov">         13 :         eDT = GDT_Byte;</span>
+<span class="lineNum">     841 </span><span class="lineCov">          2 :     else if( EQUAL(pszDataType, &quot;uint16&quot;) )</span>
+<span class="lineNum">     842 </span><span class="lineCov">          1 :         eDT = GDT_UInt16;</span>
+<span class="lineNum">     843 </span><span class="lineCov">          1 :     else if( EQUAL(pszDataType, &quot;int16&quot;) )</span>
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :         eDT = GDT_Int16;</span>
+<span class="lineNum">     845 </span>            :     else
+<span class="lineNum">     846 </span>            :     {
+<span class="lineNum">     847 </span>            :         CPLError(CE_Failure, CPLE_NotSupported, &quot;Unsupported data_type = %s&quot;,
+<span class="lineNum">     848 </span><span class="lineCov">          1 :                  pszDataType);</span>
+<span class="lineNum">     849 </span><span class="lineCov">          1 :         json_object_put(poObj);</span>
+<span class="lineNum">     850 </span><span class="lineCov">          1 :         return FALSE;</span>
+<span class="lineNum">     851 </span>            :     }
+<span class="lineNum">     852 </span>            : 
+<span class="lineNum">     853 </span><span class="lineCov">         14 :     if( eDT == GDT_Byte &amp;&amp; !bQuadDownload )</span>
+<span class="lineNum">     854 </span><span class="lineCov">          2 :         bUseTMSForMain = true;</span>
+<span class="lineNum">     855 </span>            : 
+<span class="lineNum">     856 </span><span class="lineCov">         14 :     if( bUseTMSForMain &amp;&amp; eDT != GDT_Byte )</span>
+<span class="lineNum">     857 </span>            :     {
+<span class="lineNum">     858 </span>            :         CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     859 </span><span class="lineCov">          1 :                  &quot;Cannot use tile API for full resolution data on non Byte mosaic&quot;);</span>
+<span class="lineNum">     860 </span><span class="lineCov">          1 :         bUseTMSForMain = FALSE;</span>
+<span class="lineNum">     861 </span>            :     }
+<span class="lineNum">     862 </span>            : 
+<span class="lineNum">     863 </span><span class="lineCov">         14 :     nQuadSize = json_object_get_int(poQuadSize);</span>
+<span class="lineNum">     864 </span><span class="lineCov">         14 :     if( nQuadSize &lt;= 0 || (nQuadSize % 256) != 0 )</span>
+<span class="lineNum">     865 </span>            :     {
+<span class="lineNum">     866 </span>            :         CPLError(CE_Failure, CPLE_NotSupported, &quot;Unsupported quad_size = %d&quot;,
+<span class="lineNum">     867 </span><span class="lineCov">          1 :                  nQuadSize);</span>
+<span class="lineNum">     868 </span><span class="lineCov">          1 :         json_object_put(poObj);</span>
+<span class="lineNum">     869 </span><span class="lineCov">          1 :         return FALSE;</span>
+<span class="lineNum">     870 </span>            :     }
+<span class="lineNum">     871 </span>            : 
+<span class="lineNum">     872 </span><span class="lineCov">         13 :     const double dfResolution = json_object_get_double(poResolution);</span>
+<span class="lineNum">     873 </span><span class="lineCov">         13 :     if( EQUAL(pszSRS, &quot;EPSG:3857&quot;) )</span>
+<span class="lineNum">     874 </span>            :     {
+<span class="lineNum">     875 </span><span class="lineCov">         13 :         double dfZoomLevel = log(GM_ZOOM_0 / dfResolution)/log(2.0);</span>
+<span class="lineNum">     876 </span><span class="lineCov">         13 :         nZoomLevelMax = static_cast&lt;int&gt;( dfZoomLevel + 0.1 );</span>
+<span class="lineNum">     877 </span><span class="lineCov">         13 :         if( fabs(dfZoomLevel - nZoomLevelMax) &gt; 1e-5 )</span>
+<span class="lineNum">     878 </span>            :         {
+<span class="lineNum">     879 </span>            :             CPLError(CE_Failure, CPLE_NotSupported, &quot;Unsupported resolution = %.12g&quot;,
+<span class="lineNum">     880 </span><span class="lineCov">          1 :                     dfResolution);</span>
+<span class="lineNum">     881 </span><span class="lineCov">          1 :             json_object_put(poObj);</span>
+<span class="lineNum">     882 </span><span class="lineCov">          1 :             return FALSE;</span>
+<span class="lineNum">     883 </span>            :         }
+<span class="lineNum">     884 </span>            : 
+<span class="lineNum">     885 </span><span class="lineCov">         12 :         bHasGeoTransform = TRUE;</span>
+<span class="lineNum">     886 </span><span class="lineCov">         12 :         adfGeoTransform[0] = GM_ORIGIN;</span>
+<span class="lineNum">     887 </span><span class="lineCov">         12 :         adfGeoTransform[1] = dfResolution;</span>
+<span class="lineNum">     888 </span><span class="lineCov">         12 :         adfGeoTransform[2] = 0;</span>
+<span class="lineNum">     889 </span><span class="lineCov">         12 :         adfGeoTransform[3] = -GM_ORIGIN;</span>
+<span class="lineNum">     890 </span><span class="lineCov">         12 :         adfGeoTransform[4] = 0;</span>
+<span class="lineNum">     891 </span><span class="lineCov">         12 :         adfGeoTransform[5] = -dfResolution;</span>
+<span class="lineNum">     892 </span><span class="lineCov">         12 :         nRasterXSize = static_cast&lt;int&gt;( 2 * -GM_ORIGIN / dfResolution + 0.5 );</span>
+<span class="lineNum">     893 </span><span class="lineCov">         12 :         nRasterYSize = nRasterXSize;</span>
+<span class="lineNum">     894 </span>            : 
+<span class="lineNum">     895 </span><span class="lineCov">         13 :         if( poBBox != nullptr &amp;&amp;</span>
+<span class="lineNum">     896 </span><span class="lineCov">         13 :             json_object_get_type(poBBox) == json_type_array &amp;&amp;</span>
+<span class="lineNum">     897 </span><span class="lineCov">          1 :             json_object_array_length(poBBox) == 4 )</span>
+<span class="lineNum">     898 </span>            :         {
+<span class="lineNum">     899 </span>            :             double xmin =
+<span class="lineNum">     900 </span><span class="lineCov">          1 :                 json_object_get_double(json_object_array_get_idx(poBBox, 0));</span>
+<span class="lineNum">     901 </span>            :             double ymin =
+<span class="lineNum">     902 </span><span class="lineCov">          1 :                 json_object_get_double(json_object_array_get_idx(poBBox, 1));</span>
+<span class="lineNum">     903 </span>            :             double xmax =
+<span class="lineNum">     904 </span><span class="lineCov">          1 :                 json_object_get_double(json_object_array_get_idx(poBBox, 2));</span>
+<span class="lineNum">     905 </span>            :             double ymax =
+<span class="lineNum">     906 </span><span class="lineCov">          1 :                 json_object_get_double(json_object_array_get_idx(poBBox, 3));</span>
+<span class="lineNum">     907 </span><span class="lineCov">          1 :             LongLatToSphericalMercator(&amp;xmin, &amp;ymin);</span>
+<span class="lineNum">     908 </span><span class="lineCov">          1 :             LongLatToSphericalMercator(&amp;xmax, &amp;ymax);</span>
+<span class="lineNum">     909 </span><span class="lineCov">          1 :             xmin = std::max(xmin, GM_ORIGIN);</span>
+<span class="lineNum">     910 </span><span class="lineCov">          1 :             ymin = std::max(ymin, GM_ORIGIN);</span>
+<span class="lineNum">     911 </span><span class="lineCov">          1 :             xmax = std::min(xmax, -GM_ORIGIN);</span>
+<span class="lineNum">     912 </span><span class="lineCov">          1 :             ymax = std::min(ymax, -GM_ORIGIN);</span>
+<span class="lineNum">     913 </span>            : 
+<span class="lineNum">     914 </span><span class="lineCov">          1 :             double dfTileSize = dfResolution * nQuadSize;</span>
+<span class="lineNum">     915 </span><span class="lineCov">          1 :             xmin = floor(xmin / dfTileSize) * dfTileSize;</span>
+<span class="lineNum">     916 </span><span class="lineCov">          1 :             ymin = floor(ymin / dfTileSize) * dfTileSize;</span>
+<span class="lineNum">     917 </span><span class="lineCov">          1 :             xmax = ceil(xmax / dfTileSize) * dfTileSize;</span>
+<span class="lineNum">     918 </span><span class="lineCov">          1 :             ymax = ceil(ymax / dfTileSize) * dfTileSize;</span>
+<span class="lineNum">     919 </span><span class="lineCov">          1 :             adfGeoTransform[0] = xmin;</span>
+<span class="lineNum">     920 </span><span class="lineCov">          1 :             adfGeoTransform[3] = ymax;</span>
+<span class="lineNum">     921 </span><span class="lineCov">          1 :             nRasterXSize = static_cast&lt;int&gt;((xmax - xmin) / dfResolution + 0.5);</span>
+<span class="lineNum">     922 </span><span class="lineCov">          1 :             nRasterYSize = static_cast&lt;int&gt;((ymax - ymin) / dfResolution + 0.5);</span>
+<span class="lineNum">     923 </span><span class="lineCov">          1 :             nMetaTileXShift = static_cast&lt;int&gt;((xmin - GM_ORIGIN) / dfTileSize + 0.5);</span>
+<span class="lineNum">     924 </span><span class="lineCov">          1 :             nMetaTileYShift = static_cast&lt;int&gt;((ymin - GM_ORIGIN) / dfTileSize + 0.5);</span>
+<span class="lineNum">     925 </span>            :         }
+<span class="lineNum">     926 </span>            :     }
+<span class="lineNum">     927 </span>            : 
+<span class="lineNum">     928 </span><span class="lineCov">         12 :     osQuadsURL = osBaseURL;</span>
+<span class="lineNum">     929 </span><span class="lineCov">         12 :     if( osQuadsURL.back() != '/' )</span>
+<span class="lineNum">     930 </span><span class="lineCov">         12 :         osQuadsURL += '/';</span>
+<span class="lineNum">     931 </span><span class="lineCov">         12 :     osQuadsURL += osId + &quot;/quads/&quot;;</span>
+<span class="lineNum">     932 </span>            : 
+<span class="lineNum">     933 </span>            :     // Use WMS/TMS driver for overviews (only for byte)
+<span class="lineNum">     934 </span><span class="lineCov">         23 :     if( eDT == GDT_Byte &amp;&amp; EQUAL(pszSRS, &quot;EPSG:3857&quot;) &amp;&amp;</span>
+<span class="lineNum">     935 </span><span class="lineCov">         22 :         poLinksTiles != nullptr &amp;&amp;</span>
+<span class="lineNum">     936 </span><span class="lineCov">         10 :         json_object_get_type(poLinksTiles) == json_type_string )</span>
+<span class="lineNum">     937 </span>            :     {
+<span class="lineNum">     938 </span><span class="lineCov">         10 :         const char* pszLinksTiles = json_object_get_string(poLinksTiles);</span>
+<span class="lineNum">     939 </span><span class="lineCov">         19 :         if( strstr(pszLinksTiles, &quot;{x}&quot;) == nullptr ||</span>
+<span class="lineNum">     940 </span><span class="lineCov">         18 :             strstr(pszLinksTiles, &quot;{y}&quot;) == nullptr ||</span>
+<span class="lineNum">     941 </span><span class="lineCov">          9 :             strstr(pszLinksTiles, &quot;{z}&quot;) == nullptr )</span>
+<span class="lineNum">     942 </span>            :         {
+<span class="lineNum">     943 </span>            :             CPLError(CE_Warning, CPLE_NotSupported, &quot;Invalid _links.tiles = %s&quot;,
+<span class="lineNum">     944 </span><span class="lineCov">          1 :                      pszLinksTiles);</span>
+<span class="lineNum">     945 </span>            :         }
+<span class="lineNum">     946 </span>            :         else
+<span class="lineNum">     947 </span>            :         {
+<span class="lineNum">     948 </span><span class="lineCov">          9 :             CPLString osCacheStr;</span>
+<span class="lineNum">     949 </span><span class="lineCov">          9 :             if( !osCachePathRoot.empty() )</span>
+<span class="lineNum">     950 </span>            :             {
+<span class="lineNum">     951 </span><span class="lineCov">          5 :                 osCacheStr = &quot;    &lt;Cache&gt;&lt;Path&gt;&quot;;</span>
+<span class="lineNum">     952 </span><span class="lineCov">          5 :                 osCacheStr += GetMosaicCachePath();</span>
+<span class="lineNum">     953 </span><span class="lineCov">          5 :                 osCacheStr += &quot;&lt;/Path&gt;&lt;Unique&gt;False&lt;/Unique&gt;&lt;/Cache&gt;\n&quot;;</span>
+<span class="lineNum">     954 </span>            :             }
+<span class="lineNum">     955 </span>            : 
+<span class="lineNum">     956 </span><span class="lineCov">         18 :             CPLString osTMSURL(pszLinksTiles);</span>
+<span class="lineNum">     957 </span><span class="lineCov">          9 :             ReplaceSubString(osTMSURL, &quot;{x}&quot;, &quot;${x}&quot;);</span>
+<span class="lineNum">     958 </span><span class="lineCov">          9 :             ReplaceSubString(osTMSURL, &quot;{y}&quot;, &quot;${y}&quot;);</span>
+<span class="lineNum">     959 </span><span class="lineCov">          9 :             ReplaceSubString(osTMSURL, &quot;{z}&quot;, &quot;${z}&quot;);</span>
+<span class="lineNum">     960 </span><span class="lineCov">          9 :             ReplaceSubString(osTMSURL, &quot;{0-3}&quot;, &quot;0&quot;);</span>
+<span class="lineNum">     961 </span>            : 
+<span class="lineNum">     962 </span><span class="lineCov">        148 :             for( int nZoomLevel = nZoomLevelMax; nZoomLevel &gt;= 0;</span>
+<span class="lineNum">     963 </span>            :                      nZoomLevel -- )
+<span class="lineNum">     964 </span>            :             {
+<span class="lineNum">     965 </span><span class="lineCov">        140 :                 const int nZShift = nZoomLevelMax - nZoomLevel;</span>
+<span class="lineNum">     966 </span><span class="lineCov">        140 :                 int nOvrXSize = nRasterXSize &gt;&gt; nZShift;</span>
+<span class="lineNum">     967 </span><span class="lineCov">        140 :                 int nOvrYSize = nRasterYSize &gt;&gt; nZShift;</span>
+<span class="lineNum">     968 </span><span class="lineCov">        140 :                 if( nOvrXSize == 0 || nOvrYSize == 0 )</span>
+<span class="lineNum">     969 </span>            :                     break;
+<span class="lineNum">     970 </span>            : 
+<span class="lineNum">     971 </span>            :                 CPLString osTMS = CPLSPrintf(
+<span class="lineNum">     972 </span>            :     &quot;&lt;GDAL_WMS&gt;\n&quot;
+<span class="lineNum">     973 </span>            :     &quot;    &lt;Service name=\&quot;TMS\&quot;&gt;\n&quot;
+<span class="lineNum">     974 </span>            :     &quot;        &lt;ServerUrl&gt;%s&lt;/ServerUrl&gt;\n&quot;
+<span class="lineNum">     975 </span>            :     &quot;    &lt;/Service&gt;\n&quot;
+<span class="lineNum">     976 </span>            :     &quot;    &lt;DataWindow&gt;\n&quot;
+<span class="lineNum">     977 </span>            :     &quot;        &lt;UpperLeftX&gt;%.16g&lt;/UpperLeftX&gt;\n&quot;
+<span class="lineNum">     978 </span>            :     &quot;        &lt;UpperLeftY&gt;%.16g&lt;/UpperLeftY&gt;\n&quot;
+<span class="lineNum">     979 </span>            :     &quot;        &lt;LowerRightX&gt;%.16g&lt;/LowerRightX&gt;\n&quot;
+<span class="lineNum">     980 </span>            :     &quot;        &lt;LowerRightY&gt;%.16g&lt;/LowerRightY&gt;\n&quot;
+<span class="lineNum">     981 </span>            :     &quot;        &lt;SizeX&gt;%d&lt;/SizeX&gt;\n&quot;
+<span class="lineNum">     982 </span>            :     &quot;        &lt;SizeY&gt;%d&lt;/SizeY&gt;\n&quot;
+<span class="lineNum">     983 </span>            :     &quot;        &lt;TileLevel&gt;%d&lt;/TileLevel&gt;\n&quot;
+<span class="lineNum">     984 </span>            :     &quot;        &lt;YOrigin&gt;top&lt;/YOrigin&gt;\n&quot;
+<span class="lineNum">     985 </span>            :     &quot;    &lt;/DataWindow&gt;\n&quot;
+<span class="lineNum">     986 </span>            :     &quot;    &lt;Projection&gt;%s&lt;/Projection&gt;\n&quot;
+<span class="lineNum">     987 </span>            :     &quot;    &lt;BlockSizeX&gt;256&lt;/BlockSizeX&gt;\n&quot;
+<span class="lineNum">     988 </span>            :     &quot;    &lt;BlockSizeY&gt;256&lt;/BlockSizeY&gt;\n&quot;
+<span class="lineNum">     989 </span>            :     &quot;    &lt;BandsCount&gt;4&lt;/BandsCount&gt;\n&quot;
+<span class="lineNum">     990 </span>            :     &quot;%s&quot;
+<span class="lineNum">     991 </span>            :     &quot;&lt;/GDAL_WMS&gt;&quot;,
+<span class="lineNum">     992 </span>            :                     osTMSURL.c_str(),
+<span class="lineNum">     993 </span>            :                     GM_ORIGIN,
+<span class="lineNum">     994 </span>            :                     -GM_ORIGIN,
+<span class="lineNum">     995 </span>            :                     -GM_ORIGIN,
+<span class="lineNum">     996 </span>            :                     GM_ORIGIN,
+<span class="lineNum">     997 </span>            :                     256 &lt;&lt; nZoomLevel,
+<span class="lineNum">     998 </span>            :                     256 &lt;&lt; nZoomLevel,
+<span class="lineNum">     999 </span>            :                     nZoomLevel,
+<span class="lineNum">    1000 </span>            :                     pszSRS,
+<span class="lineNum">    1001 </span><span class="lineCov">        140 :                     osCacheStr.c_str());</span>
+<span class="lineNum">    1002 </span>            : 
+<span class="lineNum">    1003 </span>            :                 GDALDataset* poTMSDS = reinterpret_cast&lt;GDALDataset *&gt;(
+<span class="lineNum">    1004 </span>            :                         GDALOpenEx( osTMS, GDAL_OF_RASTER | GDAL_OF_INTERNAL,
+<span class="lineNum">    1005 </span><span class="lineCov">        140 :                                 nullptr, nullptr, nullptr ) );</span>
+<span class="lineNum">    1006 </span><span class="lineCov">        140 :                 if( poTMSDS )</span>
+<span class="lineNum">    1007 </span>            :                 {
+<span class="lineNum">    1008 </span><span class="lineCov">        140 :                     double dfThisResolution = dfResolution * (1 &lt;&lt; nZShift);</span>
+<span class="lineNum">    1009 </span>            : 
+<span class="lineNum">    1010 </span><span class="lineCov">        140 :                     VRTDatasetH hVRTDS = VRTCreate(nOvrXSize, nOvrYSize);</span>
+<span class="lineNum">    1011 </span><span class="lineCov">        700 :                     for(int iBand=1;iBand&lt;=4;iBand++)</span>
+<span class="lineNum">    1012 </span>            :                     {
+<span class="lineNum">    1013 </span><span class="lineCov">        560 :                         VRTAddBand( hVRTDS, GDT_Byte, nullptr );</span>
+<span class="lineNum">    1014 </span>            :                     }
+<span class="lineNum">    1015 </span>            : 
+<span class="lineNum">    1016 </span>            :                     int nSrcXOff, nSrcYOff, nDstXOff, nDstYOff;
+<span class="lineNum">    1017 </span>            : 
+<span class="lineNum">    1018 </span><span class="lineCov">        140 :                     nSrcXOff = static_cast&lt;int&gt;(0.5 +</span>
+<span class="lineNum">    1019 </span><span class="lineCov">        280 :                         (adfGeoTransform[0] - GM_ORIGIN) / dfThisResolution);</span>
+<span class="lineNum">    1020 </span><span class="lineCov">        140 :                     nDstXOff = 0;</span>
+<span class="lineNum">    1021 </span>            : 
+<span class="lineNum">    1022 </span><span class="lineCov">        140 :                     nSrcYOff = static_cast&lt;int&gt;(0.5 +</span>
+<span class="lineNum">    1023 </span><span class="lineCov">        280 :                         (-GM_ORIGIN - adfGeoTransform[3]) / dfThisResolution);</span>
+<span class="lineNum">    1024 </span><span class="lineCov">        140 :                     nDstYOff = 0;</span>
+<span class="lineNum">    1025 </span>            : 
+<span class="lineNum">    1026 </span><span class="lineCov">        700 :                     for(int iBand=1;iBand&lt;=4;iBand++)</span>
+<span class="lineNum">    1027 </span>            :                     {
+<span class="lineNum">    1028 </span>            :                         VRTSourcedRasterBandH hVRTBand =
+<span class="lineNum">    1029 </span>            :                             reinterpret_cast&lt;VRTSourcedRasterBandH&gt;(
+<span class="lineNum">    1030 </span><span class="lineCov">        560 :                                 GDALGetRasterBand(hVRTDS, iBand));</span>
+<span class="lineNum">    1031 </span>            :                         VRTAddSimpleSource(
+<span class="lineNum">    1032 </span>            :                             hVRTBand, GDALGetRasterBand(poTMSDS, iBand),
+<span class="lineNum">    1033 </span>            :                             nSrcXOff, nSrcYOff, nOvrXSize, nOvrYSize,
+<span class="lineNum">    1034 </span>            :                             nDstXOff, nDstYOff, nOvrXSize, nOvrYSize,
+<span class="lineNum">    1035 </span><span class="lineCov">        560 :                             &quot;NEAR&quot;, VRT_NODATA_UNSET);</span>
+<span class="lineNum">    1036 </span>            :                     }
+<span class="lineNum">    1037 </span><span class="lineCov">        140 :                     poTMSDS-&gt;Dereference();</span>
+<span class="lineNum">    1038 </span>            : 
+<span class="lineNum">    1039 </span><span class="lineCov">        140 :                     apoTMSDS.push_back( reinterpret_cast&lt;GDALDataset*&gt;(hVRTDS) );</span>
+<span class="lineNum">    1040 </span>            :                 }
+<span class="lineNum">    1041 </span>            : 
+<span class="lineNum">    1042 </span><span class="lineCov">        140 :                 if( nOvrXSize &lt; 256 &amp;&amp; nOvrYSize &lt; 256 )</span>
+<span class="lineNum">    1043 </span><span class="lineCov">          1 :                     break;</span>
+<span class="lineNum">    1044 </span><span class="lineCov">        148 :             }</span>
+<span class="lineNum">    1045 </span>            :         }
+<span class="lineNum">    1046 </span>            :     }
+<span class="lineNum">    1047 </span>            : 
+<span class="lineNum">    1048 </span><span class="lineCov">         12 :     if( bUseTMSForMain &amp;&amp; apoTMSDS.empty() )</span>
+<span class="lineNum">    1049 </span>            :     {
+<span class="lineNum">    1050 </span>            :         CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1051 </span><span class="lineCov">          1 :                  &quot;Cannot find tile definition, so use_tiles will be ignored&quot;);</span>
+<span class="lineNum">    1052 </span><span class="lineCov">          1 :         bUseTMSForMain = FALSE;</span>
+<span class="lineNum">    1053 </span>            :     }
+<span class="lineNum">    1054 </span>            : 
+<span class="lineNum">    1055 </span><span class="lineCov">         60 :     for(int i=0;i&lt;4;i++)</span>
+<span class="lineNum">    1056 </span><span class="lineCov">         48 :         SetBand(i + 1, new PLMosaicRasterBand(this, i + 1, eDT));</span>
+<span class="lineNum">    1057 </span>            : 
+<span class="lineNum">    1058 </span><span class="lineCov">         12 :     json_object* poFirstAcquired = CPL_json_object_object_get(poMosaic, &quot;first_acquired&quot;);</span>
+<span class="lineNum">    1059 </span><span class="lineCov">         12 :     if( poFirstAcquired != nullptr &amp;&amp; json_object_get_type(poFirstAcquired) == json_type_string )</span>
+<span class="lineNum">    1060 </span>            :     {
+<span class="lineNum">    1061 </span>            :         SetMetadataItem(&quot;FIRST_ACQUIRED&quot;,
+<span class="lineNum">    1062 </span><span class="lineCov">         12 :                                  json_object_get_string(poFirstAcquired));</span>
+<span class="lineNum">    1063 </span>            :     }
+<span class="lineNum">    1064 </span><span class="lineCov">         12 :     json_object* poLastAcquired = CPL_json_object_object_get(poMosaic, &quot;last_acquired&quot;);</span>
+<span class="lineNum">    1065 </span><span class="lineCov">         12 :     if( poLastAcquired != nullptr &amp;&amp; json_object_get_type(poLastAcquired) == json_type_string )</span>
+<span class="lineNum">    1066 </span>            :     {
+<span class="lineNum">    1067 </span>            :         SetMetadataItem(&quot;LAST_ACQUIRED&quot;,
+<span class="lineNum">    1068 </span><span class="lineCov">         12 :                                  json_object_get_string(poLastAcquired));</span>
+<span class="lineNum">    1069 </span>            :     }
+<span class="lineNum">    1070 </span><span class="lineCov">         12 :     json_object* poName = CPL_json_object_object_get(poMosaic, &quot;name&quot;);</span>
+<span class="lineNum">    1071 </span><span class="lineCov">         12 :     if( poName != nullptr &amp;&amp; json_object_get_type(poName) == json_type_string )</span>
+<span class="lineNum">    1072 </span>            :     {
+<span class="lineNum">    1073 </span><span class="lineCov">         12 :         SetMetadataItem(&quot;NAME&quot;, json_object_get_string(poName));</span>
+<span class="lineNum">    1074 </span>            :     }
+<span class="lineNum">    1075 </span>            : 
+<span class="lineNum">    1076 </span><span class="lineCov">         12 :     json_object_put(poObj);</span>
+<span class="lineNum">    1077 </span><span class="lineCov">         32 :     return TRUE;</span>
+<span class="lineNum">    1078 </span>            : }
+<span class="lineNum">    1079 </span>            : 
+<span class="lineNum">    1080 </span>            : /************************************************************************/
+<span class="lineNum">    1081 </span>            : /*                          ListSubdatasets()                           */
+<a name="1082"><span class="lineNum">    1082 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1083 </span>            : 
+<span class="lineNum">    1084 </span><span class="lineCov">          8 : std::vector&lt;CPLString&gt; PLMosaicDataset::ListSubdatasets()</span>
+<span class="lineNum">    1085 </span>            : {
+<span class="lineNum">    1086 </span><span class="lineCov">          8 :     std::vector&lt;CPLString&gt; aosNameList;</span>
+<span class="lineNum">    1087 </span><span class="lineCov">         16 :     CPLString osURL(osBaseURL);</span>
+<span class="lineNum">    1088 </span><span class="lineCov">         21 :     while(osURL.size())</span>
+<span class="lineNum">    1089 </span>            :     {
+<span class="lineNum">    1090 </span><span class="lineCov">          9 :         json_object* poObj = RunRequest(osURL);</span>
+<span class="lineNum">    1091 </span><span class="lineCov">          9 :         if( poObj == nullptr )</span>
+<span class="lineNum">    1092 </span>            :         {
+<span class="lineNum">    1093 </span><span class="lineCov">          3 :             return aosNameList;</span>
+<span class="lineNum">    1094 </span>            :         }
+<span class="lineNum">    1095 </span>            : 
+<span class="lineNum">    1096 </span><span class="lineCov">          6 :         osURL = &quot;&quot;;</span>
+<span class="lineNum">    1097 </span><span class="lineCov">          6 :         json_object* poLinks = CPL_json_object_object_get(poObj, &quot;_links&quot;);</span>
+<span class="lineNum">    1098 </span><span class="lineCov">          6 :         if( poLinks != nullptr &amp;&amp; json_object_get_type(poLinks) == json_type_object )</span>
+<span class="lineNum">    1099 </span>            :         {
+<span class="lineNum">    1100 </span><span class="lineCov">          2 :             json_object* poNext = CPL_json_object_object_get(poLinks, &quot;_next&quot;);</span>
+<span class="lineNum">    1101 </span><span class="lineCov">          2 :             if( poNext != nullptr &amp;&amp; json_object_get_type(poNext) == json_type_string )</span>
+<span class="lineNum">    1102 </span>            :             {
+<span class="lineNum">    1103 </span><span class="lineCov">          1 :                 osURL = json_object_get_string(poNext);</span>
+<span class="lineNum">    1104 </span>            :             }
+<span class="lineNum">    1105 </span>            :         }
+<span class="lineNum">    1106 </span>            : 
+<span class="lineNum">    1107 </span><span class="lineCov">          6 :         json_object* poMosaics = CPL_json_object_object_get(poObj, &quot;mosaics&quot;);</span>
+<span class="lineNum">    1108 </span><span class="lineCov">          6 :         if( poMosaics == nullptr || json_object_get_type(poMosaics) != json_type_array )</span>
+<span class="lineNum">    1109 </span>            :         {
+<span class="lineNum">    1110 </span><span class="lineCov">          1 :             json_object_put(poObj);</span>
+<span class="lineNum">    1111 </span><span class="lineCov">          1 :             return aosNameList;</span>
+<span class="lineNum">    1112 </span>            :         }
+<span class="lineNum">    1113 </span>            : 
+<span class="lineNum">    1114 </span><span class="lineCov">          5 :         const auto nMosaics = json_object_array_length(poMosaics);</span>
+<span class="lineNum">    1115 </span><span class="lineCov">         10 :         for(auto i=decltype(nMosaics){0};i&lt; nMosaics;i++)</span>
+<span class="lineNum">    1116 </span>            :         {
+<span class="lineNum">    1117 </span><span class="lineCov">          5 :             const char* pszName = nullptr;</span>
+<span class="lineNum">    1118 </span><span class="lineCov">          5 :             const char* pszCoordinateSystem = nullptr;</span>
+<span class="lineNum">    1119 </span><span class="lineCov">          5 :             json_object* poMosaic = json_object_array_get_idx(poMosaics, i);</span>
+<span class="lineNum">    1120 </span><span class="lineCov">          5 :             bool bAccessible = false;</span>
+<span class="lineNum">    1121 </span><span class="lineCov">          5 :             if( poMosaic &amp;&amp; json_object_get_type(poMosaic) == json_type_object )</span>
+<span class="lineNum">    1122 </span>            :             {
+<span class="lineNum">    1123 </span><span class="lineCov">          5 :                 json_object* poName = CPL_json_object_object_get(poMosaic, &quot;name&quot;);</span>
+<span class="lineNum">    1124 </span><span class="lineCov">          5 :                 if( poName != nullptr &amp;&amp; json_object_get_type(poName) == json_type_string )</span>
+<span class="lineNum">    1125 </span>            :                 {
+<span class="lineNum">    1126 </span><span class="lineCov">          5 :                     pszName = json_object_get_string(poName);</span>
+<span class="lineNum">    1127 </span>            :                 }
+<span class="lineNum">    1128 </span>            : 
+<span class="lineNum">    1129 </span><span class="lineCov">          5 :                 json_object* poCoordinateSystem = CPL_json_object_object_get(poMosaic, &quot;coordinate_system&quot;);</span>
+<span class="lineNum">    1130 </span><span class="lineCov">          5 :                 if( poCoordinateSystem &amp;&amp; json_object_get_type(poCoordinateSystem) == json_type_string )</span>
+<span class="lineNum">    1131 </span>            :                 {
+<span class="lineNum">    1132 </span><span class="lineCov">          5 :                     pszCoordinateSystem = json_object_get_string(poCoordinateSystem);</span>
+<span class="lineNum">    1133 </span>            :                 }
+<span class="lineNum">    1134 </span>            : 
+<span class="lineNum">    1135 </span><span class="lineCov">          5 :                 json_object* poDataType = CPL_json_object_object_get(poMosaic, &quot;datatype&quot;);</span>
+<span class="lineNum">    1136 </span><span class="lineCov">          5 :                 if( poDataType &amp;&amp; json_object_get_type(poDataType) == json_type_string &amp;&amp;</span>
+<span class="lineNum">    1137 </span><span class="lineCov">          5 :                     EQUAL(json_object_get_string(poDataType), &quot;byte&quot;) &amp;&amp;</span>
+<span class="lineNum">    1138 </span><span class="lineNoCov">          0 :                     !CSLTestBoolean(CPLGetConfigOption(&quot;PL_MOSAIC_LIST_QUAD_DOWNLOAD_ONLY&quot;, &quot;NO&quot;)) )</span>
+<span class="lineNum">    1139 </span>            :                 {
+<span class="lineNum">    1140 </span><span class="lineNoCov">          0 :                     bAccessible = true; // through tile API</span>
+<span class="lineNum">    1141 </span>            :                 }
+<span class="lineNum">    1142 </span>            :                 else
+<span class="lineNum">    1143 </span>            :                 {
+<span class="lineNum">    1144 </span>            :                     json_object* poQuadDownload = CPL_json_object_object_get(
+<span class="lineNum">    1145 </span><span class="lineCov">          5 :                                                     poMosaic, &quot;quad_download&quot;);</span>
+<span class="lineNum">    1146 </span>            :                     bAccessible = CPL_TO_BOOL(
+<span class="lineNum">    1147 </span><span class="lineCov">          5 :                         json_object_get_boolean(poQuadDownload));</span>
+<span class="lineNum">    1148 </span>            :                 }
+<span class="lineNum">    1149 </span>            :             }
+<span class="lineNum">    1150 </span>            : 
+<span class="lineNum">    1151 </span><span class="lineCov">         10 :             if( bAccessible &amp;&amp; pszName &amp;&amp; pszCoordinateSystem &amp;&amp;</span>
+<span class="lineNum">    1152 </span><span class="lineCov">          5 :                 EQUAL(pszCoordinateSystem, &quot;EPSG:3857&quot;) )</span>
+<span class="lineNum">    1153 </span>            :             {
+<span class="lineNum">    1154 </span><span class="lineCov">          4 :                 aosNameList.push_back(pszName);</span>
+<span class="lineNum">    1155 </span>            :             }
+<span class="lineNum">    1156 </span>            :         }
+<span class="lineNum">    1157 </span>            : 
+<span class="lineNum">    1158 </span><span class="lineCov">          5 :         json_object_put(poObj);</span>
+<span class="lineNum">    1159 </span>            :     }
+<span class="lineNum">    1160 </span><span class="lineCov">          4 :     return aosNameList;</span>
+<span class="lineNum">    1161 </span>            : }
+<span class="lineNum">    1162 </span>            : 
+<span class="lineNum">    1163 </span>            : /************************************************************************/
+<span class="lineNum">    1164 </span>            : /*                            GetProjectionRef()                       */
+<a name="1165"><span class="lineNum">    1165 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1166 </span>            : 
+<span class="lineNum">    1167 </span><span class="lineCov">          1 : const char* PLMosaicDataset::_GetProjectionRef()</span>
+<span class="lineNum">    1168 </span>            : {
+<span class="lineNum">    1169 </span><span class="lineCov">          1 :     return (pszWKT) ? pszWKT : &quot;&quot;;</span>
+<span class="lineNum">    1170 </span>            : }
+<span class="lineNum">    1171 </span>            : 
+<span class="lineNum">    1172 </span>            : /************************************************************************/
+<span class="lineNum">    1173 </span>            : /*                            GetGeoTransform()                         */
+<a name="1174"><span class="lineNum">    1174 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1175 </span>            : 
+<span class="lineNum">    1176 </span><span class="lineCov">          2 : CPLErr PLMosaicDataset::GetGeoTransform(double* padfGeoTransform)</span>
+<span class="lineNum">    1177 </span>            : {
+<span class="lineNum">    1178 </span><span class="lineCov">          2 :     memcpy(padfGeoTransform, adfGeoTransform, 6 * sizeof(double));</span>
+<span class="lineNum">    1179 </span><span class="lineCov">          2 :     return ( bHasGeoTransform ) ? CE_None : CE_Failure;</span>
+<span class="lineNum">    1180 </span>            : }
+<span class="lineNum">    1181 </span>            : 
+<span class="lineNum">    1182 </span>            : /************************************************************************/
+<span class="lineNum">    1183 </span>            : /*                          formatTileName()                            */
+<a name="1184"><span class="lineNum">    1184 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1185 </span>            : 
+<span class="lineNum">    1186 </span><span class="lineCov">         66 : CPLString PLMosaicDataset::formatTileName(int tile_x, int tile_y)</span>
+<span class="lineNum">    1187 </span>            : 
+<span class="lineNum">    1188 </span>            : {
+<span class="lineNum">    1189 </span><span class="lineCov">         66 :     return CPLSPrintf(&quot;%d-%d&quot;, tile_x, tile_y);</span>
+<span class="lineNum">    1190 </span>            : }
+<span class="lineNum">    1191 </span>            : 
+<span class="lineNum">    1192 </span>            : /************************************************************************/
+<span class="lineNum">    1193 </span>            : /*                          InsertNewDataset()                          */
+<a name="1194"><span class="lineNum">    1194 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1195 </span>            : 
+<span class="lineNum">    1196 </span><span class="lineCov">         25 : void PLMosaicDataset::InsertNewDataset(CPLString osKey, GDALDataset* poDS)</span>
+<span class="lineNum">    1197 </span>            : {
+<span class="lineNum">    1198 </span><span class="lineCov">         25 :     if( static_cast&lt;int&gt;( oMapLinkedDatasets.size() ) == nCacheMaxSize )</span>
+<span class="lineNum">    1199 </span>            :     {
+<span class="lineNum">    1200 </span>            :         CPLDebug(&quot;PLMOSAIC&quot;, &quot;Discarding older entry %s from cache&quot;,
+<span class="lineNum">    1201 </span><span class="lineCov">          6 :                  psTail-&gt;osKey.c_str());</span>
+<span class="lineNum">    1202 </span><span class="lineCov">          6 :         oMapLinkedDatasets.erase(psTail-&gt;osKey);</span>
+<span class="lineNum">    1203 </span><span class="lineCov">          6 :         PLLinkedDataset* psNewTail = psTail-&gt;psPrev;</span>
+<span class="lineNum">    1204 </span><span class="lineCov">          6 :         psNewTail-&gt;psNext = nullptr;</span>
+<span class="lineNum">    1205 </span><span class="lineCov">          6 :         if( psTail-&gt;poDS )</span>
+<span class="lineNum">    1206 </span><span class="lineNoCov">          0 :             GDALClose( psTail-&gt;poDS );</span>
+<span class="lineNum">    1207 </span><span class="lineCov">          6 :         delete psTail;</span>
+<span class="lineNum">    1208 </span><span class="lineCov">          6 :         psTail = psNewTail;</span>
+<span class="lineNum">    1209 </span>            :     }
+<span class="lineNum">    1210 </span>            : 
+<span class="lineNum">    1211 </span><span class="lineCov">         25 :     PLLinkedDataset* psLinkedDataset = new PLLinkedDataset();</span>
+<span class="lineNum">    1212 </span><span class="lineCov">         25 :     if( psHead )</span>
+<span class="lineNum">    1213 </span><span class="lineCov">         15 :         psHead-&gt;psPrev = psLinkedDataset;</span>
+<span class="lineNum">    1214 </span><span class="lineCov">         25 :     psLinkedDataset-&gt;osKey = osKey;</span>
+<span class="lineNum">    1215 </span><span class="lineCov">         25 :     psLinkedDataset-&gt;psNext = psHead;</span>
+<span class="lineNum">    1216 </span><span class="lineCov">         25 :     psLinkedDataset-&gt;poDS = poDS;</span>
+<span class="lineNum">    1217 </span><span class="lineCov">         25 :     psHead = psLinkedDataset;</span>
+<span class="lineNum">    1218 </span><span class="lineCov">         25 :     if( psTail == nullptr )</span>
+<span class="lineNum">    1219 </span><span class="lineCov">         10 :         psTail = psHead;</span>
+<span class="lineNum">    1220 </span><span class="lineCov">         25 :     oMapLinkedDatasets[osKey] = psLinkedDataset;</span>
+<span class="lineNum">    1221 </span><span class="lineCov">         25 : }</span>
+<span class="lineNum">    1222 </span>            : 
+<span class="lineNum">    1223 </span>            : /************************************************************************/
+<span class="lineNum">    1224 </span>            : /*                         OpenAndInsertNewDataset()                    */
+<a name="1225"><span class="lineNum">    1225 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1226 </span>            : 
+<span class="lineNum">    1227 </span><span class="lineCov">          9 : GDALDataset* PLMosaicDataset::OpenAndInsertNewDataset(CPLString osTmpFilename,</span>
+<span class="lineNum">    1228 </span>            :                                                       CPLString osTilename)
+<span class="lineNum">    1229 </span>            : {
+<span class="lineNum">    1230 </span><span class="lineCov">          9 :     const char* const apszAllowedDrivers[2] = { &quot;GTiff&quot;, nullptr };</span>
+<span class="lineNum">    1231 </span>            :     GDALDataset* poDS = reinterpret_cast&lt;GDALDataset *&gt;(
+<span class="lineNum">    1232 </span>            :         GDALOpenEx( osTmpFilename, GDAL_OF_RASTER | GDAL_OF_INTERNAL,
+<span class="lineNum">    1233 </span><span class="lineCov">          9 :                     apszAllowedDrivers, nullptr, nullptr ) );</span>
+<span class="lineNum">    1234 </span><span class="lineCov">          9 :     if( poDS != nullptr )</span>
+<span class="lineNum">    1235 </span>            :     {
+<span class="lineNum">    1236 </span><span class="lineCov">         23 :         if( poDS-&gt;GetRasterXSize() != nQuadSize ||</span>
+<span class="lineNum">    1237 </span><span class="lineCov">         15 :             poDS-&gt;GetRasterYSize() != nQuadSize ||</span>
+<span class="lineNum">    1238 </span><span class="lineCov">          7 :             poDS-&gt;GetRasterCount() != 4 )</span>
+<span class="lineNum">    1239 </span>            :         {
+<span class="lineNum">    1240 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1241 </span><span class="lineCov">          1 :                      &quot;Inconsistent metatile characteristics&quot;);</span>
+<span class="lineNum">    1242 </span><span class="lineCov">          1 :             GDALClose(poDS);</span>
+<span class="lineNum">    1243 </span><span class="lineCov">          1 :             poDS = nullptr;</span>
+<span class="lineNum">    1244 </span>            :         }
+<span class="lineNum">    1245 </span>            :     }
+<span class="lineNum">    1246 </span>            :     else
+<span class="lineNum">    1247 </span>            :     {
+<span class="lineNum">    1248 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Invalid GTiff dataset: %s&quot;,
+<span class="lineNum">    1249 </span><span class="lineCov">          1 :                  osTilename.c_str());</span>
+<span class="lineNum">    1250 </span>            :     }
+<span class="lineNum">    1251 </span>            : 
+<span class="lineNum">    1252 </span><span class="lineCov">          9 :     InsertNewDataset(osTilename, poDS);</span>
+<span class="lineNum">    1253 </span><span class="lineCov">          9 :     return poDS;</span>
+<span class="lineNum">    1254 </span>            : }
+<span class="lineNum">    1255 </span>            : 
+<span class="lineNum">    1256 </span>            : /************************************************************************/
+<span class="lineNum">    1257 </span>            : /*                            GetMetaTile()                             */
+<a name="1258"><span class="lineNum">    1258 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1259 </span>            : 
+<span class="lineNum">    1260 </span><span class="lineCov">         62 : GDALDataset* PLMosaicDataset::GetMetaTile(int tile_x, int tile_y)</span>
+<span class="lineNum">    1261 </span>            : {
+<span class="lineNum">    1262 </span><span class="lineCov">         62 :     const CPLString osTilename = formatTileName(tile_x, tile_y);</span>
+<span class="lineNum">    1263 </span>            :     std::map&lt;CPLString,PLLinkedDataset*&gt;::const_iterator it =
+<span class="lineNum">    1264 </span><span class="lineCov">         62 :                                                     oMapLinkedDatasets.find(osTilename);</span>
+<span class="lineNum">    1265 </span><span class="lineCov">         62 :     if( it == oMapLinkedDatasets.end() )</span>
+<span class="lineNum">    1266 </span>            :     {
+<span class="lineNum">    1267 </span><span class="lineCov">         25 :         CPLString osTmpFilename;</span>
+<span class="lineNum">    1268 </span>            : 
+<span class="lineNum">    1269 </span><span class="lineCov">         50 :         const CPLString osMosaicPath(GetMosaicCachePath());</span>
+<span class="lineNum">    1270 </span><span class="lineCov">         50 :         osTmpFilename = CPLFormFilename(osMosaicPath,</span>
+<span class="lineNum">    1271 </span><span class="lineCov">         25 :                 CPLSPrintf(&quot;%s_%s.tif&quot;, osMosaic.c_str(), CPLGetFilename(osTilename)), nullptr);</span>
+<span class="lineNum">    1272 </span>            :         VSIStatBufL sStatBuf;
+<span class="lineNum">    1273 </span>            : 
+<span class="lineNum">    1274 </span><span class="lineCov">         50 :         CPLString osURL = osQuadsURL;</span>
+<span class="lineNum">    1275 </span><span class="lineCov">         25 :         osURL += osTilename;</span>
+<span class="lineNum">    1276 </span><span class="lineCov">         25 :         osURL += &quot;/full&quot;;</span>
+<span class="lineNum">    1277 </span>            : 
+<span class="lineNum">    1278 </span><span class="lineCov">         25 :         if( !osCachePathRoot.empty() &amp;&amp; VSIStatL(osTmpFilename, &amp;sStatBuf) == 0 )</span>
+<span class="lineNum">    1279 </span>            :         {
+<span class="lineNum">    1280 </span><span class="lineCov">          3 :             if( bTrustCache )</span>
+<span class="lineNum">    1281 </span>            :             {
+<span class="lineNum">    1282 </span><span class="lineCov">          1 :                 return OpenAndInsertNewDataset(osTmpFilename, osTilename);</span>
+<span class="lineNum">    1283 </span>            :             }
+<span class="lineNum">    1284 </span>            : 
+<span class="lineNum">    1285 </span>            :             CPLDebug(&quot;PLMOSAIC&quot;, &quot;File %s exists. Checking if it is up-to-date...&quot;,
+<span class="lineNum">    1286 </span><span class="lineCov">          2 :                      osTmpFilename.c_str());</span>
+<span class="lineNum">    1287 </span>            :             // Currently we only check by file size, which should be good enough
+<span class="lineNum">    1288 </span>            :             // as the metatiles are compressed, so a change in content is likely
+<span class="lineNum">    1289 </span>            :             // to cause a change in filesize. Use of a signature would be better
+<span class="lineNum">    1290 </span>            :             // though if available in the metadata
+<span class="lineNum">    1291 </span>            :             VSIStatBufL sRemoteTileStatBuf;
+<span class="lineNum">    1292 </span>            :             char* pszEscapedURL = CPLEscapeString(
+<span class="lineNum">    1293 </span><span class="lineCov">          2 :                 (osURL + &quot;?api_key=&quot; + osAPIKey).c_str(), -1, CPLES_URL );</span>
+<span class="lineNum">    1294 </span>            :             CPLString osVSICURLUrl(
+<span class="lineNum">    1295 </span><span class="lineCov">          2 :                 STARTS_WITH(osURL, &quot;/vsimem/&quot;) ? osURL :</span>
+<span class="lineNum">    1296 </span><span class="lineCov">          2 :                     &quot;/vsicurl?use_head=no&amp;url=&quot; + CPLString(pszEscapedURL));</span>
+<span class="lineNum">    1297 </span><span class="lineCov">          2 :             CPLFree(pszEscapedURL);</span>
+<span class="lineNum">    1298 </span><span class="lineCov">          4 :             if( VSIStatL(osVSICURLUrl, &amp;sRemoteTileStatBuf) == 0 &amp;&amp;</span>
+<span class="lineNum">    1299 </span><span class="lineCov">          2 :                 sRemoteTileStatBuf.st_size == sStatBuf.st_size )</span>
+<span class="lineNum">    1300 </span>            :             {
+<span class="lineNum">    1301 </span><span class="lineCov">          1 :                 CPLDebug(&quot;PLMOSAIC&quot;, &quot;Cached tile is up-to-date&quot;);</span>
+<span class="lineNum">    1302 </span><span class="lineCov">          1 :                 return OpenAndInsertNewDataset(osTmpFilename, osTilename);</span>
+<span class="lineNum">    1303 </span>            :             }
+<span class="lineNum">    1304 </span>            :             else
+<span class="lineNum">    1305 </span>            :             {
+<span class="lineNum">    1306 </span><span class="lineCov">          1 :                 CPLDebug(&quot;PLMOSAIC&quot;, &quot;Cached tile is not up-to-date&quot;);</span>
+<span class="lineNum">    1307 </span><span class="lineCov">          1 :                 VSIUnlink(osTmpFilename);</span>
+<span class="lineNum">    1308 </span><span class="lineCov">          1 :             }</span>
+<span class="lineNum">    1309 </span>            :         }
+<span class="lineNum">    1310 </span>            : 
+<span class="lineNum">    1311 </span>            :         // Fetch the GeoTIFF now
+<span class="lineNum">    1312 </span>            : 
+<span class="lineNum">    1313 </span><span class="lineCov">         23 :         CPLHTTPResult* psResult = Download(osURL, TRUE);</span>
+<span class="lineNum">    1314 </span><span class="lineCov">         23 :         if( psResult == nullptr )</span>
+<span class="lineNum">    1315 </span>            :         {
+<span class="lineNum">    1316 </span><span class="lineCov">         16 :             InsertNewDataset(osTilename, nullptr);</span>
+<span class="lineNum">    1317 </span><span class="lineCov">         16 :             return nullptr;</span>
+<span class="lineNum">    1318 </span>            :         }
+<span class="lineNum">    1319 </span>            : 
+<span class="lineNum">    1320 </span><span class="lineCov">          7 :         CreateMosaicCachePathIfNecessary();</span>
+<span class="lineNum">    1321 </span>            : 
+<span class="lineNum">    1322 </span><span class="lineCov">          7 :         VSILFILE* fp = osCachePathRoot.size() ? VSIFOpenL(osTmpFilename, &quot;wb&quot;) : nullptr;</span>
+<span class="lineNum">    1323 </span><span class="lineCov">          7 :         if( fp )</span>
+<span class="lineNum">    1324 </span>            :         {
+<span class="lineNum">    1325 </span><span class="lineCov">          4 :             VSIFWriteL(psResult-&gt;pabyData, 1, psResult-&gt;nDataLen, fp);</span>
+<span class="lineNum">    1326 </span><span class="lineCov">          4 :             VSIFCloseL(fp);</span>
+<span class="lineNum">    1327 </span>            :         }
+<span class="lineNum">    1328 </span>            :         else
+<span class="lineNum">    1329 </span>            :         {
+<span class="lineNum">    1330 </span>            :             // In case there's no temporary path or it is not writable
+<span class="lineNum">    1331 </span>            :             // use a in-memory dataset, and limit the cache to only one
+<span class="lineNum">    1332 </span><span class="lineCov">          3 :             if( !osCachePathRoot.empty() &amp;&amp; nCacheMaxSize &gt; 1 )</span>
+<span class="lineNum">    1333 </span>            :             {
+<span class="lineNum">    1334 </span>            :                 CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1335 </span>            :                          &quot;Cannot write into %s. Using /vsimem and reduce cache to 1 entry&quot;,
+<span class="lineNum">    1336 </span><span class="lineCov">          1 :                          osCachePathRoot.c_str());</span>
+<span class="lineNum">    1337 </span><span class="lineCov">          1 :                 FlushDatasetsCache();</span>
+<span class="lineNum">    1338 </span><span class="lineCov">          1 :                 nCacheMaxSize = 1;</span>
+<span class="lineNum">    1339 </span>            :             }
+<span class="lineNum">    1340 </span><span class="lineCov">          6 :             osTmpFilename =</span>
+<span class="lineNum">    1341 </span>            :                 CPLSPrintf(&quot;/vsimem/single_tile_plmosaic_cache/%s/%d_%d.tif&quot;,
+<span class="lineNum">    1342 </span><span class="lineCov">          3 :                            osMosaic.c_str(), tile_x, tile_y);</span>
+<span class="lineNum">    1343 </span><span class="lineCov">          3 :             fp = VSIFOpenL(osTmpFilename, &quot;wb&quot;);</span>
+<span class="lineNum">    1344 </span><span class="lineCov">          3 :             if( fp )</span>
+<span class="lineNum">    1345 </span>            :             {
+<span class="lineNum">    1346 </span><span class="lineCov">          3 :                 VSIFWriteL(psResult-&gt;pabyData, 1, psResult-&gt;nDataLen, fp);</span>
+<span class="lineNum">    1347 </span><span class="lineCov">          3 :                 VSIFCloseL(fp);</span>
+<span class="lineNum">    1348 </span>            :             }
+<span class="lineNum">    1349 </span>            :         }
+<span class="lineNum">    1350 </span><span class="lineCov">          7 :         CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">    1351 </span><span class="lineCov">          7 :         GDALDataset* poDS = OpenAndInsertNewDataset(osTmpFilename, osTilename);</span>
+<span class="lineNum">    1352 </span>            : 
+<span class="lineNum">    1353 </span><span class="lineCov">          7 :         if( STARTS_WITH(osTmpFilename, &quot;/vsimem/single_tile_plmosaic_cache/&quot;) )</span>
+<span class="lineNum">    1354 </span><span class="lineCov">          3 :             VSIUnlink(osTilename);</span>
+<span class="lineNum">    1355 </span>            : 
+<span class="lineNum">    1356 </span><span class="lineCov">         32 :         return poDS;</span>
+<span class="lineNum">    1357 </span>            :     }
+<span class="lineNum">    1358 </span>            : 
+<span class="lineNum">    1359 </span>            :     // Move link to head of MRU list
+<span class="lineNum">    1360 </span><span class="lineCov">         37 :     PLLinkedDataset* psLinkedDataset = it-&gt;second;</span>
+<span class="lineNum">    1361 </span><span class="lineCov">         37 :     GDALDataset* poDS = psLinkedDataset-&gt;poDS;</span>
+<span class="lineNum">    1362 </span><span class="lineCov">         37 :     if( psLinkedDataset != psHead )</span>
+<span class="lineNum">    1363 </span>            :     {
+<span class="lineNum">    1364 </span><span class="lineCov">         18 :         if( psLinkedDataset == psTail )</span>
+<span class="lineNum">    1365 </span><span class="lineCov">          2 :             psTail = psLinkedDataset-&gt;psPrev;</span>
+<span class="lineNum">    1366 </span><span class="lineCov">         18 :         if( psLinkedDataset-&gt;psPrev )</span>
+<span class="lineNum">    1367 </span><span class="lineCov">         18 :             psLinkedDataset-&gt;psPrev-&gt;psNext = psLinkedDataset-&gt;psNext;</span>
+<span class="lineNum">    1368 </span><span class="lineCov">         18 :         if( psLinkedDataset-&gt;psNext )</span>
+<span class="lineNum">    1369 </span><span class="lineCov">         16 :             psLinkedDataset-&gt;psNext-&gt;psPrev = psLinkedDataset-&gt;psPrev;</span>
+<span class="lineNum">    1370 </span><span class="lineCov">         18 :         psLinkedDataset-&gt;psNext = psHead;</span>
+<span class="lineNum">    1371 </span><span class="lineCov">         18 :         psLinkedDataset-&gt;psPrev = nullptr;</span>
+<span class="lineNum">    1372 </span><span class="lineCov">         18 :         psHead-&gt;psPrev = psLinkedDataset;</span>
+<span class="lineNum">    1373 </span><span class="lineCov">         18 :         psHead = psLinkedDataset;</span>
+<span class="lineNum">    1374 </span>            :     }
+<span class="lineNum">    1375 </span>            : 
+<span class="lineNum">    1376 </span><span class="lineCov">         37 :     return poDS;</span>
+<span class="lineNum">    1377 </span>            : }
+<span class="lineNum">    1378 </span>            : 
+<span class="lineNum">    1379 </span>            : /************************************************************************/
+<span class="lineNum">    1380 </span>            : /*                         GetLocationInfo()                            */
+<a name="1381"><span class="lineNum">    1381 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1382 </span>            : 
+<span class="lineNum">    1383 </span><span class="lineCov">          4 : const char* PLMosaicDataset::GetLocationInfo(int nPixel, int nLine)</span>
+<span class="lineNum">    1384 </span>            : {
+<span class="lineNum">    1385 </span>            :     int nBlockXSize, nBlockYSize;
+<span class="lineNum">    1386 </span><span class="lineCov">          4 :     GetRasterBand(1)-&gt;GetBlockSize(&amp;nBlockXSize, &amp;nBlockYSize);</span>
+<span class="lineNum">    1387 </span>            : 
+<span class="lineNum">    1388 </span><span class="lineCov">          4 :     const int nBlockXOff = nPixel / nBlockXSize;</span>
+<span class="lineNum">    1389 </span><span class="lineCov">          4 :     const int nBlockYOff = nLine / nBlockYSize;</span>
+<span class="lineNum">    1390 </span><span class="lineCov">          4 :     const int bottom_yblock = (nRasterYSize - nBlockYOff * nBlockYSize) / nBlockYSize - 1;</span>
+<span class="lineNum">    1391 </span>            : 
+<span class="lineNum">    1392 </span><span class="lineCov">          4 :     const int meta_tile_x = nMetaTileXShift + (nBlockXOff * nBlockXSize) / nQuadSize;</span>
+<span class="lineNum">    1393 </span><span class="lineCov">          4 :     const int meta_tile_y = nMetaTileYShift + (bottom_yblock * nBlockYSize) / nQuadSize;</span>
+<span class="lineNum">    1394 </span>            : 
+<span class="lineNum">    1395 </span><span class="lineCov">          4 :     CPLString osQuadURL = osQuadsURL;</span>
+<span class="lineNum">    1396 </span><span class="lineCov">          8 :     CPLString osTilename = formatTileName(meta_tile_x, meta_tile_y);</span>
+<span class="lineNum">    1397 </span><span class="lineCov">          4 :     osQuadURL += osTilename;</span>
+<span class="lineNum">    1398 </span>            : 
+<span class="lineNum">    1399 </span><span class="lineCov">          4 :     if( meta_tile_x != nLastMetaTileX || meta_tile_y != nLastMetaTileY )</span>
+<span class="lineNum">    1400 </span>            :     {
+<span class="lineNum">    1401 </span><span class="lineCov">          3 :         const CPLString osQuadScenesURL = osQuadURL + &quot;/items&quot;;</span>
+<span class="lineNum">    1402 </span>            : 
+<span class="lineNum">    1403 </span><span class="lineCov">          3 :         json_object_put(poLastItemsInformation);</span>
+<span class="lineNum">    1404 </span><span class="lineCov">          3 :         poLastItemsInformation = RunRequest(osQuadScenesURL, TRUE);</span>
+<span class="lineNum">    1405 </span>            : 
+<span class="lineNum">    1406 </span><span class="lineCov">          3 :         nLastMetaTileX = meta_tile_x;</span>
+<span class="lineNum">    1407 </span><span class="lineCov">          3 :         nLastMetaTileY = meta_tile_y;</span>
+<span class="lineNum">    1408 </span>            :     }
+<span class="lineNum">    1409 </span>            : 
+<span class="lineNum">    1410 </span><span class="lineCov">          4 :     osLastRetGetLocationInfo.clear();</span>
+<span class="lineNum">    1411 </span>            : 
+<span class="lineNum">    1412 </span><span class="lineCov">          4 :     CPLXMLNode* psRoot = CPLCreateXMLNode(nullptr, CXT_Element, &quot;LocationInfo&quot;);</span>
+<span class="lineNum">    1413 </span>            : 
+<span class="lineNum">    1414 </span><span class="lineCov">          4 :     if( poLastItemsInformation )</span>
+<span class="lineNum">    1415 </span>            :     {
+<span class="lineNum">    1416 </span><span class="lineCov">          2 :         json_object* poItems = CPL_json_object_object_get(poLastItemsInformation, &quot;items&quot;);</span>
+<span class="lineNum">    1417 </span><span class="lineCov">          4 :         if( poItems &amp;&amp; json_object_get_type(poItems) == json_type_array &amp;&amp;</span>
+<span class="lineNum">    1418 </span><span class="lineCov">          2 :             json_object_array_length(poItems) != 0 )</span>
+<span class="lineNum">    1419 </span>            :         {
+<span class="lineNum">    1420 </span>            :             CPLXMLNode* psScenes =
+<span class="lineNum">    1421 </span><span class="lineCov">          2 :                 CPLCreateXMLNode(psRoot, CXT_Element, &quot;Scenes&quot;);</span>
+<span class="lineNum">    1422 </span><span class="lineCov">          2 :             const auto nItemsLength = json_object_array_length(poItems);</span>
+<span class="lineNum">    1423 </span><span class="lineCov">          4 :             for(auto i = decltype(nItemsLength){0}; i &lt; nItemsLength; i++ )</span>
+<span class="lineNum">    1424 </span>            :             {
+<span class="lineNum">    1425 </span><span class="lineCov">          2 :                 json_object* poObj = json_object_array_get_idx(poItems, i);</span>
+<span class="lineNum">    1426 </span><span class="lineCov">          2 :                 if ( poObj &amp;&amp; json_object_get_type(poObj) == json_type_object )</span>
+<span class="lineNum">    1427 </span>            :                 {
+<span class="lineNum">    1428 </span><span class="lineCov">          2 :                     json_object* poLink = CPL_json_object_object_get(poObj, &quot;link&quot;);</span>
+<span class="lineNum">    1429 </span><span class="lineCov">          2 :                     if( poLink )</span>
+<span class="lineNum">    1430 </span>            :                     {
+<span class="lineNum">    1431 </span><span class="lineCov">          2 :                         CPLXMLNode* psScene = CPLCreateXMLNode(psScenes, CXT_Element, &quot;Scene&quot;);</span>
+<span class="lineNum">    1432 </span>            :                         CPLXMLNode* psItem = CPLCreateXMLNode(psScene,
+<span class="lineNum">    1433 </span><span class="lineCov">          2 :                                 CXT_Element, &quot;link&quot;);</span>
+<span class="lineNum">    1434 </span><span class="lineCov">          2 :                         CPLCreateXMLNode(psItem, CXT_Text, json_object_get_string(poLink));</span>
+<span class="lineNum">    1435 </span>            :                     }
+<span class="lineNum">    1436 </span>            :                 }
+<span class="lineNum">    1437 </span>            :             }
+<span class="lineNum">    1438 </span>            :         }
+<span class="lineNum">    1439 </span>            :     }
+<span class="lineNum">    1440 </span>            : 
+<span class="lineNum">    1441 </span><span class="lineCov">          4 :     char* pszXML = CPLSerializeXMLTree(psRoot);</span>
+<span class="lineNum">    1442 </span><span class="lineCov">          4 :     CPLDestroyXMLNode(psRoot);</span>
+<span class="lineNum">    1443 </span><span class="lineCov">          4 :     osLastRetGetLocationInfo = pszXML;</span>
+<span class="lineNum">    1444 </span><span class="lineCov">          4 :     CPLFree(pszXML);</span>
+<span class="lineNum">    1445 </span>            : 
+<span class="lineNum">    1446 </span><span class="lineCov">          8 :     return osLastRetGetLocationInfo.c_str();</span>
+<span class="lineNum">    1447 </span>            : }
+<span class="lineNum">    1448 </span>            : 
+<span class="lineNum">    1449 </span>            : /************************************************************************/
+<span class="lineNum">    1450 </span>            : /*                             IRasterIO()                              */
+<a name="1451"><span class="lineNum">    1451 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1452 </span>            : 
+<span class="lineNum">    1453 </span><span class="lineCov">          6 : CPLErr  PLMosaicDataset::IRasterIO( GDALRWFlag eRWFlag,</span>
+<span class="lineNum">    1454 </span>            :                                int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">    1455 </span>            :                                void * pData, int nBufXSize, int nBufYSize,
+<span class="lineNum">    1456 </span>            :                                GDALDataType eBufType,
+<span class="lineNum">    1457 </span>            :                                int nBandCount, int *panBandMap,
+<span class="lineNum">    1458 </span>            :                                GSpacing nPixelSpace, GSpacing nLineSpace,
+<span class="lineNum">    1459 </span>            :                                GSpacing nBandSpace,
+<span class="lineNum">    1460 </span>            :                                GDALRasterIOExtraArg* psExtraArg)
+<span class="lineNum">    1461 </span>            : {
+<span class="lineNum">    1462 </span><span class="lineCov">          6 :     if( bUseTMSForMain &amp;&amp; !apoTMSDS.empty() )</span>
+<span class="lineNum">    1463 </span><span class="lineCov">          1 :         return apoTMSDS[0]-&gt;RasterIO( eRWFlag, nXOff, nYOff, nXSize, nYSize,</span>
+<span class="lineNum">    1464 </span>            :                                   pData, nBufXSize, nBufYSize,
+<span class="lineNum">    1465 </span>            :                                   eBufType, nBandCount, panBandMap,
+<span class="lineNum">    1466 </span>            :                                   nPixelSpace, nLineSpace, nBandSpace,
+<span class="lineNum">    1467 </span><span class="lineCov">          1 :                                   psExtraArg );</span>
+<span class="lineNum">    1468 </span>            : 
+<span class="lineNum">    1469 </span>            :     return BlockBasedRasterIO( eRWFlag, nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">    1470 </span>            :                                pData, nBufXSize, nBufYSize,
+<span class="lineNum">    1471 </span>            :                                eBufType, nBandCount, panBandMap,
+<span class="lineNum">    1472 </span>            :                                nPixelSpace, nLineSpace, nBandSpace,
+<span class="lineNum">    1473 </span><span class="lineCov">          5 :                                psExtraArg );</span>
+<span class="lineNum">    1474 </span>            : }
+<span class="lineNum">    1475 </span>            : 
+<span class="lineNum">    1476 </span>            : /************************************************************************/
+<span class="lineNum">    1477 </span>            : /*                      GDALRegister_PLMOSAIC()                         */
+<a name="1478"><span class="lineNum">    1478 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1479 </span>            : 
+<span class="lineNum">    1480 </span><span class="lineCov">       1109 : void GDALRegister_PLMOSAIC()</span>
+<span class="lineNum">    1481 </span>            : 
+<span class="lineNum">    1482 </span>            : {
+<span class="lineNum">    1483 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( &quot;PLMOSAIC&quot; ) != nullptr )</span>
+<span class="lineNum">    1484 </span><span class="lineCov">       1231 :         return;</span>
+<span class="lineNum">    1485 </span>            : 
+<span class="lineNum">    1486 </span><span class="lineCov">        987 :     GDALDriver *poDriver = new GDALDriver();</span>
+<span class="lineNum">    1487 </span>            : 
+<span class="lineNum">    1488 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( &quot;PLMOSAIC&quot; );</span>
+<span class="lineNum">    1489 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">    1490 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME,
+<span class="lineNum">    1491 </span><span class="lineCov">        987 :                                &quot;Planet Labs Mosaics API&quot; );</span>
+<span class="lineNum">    1492 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_HELPTOPIC,
+<span class="lineNum">    1493 </span><span class="lineCov">        987 :                                &quot;frmt_plmosaic.html&quot; );</span>
+<span class="lineNum">    1494 </span>            : 
+<span class="lineNum">    1495 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_CONNECTION_PREFIX, &quot;PLMOSAIC:&quot; );</span>
+<span class="lineNum">    1496 </span>            : 
+<span class="lineNum">    1497 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_OPENOPTIONLIST,
+<span class="lineNum">    1498 </span>            : &quot;&lt;OpenOptionList&gt;&quot;
+<span class="lineNum">    1499 </span>            : &quot;  &lt;Option name='API_KEY' type='string' description='Account API key' required='true'/&gt;&quot;
+<span class="lineNum">    1500 </span>            : &quot;  &lt;Option name='MOSAIC' type='string' description='Mosaic name'/&gt;&quot;
+<span class="lineNum">    1501 </span>            : &quot;  &lt;Option name='CACHE_PATH' type='string' description='Directory where to put cached quads'/&gt;&quot;
+<span class="lineNum">    1502 </span>            : &quot;  &lt;Option name='TRUST_CACHE' type='boolean' description='Whether already cached quads should be trusted as the most recent version' default='NO'/&gt;&quot;
+<span class="lineNum">    1503 </span>            : &quot;  &lt;Option name='USE_TILES' type='boolean' description='Whether to use the tile API even for full resolution data (only for Byte mosaics)' default='NO'/&gt;&quot;
+<span class="lineNum">    1504 </span><span class="lineCov">        987 : &quot;&lt;/OpenOptionList&gt;&quot; );</span>
+<span class="lineNum">    1505 </span>            : 
+<span class="lineNum">    1506 </span><span class="lineCov">        987 :     poDriver-&gt;pfnIdentify = PLMosaicDataset::Identify;</span>
+<span class="lineNum">    1507 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = PLMosaicDataset::Open;</span>
+<span class="lineNum">    1508 </span>            : 
+<span class="lineNum">    1509 </span><span class="lineCov">        987 :     GetGDALDriverManager()-&gt;RegisterDriver( poDriver );</span>
+<span class="lineNum">    1510 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

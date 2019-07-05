@@ -1,0 +1,767 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/geojson/ogrtopojsonreader.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/geojson</a> - ogrtopojsonreader.cpp<span style="font-size: 80%;"> (source / <a href="ogrtopojsonreader.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">318</td>
+            <td class="headerCovTableEntry">325</td>
+            <td class="headerCovTableEntryHi">97.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">13</td>
+            <td class="headerCovTableEntry">13</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  OpenGIS Simple Features Reference Implementation
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of OGRTopoJSONReader class
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, even dot rouault at spatialys.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;ogrgeojsonreader.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;ogrgeojsonutils.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;ogr_geojson.h&quot;
+<span class="lineNum">      32 </span>            : #include &lt;json.h&gt;  // JSON-C
+<span class="lineNum">      33 </span>            : #include &lt;ogr_api.h&gt;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : /************************************************************************/
+<span class="lineNum">      38 </span>            : /*                          OGRTopoJSONReader()                         */
+<a name="39"><span class="lineNum">      39 </span>            : /************************************************************************/</a>
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span><span class="lineCov">          4 : OGRTopoJSONReader::OGRTopoJSONReader() : poGJObject_( nullptr ) {}</span>
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : /************************************************************************/
+<span class="lineNum">      44 </span>            : /*                         ~OGRTopoJSONReader()                         */
+<a name="45"><span class="lineNum">      45 </span>            : /************************************************************************/</a>
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span><span class="lineCov">          4 : OGRTopoJSONReader::~OGRTopoJSONReader()</span>
+<span class="lineNum">      48 </span>            : {
+<span class="lineNum">      49 </span><span class="lineCov">          4 :     if( nullptr != poGJObject_ )</span>
+<span class="lineNum">      50 </span>            :     {
+<span class="lineNum">      51 </span><span class="lineCov">          3 :         json_object_put(poGJObject_);</span>
+<span class="lineNum">      52 </span>            :     }
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span><span class="lineCov">          4 :     poGJObject_ = nullptr;</span>
+<span class="lineNum">      55 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : /************************************************************************/
+<span class="lineNum">      58 </span>            : /*                           Parse()                                    */
+<a name="59"><span class="lineNum">      59 </span>            : /************************************************************************/</a>
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span><span class="lineCov">          4 : OGRErr OGRTopoJSONReader::Parse( const char* pszText )</span>
+<span class="lineNum">      62 </span>            : {
+<span class="lineNum">      63 </span><span class="lineCov">          4 :     json_object *jsobj = nullptr;</span>
+<span class="lineNum">      64 </span><span class="lineCov">          4 :     if( nullptr != pszText &amp;&amp; !OGRJSonParse(pszText, &amp;jsobj, true) )</span>
+<span class="lineNum">      65 </span>            :     {
+<span class="lineNum">      66 </span><span class="lineCov">          1 :         return OGRERR_CORRUPT_DATA;</span>
+<span class="lineNum">      67 </span>            :     }
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span>            :     // JSON tree is shared for while lifetime of the reader object
+<span class="lineNum">      70 </span>            :     // and will be released in the destructor.
+<span class="lineNum">      71 </span><span class="lineCov">          3 :     poGJObject_ = jsobj;</span>
+<span class="lineNum">      72 </span><span class="lineCov">          3 :     return OGRERR_NONE;</span>
+<span class="lineNum">      73 </span>            : }
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            : typedef struct
+<span class="lineNum">      76 </span>            : {
+<span class="lineNum">      77 </span>            :     double dfScale0;
+<span class="lineNum">      78 </span>            :     double dfScale1;
+<span class="lineNum">      79 </span>            :     double dfTranslate0;
+<span class="lineNum">      80 </span>            :     double dfTranslate1;
+<span class="lineNum">      81 </span>            :     bool bElementExists;
+<span class="lineNum">      82 </span>            : } ScalingParams;
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            : /************************************************************************/
+<span class="lineNum">      85 </span>            : /*                            ParsePoint()                              */
+<a name="86"><span class="lineNum">      86 </span>            : /************************************************************************/</a>
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span><span class="lineCov">         89 : static bool ParsePoint( json_object* poPoint, double* pdfX, double* pdfY )</span>
+<span class="lineNum">      89 </span>            : {
+<span class="lineNum">      90 </span><span class="lineCov">        175 :     if( poPoint != nullptr &amp;&amp; json_type_array == json_object_get_type(poPoint) &amp;&amp;</span>
+<span class="lineNum">      91 </span><span class="lineCov">         86 :         json_object_array_length(poPoint) == 2 )</span>
+<span class="lineNum">      92 </span>            :     {
+<span class="lineNum">      93 </span><span class="lineCov">         80 :         json_object* poX = json_object_array_get_idx(poPoint, 0);</span>
+<span class="lineNum">      94 </span><span class="lineCov">         80 :         json_object* poY = json_object_array_get_idx(poPoint, 1);</span>
+<span class="lineNum">      95 </span><span class="lineCov">        159 :         if( poX != nullptr &amp;&amp;</span>
+<span class="lineNum">      96 </span><span class="lineCov">         85 :             (json_type_int == json_object_get_type(poX) ||</span>
+<span class="lineNum">      97 </span><span class="lineCov">         85 :                 json_type_double == json_object_get_type(poX)) &amp;&amp;</span>
+<span class="lineNum">      98 </span><span class="lineCov">        238 :             poY != nullptr &amp;&amp;</span>
+<span class="lineNum">      99 </span><span class="lineCov">         85 :             (json_type_int == json_object_get_type(poY) ||</span>
+<span class="lineNum">     100 </span><span class="lineCov">          6 :                 json_type_double == json_object_get_type(poY)) )</span>
+<span class="lineNum">     101 </span>            :         {
+<span class="lineNum">     102 </span><span class="lineCov">         79 :             *pdfX = json_object_get_double(poX);</span>
+<span class="lineNum">     103 </span><span class="lineCov">         79 :             *pdfY = json_object_get_double(poY);</span>
+<span class="lineNum">     104 </span><span class="lineCov">         79 :             return true;</span>
+<span class="lineNum">     105 </span>            :         }
+<span class="lineNum">     106 </span>            :     }
+<span class="lineNum">     107 </span><span class="lineCov">         10 :     return false;</span>
+<span class="lineNum">     108 </span>            : }
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span>            : /************************************************************************/
+<span class="lineNum">     111 </span>            : /*                             ParseArc()                               */
+<a name="112"><span class="lineNum">     112 </span>            : /************************************************************************/</a>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineCov">         30 : static void ParseArc( OGRLineString* poLS, json_object* poArcsDB, int nArcID,</span>
+<span class="lineNum">     115 </span>            :                       bool bReverse, ScalingParams* psParams )
+<span class="lineNum">     116 </span>            : {
+<span class="lineNum">     117 </span><span class="lineCov">         30 :     json_object* poArcDB = json_object_array_get_idx(poArcsDB, nArcID);</span>
+<span class="lineNum">     118 </span><span class="lineCov">         30 :     if( poArcDB == nullptr || json_type_array != json_object_get_type(poArcDB) )</span>
+<span class="lineNum">     119 </span><span class="lineCov">         31 :         return;</span>
+<span class="lineNum">     120 </span><span class="lineCov">         29 :     auto nPoints = json_object_array_length(poArcDB);</span>
+<span class="lineNum">     121 </span><span class="lineCov">         29 :     double dfAccX = 0.0;</span>
+<span class="lineNum">     122 </span><span class="lineCov">         29 :     double dfAccY = 0.0;</span>
+<span class="lineNum">     123 </span><span class="lineCov">         29 :     int nBaseIndice = poLS-&gt;getNumPoints();</span>
+<span class="lineNum">     124 </span><span class="lineCov">        109 :     for( auto i = decltype(nPoints){0}; i &lt; nPoints; i++ )</span>
+<span class="lineNum">     125 </span>            :     {
+<span class="lineNum">     126 </span><span class="lineCov">         80 :         json_object* poPoint = json_object_array_get_idx(poArcDB, i);</span>
+<span class="lineNum">     127 </span><span class="lineCov">         80 :         double dfX = 0.0;</span>
+<span class="lineNum">     128 </span><span class="lineCov">         80 :         double dfY = 0.0;</span>
+<span class="lineNum">     129 </span><span class="lineCov">         80 :         if( ParsePoint( poPoint, &amp;dfX, &amp;dfY ) )</span>
+<span class="lineNum">     130 </span>            :         {
+<span class="lineNum">     131 </span><span class="lineCov">         76 :             if( psParams-&gt;bElementExists )</span>
+<span class="lineNum">     132 </span>            :             {
+<span class="lineNum">     133 </span><span class="lineCov">         66 :                 dfAccX += dfX;</span>
+<span class="lineNum">     134 </span><span class="lineCov">         66 :                 dfAccY += dfY;</span>
+<span class="lineNum">     135 </span><span class="lineCov">         66 :                 dfX = dfAccX * psParams-&gt;dfScale0 + psParams-&gt;dfTranslate0;</span>
+<span class="lineNum">     136 </span><span class="lineCov">         66 :                 dfY = dfAccY * psParams-&gt;dfScale1 + psParams-&gt;dfTranslate1;</span>
+<span class="lineNum">     137 </span>            :             }
+<span class="lineNum">     138 </span>            :             else
+<span class="lineNum">     139 </span>            :             {
+<span class="lineNum">     140 </span><span class="lineCov">         10 :                 dfX = dfX * psParams-&gt;dfScale0 + psParams-&gt;dfTranslate0;</span>
+<span class="lineNum">     141 </span><span class="lineCov">         10 :                 dfY = dfY * psParams-&gt;dfScale1 + psParams-&gt;dfTranslate1;</span>
+<span class="lineNum">     142 </span>            :             }
+<span class="lineNum">     143 </span><span class="lineCov">         76 :             if( i == 0 )</span>
+<span class="lineNum">     144 </span>            :             {
+<span class="lineNum">     145 </span><span class="lineCov">         24 :                 if( !bReverse &amp;&amp; poLS-&gt;getNumPoints() &gt; 0 )</span>
+<span class="lineNum">     146 </span>            :                 {
+<span class="lineNum">     147 </span><span class="lineCov">          3 :                     poLS-&gt;setNumPoints( nBaseIndice +</span>
+<span class="lineNum">     148 </span><span class="lineCov">          3 :                                         static_cast&lt;int&gt;(nPoints) - 1 );</span>
+<span class="lineNum">     149 </span><span class="lineCov">          3 :                     nBaseIndice --;</span>
+<span class="lineNum">     150 </span><span class="lineCov">          3 :                     continue;</span>
+<span class="lineNum">     151 </span>            :                 }
+<span class="lineNum">     152 </span><span class="lineCov">         21 :                 else if( bReverse &amp;&amp; poLS-&gt;getNumPoints() &gt; 0 )</span>
+<span class="lineNum">     153 </span>            :                 {
+<span class="lineNum">     154 </span><span class="lineCov">          4 :                     poLS-&gt;setNumPoints( nBaseIndice +</span>
+<span class="lineNum">     155 </span><span class="lineCov">          4 :                                         static_cast&lt;int&gt;(nPoints) - 1 );</span>
+<span class="lineNum">     156 </span><span class="lineCov">          4 :                     nPoints --;</span>
+<span class="lineNum">     157 </span><span class="lineCov">          4 :                     if( nPoints == 0 )</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">     159 </span>            :                 }
+<span class="lineNum">     160 </span>            :                 else
+<span class="lineNum">     161 </span>            :                     poLS-&gt;setNumPoints( nBaseIndice +
+<span class="lineNum">     162 </span><span class="lineCov">         17 :                                         static_cast&lt;int&gt;(nPoints) );</span>
+<span class="lineNum">     163 </span>            :             }
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span><span class="lineCov">         73 :             if( !bReverse )</span>
+<span class="lineNum">     166 </span><span class="lineCov">         46 :                 poLS-&gt;setPoint(nBaseIndice + static_cast&lt;int&gt;(i), dfX, dfY);</span>
+<span class="lineNum">     167 </span>            :             else
+<span class="lineNum">     168 </span><span class="lineCov">         27 :                 poLS-&gt;setPoint(nBaseIndice + static_cast&lt;int&gt;(nPoints) - 1 -</span>
+<span class="lineNum">     169 </span><span class="lineCov">         54 :                                static_cast&lt;int&gt;(i), dfX, dfY);</span>
+<span class="lineNum">     170 </span>            :         }
+<span class="lineNum">     171 </span>            :     }
+<span class="lineNum">     172 </span>            : }
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span>            : /************************************************************************/
+<span class="lineNum">     175 </span>            : /*                        ParseLineString()                             */
+<a name="176"><span class="lineNum">     176 </span>            : /************************************************************************/</a>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span><span class="lineCov">         27 : static void ParseLineString( OGRLineString* poLS, json_object* poRing,</span>
+<span class="lineNum">     179 </span>            :                              json_object* poArcsDB, ScalingParams* psParams )
+<span class="lineNum">     180 </span>            : {
+<span class="lineNum">     181 </span><span class="lineCov">         27 :     const auto nArcsDB = json_object_array_length(poArcsDB);</span>
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span><span class="lineCov">         27 :     const auto nArcsRing = json_object_array_length(poRing);</span>
+<span class="lineNum">     184 </span><span class="lineCov">         60 :     for( auto j = decltype(nArcsRing){0}; j &lt; nArcsRing; j++ )</span>
+<span class="lineNum">     185 </span>            :     {
+<span class="lineNum">     186 </span><span class="lineCov">         33 :         json_object* poArcId = json_object_array_get_idx(poRing, j);</span>
+<span class="lineNum">     187 </span><span class="lineCov">         33 :         if( poArcId != nullptr &amp;&amp; json_type_int == json_object_get_type(poArcId) )</span>
+<span class="lineNum">     188 </span>            :         {
+<span class="lineNum">     189 </span><span class="lineCov">         32 :             int nArcId = json_object_get_int(poArcId);</span>
+<span class="lineNum">     190 </span><span class="lineCov">         32 :             bool bReverse = false;</span>
+<span class="lineNum">     191 </span><span class="lineCov">         32 :             if( nArcId &lt; 0 )</span>
+<span class="lineNum">     192 </span>            :             {
+<span class="lineNum">     193 </span><span class="lineCov">         10 :                 nArcId = -(nArcId + 1);</span>
+<span class="lineNum">     194 </span><span class="lineCov">         10 :                 bReverse = true;</span>
+<span class="lineNum">     195 </span>            :             }
+<span class="lineNum">     196 </span><span class="lineCov">         32 :             if( nArcId &lt; static_cast&lt;int&gt;(nArcsDB) )</span>
+<span class="lineNum">     197 </span>            :             {
+<span class="lineNum">     198 </span><span class="lineCov">         30 :                 ParseArc(poLS, poArcsDB, nArcId, bReverse, psParams);</span>
+<span class="lineNum">     199 </span>            :             }
+<span class="lineNum">     200 </span>            :         }
+<span class="lineNum">     201 </span>            :     }
+<span class="lineNum">     202 </span><span class="lineCov">         27 : }</span>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span>            : /************************************************************************/
+<span class="lineNum">     205 </span>            : /*                          ParsePolygon()                              */
+<a name="206"><span class="lineNum">     206 </span>            : /************************************************************************/</a>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineCov">          8 : static void ParsePolygon( OGRPolygon* poPoly, json_object* poArcsObj,</span>
+<span class="lineNum">     209 </span>            :                           json_object* poArcsDB, ScalingParams* psParams )
+<span class="lineNum">     210 </span>            : {
+<span class="lineNum">     211 </span><span class="lineCov">          8 :     const auto nRings = json_object_array_length(poArcsObj);</span>
+<span class="lineNum">     212 </span><span class="lineCov">         16 :     for( auto i = decltype(nRings){0}; i &lt; nRings; i++ )</span>
+<span class="lineNum">     213 </span>            :     {
+<span class="lineNum">     214 </span><span class="lineCov">          8 :         OGRLinearRing* poLR = new OGRLinearRing();</span>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineCov">          8 :         json_object* poRing = json_object_array_get_idx(poArcsObj, i);</span>
+<span class="lineNum">     217 </span><span class="lineCov">          8 :         if( poRing != nullptr &amp;&amp; json_type_array == json_object_get_type(poRing) )</span>
+<span class="lineNum">     218 </span>            :         {
+<span class="lineNum">     219 </span><span class="lineCov">          6 :             ParseLineString(poLR, poRing, poArcsDB, psParams);</span>
+<span class="lineNum">     220 </span>            :         }
+<span class="lineNum">     221 </span><span class="lineCov">          8 :         poLR-&gt;closeRings();</span>
+<span class="lineNum">     222 </span><span class="lineCov">          8 :         if( poLR-&gt;getNumPoints() &lt; 4 )</span>
+<span class="lineNum">     223 </span>            :         {
+<span class="lineNum">     224 </span>            :             CPLDebug(&quot;TopoJSON&quot;, &quot;Discarding polygon ring made of %d points&quot;,
+<span class="lineNum">     225 </span><span class="lineCov">          2 :                      poLR-&gt;getNumPoints());</span>
+<span class="lineNum">     226 </span><span class="lineCov">          2 :             delete poLR;</span>
+<span class="lineNum">     227 </span>            :         }
+<span class="lineNum">     228 </span>            :         else
+<span class="lineNum">     229 </span>            :         {
+<span class="lineNum">     230 </span><span class="lineCov">          6 :             poPoly-&gt;addRingDirectly(poLR);</span>
+<span class="lineNum">     231 </span>            :         }
+<span class="lineNum">     232 </span>            :     }
+<span class="lineNum">     233 </span><span class="lineCov">          8 : }</span>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            : /************************************************************************/
+<span class="lineNum">     236 </span>            : /*                       ParseMultiLineString()                         */
+<a name="237"><span class="lineNum">     237 </span>            : /************************************************************************/</a>
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span><span class="lineCov">          5 : static void ParseMultiLineString( OGRMultiLineString* poMLS,</span>
+<span class="lineNum">     240 </span>            :                                   json_object* poArcsObj,
+<span class="lineNum">     241 </span>            :                                   json_object* poArcsDB,
+<span class="lineNum">     242 </span>            :                                   ScalingParams* psParams )
+<span class="lineNum">     243 </span>            : {
+<span class="lineNum">     244 </span><span class="lineCov">          5 :     const auto nRings = json_object_array_length(poArcsObj);</span>
+<span class="lineNum">     245 </span><span class="lineCov">         10 :     for( auto i = decltype(nRings){0}; i &lt; nRings; i++ )</span>
+<span class="lineNum">     246 </span>            :     {
+<span class="lineNum">     247 </span><span class="lineCov">          5 :         OGRLineString* poLS = new OGRLineString();</span>
+<span class="lineNum">     248 </span><span class="lineCov">          5 :         poMLS-&gt;addGeometryDirectly(poLS);</span>
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span><span class="lineCov">          5 :         json_object* poRing = json_object_array_get_idx(poArcsObj, i);</span>
+<span class="lineNum">     251 </span><span class="lineCov">          5 :         if( poRing != nullptr &amp;&amp; json_type_array == json_object_get_type(poRing) )</span>
+<span class="lineNum">     252 </span>            :         {
+<span class="lineNum">     253 </span><span class="lineCov">          4 :             ParseLineString(poLS, poRing, poArcsDB, psParams);</span>
+<span class="lineNum">     254 </span>            :         }
+<span class="lineNum">     255 </span>            :     }
+<span class="lineNum">     256 </span><span class="lineCov">          5 : }</span>
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span>            : /************************************************************************/
+<span class="lineNum">     259 </span>            : /*                       ParseMultiPolygon()                            */
+<a name="260"><span class="lineNum">     260 </span>            : /************************************************************************/</a>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span><span class="lineCov">          4 : static void ParseMultiPolygon( OGRMultiPolygon* poMultiPoly,</span>
+<span class="lineNum">     263 </span>            :                                json_object* poArcsObj,
+<span class="lineNum">     264 </span>            :                                json_object* poArcsDB, ScalingParams* psParams )
+<span class="lineNum">     265 </span>            : {
+<span class="lineNum">     266 </span><span class="lineCov">          4 :     const auto nPolys = json_object_array_length(poArcsObj);</span>
+<span class="lineNum">     267 </span><span class="lineCov">          8 :     for( auto i = decltype(nPolys){0}; i &lt; nPolys; i++ )</span>
+<span class="lineNum">     268 </span>            :     {
+<span class="lineNum">     269 </span><span class="lineCov">          4 :         OGRPolygon* poPoly = new OGRPolygon();</span>
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span><span class="lineCov">          4 :         json_object* poPolyArcs = json_object_array_get_idx(poArcsObj, i);</span>
+<span class="lineNum">     272 </span><span class="lineCov">          7 :         if( poPolyArcs != nullptr &amp;&amp;</span>
+<span class="lineNum">     273 </span><span class="lineCov">          3 :             json_type_array == json_object_get_type(poPolyArcs) )</span>
+<span class="lineNum">     274 </span>            :         {
+<span class="lineNum">     275 </span><span class="lineCov">          3 :             ParsePolygon(poPoly, poPolyArcs, poArcsDB, psParams);</span>
+<span class="lineNum">     276 </span>            :         }
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span><span class="lineCov">          4 :         if( poPoly-&gt;IsEmpty() )</span>
+<span class="lineNum">     279 </span>            :         {
+<span class="lineNum">     280 </span><span class="lineCov">          2 :             delete poPoly;</span>
+<span class="lineNum">     281 </span>            :         }
+<span class="lineNum">     282 </span>            :         else
+<span class="lineNum">     283 </span>            :         {
+<span class="lineNum">     284 </span><span class="lineCov">          2 :             poMultiPoly-&gt;addGeometryDirectly(poPoly);</span>
+<span class="lineNum">     285 </span>            :         }
+<span class="lineNum">     286 </span>            :     }
+<span class="lineNum">     287 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span>            : /************************************************************************/
+<span class="lineNum">     290 </span>            : /*                          ParseObject()                               */
+<a name="291"><span class="lineNum">     291 </span>            : /************************************************************************/</a>
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span><span class="lineCov">         58 : static void ParseObject( const char* pszId,</span>
+<span class="lineNum">     294 </span>            :                          json_object* poObj, OGRGeoJSONLayer* poLayer,
+<span class="lineNum">     295 </span>            :                          json_object* poArcsDB, ScalingParams* psParams )
+<span class="lineNum">     296 </span>            : {
+<span class="lineNum">     297 </span><span class="lineCov">         58 :     json_object* poType = OGRGeoJSONFindMemberByName(poObj, &quot;type&quot;);</span>
+<span class="lineNum">     298 </span><span class="lineCov">         58 :     if( poType == nullptr || json_object_get_type(poType) != json_type_string )</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     300 </span><span class="lineCov">         58 :     const char* pszType = json_object_get_string(poType);</span>
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span><span class="lineCov">         58 :     json_object* poArcsObj = OGRGeoJSONFindMemberByName(poObj, &quot;arcs&quot;);</span>
+<span class="lineNum">     303 </span>            :     json_object* poCoordinatesObj =
+<span class="lineNum">     304 </span><span class="lineCov">         58 :         OGRGeoJSONFindMemberByName(poObj, &quot;coordinates&quot;);</span>
+<span class="lineNum">     305 </span><span class="lineCov">         58 :     if( strcmp(pszType, &quot;Point&quot;) == 0 || strcmp(pszType, &quot;MultiPoint&quot;) == 0 )</span>
+<span class="lineNum">     306 </span>            :     {
+<span class="lineNum">     307 </span><span class="lineCov">         35 :         if( poCoordinatesObj == nullptr ||</span>
+<span class="lineNum">     308 </span><span class="lineCov">         11 :             json_type_array != json_object_get_type(poCoordinatesObj) )</span>
+<span class="lineNum">     309 </span><span class="lineCov">          6 :             return;</span>
+<span class="lineNum">     310 </span>            :     }
+<span class="lineNum">     311 </span>            :     else
+<span class="lineNum">     312 </span>            :     {
+<span class="lineNum">     313 </span><span class="lineCov">         78 :         if( poArcsObj == nullptr ||</span>
+<span class="lineNum">     314 </span><span class="lineCov">         35 :             json_type_array != json_object_get_type(poArcsObj) )</span>
+<span class="lineNum">     315 </span><span class="lineCov">         12 :             return;</span>
+<span class="lineNum">     316 </span>            :     }
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span><span class="lineCov">         40 :     if( pszId == nullptr )</span>
+<span class="lineNum">     319 </span>            :     {
+<span class="lineNum">     320 </span><span class="lineCov">         38 :         json_object* poId = OGRGeoJSONFindMemberByName(poObj, &quot;id&quot;);</span>
+<span class="lineNum">     321 </span><span class="lineCov">         42 :         if( poId != nullptr &amp;&amp;</span>
+<span class="lineNum">     322 </span><span class="lineCov">          3 :             (json_type_string == json_object_get_type(poId) ||</span>
+<span class="lineNum">     323 </span><span class="lineCov">          1 :              json_type_int == json_object_get_type(poId)) )</span>
+<span class="lineNum">     324 </span>            :         {
+<span class="lineNum">     325 </span><span class="lineCov">          2 :             pszId = json_object_get_string(poId);</span>
+<span class="lineNum">     326 </span>            :         }
+<span class="lineNum">     327 </span>            :     }
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span><span class="lineCov">         40 :     OGRFeature* poFeature = new OGRFeature(poLayer-&gt;GetLayerDefn());</span>
+<span class="lineNum">     330 </span><span class="lineCov">         40 :     if( pszId != nullptr )</span>
+<span class="lineNum">     331 </span><span class="lineCov">          4 :         poFeature-&gt;SetField(&quot;id&quot;, pszId);</span>
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span><span class="lineCov">         40 :     json_object* poProperties = OGRGeoJSONFindMemberByName(poObj, &quot;properties&quot;);</span>
+<span class="lineNum">     334 </span><span class="lineCov">         45 :     if( poProperties != nullptr &amp;&amp;</span>
+<span class="lineNum">     335 </span><span class="lineCov">          5 :         json_type_object == json_object_get_type(poProperties) )</span>
+<span class="lineNum">     336 </span>            :     {
+<span class="lineNum">     337 </span>            :         json_object_iter it;
+<span class="lineNum">     338 </span><span class="lineCov">          4 :         it.key = nullptr;</span>
+<span class="lineNum">     339 </span><span class="lineCov">          4 :         it.val = nullptr;</span>
+<span class="lineNum">     340 </span><span class="lineCov">          4 :         it.entry = nullptr;</span>
+<span class="lineNum">     341 </span><span class="lineCov">          7 :         json_object_object_foreachC( poProperties, it )</span>
+<span class="lineNum">     342 </span>            :         {
+<span class="lineNum">     343 </span><span class="lineCov">          3 :             const int nField = poFeature-&gt;GetFieldIndex(it.key);</span>
+<span class="lineNum">     344 </span>            :             OGRGeoJSONReaderSetField(poLayer, poFeature, nField,
+<span class="lineNum">     345 </span><span class="lineCov">          3 :                                      it.key, it.val, false, 0);</span>
+<span class="lineNum">     346 </span>            :         }
+<span class="lineNum">     347 </span>            :     }
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span><span class="lineCov">         40 :     OGRGeometry* poGeom = nullptr;</span>
+<span class="lineNum">     350 </span><span class="lineCov">         40 :     if( strcmp(pszType, &quot;Point&quot;) == 0 )</span>
+<span class="lineNum">     351 </span>            :     {
+<span class="lineNum">     352 </span><span class="lineCov">          4 :         double dfX = 0.0;</span>
+<span class="lineNum">     353 </span><span class="lineCov">          4 :         double dfY = 0.0;</span>
+<span class="lineNum">     354 </span><span class="lineCov">          4 :         if( ParsePoint( poCoordinatesObj, &amp;dfX, &amp;dfY ) )</span>
+<span class="lineNum">     355 </span>            :         {
+<span class="lineNum">     356 </span><span class="lineCov">          1 :             dfX = dfX * psParams-&gt;dfScale0 + psParams-&gt;dfTranslate0;</span>
+<span class="lineNum">     357 </span><span class="lineCov">          1 :             dfY = dfY * psParams-&gt;dfScale1 + psParams-&gt;dfTranslate1;</span>
+<span class="lineNum">     358 </span><span class="lineCov">          1 :             poGeom = new OGRPoint(dfX, dfY);</span>
+<span class="lineNum">     359 </span>            :         }
+<span class="lineNum">     360 </span>            :         else
+<span class="lineNum">     361 </span>            :         {
+<span class="lineNum">     362 </span><span class="lineCov">          3 :             poGeom = new OGRPoint();</span>
+<span class="lineNum">     363 </span>            :         }
+<span class="lineNum">     364 </span>            :     }
+<span class="lineNum">     365 </span><span class="lineCov">         36 :     else if( strcmp(pszType, &quot;MultiPoint&quot;) == 0 )</span>
+<span class="lineNum">     366 </span>            :     {
+<span class="lineNum">     367 </span><span class="lineCov">          5 :         OGRMultiPoint* poMP = new OGRMultiPoint();</span>
+<span class="lineNum">     368 </span><span class="lineCov">          5 :         poGeom = poMP;</span>
+<span class="lineNum">     369 </span><span class="lineCov">          5 :         const auto nTuples = json_object_array_length(poCoordinatesObj);</span>
+<span class="lineNum">     370 </span><span class="lineCov">         10 :         for( auto i = decltype(nTuples){0}; i &lt; nTuples; i++ )</span>
+<span class="lineNum">     371 </span>            :         {
+<span class="lineNum">     372 </span>            :             json_object* poPair =
+<span class="lineNum">     373 </span><span class="lineCov">          5 :                 json_object_array_get_idx(poCoordinatesObj, i);</span>
+<span class="lineNum">     374 </span><span class="lineCov">          5 :             double dfX = 0.0;</span>
+<span class="lineNum">     375 </span><span class="lineCov">          5 :             double dfY = 0.0;</span>
+<span class="lineNum">     376 </span><span class="lineCov">          5 :             if( ParsePoint( poPair, &amp;dfX, &amp;dfY ) )</span>
+<span class="lineNum">     377 </span>            :             {
+<span class="lineNum">     378 </span><span class="lineCov">          2 :                 dfX = dfX * psParams-&gt;dfScale0 + psParams-&gt;dfTranslate0;</span>
+<span class="lineNum">     379 </span><span class="lineCov">          2 :                 dfY = dfY * psParams-&gt;dfScale1 + psParams-&gt;dfTranslate1;</span>
+<span class="lineNum">     380 </span><span class="lineCov">          2 :                 poMP-&gt;addGeometryDirectly(new OGRPoint(dfX, dfY));</span>
+<span class="lineNum">     381 </span>            :             }
+<span class="lineNum">     382 </span>            :         }
+<span class="lineNum">     383 </span>            :     }
+<span class="lineNum">     384 </span><span class="lineCov">         31 :     else if( strcmp(pszType, &quot;LineString&quot;) == 0 )</span>
+<span class="lineNum">     385 </span>            :     {
+<span class="lineNum">     386 </span><span class="lineCov">         17 :         OGRLineString* poLS = new OGRLineString();</span>
+<span class="lineNum">     387 </span><span class="lineCov">         17 :         poGeom = poLS;</span>
+<span class="lineNum">     388 </span><span class="lineCov">         17 :         ParseLineString(poLS, poArcsObj, poArcsDB, psParams);</span>
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span><span class="lineCov">         14 :     else if( strcmp(pszType, &quot;MultiLineString&quot;) == 0 )</span>
+<span class="lineNum">     391 </span>            :     {
+<span class="lineNum">     392 </span><span class="lineCov">          5 :         OGRMultiLineString* poMLS = new OGRMultiLineString();</span>
+<span class="lineNum">     393 </span><span class="lineCov">          5 :         poGeom = poMLS;</span>
+<span class="lineNum">     394 </span><span class="lineCov">          5 :         ParseMultiLineString(poMLS, poArcsObj, poArcsDB, psParams);</span>
+<span class="lineNum">     395 </span>            :     }
+<span class="lineNum">     396 </span><span class="lineCov">          9 :     else if( strcmp(pszType, &quot;Polygon&quot;) == 0 )</span>
+<span class="lineNum">     397 </span>            :     {
+<span class="lineNum">     398 </span><span class="lineCov">          5 :         OGRPolygon* poPoly = new OGRPolygon();</span>
+<span class="lineNum">     399 </span><span class="lineCov">          5 :         poGeom = poPoly;</span>
+<span class="lineNum">     400 </span><span class="lineCov">          5 :         ParsePolygon(poPoly, poArcsObj, poArcsDB, psParams);</span>
+<span class="lineNum">     401 </span>            :     }
+<span class="lineNum">     402 </span><span class="lineCov">          4 :     else if( strcmp(pszType, &quot;MultiPolygon&quot;) == 0 )</span>
+<span class="lineNum">     403 </span>            :     {
+<span class="lineNum">     404 </span><span class="lineCov">          4 :         OGRMultiPolygon* poMultiPoly = new OGRMultiPolygon();</span>
+<span class="lineNum">     405 </span><span class="lineCov">          4 :         poGeom = poMultiPoly;</span>
+<span class="lineNum">     406 </span><span class="lineCov">          4 :         ParseMultiPolygon(poMultiPoly, poArcsObj, poArcsDB, psParams);</span>
+<span class="lineNum">     407 </span>            :     }
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span><span class="lineCov">         40 :     if( poGeom != nullptr )</span>
+<span class="lineNum">     410 </span><span class="lineCov">         40 :         poFeature-&gt;SetGeometryDirectly(poGeom);</span>
+<span class="lineNum">     411 </span><span class="lineCov">         40 :     poLayer-&gt;AddFeature(poFeature);</span>
+<span class="lineNum">     412 </span><span class="lineCov">         40 :     delete poFeature;</span>
+<span class="lineNum">     413 </span>            : }
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span>            : /************************************************************************/
+<span class="lineNum">     416 </span>            : /*                        EstablishLayerDefn()                          */
+<a name="417"><span class="lineNum">     417 </span>            : /************************************************************************/</a>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineCov">         58 : static void EstablishLayerDefn( OGRFeatureDefn* poDefn,</span>
+<span class="lineNum">     420 </span>            :                                 json_object* poObj,
+<span class="lineNum">     421 </span>            :                                 std::set&lt;int&gt;&amp; aoSetUndeterminedTypeFields )
+<span class="lineNum">     422 </span>            : {
+<span class="lineNum">     423 </span><span class="lineCov">         58 :     json_object* poObjProps = OGRGeoJSONFindMemberByName( poObj, &quot;properties&quot; );</span>
+<span class="lineNum">     424 </span><span class="lineCov">         63 :     if( nullptr != poObjProps &amp;&amp;</span>
+<span class="lineNum">     425 </span><span class="lineCov">          5 :         json_object_get_type(poObjProps) == json_type_object )</span>
+<span class="lineNum">     426 </span>            :     {
+<span class="lineNum">     427 </span>            :         json_object_iter it;
+<span class="lineNum">     428 </span><span class="lineCov">          4 :         it.key = nullptr;</span>
+<span class="lineNum">     429 </span><span class="lineCov">          4 :         it.val = nullptr;</span>
+<span class="lineNum">     430 </span><span class="lineCov">          4 :         it.entry = nullptr;</span>
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span><span class="lineCov">          7 :         json_object_object_foreachC( poObjProps, it )</span>
+<span class="lineNum">     433 </span>            :         {
+<span class="lineNum">     434 </span>            :             OGRGeoJSONReaderAddOrUpdateField(poDefn, it.key, it.val,
+<span class="lineNum">     435 </span>            :                                              false, 0, false,
+<span class="lineNum">     436 </span><span class="lineCov">          3 :                                              aoSetUndeterminedTypeFields);</span>
+<span class="lineNum">     437 </span>            :         }
+<span class="lineNum">     438 </span>            :     }
+<span class="lineNum">     439 </span><span class="lineCov">         58 : }</span>
+<span class="lineNum">     440 </span>            : 
+<span class="lineNum">     441 </span>            : /************************************************************************/
+<span class="lineNum">     442 </span>            : /*                        ParseObjectMain()                             */
+<a name="443"><span class="lineNum">     443 </span>            : /************************************************************************/</a>
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span><span class="lineCov">        130 : static bool ParseObjectMain( const char* pszId, json_object* poObj,</span>
+<span class="lineNum">     446 </span>            :                              OGRGeoJSONDataSource* poDS,
+<span class="lineNum">     447 </span>            :                              OGRGeoJSONLayer **ppoMainLayer,
+<span class="lineNum">     448 </span>            :                              json_object* poArcs,
+<span class="lineNum">     449 </span>            :                              ScalingParams* psParams,
+<span class="lineNum">     450 </span>            :                              int nPassNumber,
+<span class="lineNum">     451 </span>            :                              std::set&lt;int&gt;&amp; aoSetUndeterminedTypeFields)
+<span class="lineNum">     452 </span>            : {
+<span class="lineNum">     453 </span><span class="lineCov">        130 :     bool bNeedSecondPass = false;</span>
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span><span class="lineCov">        130 :     if( poObj != nullptr &amp;&amp; json_type_object == json_object_get_type( poObj ) )</span>
+<span class="lineNum">     456 </span>            :     {
+<span class="lineNum">     457 </span><span class="lineCov">        126 :         json_object* poType = OGRGeoJSONFindMemberByName(poObj, &quot;type&quot;);</span>
+<span class="lineNum">     458 </span><span class="lineCov">        250 :         if( poType != nullptr &amp;&amp;</span>
+<span class="lineNum">     459 </span><span class="lineCov">        124 :             json_type_string == json_object_get_type( poType ) )</span>
+<span class="lineNum">     460 </span>            :         {
+<span class="lineNum">     461 </span><span class="lineCov">        122 :             const char* pszType = json_object_get_string(poType);</span>
+<span class="lineNum">     462 </span><span class="lineCov">        122 :             if( nPassNumber == 1 &amp;&amp; strcmp(pszType, &quot;GeometryCollection&quot;) == 0 )</span>
+<span class="lineNum">     463 </span>            :             {
+<span class="lineNum">     464 </span>            :                 json_object* poGeometries =
+<span class="lineNum">     465 </span><span class="lineCov">          5 :                     OGRGeoJSONFindMemberByName(poObj, &quot;geometries&quot;);</span>
+<span class="lineNum">     466 </span><span class="lineCov">          8 :                 if( poGeometries != nullptr &amp;&amp;</span>
+<span class="lineNum">     467 </span><span class="lineCov">          3 :                     json_type_array == json_object_get_type( poGeometries ) )</span>
+<span class="lineNum">     468 </span>            :                 {
+<span class="lineNum">     469 </span><span class="lineCov">          3 :                     if( pszId == nullptr )</span>
+<span class="lineNum">     470 </span>            :                     {
+<span class="lineNum">     471 </span>            :                         json_object* poId =
+<span class="lineNum">     472 </span><span class="lineCov">          1 :                             OGRGeoJSONFindMemberByName(poObj, &quot;id&quot;);</span>
+<span class="lineNum">     473 </span><span class="lineCov">          3 :                         if( poId != nullptr &amp;&amp;</span>
+<span class="lineNum">     474 </span><span class="lineCov">          1 :                             (json_type_string == json_object_get_type(poId) ||</span>
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :                             json_type_int == json_object_get_type(poId)) )</span>
+<span class="lineNum">     476 </span>            :                         {
+<span class="lineNum">     477 </span><span class="lineCov">          1 :                             pszId = json_object_get_string(poId);</span>
+<span class="lineNum">     478 </span>            :                         }
+<span class="lineNum">     479 </span>            :                     }
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span>            :                     OGRGeoJSONLayer* poLayer = new OGRGeoJSONLayer(
+<span class="lineNum">     482 </span>            :                             pszId ? pszId : &quot;TopoJSON&quot;, nullptr,
+<span class="lineNum">     483 </span><span class="lineCov">          3 :                             wkbUnknown, poDS, nullptr );</span>
+<span class="lineNum">     484 </span><span class="lineCov">          3 :                     OGRFeatureDefn* poDefn = poLayer-&gt;GetLayerDefn();</span>
+<span class="lineNum">     485 </span>            :                     {
+<span class="lineNum">     486 </span><span class="lineCov">          3 :                         OGRFieldDefn fldDefn( &quot;id&quot;, OFTString );</span>
+<span class="lineNum">     487 </span><span class="lineCov">          3 :                         poDefn-&gt;AddFieldDefn( &amp;fldDefn );</span>
+<span class="lineNum">     488 </span>            :                     }
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span>            :                     const auto nGeometries =
+<span class="lineNum">     491 </span><span class="lineCov">          3 :                         json_object_array_length(poGeometries);</span>
+<span class="lineNum">     492 </span>            :                     // First pass to establish schema.
+<span class="lineNum">     493 </span><span class="lineCov">          6 :                     for( auto i = decltype(nGeometries){0}; i &lt; nGeometries;</span>
+<span class="lineNum">     494 </span>            :                          i++ )
+<span class="lineNum">     495 </span>            :                     {
+<span class="lineNum">     496 </span>            :                         json_object* poGeom =
+<span class="lineNum">     497 </span><span class="lineCov">          3 :                             json_object_array_get_idx(poGeometries, i);</span>
+<span class="lineNum">     498 </span><span class="lineCov">          6 :                         if( poGeom != nullptr &amp;&amp;</span>
+<span class="lineNum">     499 </span><span class="lineCov">          3 :                             json_type_object == json_object_get_type( poGeom ) )</span>
+<span class="lineNum">     500 </span>            :                         {
+<span class="lineNum">     501 </span>            :                             EstablishLayerDefn(poDefn, poGeom,
+<span class="lineNum">     502 </span><span class="lineCov">          3 :                                                aoSetUndeterminedTypeFields);</span>
+<span class="lineNum">     503 </span>            :                         }
+<span class="lineNum">     504 </span>            :                     }
+<span class="lineNum">     505 </span>            : 
+<span class="lineNum">     506 </span>            :                     // Second pass to build objects.
+<span class="lineNum">     507 </span><span class="lineCov">          6 :                     for( auto i = decltype(nGeometries){0}; i &lt; nGeometries;</span>
+<span class="lineNum">     508 </span>            :                          i++ )
+<span class="lineNum">     509 </span>            :                     {
+<span class="lineNum">     510 </span>            :                         json_object* poGeom =
+<span class="lineNum">     511 </span><span class="lineCov">          3 :                             json_object_array_get_idx(poGeometries, i);</span>
+<span class="lineNum">     512 </span><span class="lineCov">          6 :                         if( poGeom != nullptr &amp;&amp;</span>
+<span class="lineNum">     513 </span><span class="lineCov">          3 :                             json_type_object == json_object_get_type( poGeom ) )</span>
+<span class="lineNum">     514 </span>            :                         {
+<span class="lineNum">     515 </span>            :                             ParseObject(nullptr, poGeom, poLayer,
+<span class="lineNum">     516 </span><span class="lineCov">          3 :                                         poArcs, psParams);</span>
+<span class="lineNum">     517 </span>            :                         }
+<span class="lineNum">     518 </span>            :                     }
+<span class="lineNum">     519 </span>            : 
+<span class="lineNum">     520 </span><span class="lineCov">          3 :                     poLayer-&gt;DetectGeometryType();</span>
+<span class="lineNum">     521 </span><span class="lineCov">          3 :                     poDS-&gt;AddLayer(poLayer);</span>
+<span class="lineNum">     522 </span><span class="lineCov">          5 :                 }</span>
+<span class="lineNum">     523 </span>            :             }
+<span class="lineNum">     524 </span><span class="lineCov">        220 :             else if( strcmp(pszType, &quot;Point&quot;) == 0 ||</span>
+<span class="lineNum">     525 </span><span class="lineCov">        190 :                      strcmp(pszType, &quot;MultiPoint&quot;) == 0 ||</span>
+<span class="lineNum">     526 </span><span class="lineCov">        140 :                      strcmp(pszType, &quot;LineString&quot;) == 0 ||</span>
+<span class="lineNum">     527 </span><span class="lineCov">         90 :                      strcmp(pszType, &quot;MultiLineString&quot;) == 0 ||</span>
+<span class="lineNum">     528 </span><span class="lineCov">         58 :                      strcmp(pszType, &quot;Polygon&quot;) == 0 ||</span>
+<span class="lineNum">     529 </span><span class="lineCov">         21 :                      strcmp(pszType, &quot;MultiPolygon&quot;) == 0 )</span>
+<span class="lineNum">     530 </span>            :             {
+<span class="lineNum">     531 </span><span class="lineCov">        110 :                 if( nPassNumber == 1 )</span>
+<span class="lineNum">     532 </span>            :                 {
+<span class="lineNum">     533 </span><span class="lineCov">         55 :                     if( *ppoMainLayer == nullptr )</span>
+<span class="lineNum">     534 </span>            :                     {
+<span class="lineNum">     535 </span>            :                         *ppoMainLayer = new OGRGeoJSONLayer(
+<span class="lineNum">     536 </span><span class="lineCov">          3 :                             &quot;TopoJSON&quot;, nullptr, wkbUnknown, poDS, nullptr );</span>
+<span class="lineNum">     537 </span>            :                         {
+<span class="lineNum">     538 </span><span class="lineCov">          3 :                             OGRFieldDefn fldDefn( &quot;id&quot;, OFTString );</span>
+<span class="lineNum">     539 </span>            :                             (*ppoMainLayer)-&gt;
+<span class="lineNum">     540 </span><span class="lineCov">          3 :                                 GetLayerDefn()-&gt;AddFieldDefn( &amp;fldDefn );</span>
+<span class="lineNum">     541 </span>            :                         }
+<span class="lineNum">     542 </span>            :                     }
+<span class="lineNum">     543 </span><span class="lineCov">         55 :                     OGRFeatureDefn* poDefn = (*ppoMainLayer)-&gt;GetLayerDefn();</span>
+<span class="lineNum">     544 </span>            :                     EstablishLayerDefn(poDefn, poObj,
+<span class="lineNum">     545 </span><span class="lineCov">         55 :                                        aoSetUndeterminedTypeFields);</span>
+<span class="lineNum">     546 </span><span class="lineCov">         55 :                     bNeedSecondPass = true;</span>
+<span class="lineNum">     547 </span>            :                 }
+<span class="lineNum">     548 </span>            :                 else
+<span class="lineNum">     549 </span><span class="lineCov">         55 :                     ParseObject(pszId, poObj, *ppoMainLayer, poArcs, psParams);</span>
+<span class="lineNum">     550 </span>            :             }
+<span class="lineNum">     551 </span>            :         }
+<span class="lineNum">     552 </span>            :     }
+<span class="lineNum">     553 </span><span class="lineCov">        130 :     return bNeedSecondPass;</span>
+<span class="lineNum">     554 </span>            : }
+<span class="lineNum">     555 </span>            : 
+<span class="lineNum">     556 </span>            : /************************************************************************/
+<span class="lineNum">     557 </span>            : /*                           ReadLayers()                               */
+<a name="558"><span class="lineNum">     558 </span>            : /************************************************************************/</a>
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span><span class="lineCov">          3 : void OGRTopoJSONReader::ReadLayers( OGRGeoJSONDataSource* poDS )</span>
+<span class="lineNum">     561 </span>            : {
+<span class="lineNum">     562 </span><span class="lineCov">          3 :     if( nullptr == poGJObject_ )</span>
+<span class="lineNum">     563 </span>            :     {
+<span class="lineNum">     564 </span>            :         CPLDebug( &quot;TopoJSON&quot;,
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 :                   &quot;Missing parsed TopoJSON data. Forgot to call Parse()?&quot; );</span>
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     567 </span>            :     }
+<span class="lineNum">     568 </span>            : 
+<span class="lineNum">     569 </span>            :     ScalingParams sParams;
+<span class="lineNum">     570 </span><span class="lineCov">          3 :     sParams.dfScale0 = 1.0;</span>
+<span class="lineNum">     571 </span><span class="lineCov">          3 :     sParams.dfScale1 = 1.0;</span>
+<span class="lineNum">     572 </span><span class="lineCov">          3 :     sParams.dfTranslate0 = 0.0;</span>
+<span class="lineNum">     573 </span><span class="lineCov">          3 :     sParams.dfTranslate1 = 0.0;</span>
+<span class="lineNum">     574 </span><span class="lineCov">          3 :     sParams.bElementExists = false;</span>
+<span class="lineNum">     575 </span>            :     json_object* poObjTransform =
+<span class="lineNum">     576 </span><span class="lineCov">          3 :         OGRGeoJSONFindMemberByName( poGJObject_, &quot;transform&quot; );</span>
+<span class="lineNum">     577 </span><span class="lineCov">          5 :     if( nullptr != poObjTransform &amp;&amp;</span>
+<span class="lineNum">     578 </span><span class="lineCov">          2 :         json_type_object == json_object_get_type( poObjTransform ) )</span>
+<span class="lineNum">     579 </span>            :     {
+<span class="lineNum">     580 </span>            :         json_object* poObjScale =
+<span class="lineNum">     581 </span><span class="lineCov">          2 :             OGRGeoJSONFindMemberByName( poObjTransform, &quot;scale&quot; );</span>
+<span class="lineNum">     582 </span><span class="lineCov">          4 :         if( nullptr != poObjScale &amp;&amp;</span>
+<span class="lineNum">     583 </span><span class="lineCov">          4 :             json_type_array == json_object_get_type( poObjScale ) &amp;&amp;</span>
+<span class="lineNum">     584 </span><span class="lineCov">          2 :             json_object_array_length( poObjScale ) == 2 )</span>
+<span class="lineNum">     585 </span>            :         {
+<span class="lineNum">     586 </span><span class="lineCov">          2 :             json_object* poScale0 = json_object_array_get_idx(poObjScale, 0);</span>
+<span class="lineNum">     587 </span><span class="lineCov">          2 :             json_object* poScale1 = json_object_array_get_idx(poObjScale, 1);</span>
+<span class="lineNum">     588 </span><span class="lineCov">          4 :             if( poScale0 != nullptr &amp;&amp;</span>
+<span class="lineNum">     589 </span><span class="lineCov">          3 :                 (json_object_get_type(poScale0) == json_type_double ||</span>
+<span class="lineNum">     590 </span><span class="lineCov">          3 :                  json_object_get_type(poScale0) == json_type_int) &amp;&amp;</span>
+<span class="lineNum">     591 </span><span class="lineCov">          6 :                 poScale1 != nullptr &amp;&amp;</span>
+<span class="lineNum">     592 </span><span class="lineCov">          3 :                 (json_object_get_type(poScale1) == json_type_double ||</span>
+<span class="lineNum">     593 </span><span class="lineCov">          1 :                  json_object_get_type(poScale1) == json_type_int) )</span>
+<span class="lineNum">     594 </span>            :             {
+<span class="lineNum">     595 </span><span class="lineCov">          2 :                 sParams.dfScale0 = json_object_get_double(poScale0);</span>
+<span class="lineNum">     596 </span><span class="lineCov">          2 :                 sParams.dfScale1 = json_object_get_double(poScale1);</span>
+<span class="lineNum">     597 </span><span class="lineCov">          2 :                 sParams.bElementExists = true;</span>
+<span class="lineNum">     598 </span>            :             }
+<span class="lineNum">     599 </span>            :         }
+<span class="lineNum">     600 </span>            : 
+<span class="lineNum">     601 </span>            :         json_object* poObjTranslate =
+<span class="lineNum">     602 </span><span class="lineCov">          2 :             OGRGeoJSONFindMemberByName( poObjTransform, &quot;translate&quot; );</span>
+<span class="lineNum">     603 </span><span class="lineCov">          4 :         if( nullptr != poObjTranslate &amp;&amp;</span>
+<span class="lineNum">     604 </span><span class="lineCov">          4 :             json_type_array == json_object_get_type( poObjTranslate ) &amp;&amp;</span>
+<span class="lineNum">     605 </span><span class="lineCov">          2 :             json_object_array_length( poObjTranslate ) == 2 )</span>
+<span class="lineNum">     606 </span>            :         {
+<span class="lineNum">     607 </span>            :             json_object* poTranslate0 =
+<span class="lineNum">     608 </span><span class="lineCov">          2 :                 json_object_array_get_idx(poObjTranslate, 0);</span>
+<span class="lineNum">     609 </span>            :             json_object* poTranslate1 =
+<span class="lineNum">     610 </span><span class="lineCov">          2 :                 json_object_array_get_idx(poObjTranslate, 1);</span>
+<span class="lineNum">     611 </span><span class="lineCov">          4 :             if( poTranslate0 != nullptr &amp;&amp;</span>
+<span class="lineNum">     612 </span><span class="lineCov">          3 :                 (json_object_get_type(poTranslate0) == json_type_double ||</span>
+<span class="lineNum">     613 </span><span class="lineCov">          3 :                  json_object_get_type(poTranslate0) == json_type_int) &amp;&amp;</span>
+<span class="lineNum">     614 </span><span class="lineCov">          6 :                 poTranslate1 != nullptr &amp;&amp;</span>
+<span class="lineNum">     615 </span><span class="lineCov">          3 :                 (json_object_get_type(poTranslate1) == json_type_double ||</span>
+<span class="lineNum">     616 </span><span class="lineCov">          1 :                  json_object_get_type(poTranslate1) == json_type_int) )</span>
+<span class="lineNum">     617 </span>            :             {
+<span class="lineNum">     618 </span><span class="lineCov">          2 :                 sParams.dfTranslate0 = json_object_get_double(poTranslate0);</span>
+<span class="lineNum">     619 </span><span class="lineCov">          2 :                 sParams.dfTranslate1 = json_object_get_double(poTranslate1);</span>
+<span class="lineNum">     620 </span><span class="lineCov">          2 :                 sParams.bElementExists = true;</span>
+<span class="lineNum">     621 </span>            :             }
+<span class="lineNum">     622 </span>            :         }
+<span class="lineNum">     623 </span>            :     }
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span><span class="lineCov">          3 :     json_object* poArcs = OGRGeoJSONFindMemberByName( poGJObject_, &quot;arcs&quot; );</span>
+<span class="lineNum">     626 </span><span class="lineCov">          3 :     if( poArcs == nullptr || json_type_array != json_object_get_type( poArcs ) )</span>
+<span class="lineNum">     627 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     628 </span>            : 
+<span class="lineNum">     629 </span><span class="lineCov">          3 :     OGRGeoJSONLayer* poMainLayer = nullptr;</span>
+<span class="lineNum">     630 </span>            : 
+<span class="lineNum">     631 </span>            :     json_object* poObjects =
+<span class="lineNum">     632 </span><span class="lineCov">          3 :         OGRGeoJSONFindMemberByName( poGJObject_, &quot;objects&quot; );</span>
+<span class="lineNum">     633 </span><span class="lineCov">          3 :     if( poObjects == nullptr )</span>
+<span class="lineNum">     634 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span><span class="lineCov">          3 :     std::set&lt;int&gt; aoSetUndeterminedTypeFields;</span>
+<span class="lineNum">     637 </span><span class="lineCov">          3 :     if( json_type_object == json_object_get_type( poObjects ) )</span>
+<span class="lineNum">     638 </span>            :     {
+<span class="lineNum">     639 </span>            :         json_object_iter it;
+<span class="lineNum">     640 </span><span class="lineCov">          2 :         it.key = nullptr;</span>
+<span class="lineNum">     641 </span><span class="lineCov">          2 :         it.val = nullptr;</span>
+<span class="lineNum">     642 </span><span class="lineCov">          2 :         it.entry = nullptr;</span>
+<span class="lineNum">     643 </span><span class="lineCov">          2 :         bool bNeedSecondPass = false;</span>
+<span class="lineNum">     644 </span><span class="lineCov">          6 :         json_object_object_foreachC( poObjects, it )</span>
+<span class="lineNum">     645 </span>            :         {
+<span class="lineNum">     646 </span><span class="lineCov">          4 :             json_object* poObj = it.val;</span>
+<span class="lineNum">     647 </span>            :             bNeedSecondPass |= ParseObjectMain( it.key, poObj, poDS,
+<span class="lineNum">     648 </span>            :                                                 &amp;poMainLayer, poArcs, &amp;sParams,
+<span class="lineNum">     649 </span><span class="lineCov">          4 :                                                 1, aoSetUndeterminedTypeFields);</span>
+<span class="lineNum">     650 </span>            :         }
+<span class="lineNum">     651 </span><span class="lineCov">          2 :         if( bNeedSecondPass )</span>
+<span class="lineNum">     652 </span>            :         {
+<span class="lineNum">     653 </span><span class="lineCov">          2 :             it.key = nullptr;</span>
+<span class="lineNum">     654 </span><span class="lineCov">          2 :             it.val = nullptr;</span>
+<span class="lineNum">     655 </span><span class="lineCov">          2 :             it.entry = nullptr;</span>
+<span class="lineNum">     656 </span><span class="lineCov">          6 :             json_object_object_foreachC( poObjects, it )</span>
+<span class="lineNum">     657 </span>            :             {
+<span class="lineNum">     658 </span><span class="lineCov">          4 :                 json_object* poObj = it.val;</span>
+<span class="lineNum">     659 </span>            :                 ParseObjectMain(it.key, poObj, poDS, &amp;poMainLayer, poArcs,
+<span class="lineNum">     660 </span><span class="lineCov">          4 :                                 &amp;sParams, 2, aoSetUndeterminedTypeFields);</span>
+<span class="lineNum">     661 </span>            :             }
+<span class="lineNum">     662 </span>            :         }
+<span class="lineNum">     663 </span>            :     }
+<span class="lineNum">     664 </span><span class="lineCov">          1 :     else if( json_type_array == json_object_get_type( poObjects ) )</span>
+<span class="lineNum">     665 </span>            :     {
+<span class="lineNum">     666 </span><span class="lineCov">          1 :         const auto nObjects = json_object_array_length(poObjects);</span>
+<span class="lineNum">     667 </span><span class="lineCov">          1 :         bool bNeedSecondPass = false;</span>
+<span class="lineNum">     668 </span><span class="lineCov">         62 :         for( auto i = decltype(nObjects){0}; i &lt; nObjects; i++ )</span>
+<span class="lineNum">     669 </span>            :         {
+<span class="lineNum">     670 </span><span class="lineCov">         61 :             json_object* poObj = json_object_array_get_idx(poObjects, i);</span>
+<span class="lineNum">     671 </span>            :             bNeedSecondPass |= ParseObjectMain(nullptr, poObj, poDS, &amp;poMainLayer,
+<span class="lineNum">     672 </span>            :                                                poArcs, &amp;sParams, 1,
+<span class="lineNum">     673 </span><span class="lineCov">         61 :                                                aoSetUndeterminedTypeFields);</span>
+<span class="lineNum">     674 </span>            :         }
+<span class="lineNum">     675 </span><span class="lineCov">          1 :         if( bNeedSecondPass )</span>
+<span class="lineNum">     676 </span>            :         {
+<span class="lineNum">     677 </span><span class="lineCov">         62 :             for( auto i = decltype(nObjects){0}; i &lt; nObjects; i++ )</span>
+<span class="lineNum">     678 </span>            :             {
+<span class="lineNum">     679 </span><span class="lineCov">         61 :                 json_object* poObj = json_object_array_get_idx(poObjects, i);</span>
+<span class="lineNum">     680 </span>            :                 ParseObjectMain(nullptr, poObj, poDS, &amp;poMainLayer, poArcs,
+<span class="lineNum">     681 </span><span class="lineCov">         61 :                                 &amp;sParams, 2, aoSetUndeterminedTypeFields);</span>
+<span class="lineNum">     682 </span>            :             }
+<span class="lineNum">     683 </span>            :         }
+<span class="lineNum">     684 </span>            :     }
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span><span class="lineCov">          3 :     if( poMainLayer != nullptr )</span>
+<span class="lineNum">     687 </span>            :     {
+<span class="lineNum">     688 </span><span class="lineCov">          3 :         poMainLayer-&gt;DetectGeometryType();</span>
+<span class="lineNum">     689 </span><span class="lineCov">          3 :         poDS-&gt;AddLayer(poMainLayer);</span>
+<span class="lineNum">     690 </span><span class="lineCov">          3 :     }</span>
+<span class="lineNum">     691 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

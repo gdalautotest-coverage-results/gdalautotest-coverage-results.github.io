@@ -1,0 +1,692 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - alg/gdalsievefilter.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">alg</a> - gdalsievefilter.cpp<span style="font-size: 80%;"> (source / <a href="gdalsievefilter.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">173</td>
+            <td class="headerCovTableEntry">192</td>
+            <td class="headerCovTableEntryHi">90.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL
+<span class="lineNum">       4 </span>            :  * Purpose:  Raster to Polygon Converter
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2008, Frank Warmerdam
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2009-2011, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdal_alg.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      36 </span>            : #include &lt;set&gt;
+<span class="lineNum">      37 </span>            : #include &lt;vector&gt;
+<span class="lineNum">      38 </span>            : #include &lt;utility&gt;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;cpl_progress.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;gdal_alg_priv.h&quot;
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            : #define MY_MAX_INT 2147483647
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : /*
+<span class="lineNum">      52 </span>            :  * General Plan
+<span class="lineNum">      53 </span>            :  *
+<span class="lineNum">      54 </span>            :  * 1) make a pass with the polygon enumerator to build up the
+<span class="lineNum">      55 </span>            :  *    polygon map array.  Also accumulate polygon size information.
+<span class="lineNum">      56 </span>            :  *
+<span class="lineNum">      57 </span>            :  * 2) Identify the polygons that need to be merged.
+<span class="lineNum">      58 </span>            :  *
+<span class="lineNum">      59 </span>            :  * 3) Make a pass with the polygon enumerator.  For each &quot;to be merged&quot;
+<span class="lineNum">      60 </span>            :  *    polygon keep track of its largest neighbour.
+<span class="lineNum">      61 </span>            :  *
+<span class="lineNum">      62 </span>            :  * 4) Fix up remappings that would go to polygons smaller than the seive
+<span class="lineNum">      63 </span>            :  *    size.  Ensure these in term map to the largest neighbour of the
+<span class="lineNum">      64 </span>            :  *    &quot;to be sieved&quot; polygons.
+<span class="lineNum">      65 </span>            :  *
+<span class="lineNum">      66 </span>            :  * 5) Make another pass with the polygon enumerator. This time we remap
+<span class="lineNum">      67 </span>            :  *    the actual pixel values of all polygons to be merged.
+<span class="lineNum">      68 </span>            :  */
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : /************************************************************************/
+<span class="lineNum">      71 </span>            : /*                          GPMaskImageData()                           */
+<span class="lineNum">      72 </span>            : /*                                                                      */
+<span class="lineNum">      73 </span>            : /*      Mask out image pixels to a special nodata value if the mask     */
+<span class="lineNum">      74 </span>            : /*      band is zero.                                                   */
+<span class="lineNum">      75 </span>            : /************************************************************************/
+<a name="76"><span class="lineNum">      76 </span>            : </a>
+<span class="lineNum">      77 </span>            : static CPLErr
+<span class="lineNum">      78 </span><span class="lineCov">         63 : GPMaskImageData( GDALRasterBandH hMaskBand, GByte *pabyMaskLine,</span>
+<span class="lineNum">      79 </span>            :                  int iY, int nXSize,
+<span class="lineNum">      80 </span>            :                  GInt32 *panImageLine )
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : {
+<span class="lineNum">      83 </span>            :     const CPLErr eErr =
+<span class="lineNum">      84 </span>            :         GDALRasterIO( hMaskBand, GF_Read, 0, iY, nXSize, 1,
+<span class="lineNum">      85 </span><span class="lineCov">         63 :                       pabyMaskLine, nXSize, 1, GDT_Byte, 0, 0 );</span>
+<span class="lineNum">      86 </span><span class="lineCov">         63 :     if( eErr == CE_None )</span>
+<span class="lineNum">      87 </span>            :     {
+<span class="lineNum">      88 </span><span class="lineCov">        462 :         for( int i = 0; i &lt; nXSize; i++ )</span>
+<span class="lineNum">      89 </span>            :         {
+<span class="lineNum">      90 </span><span class="lineCov">        399 :             if( pabyMaskLine[i] == 0 )</span>
+<span class="lineNum">      91 </span><span class="lineCov">         48 :                 panImageLine[i] = GP_NODATA_MARKER;</span>
+<span class="lineNum">      92 </span>            :         }
+<span class="lineNum">      93 </span>            :     }
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span><span class="lineCov">         63 :     return eErr;</span>
+<span class="lineNum">      96 </span>            : }
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            : // TODO: What is &quot;eaches&quot; supposed to be?
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            : /************************************************************************/
+<span class="lineNum">     101 </span>            : /*                          CompareNeighbour()                          */
+<span class="lineNum">     102 </span>            : /*                                                                      */
+<span class="lineNum">     103 </span>            : /*      Compare two neighbouring polygons, and update eaches            */
+<span class="lineNum">     104 </span>            : /*      &quot;biggest neighbour&quot; if the other is larger than its current     */
+<span class="lineNum">     105 </span>            : /*      largest neighbour.                                              */
+<span class="lineNum">     106 </span>            : /*                                                                      */
+<span class="lineNum">     107 </span>            : /*      Note that this should end up with each polygon knowing the      */
+<span class="lineNum">     108 </span>            : /*      id of its largest neighbour.  No attempt is made to             */
+<span class="lineNum">     109 </span>            : /*      restrict things to small polygons that we will be merging,      */
+<span class="lineNum">     110 </span>            : /*      nor to exclude assigning &quot;biggest neighbours&quot; that are still    */
+<span class="lineNum">     111 </span>            : /*      smaller than our sieve threshold.                               */
+<a name="112"><span class="lineNum">     112 </span>            : /************************************************************************/</a>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineCov">      22263 : static inline void CompareNeighbour( int nPolyId1, int nPolyId2,</span>
+<span class="lineNum">     115 </span>            :                                      int *panPolyIdMap,
+<span class="lineNum">     116 </span>            :                                      int * /* panPolyValue */,
+<span class="lineNum">     117 </span>            :                                      std::vector&lt;int&gt; &amp;anPolySizes,
+<span class="lineNum">     118 </span>            :                                      std::vector&lt;int&gt; &amp;anBigNeighbour )
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span>            : {
+<span class="lineNum">     121 </span>            :     // Nodata polygon do not need neighbours, and cannot be neighbours
+<span class="lineNum">     122 </span>            :     // to valid polygons.
+<span class="lineNum">     123 </span><span class="lineCov">      22263 :     if( nPolyId1 &lt; 0 || nPolyId2 &lt; 0 )</span>
+<span class="lineNum">     124 </span><span class="lineCov">         34 :         return;</span>
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            :     // Make sure we are working with the final merged polygon ids.
+<span class="lineNum">     127 </span><span class="lineCov">      22229 :     nPolyId1 = panPolyIdMap[nPolyId1];</span>
+<span class="lineNum">     128 </span><span class="lineCov">      22229 :     nPolyId2 = panPolyIdMap[nPolyId2];</span>
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span><span class="lineCov">      22229 :     if( nPolyId1 == nPolyId2 )</span>
+<span class="lineNum">     131 </span><span class="lineCov">       8302 :         return;</span>
+<span class="lineNum">     132 </span>            : 
+<span class="lineNum">     133 </span>            :     // Nodata polygon do not need neighbours, and cannot be neighbours
+<span class="lineNum">     134 </span>            :     // to valid polygons.
+<span class="lineNum">     135 </span>            :     // Should no longer happen with r28826 optimization.
+<span class="lineNum">     136 </span>            :     // if( panPolyValue[nPolyId1] == GP_NODATA_MARKER
+<span class="lineNum">     137 </span>            :     //    || panPolyValue[nPolyId2] == GP_NODATA_MARKER )
+<span class="lineNum">     138 </span>            :     //    return;
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span><span class="lineCov">      27854 :     if( anBigNeighbour[nPolyId1] == -1</span>
+<span class="lineNum">     141 </span><span class="lineCov">      13927 :         || anPolySizes[anBigNeighbour[nPolyId1]] &lt; anPolySizes[nPolyId2] )</span>
+<span class="lineNum">     142 </span><span class="lineCov">       3446 :         anBigNeighbour[nPolyId1] = nPolyId2;</span>
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span><span class="lineCov">      27854 :     if( anBigNeighbour[nPolyId2] == -1</span>
+<span class="lineNum">     145 </span><span class="lineCov">      13927 :         || anPolySizes[anBigNeighbour[nPolyId2]] &lt; anPolySizes[nPolyId1] )</span>
+<span class="lineNum">     146 </span><span class="lineCov">         64 :         anBigNeighbour[nPolyId2] = nPolyId1;</span>
+<span class="lineNum">     147 </span>            : }
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            : /************************************************************************/
+<span class="lineNum">     150 </span>            : /*                          GDALSieveFilter()                           */
+<span class="lineNum">     151 </span>            : /************************************************************************/
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span>            : /**
+<span class="lineNum">     154 </span>            :  * Removes small raster polygons.
+<span class="lineNum">     155 </span>            :  *
+<span class="lineNum">     156 </span>            :  * The function removes raster polygons smaller than a provided
+<span class="lineNum">     157 </span>            :  * threshold size (in pixels) and replaces replaces them with the pixel value
+<span class="lineNum">     158 </span>            :  * of the largest neighbour polygon.
+<span class="lineNum">     159 </span>            :  *
+<span class="lineNum">     160 </span>            :  * Polygon are determined (per GDALRasterPolygonEnumerator) as regions of
+<span class="lineNum">     161 </span>            :  * the raster where the pixels all have the same value, and that are contiguous
+<span class="lineNum">     162 </span>            :  * (connected).
+<span class="lineNum">     163 </span>            :  *
+<span class="lineNum">     164 </span>            :  * Pixels determined to be &quot;nodata&quot; per hMaskBand will not be treated as part
+<span class="lineNum">     165 </span>            :  * of a polygon regardless of their pixel values.  Nodata areas will never be
+<span class="lineNum">     166 </span>            :  * changed nor affect polygon sizes.
+<span class="lineNum">     167 </span>            :  *
+<span class="lineNum">     168 </span>            :  * Polygons smaller than the threshold with no neighbours that are as large
+<span class="lineNum">     169 </span>            :  * as the threshold will not be altered.  Polygons surrounded by nodata areas
+<span class="lineNum">     170 </span>            :  * will therefore not be altered.
+<span class="lineNum">     171 </span>            :  *
+<span class="lineNum">     172 </span>            :  * The algorithm makes three passes over the input file to enumerate the
+<span class="lineNum">     173 </span>            :  * polygons and collect limited information about them.  Memory use is
+<span class="lineNum">     174 </span>            :  * proportional to the number of polygons (roughly 24 bytes per polygon), but
+<span class="lineNum">     175 </span>            :  * is not directly related to the size of the raster.  So very large raster
+<span class="lineNum">     176 </span>            :  * files can be processed effectively if there aren't too many polygons.  But
+<span class="lineNum">     177 </span>            :  * extremely noisy rasters with many one pixel polygons will end up being
+<span class="lineNum">     178 </span>            :  * expensive (in memory) to process.
+<span class="lineNum">     179 </span>            :  *
+<span class="lineNum">     180 </span>            :  * @param hSrcBand the source raster band to be processed.
+<span class="lineNum">     181 </span>            :  * @param hMaskBand an optional mask band.  All pixels in the mask band with a
+<span class="lineNum">     182 </span>            :  * value other than zero will be considered suitable for inclusion in polygons.
+<span class="lineNum">     183 </span>            :  * @param hDstBand the output raster band.  It may be the same as hSrcBand
+<span class="lineNum">     184 </span>            :  * to update the source in place.
+<span class="lineNum">     185 </span>            :  * @param nSizeThreshold raster polygons with sizes smaller than this will
+<span class="lineNum">     186 </span>            :  * be merged into their largest neighbour.
+<span class="lineNum">     187 </span>            :  * @param nConnectedness either 4 indicating that diagonal pixels are not
+<span class="lineNum">     188 </span>            :  * considered directly adjacent for polygon membership purposes or 8
+<span class="lineNum">     189 </span>            :  * indicating they are.
+<span class="lineNum">     190 </span>            :  * @param papszOptions algorithm options in name=value list form.  None
+<span class="lineNum">     191 </span>            :  * currently supported.
+<span class="lineNum">     192 </span>            :  * @param pfnProgress callback for reporting algorithm progress matching the
+<span class="lineNum">     193 </span>            :  * GDALProgressFunc() semantics.  May be NULL.
+<span class="lineNum">     194 </span>            :  * @param pProgressArg callback argument passed to pfnProgress.
+<span class="lineNum">     195 </span>            :  *
+<span class="lineNum">     196 </span>            :  * @return CE_None on success or CE_Failure if an error occurs.
+<span class="lineNum">     197 </span>            :  */
+<a name="198"><span class="lineNum">     198 </span>            : </a>
+<span class="lineNum">     199 </span>            : CPLErr CPL_STDCALL
+<span class="lineNum">     200 </span><span class="lineCov">         10 : GDALSieveFilter( GDALRasterBandH hSrcBand, GDALRasterBandH hMaskBand,</span>
+<span class="lineNum">     201 </span>            :                  GDALRasterBandH hDstBand,
+<span class="lineNum">     202 </span>            :                  int nSizeThreshold, int nConnectedness,
+<span class="lineNum">     203 </span>            :                  CPL_UNUSED char **papszOptions,
+<span class="lineNum">     204 </span>            :                  GDALProgressFunc pfnProgress,
+<span class="lineNum">     205 </span>            :                  void * pProgressArg )
+<span class="lineNum">     206 </span>            : {
+<span class="lineNum">     207 </span><span class="lineCov">         10 :     VALIDATE_POINTER1( hSrcBand, &quot;GDALSieveFilter&quot;, CE_Failure );</span>
+<span class="lineNum">     208 </span><span class="lineCov">         10 :     VALIDATE_POINTER1( hDstBand, &quot;GDALSieveFilter&quot;, CE_Failure );</span>
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span><span class="lineCov">         10 :     if( pfnProgress == nullptr )</span>
+<span class="lineNum">     211 </span><span class="lineCov">          9 :         pfnProgress = GDALDummyProgress;</span>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     214 </span>            : /*      Allocate working buffers.                                       */
+<span class="lineNum">     215 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     216 </span><span class="lineCov">         10 :     int nXSize = GDALGetRasterBandXSize( hSrcBand );</span>
+<span class="lineNum">     217 </span><span class="lineCov">         10 :     int nYSize = GDALGetRasterBandYSize( hSrcBand );</span>
+<span class="lineNum">     218 </span>            :     GInt32 *panLastLineVal = static_cast&lt;GInt32 *&gt;(
+<span class="lineNum">     219 </span><span class="lineCov">         10 :         VSI_MALLOC2_VERBOSE(sizeof(GInt32), nXSize));</span>
+<span class="lineNum">     220 </span>            :     GInt32 *panThisLineVal = static_cast&lt;GInt32 *&gt;(
+<span class="lineNum">     221 </span><span class="lineCov">         10 :         VSI_MALLOC2_VERBOSE(sizeof(GInt32), nXSize));</span>
+<span class="lineNum">     222 </span>            :     GInt32 *panLastLineId = static_cast&lt;GInt32 *&gt;(
+<span class="lineNum">     223 </span><span class="lineCov">         10 :         VSI_MALLOC2_VERBOSE(sizeof(GInt32), nXSize));</span>
+<span class="lineNum">     224 </span>            :     GInt32 *panThisLineId = static_cast&lt;GInt32 *&gt;(
+<span class="lineNum">     225 </span><span class="lineCov">         10 :         VSI_MALLOC2_VERBOSE(sizeof(GInt32), nXSize));</span>
+<span class="lineNum">     226 </span>            :     GInt32 *panThisLineWriteVal = static_cast&lt;GInt32 *&gt;(
+<span class="lineNum">     227 </span><span class="lineCov">         10 :         VSI_MALLOC2_VERBOSE(sizeof(GInt32), nXSize));</span>
+<span class="lineNum">     228 </span>            :     GByte *pabyMaskLine =
+<span class="lineNum">     229 </span>            :         hMaskBand != nullptr
+<span class="lineNum">     230 </span><span class="lineCov">          3 :         ? static_cast&lt;GByte *&gt;(VSI_MALLOC_VERBOSE(nXSize))</span>
+<span class="lineNum">     231 </span><span class="lineCov">         13 :         : nullptr;</span>
+<span class="lineNum">     232 </span><span class="lineCov">         20 :     if( panLastLineVal == nullptr || panThisLineVal == nullptr ||</span>
+<span class="lineNum">     233 </span><span class="lineCov">         20 :         panLastLineId == nullptr || panThisLineId == nullptr ||</span>
+<span class="lineNum">     234 </span><span class="lineCov">         10 :         panThisLineWriteVal == nullptr ||</span>
+<span class="lineNum">     235 </span><span class="lineCov">          3 :         (hMaskBand != nullptr &amp;&amp; pabyMaskLine == nullptr) )</span>
+<span class="lineNum">     236 </span>            :     {
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :         CPLFree( panThisLineId );</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :         CPLFree( panLastLineId );</span>
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :         CPLFree( panThisLineVal );</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :         CPLFree( panLastLineVal );</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :         CPLFree( panThisLineWriteVal );</span>
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :         CPLFree( pabyMaskLine );</span>
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     244 </span>            :     }
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     247 </span>            : /*      The first pass over the raster is only used to build up the     */
+<span class="lineNum">     248 </span>            : /*      polygon id map so we will know in advance what polygons are     */
+<span class="lineNum">     249 </span>            : /*      what on the second pass.                                        */
+<span class="lineNum">     250 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     251 </span><span class="lineCov">         10 :     GDALRasterPolygonEnumerator oFirstEnum( nConnectedness );</span>
+<span class="lineNum">     252 </span><span class="lineCov">         20 :     std::vector&lt;int&gt; anPolySizes;</span>
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span><span class="lineCov">         10 :     CPLErr eErr = CE_None;</span>
+<span class="lineNum">     255 </span><span class="lineCov">        189 :     for( int iY = 0; eErr == CE_None &amp;&amp; iY &lt; nYSize; iY++ )</span>
+<span class="lineNum">     256 </span>            :     {
+<span class="lineNum">     257 </span>            :         eErr = GDALRasterIO(
+<span class="lineNum">     258 </span>            :             hSrcBand,
+<span class="lineNum">     259 </span>            :             GF_Read, 0, iY, nXSize, 1,
+<span class="lineNum">     260 </span><span class="lineCov">        179 :             panThisLineVal, nXSize, 1, GDT_Int32, 0, 0 );</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span><span class="lineCov">        179 :         if( eErr == CE_None &amp;&amp; hMaskBand != nullptr )</span>
+<span class="lineNum">     263 </span>            :             eErr = GPMaskImageData(hMaskBand, pabyMaskLine, iY, nXSize,
+<span class="lineNum">     264 </span><span class="lineCov">         21 :                                    panThisLineVal);</span>
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span><span class="lineCov">        179 :         if( iY == 0 )</span>
+<span class="lineNum">     267 </span>            :             oFirstEnum.ProcessLine(
+<span class="lineNum">     268 </span><span class="lineCov">         10 :                 nullptr, panThisLineVal, nullptr, panThisLineId, nXSize );</span>
+<span class="lineNum">     269 </span>            :         else
+<span class="lineNum">     270 </span>            :             oFirstEnum.ProcessLine(
+<span class="lineNum">     271 </span>            :                 panLastLineVal, panThisLineVal,
+<span class="lineNum">     272 </span>            :                 panLastLineId,  panThisLineId,
+<span class="lineNum">     273 </span><span class="lineCov">        169 :                 nXSize );</span>
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     276 </span>            : /*      Accumulate polygon sizes.                                       */
+<span class="lineNum">     277 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     278 </span><span class="lineCov">        179 :         if( oFirstEnum.nNextPolygonId &gt; static_cast&lt;int&gt;(anPolySizes.size()) )</span>
+<span class="lineNum">     279 </span><span class="lineCov">        153 :             anPolySizes.resize( oFirstEnum.nNextPolygonId );</span>
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span><span class="lineCov">      11438 :         for( int iX = 0; iX &lt; nXSize; iX++ )</span>
+<span class="lineNum">     282 </span>            :         {
+<span class="lineNum">     283 </span><span class="lineCov">      11259 :             const int iPoly = panThisLineId[iX];</span>
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span><span class="lineCov">      11259 :             if( iPoly &gt;= 0 &amp;&amp; anPolySizes[iPoly] &lt; MY_MAX_INT )</span>
+<span class="lineNum">     286 </span><span class="lineCov">      11243 :                 anPolySizes[iPoly] += 1;</span>
+<span class="lineNum">     287 </span>            :         }
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     290 </span>            : /*      swap this/last lines.                                           */
+<span class="lineNum">     291 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     292 </span><span class="lineCov">        179 :         std::swap(panLastLineVal, panThisLineVal);</span>
+<span class="lineNum">     293 </span><span class="lineCov">        179 :         std::swap(panLastLineId, panThisLineId);</span>
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     296 </span>            : /*      Report progress, and support interrupts.                        */
+<span class="lineNum">     297 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     298 </span><span class="lineCov">        179 :         if( eErr == CE_None</span>
+<span class="lineNum">     299 </span><span class="lineCov">        358 :             &amp;&amp; !pfnProgress( 0.25 * ((iY+1) / static_cast&lt;double&gt;(nYSize)),</span>
+<span class="lineNum">     300 </span><span class="lineCov">        179 :                              &quot;&quot;, pProgressArg ) )</span>
+<span class="lineNum">     301 </span>            :         {
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :             CPLError( CE_Failure, CPLE_UserInterrupt, &quot;User terminated&quot; );</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :             eErr = CE_Failure;</span>
+<span class="lineNum">     304 </span>            :         }
+<span class="lineNum">     305 </span>            :     }
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     308 </span>            : /*      Make a pass through the maps, ensuring every polygon id         */
+<span class="lineNum">     309 </span>            : /*      points to the final id it should use, not an intermediate       */
+<span class="lineNum">     310 </span>            : /*      value.                                                          */
+<span class="lineNum">     311 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     312 </span><span class="lineCov">         10 :     oFirstEnum.CompleteMerges();</span>
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     315 </span>            : /*      Push the sizes of merged polygon fragments into the             */
+<span class="lineNum">     316 </span>            : /*      merged polygon id's count.                                      */
+<span class="lineNum">     317 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     318 </span><span class="lineCov">      13824 :     for( int iPoly = 0; oFirstEnum.panPolyIdMap != nullptr &amp;&amp; // for Coverity</span>
+<span class="lineNum">     319 </span><span class="lineCov">       6912 :                         iPoly &lt; oFirstEnum.nNextPolygonId; iPoly++ )</span>
+<span class="lineNum">     320 </span>            :     {
+<span class="lineNum">     321 </span><span class="lineCov">       6902 :         if( oFirstEnum.panPolyIdMap[iPoly] != iPoly )</span>
+<span class="lineNum">     322 </span>            :         {
+<span class="lineNum">     323 </span><span class="lineCov">       3478 :             GIntBig nSize = anPolySizes[oFirstEnum.panPolyIdMap[iPoly]];</span>
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span><span class="lineCov">       3478 :             nSize += anPolySizes[iPoly];</span>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineCov">       3478 :             if( nSize &gt; MY_MAX_INT )</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :                 nSize = MY_MAX_INT;</span>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span><span class="lineCov">       3478 :             anPolySizes[oFirstEnum.panPolyIdMap[iPoly]] =</span>
+<span class="lineNum">     331 </span><span class="lineCov">       3478 :                 static_cast&lt;int&gt;(nSize);</span>
+<span class="lineNum">     332 </span><span class="lineCov">       3478 :             anPolySizes[iPoly] = 0;</span>
+<span class="lineNum">     333 </span>            :         }
+<span class="lineNum">     334 </span>            :     }
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     337 </span>            : /*      We will use a new enumerator for the second pass primarily      */
+<span class="lineNum">     338 </span>            : /*      so we can preserve the first pass map.                          */
+<span class="lineNum">     339 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     340 </span><span class="lineCov">         20 :     GDALRasterPolygonEnumerator oSecondEnum( nConnectedness );</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineCov">         20 :     std::vector&lt;int&gt; anBigNeighbour;</span>
+<span class="lineNum">     343 </span><span class="lineCov">         10 :     anBigNeighbour.resize( anPolySizes.size() );</span>
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineCov">       6912 :     for( int iPoly = 0; iPoly &lt; static_cast&lt;int&gt;(anPolySizes.size()); iPoly++ )</span>
+<span class="lineNum">     346 </span><span class="lineCov">       6902 :         anBigNeighbour[iPoly] = -1;</span>
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span>            : /* ==================================================================== */
+<span class="lineNum">     349 </span>            : /*      Second pass ... identify the largest neighbour for each         */
+<span class="lineNum">     350 </span>            : /*      polygon.                                                        */
+<span class="lineNum">     351 </span>            : /* ==================================================================== */
+<span class="lineNum">     352 </span><span class="lineCov">        189 :     for( int iY = 0; eErr == CE_None &amp;&amp; iY &lt; nYSize; iY++ )</span>
+<span class="lineNum">     353 </span>            :     {
+<span class="lineNum">     354 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     355 </span>            : /*      Read the image data.                                            */
+<span class="lineNum">     356 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     357 </span>            :         eErr = GDALRasterIO( hSrcBand, GF_Read, 0, iY, nXSize, 1,
+<span class="lineNum">     358 </span><span class="lineCov">        179 :                              panThisLineVal, nXSize, 1, GDT_Int32, 0, 0 );</span>
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span><span class="lineCov">        179 :         if( eErr == CE_None &amp;&amp; hMaskBand != nullptr )</span>
+<span class="lineNum">     361 </span>            :             eErr = GPMaskImageData( hMaskBand, pabyMaskLine, iY, nXSize,
+<span class="lineNum">     362 </span><span class="lineCov">         21 :                                     panThisLineVal );</span>
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span><span class="lineCov">        179 :         if( eErr != CE_None )</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     368 </span>            : /*      Determine what polygon the various pixels belong to (redoing    */
+<span class="lineNum">     369 </span>            : /*      the same thing done in the first pass above).                   */
+<span class="lineNum">     370 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     371 </span><span class="lineCov">        179 :         if( iY == 0 )</span>
+<span class="lineNum">     372 </span>            :             oSecondEnum.ProcessLine(
+<span class="lineNum">     373 </span><span class="lineCov">         10 :                 nullptr, panThisLineVal, nullptr, panThisLineId, nXSize );</span>
+<span class="lineNum">     374 </span>            :         else
+<span class="lineNum">     375 </span>            :             oSecondEnum.ProcessLine(
+<span class="lineNum">     376 </span>            :                 panLastLineVal, panThisLineVal,
+<span class="lineNum">     377 </span>            :                 panLastLineId,  panThisLineId,
+<span class="lineNum">     378 </span><span class="lineCov">        169 :                 nXSize );</span>
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     381 </span>            : /*      Check our neighbours, and update our biggest neighbour map      */
+<span class="lineNum">     382 </span>            : /*      as appropriate.                                                 */
+<span class="lineNum">     383 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     384 </span><span class="lineCov">      11438 :         for( int iX = 0; iX &lt; nXSize; iX++ )</span>
+<span class="lineNum">     385 </span>            :         {
+<span class="lineNum">     386 </span><span class="lineCov">      11259 :             if( iY &gt; 0 )</span>
+<span class="lineNum">     387 </span>            :             {
+<span class="lineNum">     388 </span><span class="lineCov">      11087 :                 CompareNeighbour( panThisLineId[iX],</span>
+<span class="lineNum">     389 </span><span class="lineCov">      11087 :                                   panLastLineId[iX],</span>
+<span class="lineNum">     390 </span>            :                                   oFirstEnum.panPolyIdMap,
+<span class="lineNum">     391 </span>            :                                   oFirstEnum.panPolyValue,
+<span class="lineNum">     392 </span><span class="lineCov">      33261 :                                   anPolySizes, anBigNeighbour );</span>
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span><span class="lineCov">      11087 :                 if( iX &gt; 0 &amp;&amp; nConnectedness == 8 )</span>
+<span class="lineNum">     395 </span><span class="lineCov">         48 :                     CompareNeighbour( panThisLineId[iX],</span>
+<span class="lineNum">     396 </span><span class="lineCov">         48 :                                       panLastLineId[iX-1],</span>
+<span class="lineNum">     397 </span>            :                                       oFirstEnum.panPolyIdMap,
+<span class="lineNum">     398 </span>            :                                       oFirstEnum.panPolyValue,
+<span class="lineNum">     399 </span><span class="lineCov">        144 :                                       anPolySizes, anBigNeighbour );</span>
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span><span class="lineCov">      11087 :                 if( iX &lt; nXSize-1 &amp;&amp; nConnectedness == 8 )</span>
+<span class="lineNum">     402 </span><span class="lineCov">         48 :                     CompareNeighbour( panThisLineId[iX],</span>
+<span class="lineNum">     403 </span><span class="lineCov">         48 :                                       panLastLineId[iX+1],</span>
+<span class="lineNum">     404 </span>            :                                       oFirstEnum.panPolyIdMap,
+<span class="lineNum">     405 </span>            :                                       oFirstEnum.panPolyValue,
+<span class="lineNum">     406 </span><span class="lineCov">        144 :                                       anPolySizes, anBigNeighbour );</span>
+<span class="lineNum">     407 </span>            :             }
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span><span class="lineCov">      11259 :             if( iX &gt; 0 )</span>
+<span class="lineNum">     410 </span><span class="lineCov">      11080 :                 CompareNeighbour( panThisLineId[iX],</span>
+<span class="lineNum">     411 </span><span class="lineCov">      11080 :                                   panThisLineId[iX-1],</span>
+<span class="lineNum">     412 </span>            :                                   oFirstEnum.panPolyIdMap,
+<span class="lineNum">     413 </span>            :                                   oFirstEnum.panPolyValue,
+<span class="lineNum">     414 </span><span class="lineCov">      33240 :                                   anPolySizes, anBigNeighbour );</span>
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span>            :             // We don't need to compare to next pixel or next line
+<span class="lineNum">     417 </span>            :             // since they will be compared to us.
+<span class="lineNum">     418 </span>            :         }
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     421 </span>            : /*      Swap pixel value, and polygon id lines to be ready for the      */
+<span class="lineNum">     422 </span>            : /*      next line.                                                      */
+<span class="lineNum">     423 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     424 </span><span class="lineCov">        179 :         std::swap(panLastLineVal, panThisLineVal);</span>
+<span class="lineNum">     425 </span><span class="lineCov">        179 :         std::swap(panLastLineId, panThisLineId);</span>
+<span class="lineNum">     426 </span>            : 
+<span class="lineNum">     427 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     428 </span>            : /*      Report progress, and support interrupts.                        */
+<span class="lineNum">     429 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     430 </span><span class="lineCov">        358 :         if( eErr == CE_None &amp;&amp;</span>
+<span class="lineNum">     431 </span><span class="lineCov">        179 :             !pfnProgress(0.25 + 0.25 * ((iY + 1) / static_cast&lt;double&gt;(nYSize)),</span>
+<span class="lineNum">     432 </span><span class="lineCov">        179 :                          &quot;&quot;, pProgressArg) )</span>
+<span class="lineNum">     433 </span>            :         {
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :             CPLError( CE_Failure, CPLE_UserInterrupt, &quot;User terminated&quot; );</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :             eErr = CE_Failure;</span>
+<span class="lineNum">     436 </span>            :         }
+<span class="lineNum">     437 </span>            :     }
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     440 </span>            : /*      If our biggest neighbour is still smaller than the              */
+<span class="lineNum">     441 </span>            : /*      threshold, then try tracking to that polygons biggest           */
+<span class="lineNum">     442 </span>            : /*      neighbour, and so forth.                                        */
+<span class="lineNum">     443 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     444 </span><span class="lineCov">         10 :     int nFailedMerges = 0;</span>
+<span class="lineNum">     445 </span><span class="lineCov">         10 :     int nIsolatedSmall = 0;</span>
+<span class="lineNum">     446 </span><span class="lineCov">         10 :     int nSieveTargets = 0;</span>
+<span class="lineNum">     447 </span>            : 
+<span class="lineNum">     448 </span><span class="lineCov">      20736 :     for( int iPoly = 0; oFirstEnum.panPolyIdMap != nullptr &amp;&amp; // for Coverity</span>
+<span class="lineNum">     449 </span><span class="lineCov">      13824 :                         oFirstEnum.panPolyValue != nullptr &amp;&amp; // for Coverity</span>
+<span class="lineNum">     450 </span><span class="lineCov">       6912 :                         iPoly &lt; static_cast&lt;int&gt;(anPolySizes.size()); iPoly++ )</span>
+<span class="lineNum">     451 </span>            :     {
+<span class="lineNum">     452 </span><span class="lineCov">       6902 :         if( oFirstEnum.panPolyIdMap[iPoly] != iPoly )</span>
+<span class="lineNum">     453 </span><span class="lineCov">       7007 :             continue;</span>
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span>            :         // Ignore nodata polygons.
+<span class="lineNum">     456 </span><span class="lineCov">       3424 :         if( oFirstEnum.panPolyValue[iPoly] == GP_NODATA_MARKER )</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span>            :         // Don't try to merge polygons larger than the threshold.
+<span class="lineNum">     460 </span><span class="lineCov">       3424 :         if( anPolySizes[iPoly] &gt;= nSizeThreshold )</span>
+<span class="lineNum">     461 </span>            :         {
+<span class="lineNum">     462 </span><span class="lineCov">         31 :             anBigNeighbour[iPoly] = -1;</span>
+<span class="lineNum">     463 </span><span class="lineCov">         31 :             continue;</span>
+<span class="lineNum">     464 </span>            :         }
+<span class="lineNum">     465 </span>            : 
+<span class="lineNum">     466 </span><span class="lineCov">       3393 :         nSieveTargets++;</span>
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span>            :         // if we have no neighbours but we are small, what shall we do?
+<span class="lineNum">     469 </span><span class="lineCov">       3393 :         if( anBigNeighbour[iPoly] == -1 )</span>
+<span class="lineNum">     470 </span>            :         {
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :             nIsolatedSmall++;</span>
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     473 </span>            :         }
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineCov">       3393 :         std::set&lt;int&gt; oSetVisitedPoly;</span>
+<span class="lineNum">     476 </span><span class="lineCov">       3393 :         oSetVisitedPoly.insert(iPoly);</span>
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span>            :         // Walk through our neighbours until we find a polygon large enough.
+<span class="lineNum">     479 </span><span class="lineCov">       3393 :         int iFinalId = iPoly;</span>
+<span class="lineNum">     480 </span><span class="lineCov">       3393 :         bool bFoundBigEnoughPoly = false;</span>
+<span class="lineNum">     481 </span>            :         while( true )
+<span class="lineNum">     482 </span>            :         {
+<span class="lineNum">     483 </span><span class="lineCov">       3421 :             iFinalId = anBigNeighbour[iFinalId];</span>
+<span class="lineNum">     484 </span><span class="lineCov">       3421 :             if( iFinalId &lt; 0 )</span>
+<span class="lineNum">     485 </span>            :             {
+<span class="lineNum">     486 </span><span class="lineCov">         19 :                 break;</span>
+<span class="lineNum">     487 </span>            :             }
+<span class="lineNum">     488 </span>            :             // If the biggest neighbour is larger than the threshold
+<span class="lineNum">     489 </span>            :             // then we are golden.
+<span class="lineNum">     490 </span><span class="lineCov">       3402 :             if( anPolySizes[iFinalId] &gt;= nSizeThreshold )</span>
+<span class="lineNum">     491 </span>            :             {
+<span class="lineNum">     492 </span><span class="lineCov">       3373 :                 bFoundBigEnoughPoly = true;</span>
+<span class="lineNum">     493 </span><span class="lineCov">       3373 :                 break;</span>
+<span class="lineNum">     494 </span>            :             }
+<span class="lineNum">     495 </span>            :             // Check that we don't cycle on an already visited polygon.
+<span class="lineNum">     496 </span><span class="lineCov">         29 :             if( oSetVisitedPoly.find(iFinalId) != oSetVisitedPoly.end() )</span>
+<span class="lineNum">     497 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     498 </span><span class="lineCov">         28 :             oSetVisitedPoly.insert(iFinalId);</span>
+<span class="lineNum">     499 </span>            :         }
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span><span class="lineCov">       3393 :         if( !bFoundBigEnoughPoly )</span>
+<span class="lineNum">     502 </span>            :         {
+<span class="lineNum">     503 </span><span class="lineCov">         20 :             nFailedMerges++;</span>
+<span class="lineNum">     504 </span><span class="lineCov">         20 :             anBigNeighbour[iPoly] = -1;</span>
+<span class="lineNum">     505 </span><span class="lineCov">         20 :             continue;</span>
+<span class="lineNum">     506 </span>            :         }
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span>            :         // Map the whole intermediate chain to it.
+<span class="lineNum">     509 </span><span class="lineCov">       3373 :         int iPolyCur = iPoly;</span>
+<span class="lineNum">     510 </span><span class="lineCov">       6754 :         while( anBigNeighbour[iPolyCur] != iFinalId )</span>
+<span class="lineNum">     511 </span>            :         {
+<span class="lineNum">     512 </span><span class="lineCov">          8 :             int iNextPoly = anBigNeighbour[iPolyCur];</span>
+<span class="lineNum">     513 </span><span class="lineCov">          8 :             anBigNeighbour[iPolyCur] = iFinalId;</span>
+<span class="lineNum">     514 </span><span class="lineCov">          8 :             iPolyCur = iNextPoly;</span>
+<span class="lineNum">     515 </span>            :         }
+<span class="lineNum">     516 </span><span class="lineCov">       3373 :     }</span>
+<span class="lineNum">     517 </span>            : 
+<span class="lineNum">     518 </span>            :     CPLDebug( &quot;GDALSieveFilter&quot;,
+<span class="lineNum">     519 </span>            :               &quot;Small Polygons: %d, Isolated: %d, Unmergable: %d&quot;,
+<span class="lineNum">     520 </span><span class="lineCov">         10 :               nSieveTargets, nIsolatedSmall, nFailedMerges );</span>
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span>            : /* ==================================================================== */
+<span class="lineNum">     523 </span>            : /*      Make a third pass over the image, actually applying the         */
+<span class="lineNum">     524 </span>            : /*      merges.  We reuse the second enumerator but preserve the        */
+<span class="lineNum">     525 </span>            : /*      &quot;final maps&quot; from the first.                                    */
+<span class="lineNum">     526 </span>            : /* ==================================================================== */
+<span class="lineNum">     527 </span><span class="lineCov">         10 :     oSecondEnum.Clear();</span>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineCov">        189 :     for( int iY = 0; oFirstEnum.panPolyIdMap != nullptr &amp;&amp; // for Coverity</span>
+<span class="lineNum">     530 </span><span class="lineCov">        189 :                      eErr == CE_None &amp;&amp; iY &lt; nYSize; iY++ )</span>
+<span class="lineNum">     531 </span>            :     {
+<span class="lineNum">     532 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     533 </span>            : /*      Read the image data.                                            */
+<span class="lineNum">     534 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     535 </span>            :         eErr = GDALRasterIO( hSrcBand, GF_Read, 0, iY, nXSize, 1,
+<span class="lineNum">     536 </span><span class="lineCov">        179 :                              panThisLineVal, nXSize, 1, GDT_Int32, 0, 0 );</span>
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span><span class="lineCov">        179 :         memcpy( panThisLineWriteVal, panThisLineVal, 4 * nXSize );</span>
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span><span class="lineCov">        179 :         if( eErr == CE_None &amp;&amp; hMaskBand != nullptr )</span>
+<span class="lineNum">     541 </span>            :             eErr = GPMaskImageData( hMaskBand, pabyMaskLine, iY, nXSize,
+<span class="lineNum">     542 </span><span class="lineCov">         21 :                                     panThisLineVal );</span>
+<span class="lineNum">     543 </span>            : 
+<span class="lineNum">     544 </span><span class="lineCov">        179 :         if( eErr != CE_None )</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     548 </span>            : /*      Determine what polygon the various pixels belong to (redoing    */
+<span class="lineNum">     549 </span>            : /*      the same thing done in the first pass above).                   */
+<span class="lineNum">     550 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     551 </span><span class="lineCov">        179 :         if( iY == 0 )</span>
+<span class="lineNum">     552 </span>            :             oSecondEnum.ProcessLine(
+<span class="lineNum">     553 </span><span class="lineCov">         10 :                 nullptr, panThisLineVal, nullptr, panThisLineId, nXSize );</span>
+<span class="lineNum">     554 </span>            :         else
+<span class="lineNum">     555 </span>            :             oSecondEnum.ProcessLine(
+<span class="lineNum">     556 </span>            :                 panLastLineVal, panThisLineVal,
+<span class="lineNum">     557 </span>            :                 panLastLineId,  panThisLineId,
+<span class="lineNum">     558 </span><span class="lineCov">        169 :                 nXSize );</span>
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     561 </span>            : /*      Reprocess the actual pixel values according to the polygon      */
+<span class="lineNum">     562 </span>            : /*      merging, and write out this line of image data.                 */
+<span class="lineNum">     563 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     564 </span><span class="lineCov">      11438 :         for( int iX = 0; iX &lt; nXSize; iX++ )</span>
+<span class="lineNum">     565 </span>            :         {
+<span class="lineNum">     566 </span><span class="lineCov">      11259 :             int iThisPoly = panThisLineId[iX];</span>
+<span class="lineNum">     567 </span><span class="lineCov">      11259 :             if( iThisPoly &gt;= 0 )</span>
+<span class="lineNum">     568 </span>            :             {
+<span class="lineNum">     569 </span><span class="lineCov">      11243 :                 iThisPoly = oFirstEnum.panPolyIdMap[iThisPoly];</span>
+<span class="lineNum">     570 </span>            : 
+<span class="lineNum">     571 </span><span class="lineCov">      11243 :                 if( anBigNeighbour[iThisPoly] != -1 )</span>
+<span class="lineNum">     572 </span>            :                 {
+<span class="lineNum">     573 </span><span class="lineCov">       3378 :                     panThisLineWriteVal[iX] =</span>
+<span class="lineNum">     574 </span>            :                         oFirstEnum.panPolyValue[
+<span class="lineNum">     575 </span><span class="lineCov">       3378 :                             anBigNeighbour[iThisPoly]];</span>
+<span class="lineNum">     576 </span>            :                 }
+<span class="lineNum">     577 </span>            :             }
+<span class="lineNum">     578 </span>            :         }
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     581 </span>            : /*      Write the update data out.                                      */
+<span class="lineNum">     582 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     583 </span>            :         eErr = GDALRasterIO( hDstBand, GF_Write, 0, iY, nXSize, 1,
+<span class="lineNum">     584 </span><span class="lineCov">        179 :                              panThisLineWriteVal, nXSize, 1, GDT_Int32, 0, 0 );</span>
+<span class="lineNum">     585 </span>            : 
+<span class="lineNum">     586 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     587 </span>            : /*      Swap pixel value, and polygon id lines to be ready for the      */
+<span class="lineNum">     588 </span>            : /*      next line.                                                      */
+<span class="lineNum">     589 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     590 </span><span class="lineCov">        179 :         std::swap(panLastLineVal, panThisLineVal);</span>
+<span class="lineNum">     591 </span><span class="lineCov">        179 :         std::swap(panLastLineId, panThisLineId);</span>
+<span class="lineNum">     592 </span>            : 
+<span class="lineNum">     593 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     594 </span>            : /*      Report progress, and support interrupts.                        */
+<span class="lineNum">     595 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     596 </span><span class="lineCov">        179 :         if( eErr == CE_None</span>
+<span class="lineNum">     597 </span><span class="lineCov">        358 :             &amp;&amp; !pfnProgress(0.5 + 0.5 * ((iY+1) / static_cast&lt;double&gt;(nYSize)),</span>
+<span class="lineNum">     598 </span><span class="lineCov">        179 :                             &quot;&quot;, pProgressArg) )</span>
+<span class="lineNum">     599 </span>            :         {
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :             CPLError( CE_Failure, CPLE_UserInterrupt, &quot;User terminated&quot; );</span>
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :             eErr = CE_Failure;</span>
+<span class="lineNum">     602 </span>            :         }
+<span class="lineNum">     603 </span>            :     }
+<span class="lineNum">     604 </span>            : 
+<span class="lineNum">     605 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     606 </span>            : /*      Cleanup                                                         */
+<span class="lineNum">     607 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     608 </span><span class="lineCov">         10 :     CPLFree( panThisLineId );</span>
+<span class="lineNum">     609 </span><span class="lineCov">         10 :     CPLFree( panLastLineId );</span>
+<span class="lineNum">     610 </span><span class="lineCov">         10 :     CPLFree( panThisLineVal );</span>
+<span class="lineNum">     611 </span><span class="lineCov">         10 :     CPLFree( panLastLineVal );</span>
+<span class="lineNum">     612 </span><span class="lineCov">         10 :     CPLFree( panThisLineWriteVal );</span>
+<span class="lineNum">     613 </span><span class="lineCov">         10 :     CPLFree( pabyMaskLine );</span>
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span><span class="lineCov">         20 :     return eErr;</span>
+<span class="lineNum">     616 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,1562 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/grib/degrib/degrib/metaprint.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">frmts/grib/degrib/degrib</a> - metaprint.cpp<span style="font-size: 80%;"> (source / <a href="metaprint.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">50</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">1</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*****************************************************************************</a>
+<span class="lineNum">       2 </span>            :  * metaprint.c
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * DESCRIPTION
+<span class="lineNum">       5 </span>            :  *    This file contains the code necessary to write out the meta data
+<span class="lineNum">       6 </span>            :  * structure.
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  * HISTORY
+<span class="lineNum">       9 </span>            :  *    9/2002 Arthur Taylor (MDL / RSIS): Created.
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * NOTES
+<span class="lineNum">      12 </span>            :  * 1) Need to add support for GS3_ORTHOGRAPHIC = 90,
+<span class="lineNum">      13 </span>            :  *    GS3_EQUATOR_EQUIDIST = 110, GS3_AZIMUTH_RANGE = 120
+<span class="lineNum">      14 </span>            :  * 2) Need to add support for GS4_RADAR = 20, GS4_SATELLITE = 30
+<span class="lineNum">      15 </span>            :  *****************************************************************************
+<span class="lineNum">      16 </span>            :  */
+<span class="lineNum">      17 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      18 </span>            : #include &lt;stdlib.h&gt;
+<span class="lineNum">      19 </span>            : #include &lt;stdarg.h&gt;
+<span class="lineNum">      20 </span>            : #include &lt;math.h&gt;
+<span class="lineNum">      21 </span>            : #ifndef DONT_DEPRECATE_SPRINTF
+<span class="lineNum">      22 </span>            : #define DONT_DEPRECATE_SPRINTF
+<span class="lineNum">      23 </span>            : #endif
+<span class="lineNum">      24 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;meta.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;metaname.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;myerror.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;myutil.h&quot;
+<span class="lineNum">      29 </span>            : #if 0
+<span class="lineNum">      30 </span>            : /* tdlpack is no longer supported by GDAL */
+<span class="lineNum">      31 </span>            : #include &quot;tdlpack.h&quot;
+<span class="lineNum">      32 </span>            : #endif
+<span class="lineNum">      33 </span>            : #include &quot;myassert.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;clock.h&quot;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : /*****************************************************************************
+<span class="lineNum">      37 </span>            :  * Lookup() --
+<span class="lineNum">      38 </span>            :  *
+<span class="lineNum">      39 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">      40 </span>            :  *
+<span class="lineNum">      41 </span>            :  * PURPOSE
+<span class="lineNum">      42 </span>            :  *   To lookup the string value in a table, given the table, the index, and
+<span class="lineNum">      43 </span>            :  * some default values.
+<span class="lineNum">      44 </span>            :  *
+<span class="lineNum">      45 </span>            :  * ARGUMENTS
+<span class="lineNum">      46 </span>            :  * table = The table to look in. (Input)
+<span class="lineNum">      47 </span>            :  *     n = Size of table. (Input)
+<span class="lineNum">      48 </span>            :  * index = Index to look up. (Input)
+<span class="lineNum">      49 </span>            :  *
+<span class="lineNum">      50 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">      51 </span>            :  *
+<span class="lineNum">      52 </span>            :  * RETURNS: char *
+<span class="lineNum">      53 </span>            :  *   The desired index value, or the appropriate default message.
+<span class="lineNum">      54 </span>            :  *
+<span class="lineNum">      55 </span>            :  * HISTORY
+<span class="lineNum">      56 </span>            :  *   9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">      57 </span>            :  *
+<span class="lineNum">      58 </span>            :  * NOTES
+<span class="lineNum">      59 </span>            :  * Can not do a sizeof(table) here because table is now of arbitrary length.
+<span class="lineNum">      60 </span>            :  * Instead do sizeof(table) in calling procedure.
+<span class="lineNum">      61 </span>            :  *****************************************************************************
+<span class="lineNum">      62 </span>            :  */
+<span class="lineNum">      63 </span>            : #if 0  // Unused with GDAL.
+<span class="lineNum">      64 </span>            : static const char *Lookup(const char * const *table, size_t n, size_t index)
+<span class="lineNum">      65 </span>            : {
+<span class="lineNum">      66 </span>            :    static const char * const def[] =
+<span class="lineNum">      67 </span>            :     { &quot;Reserved&quot;, &quot;Reserved for local use&quot;, &quot;Missing&quot; };
+<span class="lineNum">      68 </span>            :    if (index &lt; (n / sizeof (char *))) {
+<span class="lineNum">      69 </span>            :       return table[index];
+<span class="lineNum">      70 </span>            :    } else if (index &lt; 192) {
+<span class="lineNum">      71 </span>            :       return def[0];
+<span class="lineNum">      72 </span>            :    } else if (index &lt; 255) {
+<span class="lineNum">      73 </span>            :       return def[1];
+<span class="lineNum">      74 </span>            :    } else {
+<span class="lineNum">      75 </span>            :       return def[2];
+<span class="lineNum">      76 </span>            :    }
+<span class="lineNum">      77 </span>            : }
+<span class="lineNum">      78 </span>            : #endif
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            : /*****************************************************************************
+<span class="lineNum">      81 </span>            :  * Print() --
+<span class="lineNum">      82 </span>            :  *
+<span class="lineNum">      83 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">      84 </span>            :  *
+<span class="lineNum">      85 </span>            :  * PURPOSE
+<span class="lineNum">      86 </span>            :  *   To print the message to a local static array in a way similar to
+<span class="lineNum">      87 </span>            :  * myerror.c::errSprintf.  This allows us to pass the results back to Tcl/Tk,
+<span class="lineNum">      88 </span>            :  * as well as to save it to disk.  It also serves as a central place to
+<span class="lineNum">      89 </span>            :  * change if we want a different style of output.
+<span class="lineNum">      90 </span>            :  *
+<span class="lineNum">      91 </span>            :  *   The caller gives a series of calls with fmt != NULL, followed by
+<span class="lineNum">      92 </span>            :  * a fmt == NULL.  This last call will return the constructed message to the
+<span class="lineNum">      93 </span>            :  * caller, and reset the message to NULL.  It is caller's responsibility to
+<span class="lineNum">      94 </span>            :  * free the message, and to make sure that last call to Print has fmt = NULL,
+<span class="lineNum">      95 </span>            :  * so that the routine doesn't accidentally keep memory.
+<span class="lineNum">      96 </span>            :  *
+<span class="lineNum">      97 </span>            :  * ARGUMENTS
+<span class="lineNum">      98 </span>            :  *   label = A label for this set of data. (Input)
+<span class="lineNum">      99 </span>            :  * varName = A char string describing the variable.. (Input)
+<span class="lineNum">     100 </span>            :  *     fmt = Prt_NULL, Prt_D, Prt_DS, Prt_DSS, Prt_S, Prt_F, Prt_FS, Prt_E,
+<span class="lineNum">     101 </span>            :  *           Prt_ES. (Input)
+<span class="lineNum">     102 </span>            :  *           determines what to expect in the rest of the arguments.
+<span class="lineNum">     103 </span>            :  *           d = sInt4, s = char *, f = double,
+<span class="lineNum">     104 </span>            :  *           NULL = return the constructed answer, and reset answer to NULL.
+<span class="lineNum">     105 </span>            :  *
+<span class="lineNum">     106 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     107 </span>            :  *
+<span class="lineNum">     108 </span>            :  * RETURNS: char *
+<span class="lineNum">     109 </span>            :  *   NULL if (fmt != NULL) (i.e. we added to message)
+<span class="lineNum">     110 </span>            :  *   message if (fmt == NULL) (i.e. return the message).
+<span class="lineNum">     111 </span>            :  *       It is caller's responsibility to free the message, and to make sure
+<span class="lineNum">     112 </span>            :  *       that last call to Print has fmt = NULL.
+<span class="lineNum">     113 </span>            :  *
+<span class="lineNum">     114 </span>            :  * HISTORY
+<span class="lineNum">     115 </span>            :  *   9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     116 </span>            :  *   4/2003 AAT: Changed so it could print different types of labels
+<span class="lineNum">     117 </span>            :  *               &quot;GDS&quot; instead of &quot;S3&quot;
+<span class="lineNum">     118 </span>            :  *  10/2004 AAT: Added Prt_SS
+<span class="lineNum">     119 </span>            :  *
+<span class="lineNum">     120 </span>            :  * NOTES
+<span class="lineNum">     121 </span>            :  * Using enumerated type instead of &quot;ds&quot; &quot;dss&quot; etc.  For speed considerations.
+<a name="122"><span class="lineNum">     122 </span>            :  *****************************************************************************</a>
+<span class="lineNum">     123 </span>            :  */
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 : char *Print(const char *label, const char *varName, int fmt, ...)</span>
+<span class="lineNum">     125 </span>            : {
+<span class="lineNum">     126 </span>            :    static char *buffer = nullptr; /* Copy of message generated so far. */
+<span class="lineNum">     127 </span>            :    va_list ap;          /* pointer to variable argument list. */
+<span class="lineNum">     128 </span>            :    sInt4 lival;         /* Store a sInt4 val from argument list. */
+<span class="lineNum">     129 </span>            :    char *sval;          /* Store a string val from argument. */
+<span class="lineNum">     130 </span>            :    char *unit;          /* Second string val is usually a unit string. */
+<span class="lineNum">     131 </span>            :    double dval;         /* Store a double val from argument list. */
+<span class="lineNum">     132 </span>            :    char *ans;           /* Final message to return if fmt = Prt_NULL. */
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :    if (fmt == Prt_NULL) {</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :       ans = buffer;</span>
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :       buffer = nullptr;</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :       return ans;</span>
+<span class="lineNum">     138 </span>            :    }
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :    va_start (ap, fmt);  /* make ap point to 1st unnamed arg. */</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :    switch (fmt) {</span>
+<span class="lineNum">     141 </span>            :       case Prt_D:
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :          lival = va_arg (ap, sInt4);</span>
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :          reallocSprintf (&amp;buffer, &quot;%s | %s | %ld\n&quot;, label, varName, lival);</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     145 </span>            :       case Prt_DS:
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :          lival = va_arg (ap, sInt4);</span>
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :          sval = va_arg (ap, char *);</span>
+<span class="lineNum">     148 </span>            :          reallocSprintf (&amp;buffer, &quot;%s | %s | %ld (%s)\n&quot;, label, varName,
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :                          lival, sval);</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     151 </span>            :       case Prt_DSS:
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :          lival = va_arg (ap, sInt4);</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :          sval = va_arg (ap, char *);</span>
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :          unit = va_arg (ap, char *);</span>
+<span class="lineNum">     155 </span>            :          reallocSprintf (&amp;buffer, &quot;%s | %s | %ld (%s [%s])\n&quot;, label,
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :                          varName, lival, sval, unit);</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     158 </span>            :       case Prt_S:
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :          sval = va_arg (ap, char *);</span>
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :          reallocSprintf (&amp;buffer, &quot;%s | %s | %s\n&quot;, label, varName, sval);</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     162 </span>            :       case Prt_SS:
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :          sval = va_arg (ap, char *);</span>
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :          unit = va_arg (ap, char *);</span>
+<span class="lineNum">     165 </span>            :          reallocSprintf (&amp;buffer, &quot;%s | %s | %s (%s)\n&quot;, label, varName,
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :                          sval, unit);</span>
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     168 </span>            :       case Prt_F:
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :          dval = va_arg (ap, double);</span>
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :          reallocSprintf (&amp;buffer, &quot;%s | %s | %f\n&quot;, label, varName, dval);</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     172 </span>            :       case Prt_E:
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :          dval = va_arg (ap, double);</span>
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :          reallocSprintf (&amp;buffer, &quot;%s | %s | %e\n&quot;, label, varName, dval);</span>
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     176 </span>            :       case Prt_G:
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :          dval = va_arg (ap, double);</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :          reallocSprintf (&amp;buffer, &quot;%s | %s | %g\n&quot;, label, varName, dval);</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     180 </span>            :       case Prt_FS:
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :          dval = va_arg (ap, double);</span>
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :          unit = va_arg (ap, char *);</span>
+<span class="lineNum">     183 </span>            :          reallocSprintf (&amp;buffer, &quot;%s | %s | %f (%s)\n&quot;, label, varName,
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :                          dval, unit);</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     186 </span>            :       case Prt_ES:
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :          dval = va_arg (ap, double);</span>
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :          unit = va_arg (ap, char *);</span>
+<span class="lineNum">     189 </span>            :          reallocSprintf (&amp;buffer, &quot;%s | %s | %e (%s)\n&quot;, label, varName,
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :                          dval, unit);</span>
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     192 </span>            :       case Prt_GS:
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :          dval = va_arg (ap, double);</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :          unit = va_arg (ap, char *);</span>
+<span class="lineNum">     195 </span>            :          reallocSprintf (&amp;buffer, &quot;%s | %s | %g (%s)\n&quot;, label, varName,
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :                          dval, unit);</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :          break;</span>
+<span class="lineNum">     198 </span>            :       default:
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 :          reallocSprintf (&amp;buffer, &quot;ERROR: Invalid Print option '%d'\n&quot;, fmt);</span>
+<span class="lineNum">     200 </span>            :    }
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :    va_end (ap);         /* clean up when done. */</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :    return nullptr;</span>
+<span class="lineNum">     203 </span>            : }
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span>            : #if 0  // Unused with GDAL.
+<span class="lineNum">     206 </span>            : /*****************************************************************************
+<span class="lineNum">     207 </span>            :  * PrintSect1() --
+<span class="lineNum">     208 </span>            :  *
+<span class="lineNum">     209 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">     210 </span>            :  *
+<span class="lineNum">     211 </span>            :  * PURPOSE
+<span class="lineNum">     212 </span>            :  *   To generate the message for GRIB2 section 1.
+<span class="lineNum">     213 </span>            :  *
+<span class="lineNum">     214 </span>            :  * ARGUMENTS
+<span class="lineNum">     215 </span>            :  *      pds2 = The GRIB2 Product Definition Section to print. (Input)
+<span class="lineNum">     216 </span>            :  *    center = The Center that created the data (Input)
+<span class="lineNum">     217 </span>            :  * subcenter = The Sub Center that created the data (Input)
+<span class="lineNum">     218 </span>            :  *
+<span class="lineNum">     219 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     220 </span>            :  *
+<span class="lineNum">     221 </span>            :  * RETURNS: void
+<span class="lineNum">     222 </span>            :  *
+<span class="lineNum">     223 </span>            :  * HISTORY
+<span class="lineNum">     224 </span>            :  *   9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     225 </span>            :  *   4/2003 AAT: Changed to accept pointer to pdsG2Type pds2
+<span class="lineNum">     226 </span>            :  *  10/2005 AAT: Adjusted to take center, subcenter as we moved that out of
+<span class="lineNum">     227 </span>            :  *               the pdsG2 type.
+<span class="lineNum">     228 </span>            :  *
+<span class="lineNum">     229 </span>            :  * NOTES
+<span class="lineNum">     230 </span>            :  *****************************************************************************
+<span class="lineNum">     231 </span>            :  */
+<span class="lineNum">     232 </span>            : static void PrintSect1 (pdsG2Type * pds2, unsigned short int center,
+<span class="lineNum">     233 </span>            :                         unsigned short int subcenter)
+<span class="lineNum">     234 </span>            : {
+<span class="lineNum">     235 </span>            :    /* Based on Grib2 Code Table 1.2 */
+<span class="lineNum">     236 </span>            :    static const char * const table12[] = { &quot;Analysis&quot;, &quot;Start of Forecast&quot;,
+<span class="lineNum">     237 </span>            :       &quot;Verifying time of forecast&quot;, &quot;Observation time&quot;
+<span class="lineNum">     238 </span>            :    };
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            :    /* Based on Grib2 Code Table 1.3 */
+<span class="lineNum">     241 </span>            :    static const char * const table13[] = { &quot;Operational products&quot;,
+<span class="lineNum">     242 </span>            :       &quot;Operational test products&quot;, &quot;Research products&quot;,
+<span class="lineNum">     243 </span>            :       &quot;Re-analysis products&quot;
+<span class="lineNum">     244 </span>            :    };
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            :    /* Based on Grib2 Code Table 1.4 */
+<span class="lineNum">     247 </span>            :    static const char * const table14[] = { &quot;Analysis products&quot;,
+<span class="lineNum">     248 </span>            :       &quot;Forecast products&quot;, &quot;Analysis and forecast products&quot;,
+<span class="lineNum">     249 </span>            :       &quot;Control forecast products&quot;, &quot;Perturbed forecast products&quot;,
+<span class="lineNum">     250 </span>            :       &quot;Control and perturbed forecast products&quot;,
+<span class="lineNum">     251 </span>            :       &quot;Processed satellite observations&quot;, &quot;Processed radar observations&quot;
+<span class="lineNum">     252 </span>            :    };
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            :    char buffer[25];     /* Stores format of pds2-&gt;refTime. */
+<span class="lineNum">     255 </span>            :    const char *ptr;
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span>            :    ptr = centerLookup (center);
+<span class="lineNum">     258 </span>            :    if (ptr != NULL) {
+<span class="lineNum">     259 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Originating center&quot;, Prt_DS, center, ptr);
+<span class="lineNum">     260 </span>            :    } else {
+<span class="lineNum">     261 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Originating center&quot;, Prt_D, center);
+<span class="lineNum">     262 </span>            :    }
+<span class="lineNum">     263 </span>            :    if (subcenter != GRIB2MISSING_u2) {
+<span class="lineNum">     264 </span>            :       ptr = subCenterLookup (center, subcenter);
+<span class="lineNum">     265 </span>            :       if (ptr != NULL) {
+<span class="lineNum">     266 </span>            :          Print (&quot;PDS-S1&quot;, &quot;Originating sub-center&quot;, Prt_DS, subcenter, ptr);
+<span class="lineNum">     267 </span>            :       } else {
+<span class="lineNum">     268 </span>            :          Print (&quot;PDS-S1&quot;, &quot;Originating sub-center&quot;, Prt_D, subcenter);
+<span class="lineNum">     269 </span>            :       }
+<span class="lineNum">     270 </span>            :    }
+<span class="lineNum">     271 </span>            :    Print (&quot;PDS-S1&quot;, &quot;GRIB Master Tables Version&quot;, Prt_D, pds2-&gt;mstrVersion);
+<span class="lineNum">     272 </span>            :    Print (&quot;PDS-S1&quot;, &quot;GRIB Local Tables Version&quot;, Prt_D, pds2-&gt;lclVersion);
+<span class="lineNum">     273 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Significance of reference time&quot;, Prt_DS, pds2-&gt;sigTime,
+<span class="lineNum">     274 </span>            :           Lookup (table12, sizeof (table12), pds2-&gt;sigTime));
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span>            : /*   strftime (buffer, 25, &quot;%m/%d/%Y %H:%M:%S UTC&quot;, gmtime (&amp;(pds2-&gt;refTime)));*/
+<span class="lineNum">     277 </span>            :    Clock_Print (buffer, 25, pds2-&gt;refTime, &quot;%m/%d/%Y %H:%M:%S UTC&quot;, 0);
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Reference Time&quot;, Prt_S, buffer);
+<span class="lineNum">     280 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Operational Status&quot;, Prt_DS, pds2-&gt;operStatus,
+<span class="lineNum">     281 </span>            :           Lookup (table13, sizeof (table13), pds2-&gt;operStatus));
+<span class="lineNum">     282 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Type of Data&quot;, Prt_DS, pds2-&gt;dataType,
+<span class="lineNum">     283 </span>            :           Lookup (table14, sizeof (table14), pds2-&gt;dataType));
+<span class="lineNum">     284 </span>            : }
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            : /*****************************************************************************
+<span class="lineNum">     287 </span>            :  * PrintSect2() --
+<span class="lineNum">     288 </span>            :  *
+<span class="lineNum">     289 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">     290 </span>            :  *
+<span class="lineNum">     291 </span>            :  * PURPOSE
+<span class="lineNum">     292 </span>            :  *   To generate a message for the section 2 data.  This may be more
+<span class="lineNum">     293 </span>            :  * appropriate in its own file (particularly the weather table.)
+<span class="lineNum">     294 </span>            :  *
+<span class="lineNum">     295 </span>            :  * ARGUMENTS
+<span class="lineNum">     296 </span>            :  * sect2 = The sect2 structure to print (initialized by ParseSect2). (Input)
+<span class="lineNum">     297 </span>            :  *
+<span class="lineNum">     298 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     299 </span>            :  *
+<span class="lineNum">     300 </span>            :  * RETURNS: void
+<span class="lineNum">     301 </span>            :  *
+<span class="lineNum">     302 </span>            :  * HISTORY
+<span class="lineNum">     303 </span>            :  *   2/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     304 </span>            :  *
+<span class="lineNum">     305 </span>            :  * NOTES
+<span class="lineNum">     306 </span>            :  *****************************************************************************
+<span class="lineNum">     307 </span>            :  */
+<span class="lineNum">     308 </span>            : static void PrintSect2 (sect2_type * sect2)
+<span class="lineNum">     309 </span>            : {
+<span class="lineNum">     310 </span>            :    size_t i;            /* loop counter over number of sect2 data. */
+<span class="lineNum">     311 </span>            :    char buffer[25];     /* Assists with labeling. */
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            :    switch (sect2-&gt;ptrType) {
+<span class="lineNum">     314 </span>            :       case GS2_WXTYPE:
+<span class="lineNum">     315 </span>            :          Print (&quot;PDS-S2&quot;, &quot;Number of Elements in Section 2&quot;, Prt_D,
+<span class="lineNum">     316 </span>            :                 sect2-&gt;wx.dataLen);
+<span class="lineNum">     317 </span>            :          for (i = 0; i &lt; sect2-&gt;wx.dataLen; i++) {
+<span class="lineNum">     318 </span>            :             if (sect2-&gt;wx.ugly[i].validIndex != -1) {
+<span class="lineNum">     319 </span>            :                sprintf (buffer, &quot;Elem %3d  Is Used&quot;, (int) i);
+<span class="lineNum">     320 </span>            :             } else {
+<span class="lineNum">     321 </span>            :                sprintf (buffer, &quot;Elem %3d NOT Used&quot;, (int) i);
+<span class="lineNum">     322 </span>            :             }
+<span class="lineNum">     323 </span>            :             Print (&quot;PDS-S2&quot;, buffer, Prt_S, sect2-&gt;wx.data[i]);
+<span class="lineNum">     324 </span>            :          }
+<span class="lineNum">     325 </span>            :          break;
+<span class="lineNum">     326 </span>            :       case GS2_UNKNOWN:
+<span class="lineNum">     327 </span>            :          Print (&quot;PDS-S2&quot;, &quot;Number of Elements in Section 2&quot;, Prt_D,
+<span class="lineNum">     328 </span>            :                 sect2-&gt;unknown.dataLen);
+<span class="lineNum">     329 </span>            :          for (i = 0; i &lt; sect2-&gt;unknown.dataLen; i++) {
+<span class="lineNum">     330 </span>            :             sprintf (buffer, &quot;Element %d&quot;, (int) i);
+<span class="lineNum">     331 </span>            :             Print (&quot;PDS-S2&quot;, buffer, Prt_F, sect2-&gt;unknown.data[i]);
+<span class="lineNum">     332 </span>            :          }
+<span class="lineNum">     333 </span>            :          break;
+<span class="lineNum">     334 </span>            :       default:
+<span class="lineNum">     335 </span>            :          return;
+<span class="lineNum">     336 </span>            :    }
+<span class="lineNum">     337 </span>            : }
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            : /*****************************************************************************
+<span class="lineNum">     340 </span>            :  * PrintSect4_Category() --
+<span class="lineNum">     341 </span>            :  *
+<span class="lineNum">     342 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">     343 </span>            :  *
+<span class="lineNum">     344 </span>            :  * PURPOSE
+<span class="lineNum">     345 </span>            :  *   To generate the category message for section 4.
+<span class="lineNum">     346 </span>            :  *
+<span class="lineNum">     347 </span>            :  * ARGUMENTS
+<span class="lineNum">     348 </span>            :  * meta = The meta file structure to generate the message for. (Input)
+<span class="lineNum">     349 </span>            :  *
+<span class="lineNum">     350 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     351 </span>            :  *
+<span class="lineNum">     352 </span>            :  * RETURNS: void
+<span class="lineNum">     353 </span>            :  *
+<span class="lineNum">     354 </span>            :  * HISTORY
+<span class="lineNum">     355 </span>            :  *   6/2003 Arthur Taylor (MDL/RSIS): Extracted this part from PrintSect4().
+<span class="lineNum">     356 </span>            :  *   1/2004 AAT: Combined PrintSect4_Meteo and PrintSect4_Ocean into this.
+<span class="lineNum">     357 </span>            :  *   5/2004 AAT: Found out that I skipped &quot;Momentum Probabilities&quot; in tbl41_0.
+<span class="lineNum">     358 </span>            :  *
+<span class="lineNum">     359 </span>            :  * NOTES
+<span class="lineNum">     360 </span>            :  *****************************************************************************
+<span class="lineNum">     361 </span>            :  */
+<span class="lineNum">     362 </span>            : static void PrintSect4_Category_OAR (uChar cat) {
+<span class="lineNum">     363 </span>            :    if (cat == 2) {
+<span class="lineNum">     364 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;Lightning Products&quot;);
+<span class="lineNum">     365 </span>            :    } else if (cat == 3) {
+<span class="lineNum">     366 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;Severe Weather Products&quot;);
+<span class="lineNum">     367 </span>            :    } else if (cat == 4) {
+<span class="lineNum">     368 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;Satellite Products&quot;);
+<span class="lineNum">     369 </span>            :    } else if (cat == 5) {
+<span class="lineNum">     370 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;Forecast Products&quot;);
+<span class="lineNum">     371 </span>            :    } else if (cat == 6) {
+<span class="lineNum">     372 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;Precipitation Products&quot;);
+<span class="lineNum">     373 </span>            :    } else if (cat == 7) {
+<span class="lineNum">     374 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;Model-based Products&quot;);
+<span class="lineNum">     375 </span>            :    } else if (cat == 8) {
+<span class="lineNum">     376 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;Intermediate Products&quot;);
+<span class="lineNum">     377 </span>            :    } else if (cat == 9) {
+<span class="lineNum">     378 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;3D Reflectivity Mosaics&quot;);
+<span class="lineNum">     379 </span>            :    } else if (cat == 10) {
+<span class="lineNum">     380 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;Composite Reflectivity Mosaics&quot;);
+<span class="lineNum">     381 </span>            :    } else if (cat == 11) {
+<span class="lineNum">     382 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;Other Reflectivity Mosaics&quot;);
+<span class="lineNum">     383 </span>            :    } else  {
+<span class="lineNum">     384 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, cat, &quot;unknown&quot;);
+<span class="lineNum">     385 </span>            :    }
+<span class="lineNum">     386 </span>            : }
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span>            : static void PrintSect4_Category (grib_MetaData *meta)
+<span class="lineNum">     389 </span>            : {
+<span class="lineNum">     390 </span>            :    sect4_type *sect4 = &amp;(meta-&gt;pds2.sect4);
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span>            :    /* Based on Grib2 Code Table 4.1 discipline 0 */
+<span class="lineNum">     393 </span>            :    static const char * const tbl41_0[] = {
+<span class="lineNum">     394 </span>            :       &quot;Temperature&quot;, &quot;Moisture&quot;, &quot;Momentum&quot;, &quot;Mass&quot;, &quot;Short-wave Radiation&quot;,
+<span class="lineNum">     395 </span>            :       &quot;Long-wave Radiation&quot;, &quot;Cloud&quot;, &quot;Thermodynamic Stability indices&quot;,
+<span class="lineNum">     396 </span>            :       &quot;Kinematic Stability indices&quot;, &quot;Temperature Probabilities&quot;,
+<span class="lineNum">     397 </span>            :       &quot;Moisture Probabilities&quot;, &quot;Momentum Probabilities&quot;,
+<span class="lineNum">     398 </span>            :       &quot;Mass Probabilities&quot;, &quot;Aerosols&quot;, &quot;Trace gases (e.g. ozone, C02)&quot;,
+<span class="lineNum">     399 </span>            :       &quot;Radar&quot;, &quot;Forecast Radar Imagery&quot;, &quot;Electro-dynamics&quot;,
+<span class="lineNum">     400 </span>            :       &quot;Nuclear/radiology&quot;, &quot;Physical atmospheric properties&quot;,
+<span class="lineNum">     401 </span>            :       &quot;Atmospheric chemical Constituents&quot;,
+<span class="lineNum">     402 </span>            :    };
+<span class="lineNum">     403 </span>            :    /* Based on Grib2 Code Table 4.1 discipline 1 */
+<span class="lineNum">     404 </span>            :    static const char * const tbl41_1[] = {
+<span class="lineNum">     405 </span>            :       &quot;Hydrology basic products&quot;, &quot;Hydrology probabilities&quot;
+<span class="lineNum">     406 </span>            :    };
+<span class="lineNum">     407 </span>            :    /* Based on Grib2 Code Table 4.1 discipline 2 */
+<span class="lineNum">     408 </span>            :    static const char * const tbl41_2[] = {
+<span class="lineNum">     409 </span>            :       &quot;Vegetation/Biomass&quot;, &quot;Agri-/aquacultural Special Products&quot;,
+<span class="lineNum">     410 </span>            :       &quot;Transportation-related Products&quot;, &quot;Soil Products&quot;
+<span class="lineNum">     411 </span>            :    };
+<span class="lineNum">     412 </span>            :    /* Based on Grib2 Code Table 4.1 discipline 3 */
+<span class="lineNum">     413 </span>            :    static const char * const tbl41_3[] = {
+<span class="lineNum">     414 </span>            :       &quot;Image format products&quot;, &quot;Quantitative products&quot;
+<span class="lineNum">     415 </span>            :    };
+<span class="lineNum">     416 </span>            :    /* Based on Grib2 Code Table 4.1 discipline 10 */
+<span class="lineNum">     417 </span>            :    static const char * const tbl41_10[] = {
+<span class="lineNum">     418 </span>            :       &quot;Waves&quot;, &quot;Currents&quot;, &quot;Ice&quot;, &quot;Surface Properties&quot;,
+<span class="lineNum">     419 </span>            :       &quot;Sub-surface Properties&quot;
+<span class="lineNum">     420 </span>            :    };
+<span class="lineNum">     421 </span>            :    
+<span class="lineNum">     422 </span>            :    if (meta-&gt;pds2.mstrVersion == 255) {
+<span class="lineNum">     423 </span>            :       if (meta-&gt;center == 161) {
+<span class="lineNum">     424 </span>            :          PrintSect4_Category_OAR(sect4-&gt;cat);
+<span class="lineNum">     425 </span>            :       } else {
+<span class="lineNum">     426 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat, &quot;unknown&quot;);
+<span class="lineNum">     427 </span>            :       }
+<span class="lineNum">     428 </span>            :       return;  
+<span class="lineNum">     429 </span>            :    }
+<span class="lineNum">     430 </span>            :    switch (meta-&gt;pds2.prodType) {
+<span class="lineNum">     431 </span>            :       case 0:          /* Meteo category. */
+<span class="lineNum">     432 </span>            :          switch (sect4-&gt;cat) {
+<span class="lineNum">     433 </span>            :             case 190:
+<span class="lineNum">     434 </span>            :                Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     435 </span>            :                       &quot;CCITT IA5 string&quot;);
+<span class="lineNum">     436 </span>            :                break;
+<span class="lineNum">     437 </span>            :             case 191:
+<span class="lineNum">     438 </span>            :                Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     439 </span>            :                       &quot;Miscellaneous&quot;);
+<span class="lineNum">     440 </span>            :                break;
+<span class="lineNum">     441 </span>            :             case 192:
+<span class="lineNum">     442 </span>            :                Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     443 </span>            :                       &quot;Covariance&quot;);
+<span class="lineNum">     444 </span>            :                break;
+<span class="lineNum">     445 </span>            :             default:
+<span class="lineNum">     446 </span>            :                Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     447 </span>            :                       Lookup (tbl41_0, sizeof (tbl41_0), sect4-&gt;cat));
+<span class="lineNum">     448 </span>            :          }
+<span class="lineNum">     449 </span>            :          break;
+<span class="lineNum">     450 </span>            :       case 1:          /* Hydrological */
+<span class="lineNum">     451 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     452 </span>            :                 Lookup (tbl41_1, sizeof (tbl41_1), sect4-&gt;cat));
+<span class="lineNum">     453 </span>            :          break;
+<span class="lineNum">     454 </span>            :       case 2:          /* Land surface */
+<span class="lineNum">     455 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     456 </span>            :                 Lookup (tbl41_2, sizeof (tbl41_2), sect4-&gt;cat));
+<span class="lineNum">     457 </span>            :          break;
+<span class="lineNum">     458 </span>            :       case 3:          /* Space */
+<span class="lineNum">     459 </span>            :          switch (sect4-&gt;cat) {
+<span class="lineNum">     460 </span>            :             case 192:
+<span class="lineNum">     461 </span>            :                Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     462 </span>            :                       &quot;Forecast Satellite Imagery&quot;);
+<span class="lineNum">     463 </span>            :                break;
+<span class="lineNum">     464 </span>            :             default:
+<span class="lineNum">     465 </span>            :                Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     466 </span>            :                       Lookup (tbl41_3, sizeof (tbl41_3), sect4-&gt;cat));
+<span class="lineNum">     467 </span>            :          }
+<span class="lineNum">     468 </span>            :          break;
+<span class="lineNum">     469 </span>            :       case 10:         /* Oceanographic */
+<span class="lineNum">     470 </span>            :          switch (sect4-&gt;cat) {
+<span class="lineNum">     471 </span>            :             case 191:
+<span class="lineNum">     472 </span>            :                Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     473 </span>            :                       &quot;Miscellaneous&quot;);
+<span class="lineNum">     474 </span>            :                break;
+<span class="lineNum">     475 </span>            :             default:
+<span class="lineNum">     476 </span>            :                Print (&quot;PDS-S4&quot;, &quot;Category Description&quot;, Prt_DS, sect4-&gt;cat,
+<span class="lineNum">     477 </span>            :                       Lookup (tbl41_10, sizeof (tbl41_10), sect4-&gt;cat));
+<span class="lineNum">     478 </span>            :          }
+<span class="lineNum">     479 </span>            :          break;
+<span class="lineNum">     480 </span>            :       default:
+<span class="lineNum">     481 </span>            :          Print (&quot;PDS-S4&quot;, &quot;PrintSect4() does not handle this prodType&quot;,
+<span class="lineNum">     482 </span>            :                 Prt_D, meta-&gt;pds2.prodType);
+<span class="lineNum">     483 </span>            :    }
+<span class="lineNum">     484 </span>            : }
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span>            : /*****************************************************************************
+<span class="lineNum">     487 </span>            :  * PrintSect4() --
+<span class="lineNum">     488 </span>            :  *
+<span class="lineNum">     489 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">     490 </span>            :  *
+<span class="lineNum">     491 </span>            :  * PURPOSE
+<span class="lineNum">     492 </span>            :  *   To generate the message for section 4.
+<span class="lineNum">     493 </span>            :  *
+<span class="lineNum">     494 </span>            :  * ARGUMENTS
+<span class="lineNum">     495 </span>            :  *   meta = The meta file structure to generate the message for. (Input)
+<span class="lineNum">     496 </span>            :  * f_unit = 0 (GRIB unit), 1 (english), 2 (metric) (Input)
+<span class="lineNum">     497 </span>            :  *
+<span class="lineNum">     498 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     499 </span>            :  *
+<span class="lineNum">     500 </span>            :  * RETURNS: int (could use errSprintf())
+<span class="lineNum">     501 </span>            :  *  0 if no error.
+<span class="lineNum">     502 </span>            :  * -2 if asked to print data for a template that we don't support.
+<span class="lineNum">     503 </span>            :  *
+<span class="lineNum">     504 </span>            :  * HISTORY
+<span class="lineNum">     505 </span>            :  *   9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     506 </span>            :  *   2/2003 AAT: Adjusted the interpretation of the scale vector and value.
+<span class="lineNum">     507 </span>            :  *          to be consistent with what Matt found from email conversations
+<span class="lineNum">     508 </span>            :  *          with WMO GRIB2 experts.
+<span class="lineNum">     509 </span>            :  *   2/2003 AAT: Switched from: value / pow (10, factor)
+<span class="lineNum">     510 </span>            :  *                          to: value * pow (10, -1 * factor)
+<span class="lineNum">     511 </span>            :  *   6/2003 AAT: Extracted the prodType = 0 only info and put in _Meteo
+<span class="lineNum">     512 </span>            :  *   6/2003 AAT: Created a PrintSect4_Ocean for ocean stuff.
+<span class="lineNum">     513 </span>            :  *   1/2004 AAT: Updated table 4.7
+<span class="lineNum">     514 </span>            :  *   1/2004 AAT: Modified to use &quot;comment&quot; from metaname.c instead of
+<span class="lineNum">     515 </span>            :  *          PrintSect4_Meteo, and PrintSect4_Ocean (that way local tables are
+<span class="lineNum">     516 </span>            :  *          enabled.) (Fixed meta file for PoP12).
+<span class="lineNum">     517 </span>            :  *   3/2004 AAT: Added emphasis on &quot;computation&quot; of unit conversion.
+<span class="lineNum">     518 </span>            :  *   3/2005 AAT: Added support for GS4_PROBABIL_PNT
+<span class="lineNum">     519 </span>            :  *
+<span class="lineNum">     520 </span>            :  * NOTES
+<span class="lineNum">     521 </span>            :  * Need to add support for GS4_RADAR = 20
+<span class="lineNum">     522 </span>            :  *****************************************************************************
+<span class="lineNum">     523 </span>            :  */
+<span class="lineNum">     524 </span>            : static int PrintSect4 (grib_MetaData *meta, sChar f_unit)
+<span class="lineNum">     525 </span>            : {
+<span class="lineNum">     526 </span>            :    sect4_type *sect4 = &amp;(meta-&gt;pds2.sect4);
+<span class="lineNum">     527 </span>            :    /* Based on Grib2 Code Table 4.0 */
+<span class="lineNum">     528 </span>            :    static const char * const tbl40[] = {
+<span class="lineNum">     529 </span>            :       &quot;Analysis at a horizontal layer at a point in time&quot;,
+<span class="lineNum">     530 </span>            :       &quot;Individual ensemble forecast at a horizontal layer at a point in time&quot;,
+<span class="lineNum">     531 </span>            :       &quot;Derived forecast based on ensemble members at a horizontal layer at a&quot;
+<span class="lineNum">     532 </span>            :             &quot; point in time&quot;,
+<span class="lineNum">     533 </span>            :       &quot;Probability forecast at a horizontal layer or level at a point in &quot;
+<span class="lineNum">     534 </span>            :             &quot;time&quot;,
+<span class="lineNum">     535 </span>            :       &quot;Percentile forecasts at a horizontal layer or level at a point in &quot;
+<span class="lineNum">     536 </span>            :             &quot;time&quot;,
+<span class="lineNum">     537 </span>            :       &quot;Statistically processed data at a horizontal layer or level in a time&quot;
+<span class="lineNum">     538 </span>            :             &quot; interval&quot;,
+<span class="lineNum">     539 </span>            :       &quot;Probability forecast at a horizontal layer or level in a time &quot;
+<span class="lineNum">     540 </span>            :             &quot;interval&quot;,
+<span class="lineNum">     541 </span>            :       &quot;Percentile forecasts at a horizontal layer or level in a time &quot;
+<span class="lineNum">     542 </span>            :             &quot;interval&quot;,
+<span class="lineNum">     543 </span>            :       &quot;Individual ensemble forecast at a horizontal layer or level in a time&quot;
+<span class="lineNum">     544 </span>            :             &quot; interval&quot;,
+<span class="lineNum">     545 </span>            :       &quot;Derived forecasts based in all ensemble members at a horizontal level &quot;
+<span class="lineNum">     546 </span>            :             &quot;or layer in a time interval&quot;,
+<span class="lineNum">     547 </span>            :       &quot;Radar product&quot;, &quot;Satellite product&quot;
+<span class="lineNum">     548 </span>            :    };
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span>            :    /* Based on Grib2 Code Table 4.3 */
+<span class="lineNum">     551 </span>            :    static const char * const tbl43[] = {
+<span class="lineNum">     552 </span>            :       &quot;Analysis&quot;, &quot;Initialization&quot;, &quot;Forecast&quot;, &quot;Bias corrected forecast&quot;,
+<span class="lineNum">     553 </span>            :       &quot;Ensemble forecast&quot;, &quot;Probability forecast&quot;, &quot;Forecast error&quot;,
+<span class="lineNum">     554 </span>            :       &quot;Analysis error&quot;, &quot;Observation&quot;
+<span class="lineNum">     555 </span>            :    };
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span>            :    /* Based on Grib2 Code Table 4.4 */
+<span class="lineNum">     558 </span>            :    static const char * const tbl44[] = {
+<span class="lineNum">     559 </span>            :       &quot;Minute&quot;, &quot;Hour&quot;, &quot;Day&quot;, &quot;Month&quot;, &quot;Year&quot;, &quot;Decade&quot;,
+<span class="lineNum">     560 </span>            :       &quot;Normal (30 years)&quot;, &quot;Century&quot;, &quot;Reserved&quot;, &quot;Reserved&quot;,
+<span class="lineNum">     561 </span>            :       &quot;3 hours&quot;, &quot;6 hours&quot;, &quot;12 hours&quot;, &quot;Second&quot;
+<span class="lineNum">     562 </span>            :    };
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span>            :    /* Based on Grib2 Code Table 4.5 */
+<span class="lineNum">     565 </span>            :    /* See &quot;metaname.c :: Surface[]&quot; */
+<span class="lineNum">     566 </span>            : 
+<span class="lineNum">     567 </span>            :    /* Based on Grib2 Code Table 4.6 */
+<span class="lineNum">     568 </span>            :    static const char * const tbl46[] = {
+<span class="lineNum">     569 </span>            :       &quot;Unperturbed high-resolution control forecast&quot;,
+<span class="lineNum">     570 </span>            :       &quot;Unperturbed low-resolution control forecast&quot;,
+<span class="lineNum">     571 </span>            :       &quot;Negatively perturbed forecast&quot;, &quot;Positively perturbed forecast&quot;
+<span class="lineNum">     572 </span>            :    };
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span>            :    /* Based on Grib2 Code Table 4.7 */
+<span class="lineNum">     575 </span>            :    static const char * const tbl47[] = {
+<span class="lineNum">     576 </span>            :       &quot;Unweighted mean of all members&quot;, &quot;Weighted mean of all members&quot;,
+<span class="lineNum">     577 </span>            :       &quot;Standard deviation with respect to cluster mean&quot;,
+<span class="lineNum">     578 </span>            :       &quot;Standard deviation with respect to cluster mean, normalized&quot;,
+<span class="lineNum">     579 </span>            :       &quot;Spread of all members&quot;,
+<span class="lineNum">     580 </span>            :       &quot;Large anomaly index of all members&quot;,
+<span class="lineNum">     581 </span>            :       &quot;Unweighted mean of the cluster members&quot;
+<span class="lineNum">     582 </span>            :    };
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span>            :    /* Based on Grib2 Code Table 4.9 */
+<span class="lineNum">     585 </span>            :    static const char * const tbl49[] = {
+<span class="lineNum">     586 </span>            :       &quot;Probability of event below lower limit&quot;,
+<span class="lineNum">     587 </span>            :       &quot;Probability of event above upper limit&quot;,
+<span class="lineNum">     588 </span>            :       &quot;Probability of event between limits (include lower, exclude upper)&quot;,
+<span class="lineNum">     589 </span>            :       &quot;Probability of event above lower limit&quot;,
+<span class="lineNum">     590 </span>            :       &quot;Probability of event below upper limit&quot;
+<span class="lineNum">     591 </span>            :    };
+<span class="lineNum">     592 </span>            : 
+<span class="lineNum">     593 </span>            :    /* Based on Grib2 Code Table 4.10 */
+<span class="lineNum">     594 </span>            :    static const char * const tbl410[] = {
+<span class="lineNum">     595 </span>            :       &quot;Average&quot;, &quot;Accumulation&quot;, &quot;Maximum&quot;, &quot;Minimum&quot;,
+<span class="lineNum">     596 </span>            :       &quot;Difference (Value at end of time minus beginning)&quot;,
+<span class="lineNum">     597 </span>            :       &quot;Root mean square&quot;, &quot;Standard deviation&quot;,
+<span class="lineNum">     598 </span>            :       &quot;Covariance (Temporal variance)&quot;,
+<span class="lineNum">     599 </span>            :       &quot;Difference (Value at beginning of time minus end)&quot;, &quot;Ratio&quot;,
+<span class="lineNum">     600 </span>            :       &quot;Standardized Anomaly&quot;, &quot;Summation&quot;, &quot;Confidence Index&quot;,
+<span class="lineNum">     601 </span>            :       &quot;Quality Indicator&quot;
+<span class="lineNum">     602 </span>            :    };
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span>            :    /* Based on Grib2 Code Table 4.11 */
+<span class="lineNum">     605 </span>            :    static const char * const tbl411[] = {
+<span class="lineNum">     606 </span>            :       &quot;Reserved&quot;,
+<span class="lineNum">     607 </span>            :       &quot;Successive times; same forecast time, start time incremented&quot;,
+<span class="lineNum">     608 </span>            :       &quot;Successive times; same start time, forecast time incremented&quot;,
+<span class="lineNum">     609 </span>            :       &quot;Successive times; start time incremented, forecast time decremented, &quot;
+<span class="lineNum">     610 </span>            :             &quot;valid time constant&quot;,
+<span class="lineNum">     611 </span>            :       &quot;Successive times; start time decremented, forecast time incremented, &quot;
+<span class="lineNum">     612 </span>            :             &quot;valid time constant&quot;,
+<span class="lineNum">     613 </span>            :       &quot;Floating subinterval of time between forecast time, and end&quot;
+<span class="lineNum">     614 </span>            :    };
+<span class="lineNum">     615 </span>            : 
+<span class="lineNum">     616 </span>            :    char buffer[50];     /* Temp storage for various uses including time
+<span class="lineNum">     617 </span>            :                          * format. */
+<span class="lineNum">     618 </span>            :    int i;               /* counter for templat 4.8/4.9 for num time range
+<span class="lineNum">     619 </span>            :                          * specs. */
+<span class="lineNum">     620 </span>            :    int f_reserved;      /* Whether Table4.5 is a reserved entry or not. */
+<span class="lineNum">     621 </span>            :    GRIB2SurfTable surf; /* Surface look up in Table4.5. */
+<span class="lineNum">     622 </span>            :    const char *ptr;
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span>            :    switch (sect4-&gt;templat) {
+<span class="lineNum">     625 </span>            :       case GS4_ANALYSIS:
+<span class="lineNum">     626 </span>            :       case GS4_ERROR:
+<span class="lineNum">     627 </span>            :       case GS4_ENSEMBLE:
+<span class="lineNum">     628 </span>            :       case GS4_DERIVED:
+<span class="lineNum">     629 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat,
+<span class="lineNum">     630 </span>            :                 tbl40[sect4-&gt;templat]);
+<span class="lineNum">     631 </span>            :          break;
+<span class="lineNum">     632 </span>            :       case GS4_PROBABIL_PNT:
+<span class="lineNum">     633 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat, tbl40[3]);
+<span class="lineNum">     634 </span>            :          break;
+<span class="lineNum">     635 </span>            :       case GS4_PERCENT_PNT:
+<span class="lineNum">     636 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat, tbl40[4]);
+<span class="lineNum">     637 </span>            :          break;
+<span class="lineNum">     638 </span>            :       case GS4_STATISTIC:
+<span class="lineNum">     639 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat, tbl40[5]);
+<span class="lineNum">     640 </span>            :          break;
+<span class="lineNum">     641 </span>            :       case GS4_PROBABIL_TIME:
+<span class="lineNum">     642 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat, tbl40[6]);
+<span class="lineNum">     643 </span>            :          break;
+<span class="lineNum">     644 </span>            :       case GS4_PERCENT_TIME:
+<span class="lineNum">     645 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat, tbl40[7]);
+<span class="lineNum">     646 </span>            :          break;
+<span class="lineNum">     647 </span>            :       case GS4_ENSEMBLE_STAT:
+<span class="lineNum">     648 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat, tbl40[8]);
+<span class="lineNum">     649 </span>            :          break;
+<span class="lineNum">     650 </span>            :       case GS4_DERIVED_INTERVAL:
+<span class="lineNum">     651 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat, tbl40[9]);
+<span class="lineNum">     652 </span>            :          break;
+<span class="lineNum">     653 </span>            : /*
+<span class="lineNum">     654 </span>            :  * The following lines were removed until such time that the rest of this
+<span class="lineNum">     655 </span>            :  * procedure can properly handle this template type.
+<span class="lineNum">     656 </span>            :  *
+<span class="lineNum">     657 </span>            :       case GS4_RADAR:
+<span class="lineNum">     658 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat, tbl40[10]);
+<span class="lineNum">     659 </span>            :          break;
+<span class="lineNum">     660 </span>            : */
+<span class="lineNum">     661 </span>            :       case GS4_SATELLITE:
+<span class="lineNum">     662 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_DS, sect4-&gt;templat, tbl40[11]);
+<span class="lineNum">     663 </span>            :          break;
+<span class="lineNum">     664 </span>            :       default:
+<span class="lineNum">     665 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Product type&quot;, Prt_D, sect4-&gt;templat);
+<span class="lineNum">     666 </span>            :          errSprintf (&quot;Un-supported Sect4 template %ld\n&quot;, sect4-&gt;templat);
+<span class="lineNum">     667 </span>            :          return -2;
+<span class="lineNum">     668 </span>            :    }
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span>            :    PrintSect4_Category (meta);
+<span class="lineNum">     671 </span>            :    Print (&quot;PDS-S4&quot;, &quot;Category Sub-Description&quot;, Prt_DS, sect4-&gt;subcat,
+<span class="lineNum">     672 </span>            :           meta-&gt;comment);
+<span class="lineNum">     673 </span>            : 
+<span class="lineNum">     674 </span>            :    if (f_unit == 1) {
+<span class="lineNum">     675 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Output grid, (COMPUTED) english unit is&quot;, Prt_S,
+<span class="lineNum">     676 </span>            :              meta-&gt;unitName);
+<span class="lineNum">     677 </span>            :    } else if (f_unit == 2) {
+<span class="lineNum">     678 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Output grid, (COMPUTED) metric unit is&quot;, Prt_S,
+<span class="lineNum">     679 </span>            :              meta-&gt;unitName);
+<span class="lineNum">     680 </span>            :    }
+<span class="lineNum">     681 </span>            :    Print (&quot;PDS-S4&quot;, &quot;Generation process&quot;, Prt_DS, sect4-&gt;genProcess,
+<span class="lineNum">     682 </span>            :           Lookup (tbl43, sizeof (tbl43), sect4-&gt;genProcess));
+<span class="lineNum">     683 </span>            :    if (sect4-&gt;templat == GS4_SATELLITE) {
+<span class="lineNum">     684 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Observation generating process&quot;, Prt_D, sect4-&gt;genID);
+<span class="lineNum">     685 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Number of contributing spectral bands&quot;, Prt_D,
+<span class="lineNum">     686 </span>            :              sect4-&gt;numBands);
+<span class="lineNum">     687 </span>            :       for (i = 0; i &lt; sect4-&gt;numBands; i++) {
+<span class="lineNum">     688 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Satellite series&quot;, Prt_D, sect4-&gt;bands[i].series);
+<span class="lineNum">     689 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Satellite numbers&quot;, Prt_D,
+<span class="lineNum">     690 </span>            :                 sect4-&gt;bands[i].numbers);
+<span class="lineNum">     691 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Instrument type&quot;, Prt_D, sect4-&gt;bands[i].instType);
+<span class="lineNum">     692 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Scale Factor of central wave number&quot;, Prt_D,
+<span class="lineNum">     693 </span>            :                 sect4-&gt;bands[i].centWaveNum.factor);
+<span class="lineNum">     694 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Scale Value of central wave number&quot;, Prt_D,
+<span class="lineNum">     695 </span>            :                 sect4-&gt;bands[i].centWaveNum.value);
+<span class="lineNum">     696 </span>            :       }
+<span class="lineNum">     697 </span>            :       return 0;
+<span class="lineNum">     698 </span>            :    }
+<span class="lineNum">     699 </span>            :    if (sect4-&gt;bgGenID != GRIB2MISSING_u1) {
+<span class="lineNum">     700 </span>            :       ptr = processLookup (meta-&gt;center, sect4-&gt;bgGenID);
+<span class="lineNum">     701 </span>            :       if (ptr != NULL) {
+<span class="lineNum">     702 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Background generating process ID&quot;, Prt_DS,
+<span class="lineNum">     703 </span>            :                 sect4-&gt;bgGenID, ptr);
+<span class="lineNum">     704 </span>            :       } else {
+<span class="lineNum">     705 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Background generating process ID&quot;, Prt_D,
+<span class="lineNum">     706 </span>            :                 sect4-&gt;bgGenID);
+<span class="lineNum">     707 </span>            :       }
+<span class="lineNum">     708 </span>            :    }
+<span class="lineNum">     709 </span>            :    if (sect4-&gt;genID != GRIB2MISSING_u1) {
+<span class="lineNum">     710 </span>            :       ptr = processLookup (meta-&gt;center, sect4-&gt;genID);
+<span class="lineNum">     711 </span>            :       if (ptr != NULL) {
+<span class="lineNum">     712 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Forecast generating process ID&quot;, Prt_DS,
+<span class="lineNum">     713 </span>            :                 sect4-&gt;genID, ptr);
+<span class="lineNum">     714 </span>            :       } else {
+<span class="lineNum">     715 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Forecast generating process ID&quot;, Prt_D,
+<span class="lineNum">     716 </span>            :                 sect4-&gt;genID);
+<span class="lineNum">     717 </span>            :       }
+<span class="lineNum">     718 </span>            :    }
+<span class="lineNum">     719 </span>            :    if (sect4-&gt;f_validCutOff) {
+<span class="lineNum">     720 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Data cut off after reference time in seconds&quot;, Prt_D,
+<span class="lineNum">     721 </span>            :              sect4-&gt;cutOff);
+<span class="lineNum">     722 </span>            :    }
+<span class="lineNum">     723 </span>            :    Print (&quot;PDS-S4&quot;, &quot;Forecast time in hours&quot;, Prt_F,
+<span class="lineNum">     724 </span>            :           (double) (sect4-&gt;foreSec / 3600.));
+<span class="lineNum">     725 </span>            :    surf = Table45Index (sect4-&gt;fstSurfType, &amp;f_reserved, meta-&gt;center,
+<span class="lineNum">     726 </span>            :                         meta-&gt;subcenter);
+<span class="lineNum">     727 </span>            :    Print (&quot;PDS-S4&quot;, &quot;Type of first fixed surface&quot;, Prt_DSS,
+<span class="lineNum">     728 </span>            :           sect4-&gt;fstSurfType, surf.comment, surf.unit);
+<span class="lineNum">     729 </span>            :    Print (&quot;PDS-S4&quot;, &quot;Value of first fixed surface&quot;, Prt_F,
+<span class="lineNum">     730 </span>            :           sect4-&gt;fstSurfValue);
+<span class="lineNum">     731 </span>            :    if (sect4-&gt;sndSurfType != GRIB2MISSING_u1) {
+<span class="lineNum">     732 </span>            :       surf = Table45Index (sect4-&gt;sndSurfType, &amp;f_reserved, meta-&gt;center,
+<span class="lineNum">     733 </span>            :                            meta-&gt;subcenter);
+<span class="lineNum">     734 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Type of second fixed surface&quot;, Prt_DSS,
+<span class="lineNum">     735 </span>            :              sect4-&gt;sndSurfType, surf.comment, surf.unit);
+<span class="lineNum">     736 </span>            :       Print (&quot;PDS-S4&quot;, &quot;Value of second fixed surface&quot;, Prt_F,
+<span class="lineNum">     737 </span>            :              sect4-&gt;sndSurfValue);
+<span class="lineNum">     738 </span>            :    }
+<span class="lineNum">     739 </span>            :    switch (sect4-&gt;templat) {
+<span class="lineNum">     740 </span>            :       case GS4_ANALYSIS:
+<span class="lineNum">     741 </span>            :       case GS4_ERROR:
+<span class="lineNum">     742 </span>            :          break;
+<span class="lineNum">     743 </span>            :       case GS4_ENSEMBLE:
+<span class="lineNum">     744 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Type of Ensemble forecast&quot;, Prt_DS,
+<span class="lineNum">     745 </span>            :                 sect4-&gt;typeEnsemble,
+<span class="lineNum">     746 </span>            :                 Lookup (tbl46, sizeof (tbl46), sect4-&gt;typeEnsemble));
+<span class="lineNum">     747 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Perturbation number&quot;, Prt_D, sect4-&gt;perturbNum);
+<span class="lineNum">     748 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Number of forecasts in ensemble&quot;, Prt_D,
+<span class="lineNum">     749 </span>            :                 sect4-&gt;numberFcsts);
+<span class="lineNum">     750 </span>            :          break;
+<span class="lineNum">     751 </span>            :       case GS4_ENSEMBLE_STAT:
+<span class="lineNum">     752 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Type of Ensemble forecast&quot;, Prt_DS,
+<span class="lineNum">     753 </span>            :                 sect4-&gt;typeEnsemble,
+<span class="lineNum">     754 </span>            :                 Lookup (tbl46, sizeof (tbl46), sect4-&gt;typeEnsemble));
+<span class="lineNum">     755 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Perturbation number&quot;, Prt_D, sect4-&gt;perturbNum);
+<span class="lineNum">     756 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Number of forecasts in ensemble&quot;, Prt_D,
+<span class="lineNum">     757 </span>            :                 sect4-&gt;numberFcsts);
+<span class="lineNum">     758 </span>            :          Clock_Print (buffer, 100, sect4-&gt;validTime, &quot;%m/%d/%Y %H:%M:%S UTC&quot;,
+<span class="lineNum">     759 </span>            :                       0);
+<span class="lineNum">     760 </span>            :          Print (&quot;PDS-S4&quot;, &quot;End of overall time interval&quot;, Prt_S, buffer);
+<span class="lineNum">     761 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Total number of missing values&quot;, Prt_D,
+<span class="lineNum">     762 </span>            :                 sect4-&gt;numMissing);
+<span class="lineNum">     763 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Number of time range specifications&quot;, Prt_D,
+<span class="lineNum">     764 </span>            :                 sect4-&gt;numInterval);
+<span class="lineNum">     765 </span>            :          for (i = 0; i &lt; sect4-&gt;numInterval; i++) {
+<span class="lineNum">     766 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Interval number&quot;, Prt_D, i + 1);
+<span class="lineNum">     767 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Statistical process&quot;, Prt_DS,
+<span class="lineNum">     768 </span>            :                    sect4-&gt;Interval[i].processID,
+<span class="lineNum">     769 </span>            :                    Lookup (tbl410, sizeof (tbl410),
+<span class="lineNum">     770 </span>            :                            sect4-&gt;Interval[i].processID));
+<span class="lineNum">     771 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Type of time increment&quot;, Prt_DS,
+<span class="lineNum">     772 </span>            :                    sect4-&gt;Interval[i].incrType,
+<span class="lineNum">     773 </span>            :                    Lookup (tbl411, sizeof (tbl411),
+<span class="lineNum">     774 </span>            :                            sect4-&gt;Interval[i].incrType));
+<span class="lineNum">     775 </span>            :             /* Following is so we get &quot;# str&quot; not &quot;# (str)&quot; */
+<span class="lineNum">     776 </span>            :             sprintf (buffer, &quot;%d %s&quot;, sect4-&gt;Interval[i].lenTime,
+<span class="lineNum">     777 </span>            :                      Lookup (tbl44, sizeof (tbl44),
+<span class="lineNum">     778 </span>            :                              sect4-&gt;Interval[i].timeRangeUnit));
+<span class="lineNum">     779 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Time range for processing&quot;, Prt_S, buffer);
+<span class="lineNum">     780 </span>            :             /* Following is so we get &quot;# str&quot; not &quot;# (str)&quot; */
+<span class="lineNum">     781 </span>            :             sprintf (buffer, &quot;%d %s&quot;, sect4-&gt;Interval[i].timeIncr,
+<span class="lineNum">     782 </span>            :                      Lookup (tbl44, sizeof (tbl44),
+<span class="lineNum">     783 </span>            :                              sect4-&gt;Interval[i].incrUnit));
+<span class="lineNum">     784 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Time increment&quot;, Prt_S, buffer);
+<span class="lineNum">     785 </span>            :          }
+<span class="lineNum">     786 </span>            :          break;
+<span class="lineNum">     787 </span>            :       case GS4_DERIVED:
+<span class="lineNum">     788 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Derived forecast&quot;, Prt_DS, sect4-&gt;derivedFcst,
+<span class="lineNum">     789 </span>            :                 Lookup (tbl47, sizeof (tbl47), sect4-&gt;derivedFcst));
+<span class="lineNum">     790 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Number of forecasts in ensemble&quot;, Prt_D,
+<span class="lineNum">     791 </span>            :                 sect4-&gt;numberFcsts);
+<span class="lineNum">     792 </span>            :          break;
+<span class="lineNum">     793 </span>            :       case GS4_DERIVED_INTERVAL:
+<span class="lineNum">     794 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Derived forecast&quot;, Prt_DS, sect4-&gt;derivedFcst,
+<span class="lineNum">     795 </span>            :                 Lookup (tbl47, sizeof (tbl47), sect4-&gt;derivedFcst));
+<span class="lineNum">     796 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Number of forecasts in ensemble&quot;, Prt_D,
+<span class="lineNum">     797 </span>            :                 sect4-&gt;numberFcsts);
+<span class="lineNum">     798 </span>            :          Clock_Print (buffer, 100, sect4-&gt;validTime, &quot;%m/%d/%Y %H:%M:%S UTC&quot;,
+<span class="lineNum">     799 </span>            :                       0);
+<span class="lineNum">     800 </span>            : 
+<span class="lineNum">     801 </span>            :          Print (&quot;PDS-S4&quot;, &quot;End of overall time interval&quot;, Prt_S, buffer);
+<span class="lineNum">     802 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Total number of missing values&quot;, Prt_D,
+<span class="lineNum">     803 </span>            :                 sect4-&gt;numMissing);
+<span class="lineNum">     804 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Number of time range specifications&quot;, Prt_D,
+<span class="lineNum">     805 </span>            :                 sect4-&gt;numInterval);
+<span class="lineNum">     806 </span>            :          for (i = 0; i &lt; sect4-&gt;numInterval; i++) {
+<span class="lineNum">     807 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Interval number&quot;, Prt_D, i + 1);
+<span class="lineNum">     808 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Statistical process&quot;, Prt_DS,
+<span class="lineNum">     809 </span>            :                    sect4-&gt;Interval[i].processID,
+<span class="lineNum">     810 </span>            :                    Lookup (tbl410, sizeof (tbl410),
+<span class="lineNum">     811 </span>            :                            sect4-&gt;Interval[i].processID));
+<span class="lineNum">     812 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Type of time increment&quot;, Prt_DS,
+<span class="lineNum">     813 </span>            :                    sect4-&gt;Interval[i].incrType,
+<span class="lineNum">     814 </span>            :                    Lookup (tbl411, sizeof (tbl411),
+<span class="lineNum">     815 </span>            :                            sect4-&gt;Interval[i].incrType));
+<span class="lineNum">     816 </span>            :             /* Following is so we get &quot;# str&quot; not &quot;# (str)&quot; */
+<span class="lineNum">     817 </span>            :             sprintf (buffer, &quot;%d %s&quot;, sect4-&gt;Interval[i].lenTime,
+<span class="lineNum">     818 </span>            :                      Lookup (tbl44, sizeof (tbl44),
+<span class="lineNum">     819 </span>            :                              sect4-&gt;Interval[i].timeRangeUnit));
+<span class="lineNum">     820 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Time range for processing&quot;, Prt_S, buffer);
+<span class="lineNum">     821 </span>            :             /* Following is so we get &quot;# str&quot; not &quot;# (str)&quot; */
+<span class="lineNum">     822 </span>            :             sprintf (buffer, &quot;%d %s&quot;, sect4-&gt;Interval[i].timeIncr,
+<span class="lineNum">     823 </span>            :                      Lookup (tbl44, sizeof (tbl44),
+<span class="lineNum">     824 </span>            :                              sect4-&gt;Interval[i].incrUnit));
+<span class="lineNum">     825 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Time increment&quot;, Prt_S, buffer);
+<span class="lineNum">     826 </span>            :          }
+<span class="lineNum">     827 </span>            :          break;
+<span class="lineNum">     828 </span>            :       case GS4_PROBABIL_PNT:
+<span class="lineNum">     829 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Forecast Probability Number&quot;, Prt_D,
+<span class="lineNum">     830 </span>            :                 sect4-&gt;foreProbNum);
+<span class="lineNum">     831 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Total Number of Forecast Probabilities&quot;, Prt_D,
+<span class="lineNum">     832 </span>            :                 sect4-&gt;numForeProbs);
+<span class="lineNum">     833 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Probability type&quot;, Prt_DS, sect4-&gt;probType,
+<span class="lineNum">     834 </span>            :                 Lookup (tbl49, sizeof (tbl49), sect4-&gt;probType));
+<span class="lineNum">     835 </span>            :          sprintf (buffer, &quot;%d, %d&quot;, sect4-&gt;lowerLimit.value,
+<span class="lineNum">     836 </span>            :                   sect4-&gt;lowerLimit.factor);
+<span class="lineNum">     837 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Lower limit (scale value, scale factor)&quot;, Prt_GS,
+<span class="lineNum">     838 </span>            :                 sect4-&gt;lowerLimit.value *
+<span class="lineNum">     839 </span>            :                 pow (10.0, -1 * sect4-&gt;lowerLimit.factor), buffer);
+<span class="lineNum">     840 </span>            :          sprintf (buffer, &quot;%d, %d&quot;, sect4-&gt;upperLimit.value,
+<span class="lineNum">     841 </span>            :                   sect4-&gt;upperLimit.factor);
+<span class="lineNum">     842 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Upper limit (scale value, scale factor)&quot;, Prt_GS,
+<span class="lineNum">     843 </span>            :                 sect4-&gt;upperLimit.value *
+<span class="lineNum">     844 </span>            :                 pow (10.0, -1 * sect4-&gt;upperLimit.factor), buffer);
+<span class="lineNum">     845 </span>            : /*         printf (&quot;Hello world 1\n&quot;);*/
+<span class="lineNum">     846 </span>            :          break;
+<span class="lineNum">     847 </span>            :       case GS4_PERCENT_PNT:
+<span class="lineNum">     848 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Percentile&quot;, Prt_DS, sect4-&gt;percentile, &quot;[%]&quot;);
+<span class="lineNum">     849 </span>            :          break;
+<span class="lineNum">     850 </span>            :       case GS4_PERCENT_TIME:
+<span class="lineNum">     851 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Percentile&quot;, Prt_DS, sect4-&gt;percentile, &quot;[%]&quot;);
+<span class="lineNum">     852 </span>            : /*         strftime (buffer, 100, &quot;%m/%d/%Y %H:%M:%S UTC&quot;,
+<span class="lineNum">     853 </span>            :                    gmtime (&amp;(sect4-&gt;validTime)));*/
+<span class="lineNum">     854 </span>            :          Clock_Print (buffer, 100, sect4-&gt;validTime, &quot;%m/%d/%Y %H:%M:%S UTC&quot;,
+<span class="lineNum">     855 </span>            :                       0);
+<span class="lineNum">     856 </span>            : 
+<span class="lineNum">     857 </span>            :          Print (&quot;PDS-S4&quot;, &quot;End of overall time interval&quot;, Prt_S, buffer);
+<span class="lineNum">     858 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Total number of missing values&quot;, Prt_D,
+<span class="lineNum">     859 </span>            :                 sect4-&gt;numMissing);
+<span class="lineNum">     860 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Number of time range specifications&quot;, Prt_D,
+<span class="lineNum">     861 </span>            :                 sect4-&gt;numInterval);
+<span class="lineNum">     862 </span>            :          for (i = 0; i &lt; sect4-&gt;numInterval; i++) {
+<span class="lineNum">     863 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Interval number&quot;, Prt_D, i + 1);
+<span class="lineNum">     864 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Statistical process&quot;, Prt_DS,
+<span class="lineNum">     865 </span>            :                    sect4-&gt;Interval[i].processID,
+<span class="lineNum">     866 </span>            :                    Lookup (tbl410, sizeof (tbl410),
+<span class="lineNum">     867 </span>            :                            sect4-&gt;Interval[i].processID));
+<span class="lineNum">     868 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Type of time increment&quot;, Prt_DS,
+<span class="lineNum">     869 </span>            :                    sect4-&gt;Interval[i].incrType,
+<span class="lineNum">     870 </span>            :                    Lookup (tbl411, sizeof (tbl411),
+<span class="lineNum">     871 </span>            :                            sect4-&gt;Interval[i].incrType));
+<span class="lineNum">     872 </span>            :             /* Following is so we get &quot;# str&quot; not &quot;# (str)&quot; */
+<span class="lineNum">     873 </span>            :             sprintf (buffer, &quot;%d %s&quot;, sect4-&gt;Interval[i].lenTime,
+<span class="lineNum">     874 </span>            :                      Lookup (tbl44, sizeof (tbl44),
+<span class="lineNum">     875 </span>            :                              sect4-&gt;Interval[i].timeRangeUnit));
+<span class="lineNum">     876 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Time range for processing&quot;, Prt_S, buffer);
+<span class="lineNum">     877 </span>            :             /* Following is so we get &quot;# str&quot; not &quot;# (str)&quot; */
+<span class="lineNum">     878 </span>            :             sprintf (buffer, &quot;%d %s&quot;, sect4-&gt;Interval[i].timeIncr,
+<span class="lineNum">     879 </span>            :                      Lookup (tbl44, sizeof (tbl44),
+<span class="lineNum">     880 </span>            :                              sect4-&gt;Interval[i].incrUnit));
+<span class="lineNum">     881 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Time increment&quot;, Prt_S, buffer);
+<span class="lineNum">     882 </span>            :          }
+<span class="lineNum">     883 </span>            :          break;
+<span class="lineNum">     884 </span>            :       case GS4_PROBABIL_TIME:
+<span class="lineNum">     885 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Forecast Probability Number&quot;, Prt_D,
+<span class="lineNum">     886 </span>            :                 sect4-&gt;foreProbNum);
+<span class="lineNum">     887 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Total Number of Forecast Probabilities&quot;, Prt_D,
+<span class="lineNum">     888 </span>            :                 sect4-&gt;numForeProbs);
+<span class="lineNum">     889 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Probability type&quot;, Prt_DS, sect4-&gt;probType,
+<span class="lineNum">     890 </span>            :                 Lookup (tbl49, sizeof (tbl49), sect4-&gt;probType));
+<span class="lineNum">     891 </span>            :          sprintf (buffer, &quot;%d, %d&quot;, sect4-&gt;lowerLimit.value,
+<span class="lineNum">     892 </span>            :                   sect4-&gt;lowerLimit.factor);
+<span class="lineNum">     893 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Lower limit (scale value, scale factor)&quot;, Prt_GS,
+<span class="lineNum">     894 </span>            :                 sect4-&gt;lowerLimit.value *
+<span class="lineNum">     895 </span>            :                 pow (10.0, -1 * sect4-&gt;lowerLimit.factor), buffer);
+<span class="lineNum">     896 </span>            :          sprintf (buffer, &quot;%d, %d&quot;, sect4-&gt;upperLimit.value,
+<span class="lineNum">     897 </span>            :                   sect4-&gt;upperLimit.factor);
+<span class="lineNum">     898 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Upper limit (scale value, scale factor)&quot;, Prt_GS,
+<span class="lineNum">     899 </span>            :                 sect4-&gt;upperLimit.value *
+<span class="lineNum">     900 </span>            :                 pow (10.0, -1 * sect4-&gt;upperLimit.factor), buffer);
+<span class="lineNum">     901 </span>            :          /* Intentionally fall through. */
+<span class="lineNum">     902 </span>            :          CPL_FALLTHROUGH
+<span class="lineNum">     903 </span>            :       case GS4_STATISTIC:
+<span class="lineNum">     904 </span>            : /*         strftime (buffer, 100, &quot;%m/%d/%Y %H:%M:%S UTC&quot;,
+<span class="lineNum">     905 </span>            :                    gmtime (&amp;(sect4-&gt;validTime)));*/
+<span class="lineNum">     906 </span>            :          Clock_Print (buffer, 100, sect4-&gt;validTime, &quot;%m/%d/%Y %H:%M:%S UTC&quot;,
+<span class="lineNum">     907 </span>            :                       0);
+<span class="lineNum">     908 </span>            : 
+<span class="lineNum">     909 </span>            :          Print (&quot;PDS-S4&quot;, &quot;End of overall time interval&quot;, Prt_S, buffer);
+<span class="lineNum">     910 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Total number of missing values&quot;, Prt_D,
+<span class="lineNum">     911 </span>            :                 sect4-&gt;numMissing);
+<span class="lineNum">     912 </span>            :          Print (&quot;PDS-S4&quot;, &quot;Number of time range specifications&quot;, Prt_D,
+<span class="lineNum">     913 </span>            :                 sect4-&gt;numInterval);
+<span class="lineNum">     914 </span>            :          for (i = 0; i &lt; sect4-&gt;numInterval; i++) {
+<span class="lineNum">     915 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Interval number&quot;, Prt_D, i + 1);
+<span class="lineNum">     916 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Statistical process&quot;, Prt_DS,
+<span class="lineNum">     917 </span>            :                    sect4-&gt;Interval[i].processID,
+<span class="lineNum">     918 </span>            :                    Lookup (tbl410, sizeof (tbl410),
+<span class="lineNum">     919 </span>            :                            sect4-&gt;Interval[i].processID));
+<span class="lineNum">     920 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Type of time increment&quot;, Prt_DS,
+<span class="lineNum">     921 </span>            :                    sect4-&gt;Interval[i].incrType,
+<span class="lineNum">     922 </span>            :                    Lookup (tbl411, sizeof (tbl411),
+<span class="lineNum">     923 </span>            :                            sect4-&gt;Interval[i].incrType));
+<span class="lineNum">     924 </span>            :             /* Following is so we get &quot;# str&quot; not &quot;# (str)&quot; */
+<span class="lineNum">     925 </span>            :             sprintf (buffer, &quot;%d %s&quot;, sect4-&gt;Interval[i].lenTime,
+<span class="lineNum">     926 </span>            :                      Lookup (tbl44, sizeof (tbl44),
+<span class="lineNum">     927 </span>            :                              sect4-&gt;Interval[i].timeRangeUnit));
+<span class="lineNum">     928 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Time range for processing&quot;, Prt_S, buffer);
+<span class="lineNum">     929 </span>            :             /* Following is so we get &quot;# str&quot; not &quot;# (str)&quot; */
+<span class="lineNum">     930 </span>            :             sprintf (buffer, &quot;%d %s&quot;, sect4-&gt;Interval[i].timeIncr,
+<span class="lineNum">     931 </span>            :                      Lookup (tbl44, sizeof (tbl44),
+<span class="lineNum">     932 </span>            :                              sect4-&gt;Interval[i].incrUnit));
+<span class="lineNum">     933 </span>            :             Print (&quot;PDS-S4&quot;, &quot;Time increment&quot;, Prt_S, buffer);
+<span class="lineNum">     934 </span>            :          }
+<span class="lineNum">     935 </span>            :          break;
+<span class="lineNum">     936 </span>            :       default:
+<span class="lineNum">     937 </span>            :          /* This case should have been handled in first switch statement of
+<span class="lineNum">     938 </span>            :           * this procedure, but just in case... */
+<span class="lineNum">     939 </span>            :          errSprintf (&quot;Un-supported Sect4 template %d\n&quot;, sect4-&gt;templat);
+<span class="lineNum">     940 </span>            :          return -2;
+<span class="lineNum">     941 </span>            :    }
+<span class="lineNum">     942 </span>            :    return 0;
+<span class="lineNum">     943 </span>            : }
+<span class="lineNum">     944 </span>            : 
+<span class="lineNum">     945 </span>            : /*****************************************************************************
+<span class="lineNum">     946 </span>            :  * PrintPDS2() --
+<span class="lineNum">     947 </span>            :  *
+<span class="lineNum">     948 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">     949 </span>            :  *
+<span class="lineNum">     950 </span>            :  * PURPOSE
+<span class="lineNum">     951 </span>            :  *   To generate the message for the Product Definition Sections of the GRIB2
+<span class="lineNum">     952 </span>            :  * Message.
+<span class="lineNum">     953 </span>            :  *
+<span class="lineNum">     954 </span>            :  * ARGUMENTS
+<span class="lineNum">     955 </span>            :  *   meta = The meta file structure to generate the message for. (Input)
+<span class="lineNum">     956 </span>            :  * f_unit = 0 (GRIB unit), 1 (english), 2 (metric) (Input)
+<span class="lineNum">     957 </span>            :  *
+<span class="lineNum">     958 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">     959 </span>            :  *
+<span class="lineNum">     960 </span>            :  * RETURNS: void
+<span class="lineNum">     961 </span>            :  *
+<span class="lineNum">     962 </span>            :  * HISTORY
+<span class="lineNum">     963 </span>            :  *   4/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     964 </span>            :  *
+<span class="lineNum">     965 </span>            :  * NOTES
+<span class="lineNum">     966 </span>            :  *****************************************************************************
+<span class="lineNum">     967 </span>            :  */
+<span class="lineNum">     968 </span>            : static int PrintPDS2 (grib_MetaData *meta, sChar f_unit)
+<span class="lineNum">     969 </span>            : {
+<span class="lineNum">     970 </span>            :    pdsG2Type *pds2 = &amp;(meta-&gt;pds2);
+<span class="lineNum">     971 </span>            :    /* Based on Grib2 Code Table 0.0 */
+<span class="lineNum">     972 </span>            :    static const char * const table0[] = {
+<span class="lineNum">     973 </span>            :       &quot;Meteorological products&quot;, &quot;Hydrological products&quot;,
+<span class="lineNum">     974 </span>            :       &quot;Land surface products&quot;, &quot;Space products&quot;, &quot;Oceanographic products&quot;
+<span class="lineNum">     975 </span>            :    };
+<span class="lineNum">     976 </span>            :    int ierr;            /* The error code of a called routine */
+<span class="lineNum">     977 </span>            : 
+<span class="lineNum">     978 </span>            :    /* Print the data from Section 0 */
+<span class="lineNum">     979 </span>            :    switch (pds2-&gt;prodType) {
+<span class="lineNum">     980 </span>            :       case 10:         /* Oceanographic Product. */
+<span class="lineNum">     981 </span>            :          Print (&quot;PDS-S0&quot;, &quot;DataType&quot;, Prt_DS, pds2-&gt;prodType, table0[4]);
+<span class="lineNum">     982 </span>            :          break;
+<span class="lineNum">     983 </span>            :       case 5:          /* Reserved. */
+<span class="lineNum">     984 </span>            :          Print (&quot;PDS-S0&quot;, &quot;DataType&quot;, Prt_DS, pds2-&gt;prodType,
+<span class="lineNum">     985 </span>            :                 Lookup (table0, sizeof (table0), 191));
+<span class="lineNum">     986 </span>            :          break;
+<span class="lineNum">     987 </span>            :       default:
+<span class="lineNum">     988 </span>            :          Print (&quot;PDS-S0&quot;, &quot;DataType&quot;, Prt_DS, pds2-&gt;prodType,
+<span class="lineNum">     989 </span>            :                 Lookup (table0, sizeof (table0), pds2-&gt;prodType));
+<span class="lineNum">     990 </span>            :    }
+<span class="lineNum">     991 </span>            :    PrintSect1 (pds2, meta-&gt;center, meta-&gt;subcenter);
+<span class="lineNum">     992 </span>            :    PrintSect2 (&amp;(pds2-&gt;sect2));
+<span class="lineNum">     993 </span>            :    if ((ierr = PrintSect4 (meta, f_unit)) != 0) {
+<span class="lineNum">     994 </span>            :       return ierr;
+<span class="lineNum">     995 </span>            :    }
+<span class="lineNum">     996 </span>            :    return 0;
+<span class="lineNum">     997 </span>            : }
+<span class="lineNum">     998 </span>            : 
+<span class="lineNum">     999 </span>            : /*****************************************************************************
+<span class="lineNum">    1000 </span>            :  * PrintPDS1() --
+<span class="lineNum">    1001 </span>            :  *
+<span class="lineNum">    1002 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">    1003 </span>            :  *
+<span class="lineNum">    1004 </span>            :  * PURPOSE
+<span class="lineNum">    1005 </span>            :  *   To generate the message for the Product Definition Sections of the GRIB1
+<span class="lineNum">    1006 </span>            :  * Message.
+<span class="lineNum">    1007 </span>            :  *
+<span class="lineNum">    1008 </span>            :  * ARGUMENTS
+<span class="lineNum">    1009 </span>            :  *      pds1 = The GRIB1 Product Definition Section to print. (Input)
+<span class="lineNum">    1010 </span>            :  *   comment = A description about this element. See GRIB1_Table2LookUp (Input)
+<span class="lineNum">    1011 </span>            :  *    center = The Center that created the data (Input)
+<span class="lineNum">    1012 </span>            :  * subcenter = The Sub Center that created the data (Input)
+<span class="lineNum">    1013 </span>            :  *    f_unit = The unit conversion method used on the output data (Input)
+<span class="lineNum">    1014 </span>            :  *  unitName = The name of the output unit type. (Input)
+<span class="lineNum">    1015 </span>            :  *   convert = Conversion method used. (Input)
+<span class="lineNum">    1016 </span>            :  *
+<span class="lineNum">    1017 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">    1018 </span>            :  *
+<span class="lineNum">    1019 </span>            :  * RETURNS: void
+<span class="lineNum">    1020 </span>            :  *
+<span class="lineNum">    1021 </span>            :  * HISTORY
+<span class="lineNum">    1022 </span>            :  *   4/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">    1023 </span>            :  *  10/2005 AAT: Adjusted to take center, subcenter as we moved that out of
+<span class="lineNum">    1024 </span>            :  *               the pdsG1 type.
+<span class="lineNum">    1025 </span>            :  *  11/2005 AAT: Added f_unit variable.
+<span class="lineNum">    1026 </span>            :  *
+<span class="lineNum">    1027 </span>            :  * NOTES
+<span class="lineNum">    1028 </span>            :  *****************************************************************************
+<span class="lineNum">    1029 </span>            :  */
+<span class="lineNum">    1030 </span>            : static void PrintPDS1 (pdsG1Type *pds1, char *comment,
+<span class="lineNum">    1031 </span>            :                        unsigned short int center,
+<span class="lineNum">    1032 </span>            :                        unsigned short int subcenter, sChar f_unit,
+<span class="lineNum">    1033 </span>            :                        char *unitName, int convert)
+<span class="lineNum">    1034 </span>            : {
+<span class="lineNum">    1035 </span>            :    char buffer[25];     /* Stores format of pds1-&gt;refTime. */
+<span class="lineNum">    1036 </span>            :    const char *ptr;
+<span class="lineNum">    1037 </span>            : 
+<span class="lineNum">    1038 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Parameter Tables Version&quot;, Prt_D, pds1-&gt;mstrVersion);
+<span class="lineNum">    1039 </span>            :    ptr = centerLookup (center);
+<span class="lineNum">    1040 </span>            :    if (ptr != NULL) {
+<span class="lineNum">    1041 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Originating center&quot;, Prt_DS, center, ptr);
+<span class="lineNum">    1042 </span>            :    } else {
+<span class="lineNum">    1043 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Originating center&quot;, Prt_D, center);
+<span class="lineNum">    1044 </span>            :    }
+<span class="lineNum">    1045 </span>            :    ptr = subCenterLookup (center, subcenter);
+<span class="lineNum">    1046 </span>            :    if (ptr != NULL) {
+<span class="lineNum">    1047 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Originating sub-center&quot;, Prt_DS, subcenter, ptr);
+<span class="lineNum">    1048 </span>            :    } else {
+<span class="lineNum">    1049 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Originating sub-center&quot;, Prt_D, subcenter);
+<span class="lineNum">    1050 </span>            :    }
+<span class="lineNum">    1051 </span>            :    ptr = processLookup (center, pds1-&gt;genProcess);
+<span class="lineNum">    1052 </span>            :    if (ptr != NULL) {
+<span class="lineNum">    1053 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Generation process&quot;, Prt_DS, pds1-&gt;genProcess, ptr);
+<span class="lineNum">    1054 </span>            :    } else {
+<span class="lineNum">    1055 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Generation process&quot;, Prt_D, pds1-&gt;genProcess);
+<span class="lineNum">    1056 </span>            :    }
+<span class="lineNum">    1057 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Grid Identification Number&quot;, Prt_D, pds1-&gt;gridID);
+<span class="lineNum">    1058 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Indicator of parameter and units&quot;, Prt_DS, pds1-&gt;cat,
+<span class="lineNum">    1059 </span>            :           comment);
+<span class="lineNum">    1060 </span>            :    if (convert != UC_NONE) {
+<span class="lineNum">    1061 </span>            :       if (f_unit == 1) {
+<span class="lineNum">    1062 </span>            :          Print (&quot;PDS-S1&quot;, &quot;Output grid, (COMPUTED) english unit is&quot;, Prt_S,
+<span class="lineNum">    1063 </span>            :                 unitName);
+<span class="lineNum">    1064 </span>            :       } else if (f_unit == 2) {
+<span class="lineNum">    1065 </span>            :          Print (&quot;PDS-S1&quot;, &quot;Output grid, (COMPUTED) metric unit is&quot;, Prt_S,
+<span class="lineNum">    1066 </span>            :                 unitName);
+<span class="lineNum">    1067 </span>            :       }
+<span class="lineNum">    1068 </span>            :    }
+<span class="lineNum">    1069 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Type of fixed surface&quot;, Prt_D, pds1-&gt;levelType);
+<span class="lineNum">    1070 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Value of fixed surface&quot;, Prt_D, pds1-&gt;levelVal);
+<span class="lineNum">    1071 </span>            : 
+<span class="lineNum">    1072 </span>            : /* strftime (buffer, 25, &quot;%m/%d/%Y %H:%M:%S UTC&quot;, gmtime (&amp;(pds1-&gt;refTime))); */
+<span class="lineNum">    1073 </span>            :    Clock_Print (buffer, 25, pds1-&gt;refTime, &quot;%m/%d/%Y %H:%M:%S UTC&quot;, 0);
+<span class="lineNum">    1074 </span>            : 
+<span class="lineNum">    1075 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Reference Time&quot;, Prt_S, buffer);
+<span class="lineNum">    1076 </span>            : 
+<span class="lineNum">    1077 </span>            : /* strftime (buffer, 25, &quot;%m/%d/%Y %H:%M:%S UTC&quot;,
+<span class="lineNum">    1078 </span>            :              gmtime (&amp;(pds1-&gt;validTime))); */
+<span class="lineNum">    1079 </span>            :    Clock_Print (buffer, 25, pds1-&gt;validTime, &quot;%m/%d/%Y %H:%M:%S UTC&quot;, 0);
+<span class="lineNum">    1080 </span>            : 
+<span class="lineNum">    1081 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Valid Time&quot;, Prt_S, buffer);
+<span class="lineNum">    1082 </span>            : 
+<span class="lineNum">    1083 </span>            : /* strftime (buffer, 25, &quot;%m/%d/%Y %H:%M:%S UTC&quot;, gmtime (&amp;(pds1-&gt;P1))); */
+<span class="lineNum">    1084 </span>            :    Clock_Print (buffer, 25, pds1-&gt;P1, &quot;%m/%d/%Y %H:%M:%S UTC&quot;, 0);
+<span class="lineNum">    1085 </span>            : 
+<span class="lineNum">    1086 </span>            :    Print (&quot;PDS-S1&quot;, &quot;P1 Time&quot;, Prt_S, buffer);
+<span class="lineNum">    1087 </span>            : 
+<span class="lineNum">    1088 </span>            : /* strftime (buffer, 25, &quot;%m/%d/%Y %H:%M:%S UTC&quot;, gmtime (&amp;(pds1-&gt;P2))); */
+<span class="lineNum">    1089 </span>            :    Clock_Print (buffer, 25, pds1-&gt;P2, &quot;%m/%d/%Y %H:%M:%S UTC&quot;, 0);
+<span class="lineNum">    1090 </span>            : 
+<span class="lineNum">    1091 </span>            :    Print (&quot;PDS-S1&quot;, &quot;P2 Time&quot;, Prt_S, buffer);
+<span class="lineNum">    1092 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Time range indicator&quot;, Prt_D, pds1-&gt;timeRange);
+<span class="lineNum">    1093 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Number included in average&quot;, Prt_D, pds1-&gt;Average);
+<span class="lineNum">    1094 </span>            :    Print (&quot;PDS-S1&quot;, &quot;Number missing from average or accumulation&quot;, Prt_D,
+<span class="lineNum">    1095 </span>            :           pds1-&gt;numberMissing);
+<span class="lineNum">    1096 </span>            : 
+<span class="lineNum">    1097 </span>            :    if (pds1-&gt;f_hasEns) {
+<span class="lineNum">    1098 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Ensemble BitFlag (octet 29)&quot;, Prt_D,
+<span class="lineNum">    1099 </span>            :              pds1-&gt;ens.BitFlag);
+<span class="lineNum">    1100 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Ensemble Application&quot;, Prt_D, pds1-&gt;ens.Application);
+<span class="lineNum">    1101 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Ensemble Type&quot;, Prt_D, pds1-&gt;ens.Type);
+<span class="lineNum">    1102 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Ensemble Number&quot;, Prt_D, pds1-&gt;ens.Number);
+<span class="lineNum">    1103 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Ensemble ProdID&quot;, Prt_D, pds1-&gt;ens.ProdID);
+<span class="lineNum">    1104 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Ensemble Smoothing&quot;, Prt_D, pds1-&gt;ens.Smooth);
+<span class="lineNum">    1105 </span>            :    }
+<span class="lineNum">    1106 </span>            :    if (pds1-&gt;f_hasProb) {
+<span class="lineNum">    1107 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Prob Category&quot;, Prt_D, pds1-&gt;prob.Cat);
+<span class="lineNum">    1108 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Prob Type&quot;, Prt_D, pds1-&gt;prob.Type);
+<span class="lineNum">    1109 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Prob lower&quot;, Prt_F, pds1-&gt;prob.lower);
+<span class="lineNum">    1110 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Prob upper&quot;, Prt_F, pds1-&gt;prob.upper);
+<span class="lineNum">    1111 </span>            :    }
+<span class="lineNum">    1112 </span>            :    if (pds1-&gt;f_hasCluster) {
+<span class="lineNum">    1113 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Cluster Ens Size&quot;, Prt_D, pds1-&gt;cluster.ensSize);
+<span class="lineNum">    1114 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Cluster Size&quot;, Prt_D, pds1-&gt;cluster.clusterSize);
+<span class="lineNum">    1115 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Cluster Number&quot;, Prt_D, pds1-&gt;cluster.Num);
+<span class="lineNum">    1116 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Cluster Method&quot;, Prt_D, pds1-&gt;cluster.Method);
+<span class="lineNum">    1117 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Cluster North Latitude&quot;, Prt_F, pds1-&gt;cluster.NorLat);
+<span class="lineNum">    1118 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Cluster South Latitude&quot;, Prt_F, pds1-&gt;cluster.SouLat);
+<span class="lineNum">    1119 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Cluster East Longitude&quot;, Prt_F, pds1-&gt;cluster.EasLon);
+<span class="lineNum">    1120 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Cluster West Longitude&quot;, Prt_F, pds1-&gt;cluster.WesLon);
+<span class="lineNum">    1121 </span>            :       sprintf (buffer, &quot;'%10s'&quot;, pds1-&gt;cluster.Member);
+<span class="lineNum">    1122 </span>            :       Print (&quot;PDS-S1&quot;, &quot;Cluster Membership&quot;, Prt_S, buffer);
+<span class="lineNum">    1123 </span>            :    }
+<span class="lineNum">    1124 </span>            : }
+<span class="lineNum">    1125 </span>            : 
+<span class="lineNum">    1126 </span>            : /*****************************************************************************
+<span class="lineNum">    1127 </span>            :  * PrintGDS() --
+<span class="lineNum">    1128 </span>            :  *
+<span class="lineNum">    1129 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">    1130 </span>            :  *
+<span class="lineNum">    1131 </span>            :  * PURPOSE
+<span class="lineNum">    1132 </span>            :  *   To generate the message for the Grid Definition Section.
+<span class="lineNum">    1133 </span>            :  *
+<span class="lineNum">    1134 </span>            :  * ARGUMENTS
+<span class="lineNum">    1135 </span>            :  *     gds = The gds structure to print. (Input)
+<span class="lineNum">    1136 </span>            :  * version = The GRIB version number (so we know what type of projection) (In)
+<span class="lineNum">    1137 </span>            :  *
+<span class="lineNum">    1138 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">    1139 </span>            :  *
+<span class="lineNum">    1140 </span>            :  * RETURNS: int (could use errSprintf())
+<span class="lineNum">    1141 </span>            :  *  0 if no error.
+<span class="lineNum">    1142 </span>            :  * -1 if asked to print a map projection that we don't support.
+<span class="lineNum">    1143 </span>            :  *
+<span class="lineNum">    1144 </span>            :  * HISTORY
+<span class="lineNum">    1145 </span>            :  *   9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">    1146 </span>            :  *   4/2003 AAT: Switched from sect3 to gds
+<span class="lineNum">    1147 </span>            :  *   5/2003 AAT: Since the number for ProjectionType changed from GRIB1 to
+<span class="lineNum">    1148 </span>            :  *          GRIB2, we use the GRIB2 internally, but for meta data we want to
+<span class="lineNum">    1149 </span>            :  *          print the appropriate one.
+<span class="lineNum">    1150 </span>            :  *   5/2003 AAT: Decided to have 1,1 be lower left corner in .shp files.
+<span class="lineNum">    1151 </span>            :  *  10/2004 AAT: Added TDLP support.
+<span class="lineNum">    1152 </span>            :  *
+<span class="lineNum">    1153 </span>            :  * NOTES
+<span class="lineNum">    1154 </span>            :  * Need to add support for GS3_ORTHOGRAPHIC = 90,
+<span class="lineNum">    1155 </span>            :  * GS3_EQUATOR_EQUIDIST = 110, GS3_AZIMUTH_RANGE = 120
+<span class="lineNum">    1156 </span>            :  *****************************************************************************
+<span class="lineNum">    1157 </span>            :  */
+<span class="lineNum">    1158 </span>            : static int PrintGDS (gdsType *gds, int version)
+<span class="lineNum">    1159 </span>            : {
+<span class="lineNum">    1160 </span>            :    /* Based on Grib2 Code Table 3.1 */
+<span class="lineNum">    1161 </span>            :    static const char * const table31[] = { &quot;Latitude/Longitude&quot;, &quot;Mercator&quot;,
+<span class="lineNum">    1162 </span>            :       &quot;Polar Stereographic&quot;, &quot;Lambert Conformal&quot;,
+<span class="lineNum">    1163 </span>            :       &quot;Space view perspective orthographic&quot;,
+<span class="lineNum">    1164 </span>            :       &quot;Equatorial azimuthal equidistant projection&quot;,
+<span class="lineNum">    1165 </span>            :       &quot;Azimuth-range projection&quot;
+<span class="lineNum">    1166 </span>            :    };
+<span class="lineNum">    1167 </span>            :    char buffer[50];     /* Temporary storage for info about scan flag. */
+<span class="lineNum">    1168 </span>            : 
+<span class="lineNum">    1169 </span>            :    Print (&quot;GDS&quot;, &quot;Number of Points&quot;, Prt_D, gds-&gt;numPts);
+<span class="lineNum">    1170 </span>            :    switch (gds-&gt;projType) {
+<span class="lineNum">    1171 </span>            :       case GS3_LATLON: /* 0 */
+<span class="lineNum">    1172 </span>            :          if (version == 1) {
+<span class="lineNum">    1173 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, GB1S2_LATLON,
+<span class="lineNum">    1174 </span>            :                    table31[0]);
+<span class="lineNum">    1175 </span>            :          } else {
+<span class="lineNum">    1176 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, gds-&gt;projType,
+<span class="lineNum">    1177 </span>            :                    table31[0]);
+<span class="lineNum">    1178 </span>            :          }
+<span class="lineNum">    1179 </span>            :          break;
+<span class="lineNum">    1180 </span>            :       case GS3_MERCATOR: /* 10 */
+<span class="lineNum">    1181 </span>            :          if (version == 1) {
+<span class="lineNum">    1182 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, GB1S2_MERCATOR,
+<span class="lineNum">    1183 </span>            :                    table31[1]);
+<span class="lineNum">    1184 </span>            :          } else if (version == -1) {
+<span class="lineNum">    1185 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, TDLP_MERCATOR,
+<span class="lineNum">    1186 </span>            :                    table31[1]);
+<span class="lineNum">    1187 </span>            :          } else {
+<span class="lineNum">    1188 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, gds-&gt;projType,
+<span class="lineNum">    1189 </span>            :                    table31[1]);
+<span class="lineNum">    1190 </span>            :          }
+<span class="lineNum">    1191 </span>            :          break;
+<span class="lineNum">    1192 </span>            :       case GS3_POLAR:  /* 20 */
+<span class="lineNum">    1193 </span>            :          if (version == 1) {
+<span class="lineNum">    1194 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, GB1S2_POLAR, table31[2]);
+<span class="lineNum">    1195 </span>            :          } else if (version == -1) {
+<span class="lineNum">    1196 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, TDLP_POLAR, table31[2]);
+<span class="lineNum">    1197 </span>            :          } else {
+<span class="lineNum">    1198 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, gds-&gt;projType,
+<span class="lineNum">    1199 </span>            :                    table31[2]);
+<span class="lineNum">    1200 </span>            :          }
+<span class="lineNum">    1201 </span>            :          break;
+<span class="lineNum">    1202 </span>            :       case GS3_LAMBERT: /* 30 */
+<span class="lineNum">    1203 </span>            :          if (version == 1) {
+<span class="lineNum">    1204 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, GB1S2_LAMBERT,
+<span class="lineNum">    1205 </span>            :                    table31[3]);
+<span class="lineNum">    1206 </span>            :          } else if (version == -1) {
+<span class="lineNum">    1207 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, TDLP_LAMBERT,
+<span class="lineNum">    1208 </span>            :                    table31[3]);
+<span class="lineNum">    1209 </span>            :          } else {
+<span class="lineNum">    1210 </span>            :             Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, gds-&gt;projType,
+<span class="lineNum">    1211 </span>            :                    table31[3]);
+<span class="lineNum">    1212 </span>            :          }
+<span class="lineNum">    1213 </span>            :          break;
+<span class="lineNum">    1214 </span>            : /*
+<span class="lineNum">    1215 </span>            :  * The following lines were removed until such time that the rest of this
+<span class="lineNum">    1216 </span>            :  * procedure can properly handle these three projection types.
+<span class="lineNum">    1217 </span>            :  *
+<span class="lineNum">    1218 </span>            :       case GS3_ORTHOGRAPHIC:  * 90 *
+<span class="lineNum">    1219 </span>            :          Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, gds-&gt;projType, table31[4]);
+<span class="lineNum">    1220 </span>            :          break;
+<span class="lineNum">    1221 </span>            :       case GS3_EQUATOR_EQUIDIST:  * 110 *
+<span class="lineNum">    1222 </span>            :          Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, gds-&gt;projType, table31[5]);
+<span class="lineNum">    1223 </span>            :          break;
+<span class="lineNum">    1224 </span>            :       case GS3_AZIMUTH_RANGE:  * 120 *
+<span class="lineNum">    1225 </span>            :          Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_DS, gds-&gt;projType, table31[6]);
+<span class="lineNum">    1226 </span>            :          break;
+<span class="lineNum">    1227 </span>            : */
+<span class="lineNum">    1228 </span>            :       default:
+<span class="lineNum">    1229 </span>            :          Print (&quot;GDS&quot;, &quot;Projection Type&quot;, Prt_D, gds-&gt;projType);
+<span class="lineNum">    1230 </span>            :          errSprintf (&quot;Un-supported Map Projection %d\n&quot;, gds-&gt;projType);
+<span class="lineNum">    1231 </span>            :          return -1;
+<span class="lineNum">    1232 </span>            :    }
+<span class="lineNum">    1233 </span>            :    if (gds-&gt;f_sphere) {
+<span class="lineNum">    1234 </span>            :       Print (&quot;GDS&quot;, &quot;Shape of Earth&quot;, Prt_S, &quot;sphere&quot;);
+<span class="lineNum">    1235 </span>            :       Print (&quot;GDS&quot;, &quot;Radius&quot;, Prt_FS, gds-&gt;majEarth, &quot;km&quot;);
+<span class="lineNum">    1236 </span>            :    } else {
+<span class="lineNum">    1237 </span>            :       Print (&quot;GDS&quot;, &quot;Shape of Earth&quot;, Prt_S, &quot;oblate spheroid&quot;);
+<span class="lineNum">    1238 </span>            :       Print (&quot;GDS&quot;, &quot;semi Major axis&quot;, Prt_FS, gds-&gt;majEarth, &quot;km&quot;);
+<span class="lineNum">    1239 </span>            :       Print (&quot;GDS&quot;, &quot;semi Minor axis&quot;, Prt_FS, gds-&gt;minEarth, &quot;km&quot;);
+<span class="lineNum">    1240 </span>            :    }
+<span class="lineNum">    1241 </span>            :    Print (&quot;GDS&quot;, &quot;Nx (Number of points on parallel)&quot;, Prt_D, gds-&gt;Nx);
+<span class="lineNum">    1242 </span>            :    Print (&quot;GDS&quot;, &quot;Ny (Number of points on meridian)&quot;, Prt_D, gds-&gt;Ny);
+<span class="lineNum">    1243 </span>            :    Print (&quot;GDS&quot;, &quot;Lat1&quot;, Prt_F, gds-&gt;lat1);
+<span class="lineNum">    1244 </span>            :    Print (&quot;GDS&quot;, &quot;Lon1&quot;, Prt_F, gds-&gt;lon1);
+<span class="lineNum">    1245 </span>            :    if (gds-&gt;resFlag &amp; GRIB2BIT_5) {
+<span class="lineNum">    1246 </span>            :       Print (&quot;GDS&quot;, &quot;u/v vectors relative to&quot;, Prt_S, &quot;grid&quot;);
+<span class="lineNum">    1247 </span>            :    } else {
+<span class="lineNum">    1248 </span>            :       Print (&quot;GDS&quot;, &quot;u/v vectors relative to&quot;, Prt_S, &quot;easterly/northerly&quot;);
+<span class="lineNum">    1249 </span>            :    }
+<span class="lineNum">    1250 </span>            :    if (gds-&gt;projType == GS3_LATLON) {
+<span class="lineNum">    1251 </span>            :       Print (&quot;GDS&quot;, &quot;Lat2&quot;, Prt_F, gds-&gt;lat2);
+<span class="lineNum">    1252 </span>            :       Print (&quot;GDS&quot;, &quot;Lon2&quot;, Prt_F, gds-&gt;lon2);
+<span class="lineNum">    1253 </span>            :       Print (&quot;GDS&quot;, &quot;Dx&quot;, Prt_FS, gds-&gt;Dx, &quot;degrees&quot;);
+<span class="lineNum">    1254 </span>            :       Print (&quot;GDS&quot;, &quot;Dy&quot;, Prt_FS, gds-&gt;Dy, &quot;degrees&quot;);
+<span class="lineNum">    1255 </span>            :    } else if (gds-&gt;projType == GS3_MERCATOR) {
+<span class="lineNum">    1256 </span>            :       Print (&quot;GDS&quot;, &quot;Lat2&quot;, Prt_F, gds-&gt;lat2);
+<span class="lineNum">    1257 </span>            :       Print (&quot;GDS&quot;, &quot;Lon2&quot;, Prt_F, gds-&gt;lon2);
+<span class="lineNum">    1258 </span>            :       Print (&quot;GDS&quot;, &quot;Dx&quot;, Prt_FS, gds-&gt;Dx, &quot;m&quot;);
+<span class="lineNum">    1259 </span>            :       Print (&quot;GDS&quot;, &quot;Dy&quot;, Prt_FS, gds-&gt;Dy, &quot;m&quot;);
+<span class="lineNum">    1260 </span>            :    } else if ((gds-&gt;projType == GS3_POLAR)
+<span class="lineNum">    1261 </span>            :               || (gds-&gt;projType == GS3_LAMBERT)) {
+<span class="lineNum">    1262 </span>            :       Print (&quot;GDS&quot;, &quot;Dx&quot;, Prt_FS, gds-&gt;Dx, &quot;m&quot;);
+<span class="lineNum">    1263 </span>            :       Print (&quot;GDS&quot;, &quot;Dy&quot;, Prt_FS, gds-&gt;Dy, &quot;m&quot;);
+<span class="lineNum">    1264 </span>            :    }
+<span class="lineNum">    1265 </span>            :    /* For scan mode... The user of this data doesn't necessarily care how it
+<span class="lineNum">    1266 </span>            :     * was stored in the Grib2 grid (i.e. gds-&gt;scan), they just care about how
+<span class="lineNum">    1267 </span>            :     * the data they are accessing is scanned (i.e. scan=0000) */
+<span class="lineNum">    1268 </span>            :    sprintf (buffer, &quot;%d%d%d%d&quot;, ((gds-&gt;scan &amp; GRIB2BIT_1) / GRIB2BIT_1),
+<span class="lineNum">    1269 </span>            :             ((gds-&gt;scan &amp; GRIB2BIT_2) / GRIB2BIT_2),
+<span class="lineNum">    1270 </span>            :             ((gds-&gt;scan &amp; GRIB2BIT_3) / GRIB2BIT_3),
+<span class="lineNum">    1271 </span>            :             ((gds-&gt;scan &amp; GRIB2BIT_4) / GRIB2BIT_4));
+<span class="lineNum">    1272 </span>            :    Print (&quot;GDS&quot;, &quot;Input GRIB2 grid, scan mode&quot;, Prt_DS, gds-&gt;scan, buffer);
+<span class="lineNum">    1273 </span>            : /*
+<span class="lineNum">    1274 </span>            :    Print (&quot;GDS&quot;, &quot;Output grid, scan mode&quot;, Prt_DS, 0, &quot;0000&quot;);
+<span class="lineNum">    1275 </span>            :    Print (&quot;GDS&quot;, &quot;Output grid, scan i/x direction&quot;, Prt_S, &quot;positive&quot;);
+<span class="lineNum">    1276 </span>            :    Print (&quot;GDS&quot;, &quot;Output grid, scan j/y direction&quot;, Prt_S, &quot;negative&quot;);
+<span class="lineNum">    1277 </span>            : */
+<span class="lineNum">    1278 </span>            :    Print (&quot;GDS&quot;, &quot;Output grid, scan mode&quot;, Prt_DS, 64, &quot;0100&quot;);
+<span class="lineNum">    1279 </span>            :    Print (&quot;GDS&quot;, &quot;(.flt file grid), scan mode&quot;, Prt_DS, 0, &quot;0000&quot;);
+<span class="lineNum">    1280 </span>            :    Print (&quot;GDS&quot;, &quot;Output grid, scan i/x direction&quot;, Prt_S, &quot;positive&quot;);
+<span class="lineNum">    1281 </span>            :    Print (&quot;GDS&quot;, &quot;Output grid, scan j/y direction&quot;, Prt_S, &quot;positive&quot;);
+<span class="lineNum">    1282 </span>            :    Print (&quot;GDS&quot;, &quot;(.flt file grid), scan j/y direction&quot;, Prt_S, &quot;negative&quot;);
+<span class="lineNum">    1283 </span>            :    Print (&quot;GDS&quot;, &quot;Output grid, consecutive points in&quot;, Prt_S,
+<span class="lineNum">    1284 </span>            :           &quot;i/x direction&quot;);
+<span class="lineNum">    1285 </span>            :    Print (&quot;GDS&quot;, &quot;Output grid, adjacent rows scan in&quot;, Prt_S,
+<span class="lineNum">    1286 </span>            :           &quot;same direction&quot;);
+<span class="lineNum">    1287 </span>            : 
+<span class="lineNum">    1288 </span>            :    /* Meshlat/orient lon/scale lat have no meaning for lat/lon grids. */
+<span class="lineNum">    1289 </span>            :    if (gds-&gt;projType != GS3_LATLON) {
+<span class="lineNum">    1290 </span>            :       Print (&quot;GDS&quot;, &quot;MeshLat&quot;, Prt_F, gds-&gt;meshLat);
+<span class="lineNum">    1291 </span>            :       Print (&quot;GDS&quot;, &quot;OrientLon&quot;, Prt_F, gds-&gt;orientLon);
+<span class="lineNum">    1292 </span>            :       if ((gds-&gt;projType == GS3_POLAR) || (gds-&gt;projType == GS3_LAMBERT)) {
+<span class="lineNum">    1293 </span>            :          if (gds-&gt;center &amp; GRIB2BIT_1) {
+<span class="lineNum">    1294 </span>            :             Print (&quot;GDS&quot;, &quot;Which pole is on the plane&quot;, Prt_S, &quot;South&quot;);
+<span class="lineNum">    1295 </span>            :          } else {
+<span class="lineNum">    1296 </span>            :             Print (&quot;GDS&quot;, &quot;Which pole is on the plane&quot;, Prt_S, &quot;North&quot;);
+<span class="lineNum">    1297 </span>            :          }
+<span class="lineNum">    1298 </span>            :          if (gds-&gt;center &amp; GRIB2BIT_2) {
+<span class="lineNum">    1299 </span>            :             Print (&quot;GDS&quot;, &quot;bi-polar projection&quot;, Prt_S, &quot;Yes&quot;);
+<span class="lineNum">    1300 </span>            :          } else {
+<span class="lineNum">    1301 </span>            :             Print (&quot;GDS&quot;, &quot;bi-polar projection&quot;, Prt_S, &quot;No&quot;);
+<span class="lineNum">    1302 </span>            :          }
+<span class="lineNum">    1303 </span>            :       }
+<span class="lineNum">    1304 </span>            :       Print (&quot;GDS&quot;, &quot;Tangent Lat1&quot;, Prt_F, gds-&gt;scaleLat1);
+<span class="lineNum">    1305 </span>            :       Print (&quot;GDS&quot;, &quot;Tangent Lat2&quot;, Prt_F, gds-&gt;scaleLat2);
+<span class="lineNum">    1306 </span>            :       Print (&quot;GDS&quot;, &quot;Southern Lat&quot;, Prt_F, gds-&gt;southLat);
+<span class="lineNum">    1307 </span>            :       Print (&quot;GDS&quot;, &quot;Southern Lon&quot;, Prt_F, gds-&gt;southLon);
+<span class="lineNum">    1308 </span>            :    }
+<span class="lineNum">    1309 </span>            :    return 0;
+<span class="lineNum">    1310 </span>            : }
+<span class="lineNum">    1311 </span>            : 
+<span class="lineNum">    1312 </span>            : /*****************************************************************************
+<span class="lineNum">    1313 </span>            :  * PrintGridAttrib() --
+<span class="lineNum">    1314 </span>            :  *
+<span class="lineNum">    1315 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">    1316 </span>            :  *
+<span class="lineNum">    1317 </span>            :  * PURPOSE
+<span class="lineNum">    1318 </span>            :  *   To generate the message for the various attributes of the grid.
+<span class="lineNum">    1319 </span>            :  *
+<span class="lineNum">    1320 </span>            :  * ARGUMENTS
+<span class="lineNum">    1321 </span>            :  *  attrib = The Grid Attribute structure to print. (Input)
+<span class="lineNum">    1322 </span>            :  * decimal = How many decimals to round to. (Input)
+<span class="lineNum">    1323 </span>            :  *
+<span class="lineNum">    1324 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">    1325 </span>            :  *
+<span class="lineNum">    1326 </span>            :  * RETURNS: void
+<span class="lineNum">    1327 </span>            :  *
+<span class="lineNum">    1328 </span>            :  * HISTORY
+<span class="lineNum">    1329 </span>            :  *   9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">    1330 </span>            :  *   5/2003 AAT: Added rounding to decimal.
+<span class="lineNum">    1331 </span>            :  *
+<span class="lineNum">    1332 </span>            :  * NOTES
+<span class="lineNum">    1333 </span>            :  *****************************************************************************
+<span class="lineNum">    1334 </span>            :  */
+<span class="lineNum">    1335 </span>            : static void PrintGridAttrib (gridAttribType *attrib, sChar decimal)
+<span class="lineNum">    1336 </span>            : {
+<span class="lineNum">    1337 </span>            :    /* Based on Grib2 Code Table 5.0 */
+<span class="lineNum">    1338 </span>            :    static const char * const table50[] = {
+<span class="lineNum">    1339 </span>            :       &quot;Grid point data - simple packing&quot;, &quot;Matrix value - simple packing&quot;,
+<span class="lineNum">    1340 </span>            :       &quot;Grid point data - complex packing&quot;,
+<span class="lineNum">    1341 </span>            :       &quot;Grid point data - complex packing and spatial differencing&quot;
+<span class="lineNum">    1342 </span>            :    };
+<span class="lineNum">    1343 </span>            : 
+<span class="lineNum">    1344 </span>            :    /* Based on Grib2 Code Table 5.1 */
+<span class="lineNum">    1345 </span>            :    static const char * const table51[] = { &quot;Floating point&quot;, &quot;Integer&quot; };
+<span class="lineNum">    1346 </span>            : 
+<span class="lineNum">    1347 </span>            :    /* Based on Grib2 Code Table 5.5 */
+<span class="lineNum">    1348 </span>            :    static const char * const table55[] = {
+<span class="lineNum">    1349 </span>            :       &quot;No explicit missing value included with data&quot;,
+<span class="lineNum">    1350 </span>            :       &quot;Primary missing value included with data&quot;,
+<span class="lineNum">    1351 </span>            :       &quot;Primary and Secondary missing values included with data&quot;
+<span class="lineNum">    1352 </span>            :    };
+<span class="lineNum">    1353 </span>            : 
+<span class="lineNum">    1354 </span>            :    if ((attrib-&gt;packType == GS5_JPEG2000) ||
+<span class="lineNum">    1355 </span>            :        (attrib-&gt;packType == GS5_JPEG2000_ORG)) {
+<span class="lineNum">    1356 </span>            :       Print (&quot;Info&quot;, &quot;Packing that was used&quot;, Prt_DS, attrib-&gt;packType,
+<span class="lineNum">    1357 </span>            :              &quot;JPEG 2000&quot;);
+<span class="lineNum">    1358 </span>            :    } else if ((attrib-&gt;packType == GS5_PNG) ||
+<span class="lineNum">    1359 </span>            :               (attrib-&gt;packType == GS5_PNG_ORG)) {
+<span class="lineNum">    1360 </span>            :       Print (&quot;Info&quot;, &quot;Packing that was used&quot;, Prt_DS, attrib-&gt;packType,
+<span class="lineNum">    1361 </span>            :              &quot;Portable Network Graphics (PNG)&quot;);
+<span class="lineNum">    1362 </span>            :    } else {
+<span class="lineNum">    1363 </span>            :       Print (&quot;Info&quot;, &quot;Packing that was used&quot;, Prt_DS, attrib-&gt;packType,
+<span class="lineNum">    1364 </span>            :              Lookup (table50, sizeof (table50), attrib-&gt;packType));
+<span class="lineNum">    1365 </span>            :    }
+<span class="lineNum">    1366 </span>            :    /* Added next two 1/27/2006 because of questions from Val. */
+<span class="lineNum">    1367 </span>            :    Print (&quot;Info&quot;, &quot;Decimal Scale Factor&quot;, Prt_D, attrib-&gt;DSF);
+<span class="lineNum">    1368 </span>            :    Print (&quot;Info&quot;, &quot;Binary Scale Factor&quot;, Prt_D, attrib-&gt;ESF);
+<span class="lineNum">    1369 </span>            :    Print (&quot;Info&quot;, &quot;Original field type&quot;, Prt_DS, attrib-&gt;fieldType,
+<span class="lineNum">    1370 </span>            :           Lookup (table51, sizeof (table51), attrib-&gt;fieldType));
+<span class="lineNum">    1371 </span>            :    Print (&quot;Info&quot;, &quot;Missing value management&quot;, Prt_DS, attrib-&gt;f_miss,
+<span class="lineNum">    1372 </span>            :           Lookup (table55, sizeof (table55), attrib-&gt;f_miss));
+<span class="lineNum">    1373 </span>            :    if (attrib-&gt;f_miss == 1) {
+<span class="lineNum">    1374 </span>            :       Print (&quot;Info&quot;, &quot;Primary missing value&quot;, Prt_F,
+<span class="lineNum">    1375 </span>            :              myRound (attrib-&gt;missPri, decimal));
+<span class="lineNum">    1376 </span>            :    } else if (attrib-&gt;f_miss == 2) {
+<span class="lineNum">    1377 </span>            :       Print (&quot;Info&quot;, &quot;Primary missing value&quot;, Prt_F,
+<span class="lineNum">    1378 </span>            :              myRound (attrib-&gt;missPri, decimal));
+<span class="lineNum">    1379 </span>            :       Print (&quot;Info&quot;, &quot;Secondary missing value&quot;, Prt_F,
+<span class="lineNum">    1380 </span>            :              myRound (attrib-&gt;missSec, decimal));
+<span class="lineNum">    1381 </span>            :    }
+<span class="lineNum">    1382 </span>            :    Print (&quot;Info&quot;, &quot;Detected number of Missing&quot;, Prt_D, attrib-&gt;numMiss);
+<span class="lineNum">    1383 </span>            :    if (attrib-&gt;f_maxmin) {
+<span class="lineNum">    1384 </span>            :       Print (&quot;Info&quot;, &quot;Field minimum value&quot;, Prt_F,
+<span class="lineNum">    1385 </span>            :              myRound (attrib-&gt;min, decimal));
+<span class="lineNum">    1386 </span>            :       Print (&quot;Info&quot;, &quot;Field maximum value&quot;, Prt_F,
+<span class="lineNum">    1387 </span>            :              myRound (attrib-&gt;max, decimal));
+<span class="lineNum">    1388 </span>            :    }
+<span class="lineNum">    1389 </span>            : }
+<span class="lineNum">    1390 </span>            : 
+<span class="lineNum">    1391 </span>            : /*****************************************************************************
+<span class="lineNum">    1392 </span>            :  * MetaPrintGDS() --
+<span class="lineNum">    1393 </span>            :  *
+<span class="lineNum">    1394 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">    1395 </span>            :  *
+<span class="lineNum">    1396 </span>            :  * PURPOSE
+<span class="lineNum">    1397 </span>            :  *   To generate a message specific for the GDS.  Basically a wrapper for
+<span class="lineNum">    1398 </span>            :  * PrintGDS and Print.
+<span class="lineNum">    1399 </span>            :  *
+<span class="lineNum">    1400 </span>            :  * ARGUMENTS
+<span class="lineNum">    1401 </span>            :  * gds = The Grid Definition Section to generate the message for. (Input)
+<span class="lineNum">    1402 </span>            :  * version = The GRIB version number (so we know what type of projection) (In)
+<span class="lineNum">    1403 </span>            :  * ans = The resulting message. Up to caller to free. (Output)
+<span class="lineNum">    1404 </span>            :  *
+<span class="lineNum">    1405 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">    1406 </span>            :  *
+<span class="lineNum">    1407 </span>            :  * RETURNS: int (could use errSprintf())
+<span class="lineNum">    1408 </span>            :  *  0 if no error.
+<span class="lineNum">    1409 </span>            :  * -1 if asked to print a map projection that we don't support.
+<span class="lineNum">    1410 </span>            :  * -2 if asked to print data for a template that we don't support.
+<span class="lineNum">    1411 </span>            :  *
+<span class="lineNum">    1412 </span>            :  * HISTORY
+<span class="lineNum">    1413 </span>            :  *   4/2003 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">    1414 </span>            :  *   5/2003 AAT: Commented out.  Purpose was mainly for debugging degrib1.c,
+<span class="lineNum">    1415 </span>            :  *               which is now working.
+<span class="lineNum">    1416 </span>            :  *
+<span class="lineNum">    1417 </span>            :  * NOTES
+<span class="lineNum">    1418 </span>            :  *****************************************************************************
+<span class="lineNum">    1419 </span>            :  */
+<span class="lineNum">    1420 </span>            : int MetaPrintGDS (gdsType *gds, int version, char **ans)
+<span class="lineNum">    1421 </span>            : {
+<span class="lineNum">    1422 </span>            :    int ierr;            /* The error code of a called routine */
+<span class="lineNum">    1423 </span>            : 
+<span class="lineNum">    1424 </span>            :    if ((ierr = PrintGDS (gds, version)) != 0) {
+<span class="lineNum">    1425 </span>            :       *ans = Print (NULL, NULL, Prt_NULL);
+<span class="lineNum">    1426 </span>            :       preErrSprintf (&quot;Print error Section 3\n&quot;);
+<span class="lineNum">    1427 </span>            :       return ierr;
+<span class="lineNum">    1428 </span>            :    }
+<span class="lineNum">    1429 </span>            :    *ans = Print (NULL, NULL, Prt_NULL);
+<span class="lineNum">    1430 </span>            :    return 0;
+<span class="lineNum">    1431 </span>            : }
+<span class="lineNum">    1432 </span>            : 
+<span class="lineNum">    1433 </span>            : /*****************************************************************************
+<span class="lineNum">    1434 </span>            :  * MetaPrint() --
+<span class="lineNum">    1435 </span>            :  *
+<span class="lineNum">    1436 </span>            :  * Arthur Taylor / MDL
+<span class="lineNum">    1437 </span>            :  *
+<span class="lineNum">    1438 </span>            :  * PURPOSE
+<span class="lineNum">    1439 </span>            :  *   To generate the meta file message.
+<span class="lineNum">    1440 </span>            :  *
+<span class="lineNum">    1441 </span>            :  * ARGUMENTS
+<span class="lineNum">    1442 </span>            :  *    meta = The meta file structure to generate the message for. (Input)
+<span class="lineNum">    1443 </span>            :  *     ans = The resulting message. Up to caller to free. (Output)
+<span class="lineNum">    1444 </span>            :  * decimal = How many decimals to round to. (Input)
+<span class="lineNum">    1445 </span>            :  *  f_unit = 0 (GRIB unit), 1 (english), 2 (metric) (Input)
+<span class="lineNum">    1446 </span>            :  *
+<span class="lineNum">    1447 </span>            :  * FILES/DATABASES: None
+<span class="lineNum">    1448 </span>            :  *
+<span class="lineNum">    1449 </span>            :  * RETURNS: int (could use errSprintf())
+<span class="lineNum">    1450 </span>            :  *  0 if no error.
+<span class="lineNum">    1451 </span>            :  * -1 if asked to print a map projection that we don't support.
+<span class="lineNum">    1452 </span>            :  * -2 if asked to print data for a template that we don't support.
+<span class="lineNum">    1453 </span>            :  *
+<span class="lineNum">    1454 </span>            :  * HISTORY
+<span class="lineNum">    1455 </span>            :  *   9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">    1456 </span>            :  *   5/2003 AAT: Added rounding to decimal.
+<span class="lineNum">    1457 </span>            :  *
+<span class="lineNum">    1458 </span>            :  * NOTES
+<span class="lineNum">    1459 </span>            :  *****************************************************************************
+<span class="lineNum">    1460 </span>            :  */
+<span class="lineNum">    1461 </span>            : int MetaPrint (grib_MetaData *meta, char **ans, sChar decimal, sChar f_unit)
+<span class="lineNum">    1462 </span>            : {
+<span class="lineNum">    1463 </span>            :    int ierr;            /* The error code of a called routine */
+<span class="lineNum">    1464 </span>            : 
+<span class="lineNum">    1465 </span>            :    if (meta-&gt;GribVersion == 1) {
+<span class="lineNum">    1466 </span>            :       PrintPDS1 (&amp;(meta-&gt;pds1), meta-&gt;comment, meta-&gt;center,
+<span class="lineNum">    1467 </span>            :                  meta-&gt;subcenter, f_unit, meta-&gt;unitName, meta-&gt;convert);
+<span class="lineNum">    1468 </span>            :    } else if (meta-&gt;GribVersion == -1) {
+<span class="lineNum">    1469 </span>            :       PrintPDS_TDLP (&amp;(meta-&gt;pdsTdlp));
+<span class="lineNum">    1470 </span>            :    } else {
+<span class="lineNum">    1471 </span>            :       if ((ierr = PrintPDS2 (meta, f_unit)) != 0) {
+<span class="lineNum">    1472 </span>            :          *ans = Print (NULL, NULL, Prt_NULL);
+<span class="lineNum">    1473 </span>            :          preErrSprintf (&quot;Print error in PDS for GRIB2\n&quot;);
+<span class="lineNum">    1474 </span>            :          return ierr;
+<span class="lineNum">    1475 </span>            :       }
+<span class="lineNum">    1476 </span>            :    }
+<span class="lineNum">    1477 </span>            :    if ((ierr = PrintGDS (&amp;(meta-&gt;gds), meta-&gt;GribVersion)) != 0) {
+<span class="lineNum">    1478 </span>            :       *ans = Print (NULL, NULL, Prt_NULL);
+<span class="lineNum">    1479 </span>            :       preErrSprintf (&quot;Print error Section 3\n&quot;);
+<span class="lineNum">    1480 </span>            :       return ierr;
+<span class="lineNum">    1481 </span>            :    }
+<span class="lineNum">    1482 </span>            :    PrintGridAttrib (&amp;(meta-&gt;gridAttrib), decimal);
+<span class="lineNum">    1483 </span>            :    *ans = Print (NULL, NULL, Prt_NULL);
+<span class="lineNum">    1484 </span>            :    return 0;
+<span class="lineNum">    1485 </span>            : }
+<span class="lineNum">    1486 </span>            : #endif  // Unused with GDAL.
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

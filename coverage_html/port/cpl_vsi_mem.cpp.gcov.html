@@ -1,0 +1,1076 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_vsi_mem.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_vsi_mem.cpp<span style="font-size: 80%;"> (source / <a href="cpl_vsi_mem.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">282</td>
+            <td class="headerCovTableEntry">302</td>
+            <td class="headerCovTableEntryHi">93.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">30</td>
+            <td class="headerCovTableEntry">30</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  VSI Virtual File System
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of Memory Buffer virtual IO functions.
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2005, Frank Warmerdam &lt;warmerdam@pobox.com&gt;
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2007-2014, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;cpl_vsi_virtual.h&quot;
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : #include &lt;cerrno&gt;
+<span class="lineNum">      35 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      36 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      37 </span>            : #include &lt;ctime&gt;
+<span class="lineNum">      38 </span>            : #if HAVE_FCNTL_H
+<span class="lineNum">      39 </span>            : #  include &lt;fcntl.h&gt;
+<span class="lineNum">      40 </span>            : #endif
+<span class="lineNum">      41 </span>            : #if HAVE_SYS_STAT_H
+<span class="lineNum">      42 </span>            : #  include &lt;sys/stat.h&gt;
+<span class="lineNum">      43 </span>            : #endif
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      46 </span>            : #include &lt;map&gt;
+<span class="lineNum">      47 </span>            : #include &lt;string&gt;
+<span class="lineNum">      48 </span>            : #include &lt;utility&gt;
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : #include &quot;cpl_atomic_ops.h&quot;
+<span class="lineNum">      51 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      52 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      53 </span>            : #include &quot;cpl_multiproc.h&quot;
+<span class="lineNum">      54 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span>            : /*
+<span class="lineNum">      61 </span>            : ** Notes on Multithreading:
+<span class="lineNum">      62 </span>            : **
+<span class="lineNum">      63 </span>            : ** VSIMemFilesystemHandler: This class maintains a mutex to protect
+<span class="lineNum">      64 </span>            : ** access and update of the oFileList array which has all the &quot;files&quot; in
+<span class="lineNum">      65 </span>            : ** the memory filesystem area.  It is expected that multiple threads would
+<span class="lineNum">      66 </span>            : ** want to create and read different files at the same time and so might
+<span class="lineNum">      67 </span>            : ** collide access oFileList without the mutex.
+<span class="lineNum">      68 </span>            : **
+<span class="lineNum">      69 </span>            : ** VSIMemFile: In theory we could allow different threads to update the
+<span class="lineNum">      70 </span>            : ** the same memory file, but for simplicity we restrict to single writer,
+<span class="lineNum">      71 </span>            : ** multiple reader as an expectation on the application code (not enforced
+<span class="lineNum">      72 </span>            : ** here), which means we don't need to do any protection of this class.
+<span class="lineNum">      73 </span>            : **
+<span class="lineNum">      74 </span>            : ** VSIMemHandle: This is essentially a &quot;current location&quot; representing
+<span class="lineNum">      75 </span>            : ** on accessor to a file, and is inherently intended only to be used in
+<span class="lineNum">      76 </span>            : ** a single thread.
+<span class="lineNum">      77 </span>            : **
+<span class="lineNum">      78 </span>            : ** In General:
+<span class="lineNum">      79 </span>            : **
+<span class="lineNum">      80 </span>            : ** Multiple threads accessing the memory filesystem are ok as long as
+<span class="lineNum">      81 </span>            : **  1) A given VSIMemHandle (i.e. FILE * at app level) isn't used by multiple
+<span class="lineNum">      82 </span>            : **     threads at once.
+<span class="lineNum">      83 </span>            : **  2) A given memory file isn't accessed by more than one thread unless
+<span class="lineNum">      84 </span>            : **     all threads are just reading.
+<span class="lineNum">      85 </span>            : */
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            : /************************************************************************/
+<span class="lineNum">      88 </span>            : /* ==================================================================== */
+<span class="lineNum">      89 </span>            : /*                              VSIMemFile                              */
+<span class="lineNum">      90 </span>            : /* ==================================================================== */
+<span class="lineNum">      91 </span>            : /************************************************************************/
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            : class VSIMemFile
+<span class="lineNum">      94 </span>            : {
+<span class="lineNum">      95 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSIMemFile)
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            : public:
+<span class="lineNum">      98 </span>            :     CPLString     osFilename{};
+<span class="lineNum">      99 </span>            :     volatile int  nRefCount = 0;
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span>            :     bool          bIsDirectory = false;
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :     bool          bOwnData = true;
+<span class="lineNum">     104 </span>            :     GByte        *pabyData = nullptr;
+<span class="lineNum">     105 </span>            :     vsi_l_offset  nLength = 0;
+<span class="lineNum">     106 </span>            :     vsi_l_offset  nAllocLength = 0;
+<span class="lineNum">     107 </span>            :     vsi_l_offset  nMaxLength = GUINTBIG_MAX;
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span>            :     time_t        mTime = 0;
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            :     VSIMemFile();
+<span class="lineNum">     112 </span>            :     virtual ~VSIMemFile();
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span>            :     bool          SetLength( vsi_l_offset nNewSize );
+<span class="lineNum">     115 </span>            : };
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : /************************************************************************/
+<span class="lineNum">     118 </span>            : /* ==================================================================== */
+<span class="lineNum">     119 </span>            : /*                             VSIMemHandle                             */
+<span class="lineNum">     120 </span>            : /* ==================================================================== */
+<span class="lineNum">     121 </span>            : /************************************************************************/
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            : class VSIMemHandle final : public VSIVirtualHandle
+<span class="lineNum">     124 </span>            : {
+<span class="lineNum">     125 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSIMemHandle)
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            :   public:
+<span class="lineNum">     128 </span>            :     VSIMemFile    *poFile = nullptr;
+<span class="lineNum">     129 </span>            :     vsi_l_offset  m_nOffset = 0;
+<span class="lineNum">     130 </span>            :     bool          bUpdate = false;
+<span class="lineNum">     131 </span>            :     bool          bEOF = false;
+<a name="132"><span class="lineNum">     132 </span>            :     bool          bExtendFileAtNextWrite = false;</a>
+<a name="133"><span class="lineNum">     133 </span>            : </a>
+<span class="lineNum">     134 </span><span class="lineCov">     101947 :     VSIMemHandle() = default;</span>
+<span class="lineNum">     135 </span><span class="lineCov">     199885 :     ~VSIMemHandle() override = default;</span>
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span>            :     int Seek( vsi_l_offset nOffset, int nWhence ) override;
+<span class="lineNum">     138 </span>            :     vsi_l_offset Tell() override;
+<span class="lineNum">     139 </span>            :     size_t Read( void *pBuffer, size_t nSize,
+<span class="lineNum">     140 </span>            :                     size_t nMemb ) override;
+<span class="lineNum">     141 </span>            :     size_t Write( const void *pBuffer, size_t nSize,
+<span class="lineNum">     142 </span>            :                      size_t nMemb ) override;
+<span class="lineNum">     143 </span>            :     int Eof() override;
+<span class="lineNum">     144 </span>            :     int Close() override;
+<span class="lineNum">     145 </span>            :     int Truncate( vsi_l_offset nNewSize ) override;
+<span class="lineNum">     146 </span>            : };
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            : /************************************************************************/
+<span class="lineNum">     149 </span>            : /* ==================================================================== */
+<span class="lineNum">     150 </span>            : /*                       VSIMemFilesystemHandler                        */
+<span class="lineNum">     151 </span>            : /* ==================================================================== */
+<span class="lineNum">     152 </span>            : /************************************************************************/
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            : class VSIMemFilesystemHandler final : public VSIFilesystemHandler
+<span class="lineNum">     155 </span>            : {
+<span class="lineNum">     156 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSIMemFilesystemHandler)
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span>            :   public:
+<span class="lineNum">     159 </span>            :     std::map&lt;CPLString, VSIMemFile*&gt; oFileList{};
+<a name="160"><span class="lineNum">     160 </span>            :     CPLMutex        *hMutex = nullptr;</a>
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span><span class="lineCov">        988 :     VSIMemFilesystemHandler() = default;</span>
+<span class="lineNum">     163 </span>            :     ~VSIMemFilesystemHandler() override;
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            :     // TODO(schwehr): Fix VSIFileFromMemBuffer so that using is not needed.
+<span class="lineNum">     166 </span>            :     using VSIFilesystemHandler::Open;
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            :     VSIVirtualHandle *Open( const char *pszFilename,
+<span class="lineNum">     169 </span>            :                             const char *pszAccess,
+<span class="lineNum">     170 </span>            :                             bool bSetError ) override;
+<span class="lineNum">     171 </span>            :     int Stat( const char *pszFilename, VSIStatBufL *pStatBuf,
+<span class="lineNum">     172 </span>            :               int nFlags ) override;
+<span class="lineNum">     173 </span>            :     int Unlink( const char *pszFilename ) override;
+<span class="lineNum">     174 </span>            :     int Mkdir( const char *pszDirname, long nMode ) override;
+<span class="lineNum">     175 </span>            :     int Rmdir( const char *pszDirname ) override;
+<span class="lineNum">     176 </span>            :     char **ReadDirEx( const char *pszDirname,
+<span class="lineNum">     177 </span>            :                       int nMaxFiles ) override;
+<span class="lineNum">     178 </span>            :     int Rename( const char *oldpath,
+<span class="lineNum">     179 </span>            :                 const char *newpath ) override;
+<span class="lineNum">     180 </span>            :     GIntBig  GetDiskFreeSpace( const char* pszDirname ) override;
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span>            :     static std::string NormalizePath( const std::string &amp;in );
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            :     int              Unlink_unlocked( const char *pszFilename );
+<span class="lineNum">     185 </span>            : };
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            : /************************************************************************/
+<span class="lineNum">     188 </span>            : /* ==================================================================== */
+<span class="lineNum">     189 </span>            : /*                              VSIMemFile                              */
+<span class="lineNum">     190 </span>            : /* ==================================================================== */
+<span class="lineNum">     191 </span>            : /************************************************************************/
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span>            : /************************************************************************/
+<span class="lineNum">     194 </span>            : /*                             VSIMemFile()                             */
+<a name="195"><span class="lineNum">     195 </span>            : /************************************************************************/</a>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">      56715 : VSIMemFile::VSIMemFile()</span>
+<span class="lineNum">     198 </span>            : {
+<span class="lineNum">     199 </span><span class="lineCov">      56715 :     time(&amp;mTime);</span>
+<span class="lineNum">     200 </span><span class="lineCov">      56715 : }</span>
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span>            : /************************************************************************/
+<span class="lineNum">     203 </span>            : /*                            ~VSIMemFile()                             */
+<a name="204"><span class="lineNum">     204 </span>            : /************************************************************************/</a>
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span><span class="lineCov">     163464 : VSIMemFile::~VSIMemFile()</span>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span>            : {
+<span class="lineNum">     209 </span><span class="lineCov">      54488 :     if( nRefCount != 0 )</span>
+<span class="lineNum">     210 </span>            :         CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     211 </span>            :                   &quot;Memory file %s deleted with %d references.&quot;,
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :                   osFilename.c_str(), nRefCount );</span>
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span><span class="lineCov">      54488 :     if( bOwnData &amp;&amp; pabyData )</span>
+<span class="lineNum">     215 </span><span class="lineCov">      46207 :         CPLFree( pabyData );</span>
+<span class="lineNum">     216 </span><span class="lineCov">     108976 : }</span>
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            : /************************************************************************/
+<span class="lineNum">     219 </span>            : /*                             SetLength()                              */
+<a name="220"><span class="lineNum">     220 </span>            : /************************************************************************/</a>
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span><span class="lineCov">     755231 : bool VSIMemFile::SetLength( vsi_l_offset nNewLength )</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            : {
+<span class="lineNum">     225 </span><span class="lineCov">     755231 :     if( nNewLength &gt; nMaxLength )</span>
+<span class="lineNum">     226 </span>            :     {
+<span class="lineNum">     227 </span>            :         CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     228 </span><span class="lineCov">          4 :                  &quot;Maximum file size reached!&quot;);</span>
+<span class="lineNum">     229 </span><span class="lineCov">          4 :         return false;</span>
+<span class="lineNum">     230 </span>            :     }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     233 </span>            : /*      Grow underlying array if needed.                                */
+<span class="lineNum">     234 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     235 </span><span class="lineCov">     755227 :     if( nNewLength &gt; nAllocLength )</span>
+<span class="lineNum">     236 </span>            :     {
+<span class="lineNum">     237 </span>            :         // If we don't own the buffer, we cannot reallocate it because
+<span class="lineNum">     238 </span>            :         // the return address might be different from the one passed by
+<span class="lineNum">     239 </span>            :         // the caller. Hence, the caller would not be able to free
+<span class="lineNum">     240 </span>            :         // the buffer.
+<span class="lineNum">     241 </span><span class="lineCov">      73305 :         if( !bOwnData )</span>
+<span class="lineNum">     242 </span>            :         {
+<span class="lineNum">     243 </span>            :             CPLError(
+<span class="lineNum">     244 </span>            :                 CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     245 </span>            :                 &quot;Cannot extended in-memory file whose ownership was not &quot;
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :                 &quot;transferred&quot; );</span>
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     248 </span>            :         }
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span><span class="lineCov">      73305 :         const vsi_l_offset nNewAlloc = (nNewLength + nNewLength / 10) + 5000;</span>
+<span class="lineNum">     251 </span><span class="lineCov">      73305 :         GByte *pabyNewData = nullptr;</span>
+<span class="lineNum">     252 </span>            :         if( static_cast&lt;vsi_l_offset&gt;(static_cast&lt;size_t&gt;(nNewAlloc))
+<span class="lineNum">     253 </span>            :             == nNewAlloc )
+<span class="lineNum">     254 </span>            :         {
+<span class="lineNum">     255 </span>            :             pabyNewData = static_cast&lt;GByte *&gt;(
+<span class="lineNum">     256 </span><span class="lineCov">      73305 :                 VSIRealloc(pabyData, static_cast&lt;size_t&gt;(nNewAlloc) ));</span>
+<span class="lineNum">     257 </span>            :         }
+<span class="lineNum">     258 </span><span class="lineCov">      73305 :         if( pabyNewData == nullptr )</span>
+<span class="lineNum">     259 </span>            :         {
+<span class="lineNum">     260 </span>            :             CPLError(
+<span class="lineNum">     261 </span>            :                 CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">     262 </span>            :                 &quot;Cannot extend in-memory file to &quot; CPL_FRMT_GUIB
+<span class="lineNum">     263 </span>            :                 &quot; bytes due to out-of-memory situation&quot;,
+<span class="lineNum">     264 </span><span class="lineCov">          1 :                 nNewAlloc);</span>
+<span class="lineNum">     265 </span><span class="lineCov">          1 :             return false;</span>
+<span class="lineNum">     266 </span>            :         }
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span>            :         // Clear the new allocated part of the buffer.
+<span class="lineNum">     269 </span><span class="lineCov">      73304 :         memset(pabyNewData + nAllocLength, 0,</span>
+<span class="lineNum">     270 </span><span class="lineCov">     146608 :                static_cast&lt;size_t&gt;(nNewAlloc - nAllocLength));</span>
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span><span class="lineCov">      73304 :         pabyData = pabyNewData;</span>
+<span class="lineNum">     273 </span><span class="lineCov">      73304 :         nAllocLength = nNewAlloc;</span>
+<span class="lineNum">     274 </span>            :     }
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span><span class="lineCov">     755226 :     nLength = nNewLength;</span>
+<span class="lineNum">     277 </span><span class="lineCov">     755226 :     time(&amp;mTime);</span>
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span><span class="lineCov">     755228 :     return true;</span>
+<span class="lineNum">     280 </span>            : }
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span>            : /************************************************************************/
+<span class="lineNum">     283 </span>            : /* ==================================================================== */
+<span class="lineNum">     284 </span>            : /*                             VSIMemHandle                             */
+<span class="lineNum">     285 </span>            : /* ==================================================================== */
+<span class="lineNum">     286 </span>            : /************************************************************************/
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            : /************************************************************************/
+<span class="lineNum">     289 </span>            : /*                               Close()                                */
+<a name="290"><span class="lineNum">     290 </span>            : /************************************************************************/</a>
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span><span class="lineCov">      99946 : int VSIMemHandle::Close()</span>
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span>            : {
+<span class="lineNum">     295 </span><span class="lineCov">      99946 :     if( CPLAtomicDec(&amp;(poFile-&gt;nRefCount)) == 0 )</span>
+<span class="lineNum">     296 </span><span class="lineCov">       1165 :         delete poFile;</span>
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span><span class="lineCov">      99946 :     poFile = nullptr;</span>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">      99946 :     return 0;</span>
+<span class="lineNum">     301 </span>            : }
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span>            : /************************************************************************/
+<span class="lineNum">     304 </span>            : /*                                Seek()                                */
+<a name="305"><span class="lineNum">     305 </span>            : /************************************************************************/</a>
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span><span class="lineCov">    5794286 : int VSIMemHandle::Seek( vsi_l_offset nOffset, int nWhence )</span>
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span>            : {
+<span class="lineNum">     310 </span><span class="lineCov">    5794286 :     bExtendFileAtNextWrite = false;</span>
+<span class="lineNum">     311 </span><span class="lineCov">    5794286 :     if( nWhence == SEEK_CUR )</span>
+<span class="lineNum">     312 </span>            :     {
+<span class="lineNum">     313 </span>            :         if( nOffset &gt; INT_MAX )
+<span class="lineNum">     314 </span>            :         {
+<span class="lineNum">     315 </span>            :             //printf(&quot;likely negative offset intended\n&quot;);
+<span class="lineNum">     316 </span>            :         }
+<span class="lineNum">     317 </span><span class="lineCov">     355985 :         m_nOffset += nOffset;</span>
+<span class="lineNum">     318 </span>            :     }
+<span class="lineNum">     319 </span><span class="lineCov">    5438301 :     else if( nWhence == SEEK_SET )</span>
+<span class="lineNum">     320 </span>            :     {
+<span class="lineNum">     321 </span><span class="lineCov">    5243178 :         m_nOffset = nOffset;</span>
+<span class="lineNum">     322 </span>            :     }
+<span class="lineNum">     323 </span><span class="lineCov">     195123 :     else if( nWhence == SEEK_END )</span>
+<span class="lineNum">     324 </span>            :     {
+<span class="lineNum">     325 </span><span class="lineCov">     195123 :         m_nOffset = poFile-&gt;nLength + nOffset;</span>
+<span class="lineNum">     326 </span>            :     }
+<span class="lineNum">     327 </span>            :     else
+<span class="lineNum">     328 </span>            :     {
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :         errno = EINVAL;</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     331 </span>            :     }
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span><span class="lineCov">    5794286 :     bEOF = false;</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span><span class="lineCov">    5794286 :     if( m_nOffset &gt; poFile-&gt;nLength )</span>
+<span class="lineNum">     336 </span>            :     {
+<span class="lineNum">     337 </span><span class="lineCov">      49671 :         if( bUpdate ) // Writable files are zero-extended by seek past end.</span>
+<span class="lineNum">     338 </span>            :         {
+<span class="lineNum">     339 </span><span class="lineCov">      49616 :             bExtendFileAtNextWrite = true;</span>
+<span class="lineNum">     340 </span>            :         }
+<span class="lineNum">     341 </span>            :     }
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span><span class="lineCov">    5794286 :     return 0;</span>
+<span class="lineNum">     344 </span>            : }
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span>            : /************************************************************************/
+<span class="lineNum">     347 </span>            : /*                                Tell()                                */
+<a name="348"><span class="lineNum">     348 </span>            : /************************************************************************/</a>
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span><span class="lineCov">    3020984 : vsi_l_offset VSIMemHandle::Tell()</span>
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span>            : {
+<span class="lineNum">     353 </span><span class="lineCov">    3020984 :     return m_nOffset;</span>
+<span class="lineNum">     354 </span>            : }
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            : /************************************************************************/
+<span class="lineNum">     357 </span>            : /*                                Read()                                */
+<a name="358"><span class="lineNum">     358 </span>            : /************************************************************************/</a>
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span><span class="lineCov">    6051194 : size_t VSIMemHandle::Read( void * pBuffer, size_t nSize, size_t nCount )</span>
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span>            : {
+<span class="lineNum">     363 </span><span class="lineCov">    6051194 :     size_t nBytesToRead = nSize * nCount;</span>
+<span class="lineNum">     364 </span><span class="lineCov">    6051194 :     if( nCount &gt; 0 &amp;&amp; nBytesToRead / nCount != nSize )</span>
+<span class="lineNum">     365 </span>            :     {
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :         bEOF = true;</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     368 </span>            :     }
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span><span class="lineCov">   12079387 :     if( poFile-&gt;nLength &lt;= m_nOffset ||</span>
+<span class="lineNum">     371 </span><span class="lineCov">    6028193 :         nBytesToRead + m_nOffset &lt; nBytesToRead )</span>
+<span class="lineNum">     372 </span>            :     {
+<span class="lineNum">     373 </span><span class="lineCov">      22985 :         bEOF = true;</span>
+<span class="lineNum">     374 </span><span class="lineCov">      22985 :         return 0;</span>
+<span class="lineNum">     375 </span>            :     }
+<span class="lineNum">     376 </span><span class="lineCov">    6028209 :     if( nBytesToRead + m_nOffset &gt; poFile-&gt;nLength )</span>
+<span class="lineNum">     377 </span>            :     {
+<span class="lineNum">     378 </span><span class="lineCov">      30787 :         nBytesToRead = static_cast&lt;size_t&gt;(poFile-&gt;nLength - m_nOffset);</span>
+<span class="lineNum">     379 </span><span class="lineCov">      30787 :         nCount = nBytesToRead / nSize;</span>
+<span class="lineNum">     380 </span><span class="lineCov">      30787 :         bEOF = true;</span>
+<span class="lineNum">     381 </span>            :     }
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span><span class="lineCov">    6028209 :     if( nBytesToRead )</span>
+<span class="lineNum">     384 </span>            :         memcpy( pBuffer, poFile-&gt;pabyData + m_nOffset,
+<span class="lineNum">     385 </span><span class="lineCov">    6027778 :                 static_cast&lt;size_t&gt;(nBytesToRead) );</span>
+<span class="lineNum">     386 </span><span class="lineCov">    6028209 :     m_nOffset += nBytesToRead;</span>
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span><span class="lineCov">    6028209 :     return nCount;</span>
+<span class="lineNum">     389 </span>            : }
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span>            : /************************************************************************/
+<span class="lineNum">     392 </span>            : /*                               Write()                                */
+<a name="393"><span class="lineNum">     393 </span>            : /************************************************************************/</a>
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span><span class="lineCov">    2346212 : size_t VSIMemHandle::Write( const void * pBuffer, size_t nSize, size_t nCount )</span>
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            : {
+<span class="lineNum">     398 </span><span class="lineCov">    2346212 :     if( !bUpdate )</span>
+<span class="lineNum">     399 </span>            :     {
+<span class="lineNum">     400 </span><span class="lineCov">          1 :         errno = EACCES;</span>
+<span class="lineNum">     401 </span><span class="lineCov">          1 :         return 0;</span>
+<span class="lineNum">     402 </span>            :     }
+<span class="lineNum">     403 </span><span class="lineCov">    2346211 :     if( bExtendFileAtNextWrite )</span>
+<span class="lineNum">     404 </span>            :     {
+<span class="lineNum">     405 </span><span class="lineCov">      38873 :         bExtendFileAtNextWrite = false;</span>
+<span class="lineNum">     406 </span><span class="lineCov">      38873 :         if( !poFile-&gt;SetLength( m_nOffset ) )</span>
+<span class="lineNum">     407 </span><span class="lineCov">          1 :             return 0;</span>
+<span class="lineNum">     408 </span>            :     }
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span><span class="lineCov">    2346211 :     const size_t nBytesToWrite = nSize * nCount;</span>
+<span class="lineNum">     411 </span><span class="lineCov">    2346211 :     if( nCount &gt; 0 &amp;&amp; nBytesToWrite / nCount != nSize )</span>
+<span class="lineNum">     412 </span>            :     {
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     414 </span>            :     }
+<span class="lineNum">     415 </span><span class="lineCov">    2346211 :     if( nBytesToWrite + m_nOffset &lt; nBytesToWrite )</span>
+<span class="lineNum">     416 </span>            :     {
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     418 </span>            :     }
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span><span class="lineCov">    2346211 :     if( nBytesToWrite + m_nOffset &gt; poFile-&gt;nLength )</span>
+<span class="lineNum">     421 </span>            :     {
+<span class="lineNum">     422 </span><span class="lineCov">     709408 :         if( !poFile-&gt;SetLength( nBytesToWrite + m_nOffset ) )</span>
+<span class="lineNum">     423 </span><span class="lineCov">          4 :             return 0;</span>
+<span class="lineNum">     424 </span>            :     }
+<span class="lineNum">     425 </span>            : 
+<span class="lineNum">     426 </span><span class="lineCov">    2346206 :     if( nBytesToWrite )</span>
+<span class="lineNum">     427 </span><span class="lineCov">    2341308 :         memcpy( poFile-&gt;pabyData + m_nOffset, pBuffer, nBytesToWrite );</span>
+<span class="lineNum">     428 </span><span class="lineCov">    2346206 :     m_nOffset += nBytesToWrite;</span>
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span><span class="lineCov">    2346206 :     time(&amp;poFile-&gt;mTime);</span>
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span><span class="lineCov">    2346206 :     return nCount;</span>
+<span class="lineNum">     433 </span>            : }
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span>            : /************************************************************************/
+<span class="lineNum">     436 </span>            : /*                                Eof()                                 */
+<a name="437"><span class="lineNum">     437 </span>            : /************************************************************************/</a>
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span><span class="lineCov">      63213 : int VSIMemHandle::Eof()</span>
+<span class="lineNum">     440 </span>            : 
+<span class="lineNum">     441 </span>            : {
+<span class="lineNum">     442 </span><span class="lineCov">      63213 :     return bEOF;</span>
+<span class="lineNum">     443 </span>            : }
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span>            : /************************************************************************/
+<span class="lineNum">     446 </span>            : /*                             Truncate()                               */
+<a name="447"><span class="lineNum">     447 </span>            : /************************************************************************/</a>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineCov">        416 : int VSIMemHandle::Truncate( vsi_l_offset nNewSize )</span>
+<span class="lineNum">     450 </span>            : {
+<span class="lineNum">     451 </span><span class="lineCov">        416 :     if( !bUpdate )</span>
+<span class="lineNum">     452 </span>            :     {
+<span class="lineNum">     453 </span><span class="lineCov">          1 :         errno = EACCES;</span>
+<span class="lineNum">     454 </span><span class="lineCov">          1 :         return -1;</span>
+<span class="lineNum">     455 </span>            :     }
+<span class="lineNum">     456 </span>            : 
+<span class="lineNum">     457 </span><span class="lineCov">        415 :     bExtendFileAtNextWrite = false;</span>
+<span class="lineNum">     458 </span><span class="lineCov">        415 :     if( poFile-&gt;SetLength( nNewSize ) )</span>
+<span class="lineNum">     459 </span><span class="lineCov">        415 :         return 0;</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     462 </span>            : }
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span>            : /************************************************************************/
+<span class="lineNum">     465 </span>            : /* ==================================================================== */
+<span class="lineNum">     466 </span>            : /*                       VSIMemFilesystemHandler                        */
+<span class="lineNum">     467 </span>            : /* ==================================================================== */
+<span class="lineNum">     468 </span>            : /************************************************************************/
+<span class="lineNum">     469 </span>            : 
+<span class="lineNum">     470 </span>            : /************************************************************************/
+<span class="lineNum">     471 </span>            : /*                      ~VSIMemFilesystemHandler()                      */
+<a name="472"><span class="lineNum">     472 </span>            : /************************************************************************/</a>
+<span class="lineNum">     473 </span>            : 
+<span class="lineNum">     474 </span><span class="lineCov">       2157 : VSIMemFilesystemHandler::~VSIMemFilesystemHandler()</span>
+<span class="lineNum">     475 </span>            : 
+<span class="lineNum">     476 </span>            : {
+<span class="lineNum">     477 </span><span class="lineCov">       2365 :     for( const auto &amp;iter : oFileList )</span>
+<span class="lineNum">     478 </span>            :     {
+<span class="lineNum">     479 </span><span class="lineCov">       1646 :         CPLAtomicDec(&amp;iter.second-&gt;nRefCount);</span>
+<span class="lineNum">     480 </span><span class="lineCov">       1646 :         delete iter.second;</span>
+<span class="lineNum">     481 </span>            :     }
+<span class="lineNum">     482 </span>            : 
+<span class="lineNum">     483 </span><span class="lineCov">        719 :     if( hMutex != nullptr )</span>
+<span class="lineNum">     484 </span><span class="lineCov">        182 :         CPLDestroyMutex( hMutex );</span>
+<span class="lineNum">     485 </span><span class="lineCov">        719 :     hMutex = nullptr;</span>
+<span class="lineNum">     486 </span><span class="lineCov">       1438 : }</span>
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span>            : /************************************************************************/
+<span class="lineNum">     489 </span>            : /*                                Open()                                */
+<span class="lineNum">     490 </span>            : /************************************************************************/
+<a name="491"><span class="lineNum">     491 </span>            : </a>
+<span class="lineNum">     492 </span>            : VSIVirtualHandle *
+<span class="lineNum">     493 </span><span class="lineCov">     128250 : VSIMemFilesystemHandler::Open( const char *pszFilename,</span>
+<span class="lineNum">     494 </span>            :                                const char *pszAccess,
+<span class="lineNum">     495 </span>            :                                bool bSetError )
+<span class="lineNum">     496 </span>            : 
+<span class="lineNum">     497 </span>            : {
+<span class="lineNum">     498 </span><span class="lineCov">     128250 :     CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     499 </span><span class="lineCov">     256508 :     const CPLString osFilename = NormalizePath(pszFilename);</span>
+<span class="lineNum">     500 </span><span class="lineCov">     128254 :     if( osFilename.empty() )</span>
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span><span class="lineCov">     128254 :     vsi_l_offset nMaxLength = GUINTBIG_MAX;</span>
+<span class="lineNum">     504 </span><span class="lineCov">     128254 :     const size_t iPos = osFilename.find(&quot;||maxlength=&quot;);</span>
+<span class="lineNum">     505 </span><span class="lineCov">     128254 :     if( iPos != std::string::npos )</span>
+<span class="lineNum">     506 </span>            :     {
+<span class="lineNum">     507 </span>            :         nMaxLength = static_cast&lt;vsi_l_offset&gt;(CPLAtoGIntBig(
+<span class="lineNum">     508 </span><span class="lineCov">         49 :                     osFilename.substr(iPos + strlen(&quot;||maxlength=&quot;)).c_str()));</span>
+<span class="lineNum">     509 </span>            :     }
+<span class="lineNum">     510 </span>            : 
+<span class="lineNum">     511 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     512 </span>            : /*      Get the filename we are opening, create if needed.              */
+<span class="lineNum">     513 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     514 </span><span class="lineCov">     128254 :     VSIMemFile *poFile = nullptr;</span>
+<span class="lineNum">     515 </span><span class="lineCov">     128254 :     if( oFileList.find(osFilename) != oFileList.end() )</span>
+<span class="lineNum">     516 </span><span class="lineCov">      52676 :         poFile = oFileList[osFilename];</span>
+<span class="lineNum">     517 </span>            : 
+<span class="lineNum">     518 </span>            :     // If no file and opening in read, error out.
+<span class="lineNum">     519 </span><span class="lineCov">     128254 :     if( strstr(pszAccess, &quot;w&quot;) == nullptr</span>
+<span class="lineNum">     520 </span><span class="lineCov">      72340 :         &amp;&amp; strstr(pszAccess, &quot;a&quot;) == nullptr</span>
+<span class="lineNum">     521 </span><span class="lineCov">      72302 :         &amp;&amp; poFile == nullptr )</span>
+<span class="lineNum">     522 </span>            :     {
+<span class="lineNum">     523 </span><span class="lineCov">      26166 :         if( bSetError )</span>
+<span class="lineNum">     524 </span>            :         {
+<span class="lineNum">     525 </span><span class="lineCov">       6351 :             VSIError(VSIE_FileError, &quot;No such file or directory&quot;);</span>
+<span class="lineNum">     526 </span>            :         }
+<span class="lineNum">     527 </span><span class="lineCov">      26166 :         errno = ENOENT;</span>
+<span class="lineNum">     528 </span><span class="lineCov">      26166 :         return nullptr;</span>
+<span class="lineNum">     529 </span>            :     }
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span>            :     // Create.
+<span class="lineNum">     532 </span><span class="lineCov">     102088 :     if( poFile == nullptr )</span>
+<span class="lineNum">     533 </span>            :     {
+<span class="lineNum">     534 </span><span class="lineCov">      49412 :         poFile = new VSIMemFile;</span>
+<span class="lineNum">     535 </span><span class="lineCov">      49412 :         poFile-&gt;osFilename = osFilename;</span>
+<span class="lineNum">     536 </span><span class="lineCov">      49412 :         oFileList[poFile-&gt;osFilename] = poFile;</span>
+<span class="lineNum">     537 </span><span class="lineCov">      49412 :         CPLAtomicInc(&amp;(poFile-&gt;nRefCount));  // For file list.</span>
+<span class="lineNum">     538 </span><span class="lineCov">      49412 :         poFile-&gt;nMaxLength = nMaxLength;</span>
+<span class="lineNum">     539 </span>            :     }
+<span class="lineNum">     540 </span>            :     // Overwrite
+<span class="lineNum">     541 </span><span class="lineCov">      52676 :     else if( strstr(pszAccess, &quot;w&quot;) )</span>
+<span class="lineNum">     542 </span>            :     {
+<span class="lineNum">     543 </span><span class="lineCov">       6537 :         poFile-&gt;SetLength(0);</span>
+<span class="lineNum">     544 </span><span class="lineCov">       6537 :         poFile-&gt;nMaxLength = nMaxLength;</span>
+<span class="lineNum">     545 </span>            :     }
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span><span class="lineCov">     102088 :     if( poFile-&gt;bIsDirectory )</span>
+<span class="lineNum">     548 </span>            :     {
+<span class="lineNum">     549 </span><span class="lineCov">        141 :         errno = EISDIR;</span>
+<span class="lineNum">     550 </span><span class="lineCov">        141 :         return nullptr;</span>
+<span class="lineNum">     551 </span>            :     }
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     554 </span>            : /*      Setup the file handle on this file.                             */
+<span class="lineNum">     555 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     556 </span><span class="lineCov">     101947 :     VSIMemHandle *poHandle = new VSIMemHandle;</span>
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span><span class="lineCov">     101947 :     poHandle-&gt;poFile = poFile;</span>
+<span class="lineNum">     559 </span><span class="lineCov">     101947 :     poHandle-&gt;m_nOffset = 0;</span>
+<span class="lineNum">     560 </span><span class="lineCov">     101947 :     poHandle-&gt;bEOF = false;</span>
+<span class="lineNum">     561 </span>            :     poHandle-&gt;bUpdate =
+<span class="lineNum">     562 </span><span class="lineCov">     147980 :         strstr(pszAccess, &quot;w&quot;) ||</span>
+<span class="lineNum">     563 </span><span class="lineCov">     127303 :         strstr(pszAccess, &quot;+&quot;) ||</span>
+<span class="lineNum">     564 </span><span class="lineCov">     127303 :         strstr(pszAccess, &quot;a&quot;);</span>
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span><span class="lineCov">     101947 :     CPLAtomicInc(&amp;(poFile-&gt;nRefCount));</span>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineCov">     101947 :     if( strstr(pszAccess, &quot;a&quot;) )</span>
+<span class="lineNum">     569 </span><span class="lineCov">         38 :         poHandle-&gt;m_nOffset = poFile-&gt;nLength;</span>
+<span class="lineNum">     570 </span>            : 
+<span class="lineNum">     571 </span><span class="lineCov">     230201 :     return poHandle;</span>
+<span class="lineNum">     572 </span>            : }
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span>            : /************************************************************************/
+<span class="lineNum">     575 </span>            : /*                                Stat()                                */
+<a name="576"><span class="lineNum">     576 </span>            : /************************************************************************/</a>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineCov">     174719 : int VSIMemFilesystemHandler::Stat( const char * pszFilename,</span>
+<span class="lineNum">     579 </span>            :                                    VSIStatBufL * pStatBuf,
+<span class="lineNum">     580 </span>            :                                    int /* nFlags */ )
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span>            : {
+<span class="lineNum">     583 </span><span class="lineCov">     174719 :     CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span><span class="lineCov">     349438 :     const CPLString osFilename = NormalizePath(pszFilename);</span>
+<span class="lineNum">     586 </span>            : 
+<span class="lineNum">     587 </span><span class="lineCov">     174719 :     memset( pStatBuf, 0, sizeof(VSIStatBufL) );</span>
+<span class="lineNum">     588 </span>            : 
+<span class="lineNum">     589 </span><span class="lineCov">     174719 :     if( osFilename == &quot;/vsimem&quot; || osFilename == &quot;/vsimem/&quot; )</span>
+<span class="lineNum">     590 </span>            :     {
+<span class="lineNum">     591 </span><span class="lineCov">        746 :         pStatBuf-&gt;st_size = 0;</span>
+<span class="lineNum">     592 </span><span class="lineCov">        746 :         pStatBuf-&gt;st_mode = S_IFDIR;</span>
+<span class="lineNum">     593 </span><span class="lineCov">        746 :         return 0;</span>
+<span class="lineNum">     594 </span>            :     }
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span><span class="lineCov">     173973 :     if( oFileList.find(osFilename) == oFileList.end() )</span>
+<span class="lineNum">     597 </span>            :     {
+<span class="lineNum">     598 </span><span class="lineCov">     149368 :         errno = ENOENT;</span>
+<span class="lineNum">     599 </span><span class="lineCov">     149368 :         return -1;</span>
+<span class="lineNum">     600 </span>            :     }
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span><span class="lineCov">      24605 :     VSIMemFile *poFile = oFileList[osFilename];</span>
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span><span class="lineCov">      24605 :     memset( pStatBuf, 0, sizeof(VSIStatBufL) );</span>
+<span class="lineNum">     605 </span>            : 
+<span class="lineNum">     606 </span><span class="lineCov">      24605 :     if( poFile-&gt;bIsDirectory )</span>
+<span class="lineNum">     607 </span>            :     {
+<span class="lineNum">     608 </span><span class="lineCov">       1685 :         pStatBuf-&gt;st_size = 0;</span>
+<span class="lineNum">     609 </span><span class="lineCov">       1685 :         pStatBuf-&gt;st_mode = S_IFDIR;</span>
+<span class="lineNum">     610 </span>            :     }
+<span class="lineNum">     611 </span>            :     else
+<span class="lineNum">     612 </span>            :     {
+<span class="lineNum">     613 </span><span class="lineCov">      22920 :         pStatBuf-&gt;st_size = poFile-&gt;nLength;</span>
+<span class="lineNum">     614 </span><span class="lineCov">      22920 :         pStatBuf-&gt;st_mode = S_IFREG;</span>
+<span class="lineNum">     615 </span><span class="lineCov">      22920 :         pStatBuf-&gt;st_mtime = poFile-&gt;mTime;</span>
+<span class="lineNum">     616 </span>            :     }
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span><span class="lineCov">     199324 :     return 0;</span>
+<span class="lineNum">     619 </span>            : }
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span>            : /************************************************************************/
+<span class="lineNum">     622 </span>            : /*                               Unlink()                               */
+<a name="623"><span class="lineNum">     623 </span>            : /************************************************************************/</a>
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span><span class="lineCov">      58461 : int VSIMemFilesystemHandler::Unlink( const char * pszFilename )</span>
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span>            : {
+<span class="lineNum">     628 </span><span class="lineCov">      58461 :     CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     629 </span><span class="lineCov">      58461 :     return Unlink_unlocked(pszFilename);</span>
+<span class="lineNum">     630 </span>            : }
+<span class="lineNum">     631 </span>            : 
+<span class="lineNum">     632 </span>            : /************************************************************************/
+<span class="lineNum">     633 </span>            : /*                           Unlink_unlocked()                          */
+<a name="634"><span class="lineNum">     634 </span>            : /************************************************************************/</a>
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span><span class="lineCov">      65240 : int VSIMemFilesystemHandler::Unlink_unlocked( const char * pszFilename )</span>
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span>            : {
+<span class="lineNum">     639 </span><span class="lineCov">      65240 :     const CPLString osFilename = NormalizePath(pszFilename);</span>
+<span class="lineNum">     640 </span>            : 
+<span class="lineNum">     641 </span><span class="lineCov">      65240 :     if( oFileList.find(osFilename) == oFileList.end() )</span>
+<span class="lineNum">     642 </span>            :     {
+<span class="lineNum">     643 </span><span class="lineCov">      14543 :         errno = ENOENT;</span>
+<span class="lineNum">     644 </span><span class="lineCov">      14543 :         return -1;</span>
+<span class="lineNum">     645 </span>            :     }
+<span class="lineNum">     646 </span>            : 
+<span class="lineNum">     647 </span><span class="lineCov">      50697 :     VSIMemFile *poFile = oFileList[osFilename];</span>
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span><span class="lineCov">      50697 :     if( CPLAtomicDec(&amp;(poFile-&gt;nRefCount)) == 0 )</span>
+<span class="lineNum">     650 </span><span class="lineCov">      47532 :         delete poFile;</span>
+<span class="lineNum">     651 </span>            : 
+<span class="lineNum">     652 </span><span class="lineCov">      50697 :     oFileList.erase( oFileList.find(osFilename) );</span>
+<span class="lineNum">     653 </span>            : 
+<span class="lineNum">     654 </span><span class="lineCov">      50697 :     return 0;</span>
+<span class="lineNum">     655 </span>            : }
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span>            : /************************************************************************/
+<span class="lineNum">     658 </span>            : /*                               Mkdir()                                */
+<a name="659"><span class="lineNum">     659 </span>            : /************************************************************************/</a>
+<span class="lineNum">     660 </span>            : 
+<span class="lineNum">     661 </span><span class="lineCov">        762 : int VSIMemFilesystemHandler::Mkdir( const char * pszPathname,</span>
+<span class="lineNum">     662 </span>            :                                     long /* nMode */ )
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span>            : {
+<span class="lineNum">     665 </span><span class="lineCov">        762 :     CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span><span class="lineCov">       1524 :     const CPLString osPathname = NormalizePath(pszPathname);</span>
+<span class="lineNum">     668 </span>            : 
+<span class="lineNum">     669 </span><span class="lineCov">        762 :     if( oFileList.find(osPathname) != oFileList.end() )</span>
+<span class="lineNum">     670 </span>            :     {
+<span class="lineNum">     671 </span><span class="lineCov">         52 :         errno = EEXIST;</span>
+<span class="lineNum">     672 </span><span class="lineCov">         52 :         return -1;</span>
+<span class="lineNum">     673 </span>            :     }
+<span class="lineNum">     674 </span>            : 
+<span class="lineNum">     675 </span><span class="lineCov">        710 :     VSIMemFile *poFile = new VSIMemFile;</span>
+<span class="lineNum">     676 </span>            : 
+<span class="lineNum">     677 </span><span class="lineCov">        710 :     poFile-&gt;osFilename = osPathname;</span>
+<span class="lineNum">     678 </span><span class="lineCov">        710 :     poFile-&gt;bIsDirectory = true;</span>
+<span class="lineNum">     679 </span><span class="lineCov">        710 :     oFileList[osPathname] = poFile;</span>
+<span class="lineNum">     680 </span><span class="lineCov">        710 :     CPLAtomicInc(&amp;(poFile-&gt;nRefCount));  // Referenced by file list.</span>
+<span class="lineNum">     681 </span>            : 
+<span class="lineNum">     682 </span><span class="lineCov">       1472 :     return 0;</span>
+<span class="lineNum">     683 </span>            : }
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span>            : /************************************************************************/
+<span class="lineNum">     686 </span>            : /*                               Rmdir()                                */
+<a name="687"><span class="lineNum">     687 </span>            : /************************************************************************/</a>
+<span class="lineNum">     688 </span>            : 
+<span class="lineNum">     689 </span><span class="lineCov">        537 : int VSIMemFilesystemHandler::Rmdir( const char * pszPathname )</span>
+<span class="lineNum">     690 </span>            : 
+<span class="lineNum">     691 </span>            : {
+<span class="lineNum">     692 </span><span class="lineCov">        537 :     return Unlink( pszPathname );</span>
+<span class="lineNum">     693 </span>            : }
+<span class="lineNum">     694 </span>            : 
+<span class="lineNum">     695 </span>            : /************************************************************************/
+<span class="lineNum">     696 </span>            : /*                             ReadDirEx()                              */
+<a name="697"><span class="lineNum">     697 </span>            : /************************************************************************/</a>
+<span class="lineNum">     698 </span>            : 
+<span class="lineNum">     699 </span><span class="lineCov">      13695 : char **VSIMemFilesystemHandler::ReadDirEx( const char *pszPath,</span>
+<span class="lineNum">     700 </span>            :                                            int nMaxFiles )
+<span class="lineNum">     701 </span>            : 
+<span class="lineNum">     702 </span>            : {
+<span class="lineNum">     703 </span><span class="lineCov">      13695 :     CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span><span class="lineCov">      27392 :     const CPLString osPath = NormalizePath(pszPath);</span>
+<span class="lineNum">     706 </span>            : 
+<span class="lineNum">     707 </span><span class="lineCov">      13696 :     char **papszDir = nullptr;</span>
+<span class="lineNum">     708 </span><span class="lineCov">      13696 :     size_t nPathLen = osPath.size();</span>
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span><span class="lineCov">      13696 :     if( nPathLen &gt; 0 &amp;&amp; osPath.back() == '/' )</span>
+<span class="lineNum">     711 </span><span class="lineCov">        787 :         nPathLen--;</span>
+<span class="lineNum">     712 </span>            : 
+<span class="lineNum">     713 </span>            :     // In case of really big number of files in the directory, CSLAddString
+<span class="lineNum">     714 </span>            :     // can be slow (see #2158). We then directly build the list.
+<span class="lineNum">     715 </span><span class="lineCov">      13696 :     int nItems = 0;</span>
+<span class="lineNum">     716 </span><span class="lineCov">      13696 :     int nAllocatedItems = 0;</span>
+<span class="lineNum">     717 </span>            : 
+<span class="lineNum">     718 </span><span class="lineCov">    1492213 :     for( const auto&amp; iter : oFileList )</span>
+<span class="lineNum">     719 </span>            :     {
+<span class="lineNum">     720 </span><span class="lineCov">    1478518 :         const char *pszFilePath = iter.second-&gt;osFilename.c_str();</span>
+<span class="lineNum">     721 </span><span class="lineCov">    2957036 :         if( EQUALN(osPath, pszFilePath, nPathLen)</span>
+<span class="lineNum">     722 </span><span class="lineCov">     875750 :             &amp;&amp; pszFilePath[nPathLen] == '/'</span>
+<span class="lineNum">     723 </span><span class="lineCov">    2351764 :             &amp;&amp; strstr(pszFilePath+nPathLen+1, &quot;/&quot;) == nullptr )</span>
+<span class="lineNum">     724 </span>            :         {
+<span class="lineNum">     725 </span><span class="lineCov">     129386 :             if( nItems == 0 )</span>
+<span class="lineNum">     726 </span>            :             {
+<span class="lineNum">     727 </span><span class="lineCov">      12054 :                 papszDir = static_cast&lt;char**&gt;(CPLCalloc(2, sizeof(char*)));</span>
+<span class="lineNum">     728 </span><span class="lineCov">      12054 :                 nAllocatedItems = 1;</span>
+<span class="lineNum">     729 </span>            :             }
+<span class="lineNum">     730 </span><span class="lineCov">     117332 :             else if( nItems &gt;= nAllocatedItems )</span>
+<span class="lineNum">     731 </span>            :             {
+<span class="lineNum">     732 </span><span class="lineCov">      29942 :                 nAllocatedItems = nAllocatedItems * 2;</span>
+<span class="lineNum">     733 </span>            :                 papszDir = static_cast&lt;char**&gt;(
+<span class="lineNum">     734 </span><span class="lineCov">      29942 :                     CPLRealloc(papszDir, (nAllocatedItems + 2)*sizeof(char*)) );</span>
+<span class="lineNum">     735 </span>            :             }
+<span class="lineNum">     736 </span>            : 
+<span class="lineNum">     737 </span><span class="lineCov">     129386 :             papszDir[nItems] = CPLStrdup(pszFilePath+nPathLen+1);</span>
+<span class="lineNum">     738 </span><span class="lineCov">     129386 :             papszDir[nItems+1] = nullptr;</span>
+<span class="lineNum">     739 </span>            : 
+<span class="lineNum">     740 </span><span class="lineCov">     129386 :             nItems++;</span>
+<span class="lineNum">     741 </span><span class="lineCov">     129386 :             if( nMaxFiles &gt; 0 &amp;&amp; nItems &gt; nMaxFiles )</span>
+<span class="lineNum">     742 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     743 </span>            :         }
+<span class="lineNum">     744 </span>            :     }
+<span class="lineNum">     745 </span>            : 
+<span class="lineNum">     746 </span><span class="lineCov">      27392 :     return papszDir;</span>
+<span class="lineNum">     747 </span>            : }
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span>            : /************************************************************************/
+<span class="lineNum">     750 </span>            : /*                               Rename()                               */
+<a name="751"><span class="lineNum">     751 </span>            : /************************************************************************/</a>
+<span class="lineNum">     752 </span>            : 
+<span class="lineNum">     753 </span><span class="lineCov">        190 : int VSIMemFilesystemHandler::Rename( const char *pszOldPath,</span>
+<span class="lineNum">     754 </span>            :                                      const char *pszNewPath )
+<span class="lineNum">     755 </span>            : 
+<span class="lineNum">     756 </span>            : {
+<span class="lineNum">     757 </span><span class="lineCov">        190 :     CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span><span class="lineCov">        380 :     const CPLString osOldPath = NormalizePath(pszOldPath);</span>
+<span class="lineNum">     760 </span><span class="lineCov">        380 :     const CPLString osNewPath = NormalizePath(pszNewPath);</span>
+<span class="lineNum">     761 </span><span class="lineCov">        190 :     if( !STARTS_WITH(pszNewPath, &quot;/vsimem/&quot;) )</span>
+<span class="lineNum">     762 </span><span class="lineCov">          5 :         return -1;</span>
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span><span class="lineCov">        185 :     if( osOldPath.compare(osNewPath) == 0 )</span>
+<span class="lineNum">     765 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     766 </span>            : 
+<span class="lineNum">     767 </span><span class="lineCov">        185 :     if( oFileList.find(osOldPath) == oFileList.end() )</span>
+<span class="lineNum">     768 </span>            :     {
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :         errno = ENOENT;</span>
+<span class="lineNum">     770 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     771 </span>            :     }
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span><span class="lineCov">        185 :     std::map&lt;CPLString, VSIMemFile*&gt;::iterator it = oFileList.find(osOldPath);</span>
+<span class="lineNum">     774 </span><span class="lineCov">        609 :     while( it != oFileList.end() &amp;&amp; it-&gt;first.ifind(osOldPath) == 0 )</span>
+<span class="lineNum">     775 </span>            :     {
+<span class="lineNum">     776 </span><span class="lineCov">        239 :         const CPLString osRemainder = it-&gt;first.substr(osOldPath.size());</span>
+<span class="lineNum">     777 </span><span class="lineCov">        239 :         if( osRemainder.empty() || osRemainder[0] == '/' )</span>
+<span class="lineNum">     778 </span>            :         {
+<span class="lineNum">     779 </span><span class="lineCov">        186 :             const CPLString osNewFullPath = osNewPath + osRemainder;</span>
+<span class="lineNum">     780 </span><span class="lineCov">        186 :             Unlink_unlocked(osNewFullPath);</span>
+<span class="lineNum">     781 </span><span class="lineCov">        186 :             oFileList[osNewFullPath] = it-&gt;second;</span>
+<span class="lineNum">     782 </span><span class="lineCov">        186 :             it-&gt;second-&gt;osFilename = osNewFullPath;</span>
+<span class="lineNum">     783 </span><span class="lineCov">        186 :             oFileList.erase(it++);</span>
+<span class="lineNum">     784 </span>            :         }
+<span class="lineNum">     785 </span>            :         else
+<span class="lineNum">     786 </span>            :         {
+<span class="lineNum">     787 </span><span class="lineCov">         53 :             ++it;</span>
+<span class="lineNum">     788 </span>            :         }
+<span class="lineNum">     789 </span><span class="lineCov">        239 :     }</span>
+<span class="lineNum">     790 </span>            : 
+<span class="lineNum">     791 </span><span class="lineCov">        375 :     return 0;</span>
+<span class="lineNum">     792 </span>            : }
+<span class="lineNum">     793 </span>            : 
+<span class="lineNum">     794 </span>            : /************************************************************************/
+<span class="lineNum">     795 </span>            : /*                           NormalizePath()                            */
+<a name="796"><span class="lineNum">     796 </span>            : /************************************************************************/</a>
+<span class="lineNum">     797 </span>            : 
+<span class="lineNum">     798 </span><span class="lineCov">     420503 : std::string VSIMemFilesystemHandler::NormalizePath( const std::string &amp;in )</span>
+<span class="lineNum">     799 </span>            : {
+<span class="lineNum">     800 </span><span class="lineCov">     420503 :     std::string s(in);</span>
+<span class="lineNum">     801 </span><span class="lineCov">     420508 :     std::replace(s.begin(), s.end(), '\\', '/');</span>
+<span class="lineNum">     802 </span><span class="lineCov">     420507 :     return s;</span>
+<span class="lineNum">     803 </span>            : }
+<span class="lineNum">     804 </span>            : 
+<span class="lineNum">     805 </span>            : /************************************************************************/
+<span class="lineNum">     806 </span>            : /*                        GetDiskFreeSpace()                            */
+<a name="807"><span class="lineNum">     807 </span>            : /************************************************************************/</a>
+<span class="lineNum">     808 </span>            : 
+<span class="lineNum">     809 </span><span class="lineCov">         70 : GIntBig VSIMemFilesystemHandler::GetDiskFreeSpace( const char* /*pszDirname*/ )</span>
+<span class="lineNum">     810 </span>            : {
+<span class="lineNum">     811 </span><span class="lineCov">         70 :     const GIntBig nRet = CPLGetUsablePhysicalRAM();</span>
+<span class="lineNum">     812 </span><span class="lineCov">         70 :     if( nRet &lt;= 0 )</span>
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     814 </span><span class="lineCov">         70 :     return nRet;</span>
+<span class="lineNum">     815 </span>            : }
+<span class="lineNum">     816 </span>            : 
+<span class="lineNum">     817 </span>            : //! @endcond
+<span class="lineNum">     818 </span>            : 
+<span class="lineNum">     819 </span>            : /************************************************************************/
+<span class="lineNum">     820 </span>            : /*                       VSIInstallMemFileHandler()                     */
+<span class="lineNum">     821 </span>            : /************************************************************************/
+<span class="lineNum">     822 </span>            : 
+<span class="lineNum">     823 </span>            : /**
+<span class="lineNum">     824 </span>            :  * \brief Install &quot;memory&quot; file system handler.
+<span class="lineNum">     825 </span>            :  *
+<span class="lineNum">     826 </span>            :  * A special file handler is installed that allows block of memory to be
+<span class="lineNum">     827 </span>            :  * treated as files.   All portions of the file system underneath the base
+<span class="lineNum">     828 </span>            :  * path &quot;/vsimem/&quot; will be handled by this driver.
+<span class="lineNum">     829 </span>            :  *
+<span class="lineNum">     830 </span>            :  * Normal VSI*L functions can be used freely to create and destroy memory
+<span class="lineNum">     831 </span>            :  * arrays treating them as if they were real file system objects.  Some
+<span class="lineNum">     832 </span>            :  * additional methods exist to efficient create memory file system objects
+<span class="lineNum">     833 </span>            :  * without duplicating original copies of the data or to &quot;steal&quot; the block
+<span class="lineNum">     834 </span>            :  * of memory associated with a memory file.
+<span class="lineNum">     835 </span>            :  *
+<span class="lineNum">     836 </span>            :  * Directory related functions are supported.
+<span class="lineNum">     837 </span>            :  *
+<span class="lineNum">     838 </span>            :  * This code example demonstrates using GDAL to translate from one memory
+<span class="lineNum">     839 </span>            :  * buffer to another.
+<span class="lineNum">     840 </span>            :  *
+<span class="lineNum">     841 </span>            :  * \code
+<span class="lineNum">     842 </span>            :  * GByte *ConvertBufferFormat( GByte *pabyInData, vsi_l_offset nInDataLength,
+<span class="lineNum">     843 </span>            :  *                             vsi_l_offset *pnOutDataLength )
+<span class="lineNum">     844 </span>            :  * {
+<span class="lineNum">     845 </span>            :  *     // create memory file system object from buffer.
+<span class="lineNum">     846 </span>            :  *     VSIFCloseL( VSIFileFromMemBuffer( &quot;/vsimem/work.dat&quot;, pabyInData,
+<span class="lineNum">     847 </span>            :  *                                       nInDataLength, FALSE ) );
+<span class="lineNum">     848 </span>            :  *
+<span class="lineNum">     849 </span>            :  *     // Open memory buffer for read.
+<span class="lineNum">     850 </span>            :  *     GDALDatasetH hDS = GDALOpen( &quot;/vsimem/work.dat&quot;, GA_ReadOnly );
+<span class="lineNum">     851 </span>            :  *
+<span class="lineNum">     852 </span>            :  *     // Get output format driver.
+<span class="lineNum">     853 </span>            :  *     GDALDriverH hDriver = GDALGetDriverByName( &quot;GTiff&quot; );
+<span class="lineNum">     854 </span>            :  *     GDALDatasetH hOutDS;
+<span class="lineNum">     855 </span>            :  *
+<span class="lineNum">     856 </span>            :  *     hOutDS = GDALCreateCopy( hDriver, &quot;/vsimem/out.tif&quot;, hDS, TRUE, NULL,
+<span class="lineNum">     857 </span>            :  *                              NULL, NULL );
+<span class="lineNum">     858 </span>            :  *
+<span class="lineNum">     859 </span>            :  *     // close source file, and &quot;unlink&quot; it.
+<span class="lineNum">     860 </span>            :  *     GDALClose( hDS );
+<span class="lineNum">     861 </span>            :  *     VSIUnlink( &quot;/vsimem/work.dat&quot; );
+<span class="lineNum">     862 </span>            :  *
+<span class="lineNum">     863 </span>            :  *     // seize the buffer associated with the output file.
+<span class="lineNum">     864 </span>            :  *
+<span class="lineNum">     865 </span>            :  *     return VSIGetMemFileBuffer( &quot;/vsimem/out.tif&quot;, pnOutDataLength, TRUE );
+<span class="lineNum">     866 </span>            :  * }
+<span class="lineNum">     867 </span>            :  * \endcode
+<a name="868"><span class="lineNum">     868 </span>            :  */</a>
+<span class="lineNum">     869 </span>            : 
+<span class="lineNum">     870 </span><span class="lineCov">        988 : void VSIInstallMemFileHandler()</span>
+<span class="lineNum">     871 </span>            : {
+<span class="lineNum">     872 </span><span class="lineCov">        988 :     VSIFileManager::InstallHandler( &quot;/vsimem/&quot;, new VSIMemFilesystemHandler );</span>
+<span class="lineNum">     873 </span><span class="lineCov">        988 : }</span>
+<span class="lineNum">     874 </span>            : 
+<span class="lineNum">     875 </span>            : /************************************************************************/
+<span class="lineNum">     876 </span>            : /*                        VSIFileFromMemBuffer()                        */
+<span class="lineNum">     877 </span>            : /************************************************************************/
+<span class="lineNum">     878 </span>            : 
+<span class="lineNum">     879 </span>            : /**
+<span class="lineNum">     880 </span>            :  * \brief Create memory &quot;file&quot; from a buffer.
+<span class="lineNum">     881 </span>            :  *
+<span class="lineNum">     882 </span>            :  * A virtual memory file is created from the passed buffer with the indicated
+<span class="lineNum">     883 </span>            :  * filename.  Under normal conditions the filename would need to be absolute
+<span class="lineNum">     884 </span>            :  * and within the /vsimem/ portion of the filesystem.
+<span class="lineNum">     885 </span>            :  *
+<span class="lineNum">     886 </span>            :  * If bTakeOwnership is TRUE, then the memory file system handler will take
+<span class="lineNum">     887 </span>            :  * ownership of the buffer, freeing it when the file is deleted.  Otherwise
+<span class="lineNum">     888 </span>            :  * it remains the responsibility of the caller, but should not be freed as
+<span class="lineNum">     889 </span>            :  * long as it might be accessed as a file.  In no circumstances does this
+<span class="lineNum">     890 </span>            :  * function take a copy of the pabyData contents.
+<span class="lineNum">     891 </span>            :  *
+<span class="lineNum">     892 </span>            :  * @param pszFilename the filename to be created.
+<span class="lineNum">     893 </span>            :  * @param pabyData the data buffer for the file.
+<span class="lineNum">     894 </span>            :  * @param nDataLength the length of buffer in bytes.
+<span class="lineNum">     895 </span>            :  * @param bTakeOwnership TRUE to transfer &quot;ownership&quot; of buffer or FALSE.
+<span class="lineNum">     896 </span>            :  *
+<span class="lineNum">     897 </span>            :  * @return open file handle on created file (see VSIFOpenL()).
+<a name="898"><span class="lineNum">     898 </span>            :  */</a>
+<span class="lineNum">     899 </span>            : 
+<span class="lineNum">     900 </span><span class="lineCov">       6593 : VSILFILE *VSIFileFromMemBuffer( const char *pszFilename,</span>
+<span class="lineNum">     901 </span>            :                                 GByte *pabyData,
+<span class="lineNum">     902 </span>            :                                 vsi_l_offset nDataLength,
+<span class="lineNum">     903 </span>            :                                 int bTakeOwnership )
+<span class="lineNum">     904 </span>            : 
+<span class="lineNum">     905 </span>            : {
+<span class="lineNum">     906 </span><span class="lineCov">      13186 :     if( VSIFileManager::GetHandler(&quot;&quot;)</span>
+<span class="lineNum">     907 </span><span class="lineCov">       6593 :         == VSIFileManager::GetHandler(&quot;/vsimem/&quot;) )</span>
+<span class="lineNum">     908 </span><span class="lineNoCov">          0 :         VSIInstallMemFileHandler();</span>
+<span class="lineNum">     909 </span>            : 
+<span class="lineNum">     910 </span>            :     VSIMemFilesystemHandler *poHandler =
+<span class="lineNum">     911 </span>            :         static_cast&lt;VSIMemFilesystemHandler *&gt;(
+<span class="lineNum">     912 </span><span class="lineCov">       6593 :                 VSIFileManager::GetHandler(&quot;/vsimem/&quot;));</span>
+<span class="lineNum">     913 </span>            : 
+<span class="lineNum">     914 </span><span class="lineCov">       6593 :     if( pszFilename == nullptr )</span>
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     916 </span>            : 
+<span class="lineNum">     917 </span>            :     const CPLString osFilename =
+<span class="lineNum">     918 </span><span class="lineCov">       6593 :         VSIMemFilesystemHandler::NormalizePath(pszFilename);</span>
+<span class="lineNum">     919 </span><span class="lineCov">       6593 :     if( osFilename.empty() )</span>
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     921 </span>            : 
+<span class="lineNum">     922 </span><span class="lineCov">       6593 :     VSIMemFile *poFile = new VSIMemFile;</span>
+<span class="lineNum">     923 </span>            : 
+<span class="lineNum">     924 </span><span class="lineCov">       6593 :     poFile-&gt;osFilename = osFilename;</span>
+<span class="lineNum">     925 </span><span class="lineCov">       6593 :     poFile-&gt;bOwnData = CPL_TO_BOOL(bTakeOwnership);</span>
+<span class="lineNum">     926 </span><span class="lineCov">       6593 :     poFile-&gt;pabyData = pabyData;</span>
+<span class="lineNum">     927 </span><span class="lineCov">       6593 :     poFile-&gt;nLength = nDataLength;</span>
+<span class="lineNum">     928 </span><span class="lineCov">       6593 :     poFile-&gt;nAllocLength = nDataLength;</span>
+<span class="lineNum">     929 </span>            : 
+<span class="lineNum">     930 </span>            :     {
+<span class="lineNum">     931 </span><span class="lineCov">       6593 :         CPLMutexHolder oHolder( &amp;poHandler-&gt;hMutex );</span>
+<span class="lineNum">     932 </span><span class="lineCov">       6593 :         poHandler-&gt;Unlink_unlocked(osFilename);</span>
+<span class="lineNum">     933 </span><span class="lineCov">       6593 :         poHandler-&gt;oFileList[poFile-&gt;osFilename] = poFile;</span>
+<span class="lineNum">     934 </span><span class="lineCov">       6593 :         CPLAtomicInc(&amp;(poFile-&gt;nRefCount));</span>
+<span class="lineNum">     935 </span>            :     }
+<span class="lineNum">     936 </span>            : 
+<span class="lineNum">     937 </span>            :     // TODO(schwehr): Fix this so that the using statement is not needed.
+<span class="lineNum">     938 </span>            :     // Will just adding the bool for bSetError be okay?
+<span class="lineNum">     939 </span><span class="lineCov">       6593 :     return reinterpret_cast&lt;VSILFILE *&gt;( poHandler-&gt;Open( osFilename, &quot;r+&quot; ) );</span>
+<span class="lineNum">     940 </span>            : }
+<span class="lineNum">     941 </span>            : 
+<span class="lineNum">     942 </span>            : /************************************************************************/
+<span class="lineNum">     943 </span>            : /*                        VSIGetMemFileBuffer()                         */
+<span class="lineNum">     944 </span>            : /************************************************************************/
+<span class="lineNum">     945 </span>            : 
+<span class="lineNum">     946 </span>            : /**
+<span class="lineNum">     947 </span>            :  * \brief Fetch buffer underlying memory file.
+<span class="lineNum">     948 </span>            :  *
+<span class="lineNum">     949 </span>            :  * This function returns a pointer to the memory buffer underlying a
+<span class="lineNum">     950 </span>            :  * virtual &quot;in memory&quot; file.  If bUnlinkAndSeize is TRUE the filesystem
+<span class="lineNum">     951 </span>            :  * object will be deleted, and ownership of the buffer will pass to the
+<span class="lineNum">     952 </span>            :  * caller otherwise the underlying file will remain in existence.
+<span class="lineNum">     953 </span>            :  *
+<span class="lineNum">     954 </span>            :  * @param pszFilename the name of the file to grab the buffer of.
+<span class="lineNum">     955 </span>            :  * @param pnDataLength (file) length returned in this variable.
+<span class="lineNum">     956 </span>            :  * @param bUnlinkAndSeize TRUE to remove the file, or FALSE to leave unaltered.
+<span class="lineNum">     957 </span>            :  *
+<span class="lineNum">     958 </span>            :  * @return pointer to memory buffer or NULL on failure.
+<a name="959"><span class="lineNum">     959 </span>            :  */</a>
+<span class="lineNum">     960 </span>            : 
+<span class="lineNum">     961 </span><span class="lineCov">      30857 : GByte *VSIGetMemFileBuffer( const char *pszFilename,</span>
+<span class="lineNum">     962 </span>            :                             vsi_l_offset *pnDataLength,
+<span class="lineNum">     963 </span>            :                             int bUnlinkAndSeize )
+<span class="lineNum">     964 </span>            : 
+<span class="lineNum">     965 </span>            : {
+<span class="lineNum">     966 </span>            :     VSIMemFilesystemHandler *poHandler =
+<span class="lineNum">     967 </span>            :         static_cast&lt;VSIMemFilesystemHandler *&gt;(
+<span class="lineNum">     968 </span><span class="lineCov">      30857 :             VSIFileManager::GetHandler(&quot;/vsimem/&quot;));</span>
+<span class="lineNum">     969 </span>            : 
+<span class="lineNum">     970 </span><span class="lineCov">      30843 :     if( pszFilename == nullptr )</span>
+<span class="lineNum">     971 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     972 </span>            : 
+<span class="lineNum">     973 </span>            :     const CPLString osFilename =
+<span class="lineNum">     974 </span><span class="lineCov">      30843 :         VSIMemFilesystemHandler::NormalizePath(pszFilename);</span>
+<span class="lineNum">     975 </span>            : 
+<span class="lineNum">     976 </span><span class="lineCov">      61714 :     CPLMutexHolder oHolder( &amp;poHandler-&gt;hMutex );</span>
+<span class="lineNum">     977 </span>            : 
+<span class="lineNum">     978 </span><span class="lineCov">      30864 :     if( poHandler-&gt;oFileList.find(osFilename) == poHandler-&gt;oFileList.end() )</span>
+<span class="lineNum">     979 </span><span class="lineCov">        200 :         return nullptr;</span>
+<span class="lineNum">     980 </span>            : 
+<span class="lineNum">     981 </span><span class="lineCov">      30664 :     VSIMemFile *poFile = poHandler-&gt;oFileList[osFilename];</span>
+<span class="lineNum">     982 </span><span class="lineCov">      30664 :     GByte *pabyData = poFile-&gt;pabyData;</span>
+<span class="lineNum">     983 </span><span class="lineCov">      30664 :     if( pnDataLength != nullptr )</span>
+<span class="lineNum">     984 </span><span class="lineCov">      27982 :         *pnDataLength = poFile-&gt;nLength;</span>
+<span class="lineNum">     985 </span>            : 
+<span class="lineNum">     986 </span><span class="lineCov">      30664 :     if( bUnlinkAndSeize )</span>
+<span class="lineNum">     987 </span>            :     {
+<span class="lineNum">     988 </span><span class="lineCov">       4145 :         if( !poFile-&gt;bOwnData )</span>
+<span class="lineNum">     989 </span>            :             CPLDebug( &quot;VSIMemFile&quot;,
+<span class="lineNum">     990 </span><span class="lineNoCov">          0 :                       &quot;File doesn't own data in VSIGetMemFileBuffer!&quot; );</span>
+<span class="lineNum">     991 </span>            :         else
+<span class="lineNum">     992 </span><span class="lineCov">       4145 :             poFile-&gt;bOwnData = false;</span>
+<span class="lineNum">     993 </span>            : 
+<span class="lineNum">     994 </span><span class="lineCov">       4145 :         poHandler-&gt;oFileList.erase( poHandler-&gt;oFileList.find(osFilename) );</span>
+<span class="lineNum">     995 </span><span class="lineCov">       4145 :         CPLAtomicDec(&amp;(poFile-&gt;nRefCount));</span>
+<span class="lineNum">     996 </span><span class="lineCov">       4145 :         delete poFile;</span>
+<span class="lineNum">     997 </span>            :     }
+<span class="lineNum">     998 </span>            : 
+<span class="lineNum">     999 </span><span class="lineCov">      61528 :     return pabyData;</span>
+<span class="lineNum">    1000 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

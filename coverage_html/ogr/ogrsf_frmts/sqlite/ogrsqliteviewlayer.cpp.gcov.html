@@ -1,0 +1,656 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/sqlite/ogrsqliteviewlayer.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/sqlite</a> - ogrsqliteviewlayer.cpp<span style="font-size: 80%;"> (source / <a href="ogrsqliteviewlayer.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">165</td>
+            <td class="headerCovTableEntry">204</td>
+            <td class="headerCovTableEntryMed">80.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  OpenGIS Simple Features Reference Implementation
+<span class="lineNum">       4 </span>            :  * Purpose:  Implements OGRSQLiteViewLayer class, access to an existing spatialite view.
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2011-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;ogr_sqlite.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;ogrsqliteutility.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cstdlib&gt;
+<span class="lineNum">      34 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      35 </span>            : #include &lt;set&gt;
+<span class="lineNum">      36 </span>            : #include &lt;string&gt;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;ogr_core.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;ogr_feature.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;ogr_geometry.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;sqlite3.h&quot;
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : /************************************************************************/
+<span class="lineNum">      49 </span>            : /*                        OGRSQLiteViewLayer()                         */
+<a name="50"><span class="lineNum">      50 </span>            : /************************************************************************/</a>
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span><span class="lineCov">         10 : OGRSQLiteViewLayer::OGRSQLiteViewLayer( OGRSQLiteDataSource *poDSIn ) :</span>
+<span class="lineNum">      53 </span>            :     bHasCheckedSpatialIndexTable(FALSE),
+<span class="lineNum">      54 </span>            :     eGeomFormat(OSGF_None),
+<span class="lineNum">      55 </span>            :     bHasSpatialIndex(FALSE),
+<span class="lineNum">      56 </span>            :     pszViewName(nullptr),
+<span class="lineNum">      57 </span>            :     pszEscapedTableName(nullptr),
+<span class="lineNum">      58 </span>            :     pszEscapedUnderlyingTableName(nullptr),
+<span class="lineNum">      59 </span>            :     bLayerDefnError(FALSE),
+<span class="lineNum">      60 </span><span class="lineCov">         10 :     poUnderlyingLayer(nullptr)</span>
+<span class="lineNum">      61 </span>            : {
+<span class="lineNum">      62 </span><span class="lineCov">         10 :     poDS = poDSIn;</span>
+<span class="lineNum">      63 </span><span class="lineCov">         10 :     iNextShapeId = 0;</span>
+<span class="lineNum">      64 </span><span class="lineCov">         10 :     poFeatureDefn = nullptr;</span>
+<span class="lineNum">      65 </span><span class="lineCov">         10 : }</span>
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            : /************************************************************************/
+<span class="lineNum">      68 </span>            : /*                        ~OGRSQLiteViewLayer()                        */
+<a name="69"><span class="lineNum">      69 </span>            : /************************************************************************/</a>
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span><span class="lineCov">         30 : OGRSQLiteViewLayer::~OGRSQLiteViewLayer()</span>
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span>            : {
+<span class="lineNum">      74 </span><span class="lineCov">         10 :     ClearStatement();</span>
+<span class="lineNum">      75 </span><span class="lineCov">         10 :     CPLFree(pszViewName);</span>
+<span class="lineNum">      76 </span><span class="lineCov">         10 :     CPLFree(pszEscapedTableName);</span>
+<span class="lineNum">      77 </span><span class="lineCov">         10 :     CPLFree(pszEscapedUnderlyingTableName);</span>
+<span class="lineNum">      78 </span><span class="lineCov">         20 : }</span>
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            : /************************************************************************/
+<span class="lineNum">      81 </span>            : /*                             Initialize()                             */
+<a name="82"><span class="lineNum">      82 </span>            : /************************************************************************/</a>
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span><span class="lineCov">         10 : CPLErr OGRSQLiteViewLayer::Initialize( const char *pszViewNameIn,</span>
+<span class="lineNum">      85 </span>            :                                        const char *pszViewGeometry,
+<span class="lineNum">      86 </span>            :                                        const char *pszViewRowid,
+<span class="lineNum">      87 </span>            :                                        const char *pszUnderlyingTableName,
+<span class="lineNum">      88 </span>            :                                        const char *pszUnderlyingGeometryColumn)
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            : {
+<span class="lineNum">      91 </span><span class="lineCov">         10 :     pszViewName = CPLStrdup(pszViewNameIn);</span>
+<span class="lineNum">      92 </span><span class="lineCov">         10 :     SetDescription( pszViewName );</span>
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span><span class="lineCov">         10 :     osGeomColumn = pszViewGeometry;</span>
+<span class="lineNum">      95 </span><span class="lineCov">         10 :     eGeomFormat = OSGF_SpatiaLite;</span>
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span><span class="lineCov">         10 :     CPLFree( pszFIDColumn );</span>
+<span class="lineNum">      98 </span><span class="lineCov">         10 :     pszFIDColumn = CPLStrdup( pszViewRowid );</span>
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span><span class="lineCov">         10 :     osUnderlyingTableName = pszUnderlyingTableName;</span>
+<span class="lineNum">     101 </span><span class="lineCov">         10 :     osUnderlyingGeometryColumn = pszUnderlyingGeometryColumn;</span>
+<span class="lineNum">     102 </span><span class="lineCov">         10 :     poUnderlyingLayer = nullptr;</span>
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span><span class="lineCov">         10 :     pszEscapedTableName = CPLStrdup(SQLEscapeLiteral(pszViewName));</span>
+<span class="lineNum">     105 </span><span class="lineCov">         10 :     pszEscapedUnderlyingTableName = CPLStrdup(SQLEscapeLiteral(pszUnderlyingTableName));</span>
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span><span class="lineCov">         10 :     return CE_None;</span>
+<span class="lineNum">     108 </span>            : }
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span>            : /************************************************************************/
+<span class="lineNum">     111 </span>            : /*                           GetLayerDefn()                             */
+<a name="112"><span class="lineNum">     112 </span>            : /************************************************************************/</a>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineCov">         62 : OGRFeatureDefn* OGRSQLiteViewLayer::GetLayerDefn()</span>
+<span class="lineNum">     115 </span>            : {
+<span class="lineNum">     116 </span><span class="lineCov">         62 :     if (poFeatureDefn)</span>
+<span class="lineNum">     117 </span><span class="lineCov">         54 :         return poFeatureDefn;</span>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineCov">          8 :     EstablishFeatureDefn();</span>
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span><span class="lineCov">          8 :     if (poFeatureDefn == nullptr)</span>
+<span class="lineNum">     122 </span>            :     {
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :         bLayerDefnError = TRUE;</span>
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :         poFeatureDefn = new OGRSQLiteFeatureDefn( pszViewName );</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :         poFeatureDefn-&gt;Reference();</span>
+<span class="lineNum">     127 </span>            :     }
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span><span class="lineCov">          8 :     return poFeatureDefn;</span>
+<span class="lineNum">     130 </span>            : }
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            : /************************************************************************/
+<span class="lineNum">     133 </span>            : /*                        GetUnderlyingLayer()                          */
+<a name="134"><span class="lineNum">     134 </span>            : /************************************************************************/</a>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineCov">          8 : OGRSQLiteLayer* OGRSQLiteViewLayer::GetUnderlyingLayer()</span>
+<span class="lineNum">     137 </span>            : {
+<span class="lineNum">     138 </span><span class="lineCov">          8 :     if( poUnderlyingLayer == nullptr )</span>
+<span class="lineNum">     139 </span>            :     {
+<span class="lineNum">     140 </span><span class="lineCov">          8 :         if( strchr(osUnderlyingTableName, '(') == nullptr )</span>
+<span class="lineNum">     141 </span>            :         {
+<span class="lineNum">     142 </span><span class="lineCov">          8 :             CPLString osNewUnderlyingTableName;</span>
+<span class="lineNum">     143 </span>            :             osNewUnderlyingTableName.Printf(&quot;%s(%s)&quot;,
+<span class="lineNum">     144 </span>            :                                             osUnderlyingTableName.c_str(),
+<span class="lineNum">     145 </span><span class="lineCov">          8 :                                             osUnderlyingGeometryColumn.c_str());</span>
+<span class="lineNum">     146 </span>            :             poUnderlyingLayer =
+<span class="lineNum">     147 </span><span class="lineCov">          8 :                 (OGRSQLiteLayer*) poDS-&gt;GetLayerByNameNotVisible(osNewUnderlyingTableName);</span>
+<span class="lineNum">     148 </span>            :         }
+<span class="lineNum">     149 </span><span class="lineCov">          8 :         if( poUnderlyingLayer == nullptr )</span>
+<span class="lineNum">     150 </span>            :             poUnderlyingLayer =
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :                 (OGRSQLiteLayer*) poDS-&gt;GetLayerByNameNotVisible(osUnderlyingTableName);</span>
+<span class="lineNum">     152 </span>            :     }
+<span class="lineNum">     153 </span><span class="lineCov">          8 :     return poUnderlyingLayer;</span>
+<span class="lineNum">     154 </span>            : }
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span>            : /************************************************************************/
+<span class="lineNum">     157 </span>            : /*                            GetGeomType()                             */
+<a name="158"><span class="lineNum">     158 </span>            : /************************************************************************/</a>
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span><span class="lineCov">          6 : OGRwkbGeometryType OGRSQLiteViewLayer::GetGeomType()</span>
+<span class="lineNum">     161 </span>            : {
+<span class="lineNum">     162 </span><span class="lineCov">          6 :     if (poFeatureDefn)</span>
+<span class="lineNum">     163 </span><span class="lineCov">          6 :         return poFeatureDefn-&gt;GetGeomType();</span>
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :     OGRSQLiteLayer* l_poUnderlyingLayer = GetUnderlyingLayer();</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :     if (l_poUnderlyingLayer)</span>
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :         return l_poUnderlyingLayer-&gt;GetGeomType();</span>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :     return wkbUnknown;</span>
+<span class="lineNum">     170 </span>            : }
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span>            : /************************************************************************/
+<span class="lineNum">     173 </span>            : /*                         EstablishFeatureDefn()                       */
+<a name="174"><span class="lineNum">     174 </span>            : /************************************************************************/</a>
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span><span class="lineCov">          8 : CPLErr OGRSQLiteViewLayer::EstablishFeatureDefn()</span>
+<span class="lineNum">     177 </span>            : {
+<span class="lineNum">     178 </span><span class="lineCov">          8 :     sqlite3 *hDB = poDS-&gt;GetDB();</span>
+<span class="lineNum">     179 </span><span class="lineCov">          8 :     sqlite3_stmt *hColStmt = nullptr;</span>
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span><span class="lineCov">          8 :     OGRSQLiteLayer* l_poUnderlyingLayer = GetUnderlyingLayer();</span>
+<span class="lineNum">     182 </span><span class="lineCov">          8 :     if (l_poUnderlyingLayer == nullptr)</span>
+<span class="lineNum">     183 </span>            :     {
+<span class="lineNum">     184 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     185 </span>            :                  &quot;Cannot find underlying layer %s for view %s&quot;,
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :                  osUnderlyingTableName.c_str(), pszViewName);</span>
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     188 </span>            :     }
+<span class="lineNum">     189 </span><span class="lineCov">          8 :     if ( !l_poUnderlyingLayer-&gt;IsTableLayer() )</span>
+<span class="lineNum">     190 </span>            :     {
+<span class="lineNum">     191 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     192 </span>            :                  &quot;Underlying layer %s for view %s is not a regular table&quot;,
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :                  osUnderlyingTableName.c_str(), pszViewName);</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     195 </span>            :     }
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span>            :     int nUnderlyingLayerGeomFieldIndex =
+<span class="lineNum">     198 </span><span class="lineCov">          8 :         l_poUnderlyingLayer-&gt;GetLayerDefn()-&gt;GetGeomFieldIndex(osUnderlyingGeometryColumn);</span>
+<span class="lineNum">     199 </span><span class="lineCov">          8 :     if ( nUnderlyingLayerGeomFieldIndex &lt; 0 )</span>
+<span class="lineNum">     200 </span>            :     {
+<span class="lineNum">     201 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     202 </span>            :                  &quot;Underlying layer %s for view %s has not expected geometry column name %s&quot;,
+<span class="lineNum">     203 </span>            :                  osUnderlyingTableName.c_str(), pszViewName,
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :                  osUnderlyingGeometryColumn.c_str());</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     206 </span>            :     }
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span>            :     bHasSpatialIndex =
+<span class="lineNum">     209 </span><span class="lineCov">          8 :         l_poUnderlyingLayer-&gt;HasSpatialIndex(nUnderlyingLayerGeomFieldIndex);</span>
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     212 </span>            : /*      Get the column definitions for this table.                      */
+<span class="lineNum">     213 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     214 </span><span class="lineCov">          8 :     hColStmt = nullptr;</span>
+<span class="lineNum">     215 </span>            :     const char *pszSQL =
+<span class="lineNum">     216 </span>            :         CPLSPrintf( &quot;SELECT \&quot;%s\&quot;, * FROM '%s' LIMIT 1&quot;,
+<span class="lineNum">     217 </span>            :                     SQLEscapeName(pszFIDColumn).c_str(),
+<span class="lineNum">     218 </span><span class="lineCov">          8 :                     pszEscapedTableName );</span>
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span><span class="lineCov">          8 :     int rc = sqlite3_prepare_v2( hDB, pszSQL, -1, &amp;hColStmt, nullptr );</span>
+<span class="lineNum">     221 </span><span class="lineCov">          8 :     if( rc != SQLITE_OK )</span>
+<span class="lineNum">     222 </span>            :     {
+<span class="lineNum">     223 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     224 </span>            :                   &quot;Unable to query table %s for column definitions : %s.&quot;,
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :                   pszViewName, sqlite3_errmsg(hDB) );</span>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     228 </span>            :     }
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineCov">          8 :     rc = sqlite3_step( hColStmt );</span>
+<span class="lineNum">     231 </span><span class="lineCov">          8 :     if ( rc != SQLITE_DONE &amp;&amp; rc != SQLITE_ROW )</span>
+<span class="lineNum">     232 </span>            :     {
+<span class="lineNum">     233 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     234 </span>            :                   &quot;In Initialize(): sqlite3_step(%s):\n  %s&quot;,
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :                   pszSQL, sqlite3_errmsg(hDB) );</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :         sqlite3_finalize( hColStmt );</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     238 </span>            :     }
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     241 </span>            : /*      Collect the rest of the fields.                                 */
+<span class="lineNum">     242 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     243 </span><span class="lineCov">          8 :     std::set&lt;CPLString&gt; aosGeomCols;</span>
+<span class="lineNum">     244 </span><span class="lineCov">         16 :     std::set&lt;CPLString&gt; aosIgnoredCols;</span>
+<span class="lineNum">     245 </span><span class="lineCov">          8 :     aosGeomCols.insert(osGeomColumn);</span>
+<span class="lineNum">     246 </span><span class="lineCov">          8 :     BuildFeatureDefn( pszViewName, hColStmt, &amp;aosGeomCols, aosIgnoredCols );</span>
+<span class="lineNum">     247 </span><span class="lineCov">          8 :     sqlite3_finalize( hColStmt );</span>
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     250 </span>            : /*      Set the properties of the geometry column.                      */
+<span class="lineNum">     251 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     252 </span><span class="lineCov">          8 :     if( poFeatureDefn-&gt;GetGeomFieldCount() != 0 )</span>
+<span class="lineNum">     253 </span>            :     {
+<span class="lineNum">     254 </span>            :         OGRSQLiteGeomFieldDefn* poSrcGeomFieldDefn =
+<span class="lineNum">     255 </span><span class="lineCov">          8 :             l_poUnderlyingLayer-&gt;myGetLayerDefn()-&gt;myGetGeomFieldDefn(nUnderlyingLayerGeomFieldIndex);</span>
+<span class="lineNum">     256 </span>            :         OGRSQLiteGeomFieldDefn* poGeomFieldDefn =
+<span class="lineNum">     257 </span><span class="lineCov">          8 :             poFeatureDefn-&gt;myGetGeomFieldDefn(0);</span>
+<span class="lineNum">     258 </span><span class="lineCov">          8 :         poGeomFieldDefn-&gt;SetType(poSrcGeomFieldDefn-&gt;GetType());</span>
+<span class="lineNum">     259 </span><span class="lineCov">          8 :         poGeomFieldDefn-&gt;SetSpatialRef(poSrcGeomFieldDefn-&gt;GetSpatialRef());</span>
+<span class="lineNum">     260 </span><span class="lineCov">          8 :         poGeomFieldDefn-&gt;nSRSId = poSrcGeomFieldDefn-&gt;nSRSId;</span>
+<span class="lineNum">     261 </span><span class="lineCov">          8 :         if( eGeomFormat != OSGF_None )</span>
+<span class="lineNum">     262 </span><span class="lineCov">          8 :             poGeomFieldDefn-&gt;eGeomFormat = eGeomFormat;</span>
+<span class="lineNum">     263 </span>            :     }
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span><span class="lineCov">         16 :     return CE_None;</span>
+<span class="lineNum">     266 </span>            : }
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span>            : /************************************************************************/
+<span class="lineNum">     269 </span>            : /*                           ResetStatement()                           */
+<a name="270"><span class="lineNum">     270 </span>            : /************************************************************************/</a>
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span><span class="lineCov">          8 : OGRErr OGRSQLiteViewLayer::ResetStatement()</span>
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            : {
+<span class="lineNum">     275 </span><span class="lineCov">          8 :     CPLString osSQL;</span>
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span><span class="lineCov">          8 :     ClearStatement();</span>
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span><span class="lineCov">          8 :     iNextShapeId = 0;</span>
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span>            :     osSQL.Printf( &quot;SELECT \&quot;%s\&quot;, * FROM '%s' %s&quot;,
+<span class="lineNum">     282 </span>            :                   SQLEscapeName(pszFIDColumn).c_str(),
+<span class="lineNum">     283 </span>            :                   pszEscapedTableName,
+<span class="lineNum">     284 </span><span class="lineCov">          8 :                   osWHERE.c_str() );</span>
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            :     const int rc =
+<span class="lineNum">     287 </span><span class="lineCov">          8 :         sqlite3_prepare_v2( poDS-&gt;GetDB(), osSQL, static_cast&lt;int&gt;(osSQL.size()),</span>
+<span class="lineNum">     288 </span><span class="lineCov">         16 :                          &amp;hStmt, nullptr );</span>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineCov">          8 :     if( rc == SQLITE_OK )</span>
+<span class="lineNum">     291 </span>            :     {
+<span class="lineNum">     292 </span><span class="lineCov">          8 :         return OGRERR_NONE;</span>
+<span class="lineNum">     293 </span>            :     }
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span>            :     CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     296 </span>            :               &quot;In ResetStatement(): sqlite3_prepare_v2(%s):\n  %s&quot;,
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :               osSQL.c_str(), sqlite3_errmsg(poDS-&gt;GetDB()) );</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :     hStmt = nullptr;</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :     return OGRERR_FAILURE;</span>
+<span class="lineNum">     300 </span>            : }
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            : /************************************************************************/
+<span class="lineNum">     303 </span>            : /*                           GetNextFeature()                           */
+<a name="304"><span class="lineNum">     304 </span>            : /************************************************************************/</a>
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span><span class="lineCov">          8 : OGRFeature *OGRSQLiteViewLayer::GetNextFeature()</span>
+<span class="lineNum">     307 </span>            : 
+<span class="lineNum">     308 </span>            : {
+<span class="lineNum">     309 </span><span class="lineCov">          8 :     if (HasLayerDefnError())</span>
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span><span class="lineCov">          8 :     return OGRSQLiteLayer::GetNextFeature();</span>
+<span class="lineNum">     313 </span>            : }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            : /************************************************************************/
+<span class="lineNum">     316 </span>            : /*                             GetFeature()                             */
+<a name="317"><span class="lineNum">     317 </span>            : /************************************************************************/</a>
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span><span class="lineCov">          6 : OGRFeature *OGRSQLiteViewLayer::GetFeature( GIntBig nFeatureId )</span>
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span>            : {
+<span class="lineNum">     322 </span><span class="lineCov">          6 :     if (HasLayerDefnError())</span>
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     326 </span>            : /*      If we don't have an explicit FID column, just read through      */
+<span class="lineNum">     327 </span>            : /*      the result set iteratively to find our target.                  */
+<span class="lineNum">     328 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     329 </span><span class="lineCov">          6 :     if( pszFIDColumn == nullptr )</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :         return OGRSQLiteLayer::GetFeature( nFeatureId );</span>
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     333 </span>            : /*      Setup explicit query statement to fetch the record we want.     */
+<span class="lineNum">     334 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     335 </span><span class="lineCov">          6 :     CPLString osSQL;</span>
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineCov">          6 :     ClearStatement();</span>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineCov">          6 :     iNextShapeId = nFeatureId;</span>
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            :     osSQL.Printf( &quot;SELECT \&quot;%s\&quot;, * FROM '%s' WHERE \&quot;%s\&quot; = %d&quot;,
+<span class="lineNum">     342 </span>            :                   SQLEscapeName(pszFIDColumn).c_str(),
+<span class="lineNum">     343 </span>            :                   pszEscapedTableName,
+<span class="lineNum">     344 </span>            :                   SQLEscapeName(pszFIDColumn).c_str(),
+<span class="lineNum">     345 </span><span class="lineCov">          6 :                   (int) nFeatureId );</span>
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span><span class="lineCov">          6 :     CPLDebug( &quot;OGR_SQLITE&quot;, &quot;exec(%s)&quot;, osSQL.c_str() );</span>
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span>            :     const int rc =
+<span class="lineNum">     350 </span><span class="lineCov">          6 :         sqlite3_prepare_v2( poDS-&gt;GetDB(), osSQL, static_cast&lt;int&gt;(osSQL.size()),</span>
+<span class="lineNum">     351 </span><span class="lineCov">         12 :                          &amp;hStmt, nullptr );</span>
+<span class="lineNum">     352 </span><span class="lineCov">          6 :     if( rc != SQLITE_OK )</span>
+<span class="lineNum">     353 </span>            :     {
+<span class="lineNum">     354 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     355 </span>            :                   &quot;In GetFeature(): sqlite3_prepare_v2(%s):\n  %s&quot;,
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :                   osSQL.c_str(), sqlite3_errmsg(poDS-&gt;GetDB()) );</span>
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     359 </span>            :     }
+<span class="lineNum">     360 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     361 </span>            : /*      Get the feature if possible.                                    */
+<span class="lineNum">     362 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     363 </span><span class="lineCov">          6 :     OGRFeature *poFeature = GetNextRawFeature();</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineCov">          6 :     ResetReading();</span>
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span><span class="lineCov">          6 :     return poFeature;</span>
+<span class="lineNum">     368 </span>            : }
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span>            : /************************************************************************/
+<span class="lineNum">     371 </span>            : /*                         SetAttributeFilter()                         */
+<a name="372"><span class="lineNum">     372 </span>            : /************************************************************************/</a>
+<span class="lineNum">     373 </span>            : 
+<span class="lineNum">     374 </span><span class="lineCov">          4 : OGRErr OGRSQLiteViewLayer::SetAttributeFilter( const char *pszQuery )</span>
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span>            : {
+<span class="lineNum">     377 </span><span class="lineCov">          4 :     if( pszQuery == nullptr )</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :         osQuery = &quot;&quot;;</span>
+<span class="lineNum">     379 </span>            :     else
+<span class="lineNum">     380 </span><span class="lineCov">          4 :         osQuery = pszQuery;</span>
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span><span class="lineCov">          4 :     BuildWhere();</span>
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span><span class="lineCov">          4 :     ResetReading();</span>
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span><span class="lineCov">          4 :     return OGRERR_NONE;</span>
+<span class="lineNum">     387 </span>            : }
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span>            : /************************************************************************/
+<span class="lineNum">     390 </span>            : /*                          SetSpatialFilter()                          */
+<a name="391"><span class="lineNum">     391 </span>            : /************************************************************************/</a>
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span><span class="lineCov">          8 : void OGRSQLiteViewLayer::SetSpatialFilter( OGRGeometry * poGeomIn )</span>
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            : {
+<span class="lineNum">     396 </span><span class="lineCov">          8 :     if( InstallFilter( poGeomIn ) )</span>
+<span class="lineNum">     397 </span>            :     {
+<span class="lineNum">     398 </span><span class="lineCov">          8 :         BuildWhere();</span>
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span><span class="lineCov">          8 :         ResetReading();</span>
+<span class="lineNum">     401 </span>            :     }
+<span class="lineNum">     402 </span><span class="lineCov">          8 : }</span>
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            : /************************************************************************/
+<span class="lineNum">     405 </span>            : /*                           GetSpatialWhere()                          */
+<a name="406"><span class="lineNum">     406 </span>            : /************************************************************************/</a>
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span><span class="lineCov">         12 : CPLString OGRSQLiteViewLayer::GetSpatialWhere(int iGeomCol,</span>
+<span class="lineNum">     409 </span>            :                                               OGRGeometry* poFilterGeom)
+<span class="lineNum">     410 </span>            : {
+<span class="lineNum">     411 </span><span class="lineCov">         36 :     if (HasLayerDefnError() || poFeatureDefn == nullptr ||</span>
+<span class="lineNum">     412 </span><span class="lineCov">         24 :         iGeomCol &lt; 0 || iGeomCol &gt;= poFeatureDefn-&gt;GetGeomFieldCount())</span>
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :         return &quot;&quot;;</span>
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span><span class="lineCov">         12 :     if( poFilterGeom != nullptr &amp;&amp; bHasSpatialIndex )</span>
+<span class="lineNum">     416 </span>            :     {
+<span class="lineNum">     417 </span><span class="lineCov">          6 :         OGREnvelope  sEnvelope;</span>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineCov">          6 :         poFilterGeom-&gt;getEnvelope( &amp;sEnvelope );</span>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span>            :         /* We first check that the spatial index table exists */
+<span class="lineNum">     422 </span><span class="lineCov">          6 :         if (!bHasCheckedSpatialIndexTable)</span>
+<span class="lineNum">     423 </span>            :         {
+<span class="lineNum">     424 </span><span class="lineCov">          6 :             bHasCheckedSpatialIndexTable = TRUE;</span>
+<span class="lineNum">     425 </span><span class="lineCov">          6 :             char **papszResult = nullptr;</span>
+<span class="lineNum">     426 </span><span class="lineCov">          6 :             int nRowCount = 0;</span>
+<span class="lineNum">     427 </span><span class="lineCov">          6 :             int nColCount = 0;</span>
+<span class="lineNum">     428 </span><span class="lineCov">          6 :             char *pszErrMsg = nullptr;</span>
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span><span class="lineCov">          6 :             CPLString osSQL;</span>
+<span class="lineNum">     431 </span>            :             osSQL.Printf(&quot;SELECT name FROM sqlite_master &quot;
+<span class="lineNum">     432 </span>            :                         &quot;WHERE name='idx_%s_%s'&quot;,
+<span class="lineNum">     433 </span>            :                         pszEscapedUnderlyingTableName,
+<span class="lineNum">     434 </span><span class="lineCov">          6 :                         SQLEscapeLiteral(osUnderlyingGeometryColumn).c_str());</span>
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span>            :             int  rc = sqlite3_get_table( poDS-&gt;GetDB(), osSQL.c_str(),
+<span class="lineNum">     437 </span>            :                                         &amp;papszResult, &amp;nRowCount,
+<span class="lineNum">     438 </span><span class="lineCov">          6 :                                         &amp;nColCount, &amp;pszErrMsg );</span>
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span><span class="lineCov">          6 :             if( rc != SQLITE_OK )</span>
+<span class="lineNum">     441 </span>            :             {
+<span class="lineNum">     442 </span>            :                 CPLError( CE_Failure, CPLE_AppDefined, &quot;Error: %s&quot;,
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :                         pszErrMsg );</span>
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :                 sqlite3_free( pszErrMsg );</span>
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :                 bHasSpatialIndex = FALSE;</span>
+<span class="lineNum">     446 </span>            :             }
+<span class="lineNum">     447 </span>            :             else
+<span class="lineNum">     448 </span>            :             {
+<span class="lineNum">     449 </span><span class="lineCov">          6 :                 if (nRowCount != 1)</span>
+<span class="lineNum">     450 </span>            :                 {
+<span class="lineNum">     451 </span><span class="lineCov">          2 :                     bHasSpatialIndex = FALSE;</span>
+<span class="lineNum">     452 </span>            :                 }
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span><span class="lineCov">          6 :                 sqlite3_free_table(papszResult);</span>
+<span class="lineNum">     455 </span><span class="lineCov">          6 :             }</span>
+<span class="lineNum">     456 </span>            :         }
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span><span class="lineCov">          6 :         if (bHasSpatialIndex)</span>
+<span class="lineNum">     459 </span>            :         {
+<span class="lineNum">     460 </span>            :             return FormatSpatialFilterFromRTree(poFilterGeom,
+<span class="lineNum">     461 </span>            :                 CPLSPrintf(&quot;\&quot;%s\&quot;&quot;, SQLEscapeName(pszFIDColumn).c_str()),
+<span class="lineNum">     462 </span>            :                 pszEscapedUnderlyingTableName,
+<span class="lineNum">     463 </span><span class="lineCov">          4 :                 SQLEscapeLiteral(osUnderlyingGeometryColumn).c_str());</span>
+<span class="lineNum">     464 </span>            :         }
+<span class="lineNum">     465 </span>            :         else
+<span class="lineNum">     466 </span>            :         {
+<span class="lineNum">     467 </span>            :             CPLDebug(&quot;SQLITE&quot;, &quot;Count not find idx_%s_%s layer. Disabling spatial index&quot;,
+<span class="lineNum">     468 </span><span class="lineCov">          2 :                      pszEscapedUnderlyingTableName, osUnderlyingGeometryColumn.c_str());</span>
+<span class="lineNum">     469 </span>            :         }
+<span class="lineNum">     470 </span>            :     }
+<span class="lineNum">     471 </span>            : 
+<span class="lineNum">     472 </span><span class="lineCov">          8 :     if( poFilterGeom != nullptr &amp;&amp; poDS-&gt;IsSpatialiteLoaded() )</span>
+<span class="lineNum">     473 </span>            :     {
+<span class="lineNum">     474 </span>            :         return FormatSpatialFilterFromMBR(poFilterGeom,
+<span class="lineNum">     475 </span><span class="lineCov">          4 :             SQLEscapeName(poFeatureDefn-&gt;GetGeomFieldDefn(iGeomCol)-&gt;GetNameRef()).c_str());</span>
+<span class="lineNum">     476 </span>            :     }
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span><span class="lineCov">          4 :     return &quot;&quot;;</span>
+<span class="lineNum">     479 </span>            : }
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span>            : /************************************************************************/
+<span class="lineNum">     482 </span>            : /*                             BuildWhere()                             */
+<span class="lineNum">     483 </span>            : /*                                                                      */
+<span class="lineNum">     484 </span>            : /*      Build the WHERE statement appropriate to the current set of     */
+<span class="lineNum">     485 </span>            : /*      criteria (spatial and attribute queries).                       */
+<a name="486"><span class="lineNum">     486 </span>            : /************************************************************************/</a>
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span><span class="lineCov">         12 : void OGRSQLiteViewLayer::BuildWhere()</span>
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span>            : {
+<span class="lineNum">     491 </span><span class="lineCov">         12 :     osWHERE = &quot;&quot;;</span>
+<span class="lineNum">     492 </span>            : 
+<span class="lineNum">     493 </span>            :     CPLString osSpatialWHERE = GetSpatialWhere(m_iGeomFieldFilter,
+<span class="lineNum">     494 </span><span class="lineCov">         12 :                                                m_poFilterGeom);</span>
+<span class="lineNum">     495 </span><span class="lineCov">         12 :     if (!osSpatialWHERE.empty())</span>
+<span class="lineNum">     496 </span>            :     {
+<span class="lineNum">     497 </span><span class="lineCov">          8 :         osWHERE = &quot;WHERE &quot;;</span>
+<span class="lineNum">     498 </span><span class="lineCov">          8 :         osWHERE += osSpatialWHERE;</span>
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span><span class="lineCov">         12 :     if( !osQuery.empty() )</span>
+<span class="lineNum">     502 </span>            :     {
+<span class="lineNum">     503 </span><span class="lineCov">          8 :         if( osWHERE.empty() )</span>
+<span class="lineNum">     504 </span>            :         {
+<span class="lineNum">     505 </span><span class="lineCov">          4 :             osWHERE = &quot;WHERE &quot;;</span>
+<span class="lineNum">     506 </span><span class="lineCov">          4 :             osWHERE += osQuery;</span>
+<span class="lineNum">     507 </span>            :         }
+<span class="lineNum">     508 </span>            :         else
+<span class="lineNum">     509 </span>            :         {
+<span class="lineNum">     510 </span><span class="lineCov">          4 :             osWHERE += &quot; AND (&quot;;</span>
+<span class="lineNum">     511 </span><span class="lineCov">          4 :             osWHERE += osQuery;</span>
+<span class="lineNum">     512 </span><span class="lineCov">          4 :             osWHERE += &quot;)&quot;;</span>
+<span class="lineNum">     513 </span>            :         }
+<span class="lineNum">     514 </span><span class="lineCov">         12 :     }</span>
+<span class="lineNum">     515 </span><span class="lineCov">         12 : }</span>
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span>            : /************************************************************************/
+<span class="lineNum">     518 </span>            : /*                           TestCapability()                           */
+<a name="519"><span class="lineNum">     519 </span>            : /************************************************************************/</a>
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span><span class="lineCov">          6 : int OGRSQLiteViewLayer::TestCapability( const char * pszCap )</span>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span>            : {
+<span class="lineNum">     524 </span><span class="lineCov">          6 :     if (HasLayerDefnError())</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     526 </span>            : 
+<span class="lineNum">     527 </span><span class="lineCov">          6 :     if (EQUAL(pszCap,OLCFastFeatureCount))</span>
+<span class="lineNum">     528 </span><span class="lineCov">          6 :         return m_poFilterGeom == nullptr || osGeomColumn.empty() ||</span>
+<span class="lineNum">     529 </span><span class="lineCov">          6 :                bHasSpatialIndex;</span>
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :     else if (EQUAL(pszCap,OLCFastSpatialFilter))</span>
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :         return bHasSpatialIndex;</span>
+<span class="lineNum">     533 </span>            : 
+<span class="lineNum">     534 </span>            :     else
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :         return OGRSQLiteLayer::TestCapability( pszCap );</span>
+<span class="lineNum">     536 </span>            : }
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span>            : /************************************************************************/
+<span class="lineNum">     539 </span>            : /*                          GetFeatureCount()                           */
+<span class="lineNum">     540 </span>            : /*                                                                      */
+<span class="lineNum">     541 </span>            : /*      If a spatial filter is in effect, we turn control over to       */
+<span class="lineNum">     542 </span>            : /*      the generic counter.  Otherwise we return the total count.      */
+<span class="lineNum">     543 </span>            : /*      Eventually we should consider implementing a more efficient     */
+<span class="lineNum">     544 </span>            : /*      way of counting features matching a spatial query.              */
+<a name="545"><span class="lineNum">     545 </span>            : /************************************************************************/</a>
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span><span class="lineCov">          6 : GIntBig OGRSQLiteViewLayer::GetFeatureCount( int bForce )</span>
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span>            : {
+<span class="lineNum">     550 </span><span class="lineCov">          6 :     if (HasLayerDefnError())</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span><span class="lineCov">          6 :     if( !TestCapability(OLCFastFeatureCount) )</span>
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :         return OGRSQLiteLayer::GetFeatureCount( bForce );</span>
+<span class="lineNum">     555 </span>            : 
+<span class="lineNum">     556 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     557 </span>            : /*      Form count SQL.                                                 */
+<span class="lineNum">     558 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     559 </span>            :     const char *pszSQL =
+<span class="lineNum">     560 </span>            :         CPLSPrintf( &quot;SELECT count(*) FROM '%s' %s&quot;,
+<span class="lineNum">     561 </span><span class="lineCov">          6 :                     pszEscapedTableName, osWHERE.c_str() );</span>
+<span class="lineNum">     562 </span>            : 
+<span class="lineNum">     563 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     564 </span>            : /*      Execute.                                                        */
+<span class="lineNum">     565 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     566 </span>            :     char **papszResult, *pszErrMsg;
+<span class="lineNum">     567 </span>            :     int nRowCount, nColCount;
+<span class="lineNum">     568 </span><span class="lineCov">          6 :     int nResult = -1;</span>
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span><span class="lineCov">          6 :     if( sqlite3_get_table( poDS-&gt;GetDB(), pszSQL, &amp;papszResult,</span>
+<span class="lineNum">     571 </span><span class="lineCov">          6 :                            &amp;nColCount, &amp;nRowCount, &amp;pszErrMsg ) != SQLITE_OK )</span>
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span><span class="lineCov">          6 :     if( nRowCount == 1 &amp;&amp; nColCount == 1 )</span>
+<span class="lineNum">     575 </span><span class="lineCov">          6 :         nResult = atoi(papszResult[1]);</span>
+<span class="lineNum">     576 </span>            : 
+<span class="lineNum">     577 </span><span class="lineCov">          6 :     sqlite3_free_table( papszResult );</span>
+<span class="lineNum">     578 </span>            : 
+<span class="lineNum">     579 </span><span class="lineCov">          6 :     return nResult;</span>
+<span class="lineNum">     580 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

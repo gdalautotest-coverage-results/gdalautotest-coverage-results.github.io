@@ -1,0 +1,969 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - gcore/gdaldrivermanager.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">gcore</a> - gdaldrivermanager.cpp<span style="font-size: 80%;"> (source / <a href="gdaldrivermanager.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">173</td>
+            <td class="headerCovTableEntry">204</td>
+            <td class="headerCovTableEntryMed">84.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL Core
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of GDALDriverManager class.
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 1998, Frank Warmerdam
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2009-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      34 </span>            : #include &lt;map&gt;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      37 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      38 </span>            : #include &quot;cpl_http.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;cpl_multiproc.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;gdal_alg.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;gdal_alg_priv.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;gdal_pam.h&quot;
+<span class="lineNum">      47 </span>            : #include &quot;gdal_version.h&quot;
+<span class="lineNum">      48 </span>            : #include &quot;ogr_srs_api.h&quot;
+<span class="lineNum">      49 </span>            : #include &quot;ograpispy.h&quot;
+<span class="lineNum">      50 </span>            : #ifdef HAVE_XERCES
+<span class="lineNum">      51 </span>            : #  include &quot;ogr_xerces.h&quot;
+<span class="lineNum">      52 </span>            : #endif  // HAVE_XERCES
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : #ifdef _MSC_VER
+<span class="lineNum">      55 </span>            : #  ifdef MSVC_USE_VLD
+<span class="lineNum">      56 </span>            : #    include &lt;wchar.h&gt;
+<span class="lineNum">      57 </span>            : #    include &lt;vld.h&gt;
+<span class="lineNum">      58 </span>            : #  endif
+<span class="lineNum">      59 </span>            : #endif
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            : // FIXME: Disabled following code as it crashed on OSX CI test.
+<span class="lineNum">      62 </span>            : // #include &lt;mutex&gt;
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            : /************************************************************************/
+<span class="lineNum">      67 </span>            : /* ==================================================================== */
+<span class="lineNum">      68 </span>            : /*                           GDALDriverManager                          */
+<span class="lineNum">      69 </span>            : /* ==================================================================== */
+<span class="lineNum">      70 </span>            : /************************************************************************/
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            : static volatile GDALDriverManager *poDM = nullptr;
+<span class="lineNum">      73 </span>            : static CPLMutex *hDMMutex = nullptr;
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            : // FIXME: Disabled following code as it crashed on OSX CI test.
+<a name="76"><span class="lineNum">      76 </span>            : // static std::mutex oDeleteMutex;</a>
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span><span class="lineCov">      60252 : CPLMutex** GDALGetphDMMutex() { return &amp;hDMMutex; }</span>
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            : /************************************************************************/
+<span class="lineNum">      81 </span>            : /*                        GetGDALDriverManager()                        */
+<span class="lineNum">      82 </span>            : /*                                                                      */
+<span class="lineNum">      83 </span>            : /*      A freestanding function to get the only instance of the         */
+<span class="lineNum">      84 </span>            : /*      GDALDriverManager.                                              */
+<span class="lineNum">      85 </span>            : /************************************************************************/
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            : /**
+<span class="lineNum">      88 </span>            :  * \brief Fetch the global GDAL driver manager.
+<span class="lineNum">      89 </span>            :  *
+<span class="lineNum">      90 </span>            :  * This function fetches the pointer to the singleton global driver manager.
+<span class="lineNum">      91 </span>            :  * If the driver manager doesn't exist it is automatically created.
+<span class="lineNum">      92 </span>            :  *
+<span class="lineNum">      93 </span>            :  * @return pointer to the global driver manager.  This should not be able
+<span class="lineNum">      94 </span>            :  * to fail.
+<a name="95"><span class="lineNum">      95 </span>            :  */</a>
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span><span class="lineCov">     830364 : GDALDriverManager * GetGDALDriverManager()</span>
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span>            : {
+<span class="lineNum">     100 </span><span class="lineCov">     830364 :     if( poDM == nullptr )</span>
+<span class="lineNum">     101 </span>            :     {
+<span class="lineNum">     102 </span><span class="lineCov">        987 :         CPLMutexHolderD( &amp;hDMMutex );</span>
+<span class="lineNum">     103 </span>            :         // cppcheck-suppress identicalInnerCondition
+<span class="lineNum">     104 </span><span class="lineCov">        987 :         if( poDM == nullptr )</span>
+<span class="lineNum">     105 </span><span class="lineCov">        987 :             poDM = new GDALDriverManager();</span>
+<span class="lineNum">     106 </span>            :     }
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span><span class="lineCov">     830364 :     CPLAssert( nullptr != poDM );</span>
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span><span class="lineCov">     830364 :     return const_cast&lt;GDALDriverManager *&gt;( poDM );</span>
+<span class="lineNum">     111 </span>            : }
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span>            : /************************************************************************/
+<span class="lineNum">     114 </span>            : /*                         GDALDriverManager()                          */
+<a name="115"><span class="lineNum">     115 </span>            : /************************************************************************/</a>
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span><span class="lineCov">        987 : GDALDriverManager::GDALDriverManager()</span>
+<span class="lineNum">     118 </span>            : {
+<span class="lineNum">     119 </span><span class="lineCov">        987 :     CPLAssert( poDM == nullptr );</span>
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     122 </span>            : /*      We want to push a location to search for data files             */
+<span class="lineNum">     123 </span>            : /*      supporting GDAL/OGR such as EPSG csv files, S-57 definition     */
+<span class="lineNum">     124 </span>            : /*      files, and so forth.  Use the INST_DATA macro (setup at         */
+<span class="lineNum">     125 </span>            : /*      configure time) if available. Otherwise we don't push anything  */
+<span class="lineNum">     126 </span>            : /*      and we hope other mechanisms such as environment variables will */
+<span class="lineNum">     127 </span>            : /*      have been employed.                                             */
+<span class="lineNum">     128 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     129 </span>            : #ifdef INST_DATA
+<span class="lineNum">     130 </span><span class="lineCov">        987 :     if( CPLGetConfigOption( &quot;GDAL_DATA&quot;, nullptr ) != nullptr )</span>
+<span class="lineNum">     131 </span>            :     {
+<span class="lineNum">     132 </span>            :         // This one is picked up automatically by finder initialization.
+<span class="lineNum">     133 </span>            :     }
+<span class="lineNum">     134 </span>            :     else
+<span class="lineNum">     135 </span>            :     {
+<span class="lineNum">     136 </span><span class="lineCov">        986 :         CPLPushFinderLocation( INST_DATA );</span>
+<span class="lineNum">     137 </span>            :     }
+<span class="lineNum">     138 </span>            : #endif
+<span class="lineNum">     139 </span><span class="lineCov">        987 : }</span>
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span>            : /************************************************************************/
+<span class="lineNum">     142 </span>            : /*                         ~GDALDriverManager()                         */
+<span class="lineNum">     143 </span>            : /************************************************************************/
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span>            : // Keep these two in sync with gdalproxypool.cpp.
+<span class="lineNum">     146 </span>            : void GDALDatasetPoolPreventDestroy();
+<a name="147"><span class="lineNum">     147 </span>            : void GDALDatasetPoolForceDestroy();</a>
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span><span class="lineCov">       2157 : GDALDriverManager::~GDALDriverManager()</span>
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span>            : {
+<span class="lineNum">     152 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     153 </span>            : /*      Cleanup any open datasets.                                      */
+<span class="lineNum">     154 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span>            :     // We have to prevent the destroying of the dataset pool during this first
+<span class="lineNum">     157 </span>            :     // phase, otherwise it cause crashes with a VRT B referencing a VRT A, and
+<span class="lineNum">     158 </span>            :     // if CloseDependentDatasets() is called first on VRT A.
+<span class="lineNum">     159 </span>            :     // If we didn't do this nasty trick, due to the refCountOfDisableRefCount
+<span class="lineNum">     160 </span>            :     // mechanism that cheats the real refcount of the dataset pool, we might
+<span class="lineNum">     161 </span>            :     // destroy the dataset pool too early, leading the VRT A to
+<span class="lineNum">     162 </span>            :     // destroy itself indirectly ... Ok, I am aware this explanation does
+<span class="lineNum">     163 </span>            :     // not make any sense unless you try it under a debugger ...
+<span class="lineNum">     164 </span>            :     // When people just manipulate &quot;top-level&quot; dataset handles, we luckily
+<span class="lineNum">     165 </span>            :     // don't need this horrible hack, but GetOpenDatasets() expose &quot;low-level&quot;
+<span class="lineNum">     166 </span>            :     // datasets, which defeat some &quot;design&quot; of the proxy pool.
+<span class="lineNum">     167 </span><span class="lineCov">        719 :     GDALDatasetPoolPreventDestroy();</span>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span>            :     // First begin by requesting each remaining dataset to drop any reference
+<span class="lineNum">     170 </span>            :     // to other datasets.
+<span class="lineNum">     171 </span><span class="lineCov">        719 :     bool bHasDroppedRef = false;</span>
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span><span class="lineCov">        738 :     do</span>
+<span class="lineNum">     174 </span>            :     {
+<span class="lineNum">     175 </span><span class="lineCov">        738 :         int nDSCount = 0;</span>
+<span class="lineNum">     176 </span><span class="lineCov">        738 :         GDALDataset **papoDSList = GDALDataset::GetOpenDatasets(&amp;nDSCount);</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            :         // If a dataset has dropped a reference, the list might have become
+<span class="lineNum">     179 </span>            :         // invalid, so go out of the loop and try again with the new valid
+<span class="lineNum">     180 </span>            :         // list.
+<span class="lineNum">     181 </span><span class="lineCov">        738 :         bHasDroppedRef = false;</span>
+<span class="lineNum">     182 </span><span class="lineCov">       1021 :         for( int i = 0; i &lt; nDSCount &amp;&amp; !bHasDroppedRef; ++i )</span>
+<span class="lineNum">     183 </span>            :         {
+<span class="lineNum">     184 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     185 </span>            :             CPLDebug( &quot;GDAL&quot;, &quot;Call CloseDependentDatasets() on %s&quot;,
+<span class="lineNum">     186 </span>            :                       papoDSList[i]-&gt;GetDescription() );
+<span class="lineNum">     187 </span>            : #endif  // DEBUG_VERBOSE
+<span class="lineNum">     188 </span>            :             bHasDroppedRef =
+<span class="lineNum">     189 </span><span class="lineCov">        283 :                 CPL_TO_BOOL(papoDSList[i]-&gt;CloseDependentDatasets());</span>
+<span class="lineNum">     190 </span>            :         }
+<span class="lineNum">     191 </span>            :     } while(bHasDroppedRef);
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span>            :     // Now let's destroy the dataset pool. Nobody should use it afterwards
+<span class="lineNum">     194 </span>            :     // if people have well released their dependent datasets above.
+<span class="lineNum">     195 </span><span class="lineCov">        719 :     GDALDatasetPoolForceDestroy();</span>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span>            :     // Now close the stand-alone datasets.
+<span class="lineNum">     198 </span><span class="lineCov">        719 :     int nDSCount = 0;</span>
+<span class="lineNum">     199 </span><span class="lineCov">        719 :     GDALDataset **papoDSList = GDALDataset::GetOpenDatasets(&amp;nDSCount);</span>
+<span class="lineNum">     200 </span><span class="lineCov">        749 :     for( int i = 0; i &lt; nDSCount; ++i )</span>
+<span class="lineNum">     201 </span>            :     {
+<span class="lineNum">     202 </span>            :         CPLDebug( &quot;GDAL&quot;,
+<span class="lineNum">     203 </span>            :                   &quot;Force close of %s (%p) in GDALDriverManager cleanup.&quot;,
+<span class="lineNum">     204 </span><span class="lineCov">         30 :                   papoDSList[i]-&gt;GetDescription(), papoDSList[i] );</span>
+<span class="lineNum">     205 </span>            :         // Destroy with delete operator rather than GDALClose() to force
+<span class="lineNum">     206 </span>            :         // deletion of datasets with multiple reference count.
+<span class="lineNum">     207 </span>            :         // We could also iterate while GetOpenDatasets() returns a non NULL
+<span class="lineNum">     208 </span>            :         // list.
+<span class="lineNum">     209 </span><span class="lineCov">         30 :         delete papoDSList[i];</span>
+<span class="lineNum">     210 </span>            :     }
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     213 </span>            : /*      Destroy the existing drivers.                                   */
+<span class="lineNum">     214 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     215 </span><span class="lineCov">     169664 :     while( GetDriverCount() &gt; 0 )</span>
+<span class="lineNum">     216 </span>            :     {
+<span class="lineNum">     217 </span><span class="lineCov">     168226 :         GDALDriver *poDriver = GetDriver(0);</span>
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span><span class="lineCov">     168226 :         DeregisterDriver(poDriver);</span>
+<span class="lineNum">     220 </span><span class="lineCov">     168226 :         delete poDriver;</span>
+<span class="lineNum">     221 </span>            :     }
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span><span class="lineCov">        719 :     delete GDALGetAPIPROXYDriver();</span>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     226 </span>            : /*      Cleanup local memory.                                           */
+<span class="lineNum">     227 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     228 </span><span class="lineCov">        719 :     VSIFree( papoDrivers );</span>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     231 </span>            : /*      Cleanup any Proxy related memory.                               */
+<span class="lineNum">     232 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     233 </span><span class="lineCov">        719 :     PamCleanProxyDB();</span>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     236 </span>            : /*      Blow away all the finder hints paths.  We really should not     */
+<span class="lineNum">     237 </span>            : /*      be doing all of them, but it is currently hard to keep track    */
+<span class="lineNum">     238 </span>            : /*      of those that actually belong to us.                            */
+<span class="lineNum">     239 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     240 </span><span class="lineCov">        719 :     CPLFinderClean();</span>
+<span class="lineNum">     241 </span><span class="lineCov">        719 :     CPLFreeConfig();</span>
+<span class="lineNum">     242 </span><span class="lineCov">        719 :     CPLCleanupSharedFileMutex();</span>
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     245 </span>            : /*      Cleanup any memory allocated by the OGRSpatialReference         */
+<span class="lineNum">     246 </span>            : /*      related subsystem.                                              */
+<span class="lineNum">     247 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     248 </span><span class="lineCov">        719 :     OSRCleanup();</span>
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span>            : #ifdef HAVE_XERCES
+<span class="lineNum">     251 </span><span class="lineCov">        719 :     OGRCleanupXercesMutex();</span>
+<span class="lineNum">     252 </span>            : #endif
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            : #ifdef OGRAPISPY_ENABLED
+<span class="lineNum">     255 </span><span class="lineCov">        719 :     OGRAPISpyDestroyMutex();</span>
+<span class="lineNum">     256 </span>            : #endif
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     259 </span>            : /*      Cleanup VSIFileManager.                                         */
+<span class="lineNum">     260 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     261 </span><span class="lineCov">        719 :     VSICleanupFileManager();</span>
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     264 </span>            : /*      Cleanup thread local storage ... I hope the program is all      */
+<span class="lineNum">     265 </span>            : /*      done with GDAL/OGR!                                             */
+<span class="lineNum">     266 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     267 </span><span class="lineCov">        719 :     CPLCleanupTLS();</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     270 </span>            : /*      Cleanup our mutex.                                              */
+<span class="lineNum">     271 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     272 </span><span class="lineCov">        719 :     if( hDMMutex )</span>
+<span class="lineNum">     273 </span>            :     {
+<span class="lineNum">     274 </span><span class="lineCov">        719 :         CPLDestroyMutex( hDMMutex );</span>
+<span class="lineNum">     275 </span><span class="lineCov">        719 :         hDMMutex = nullptr;</span>
+<span class="lineNum">     276 </span>            :     }
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     279 </span>            : /*      Cleanup dataset list mutex.                                     */
+<span class="lineNum">     280 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     281 </span><span class="lineCov">        719 :     if( *GDALGetphDLMutex() != nullptr )</span>
+<span class="lineNum">     282 </span>            :     {
+<span class="lineNum">     283 </span><span class="lineCov">        719 :         CPLDestroyMutex( *GDALGetphDLMutex() );</span>
+<span class="lineNum">     284 </span><span class="lineCov">        719 :         *GDALGetphDLMutex() = nullptr;</span>
+<span class="lineNum">     285 </span>            :     }
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     288 </span>            : /*      Cleanup raster block mutex.                                     */
+<span class="lineNum">     289 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     290 </span><span class="lineCov">        719 :     GDALRasterBlock::DestroyRBMutex();</span>
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     293 </span>            : /*      Cleanup gdaltransformer.cpp mutex.                              */
+<span class="lineNum">     294 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     295 </span><span class="lineCov">        719 :     GDALCleanupTransformDeserializerMutex();</span>
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     298 </span>            : /*      Cleanup cpl_error.cpp mutex.                                    */
+<span class="lineNum">     299 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     300 </span><span class="lineCov">        719 :     CPLCleanupErrorMutex();</span>
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     303 </span>            : /*      Cleanup CPLsetlocale mutex.                                     */
+<span class="lineNum">     304 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     305 </span><span class="lineCov">        719 :     CPLCleanupSetlocaleMutex();</span>
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     308 </span>            : /*      Cleanup QHull mutex.                                            */
+<span class="lineNum">     309 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     310 </span><span class="lineCov">        719 :     GDALTriangulationTerminate();</span>
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     313 </span>            : /*      Cleanup curl related stuff.                                     */
+<span class="lineNum">     314 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     315 </span><span class="lineCov">        719 :     CPLHTTPCleanup();</span>
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     318 </span>            : /*      Cleanup the master CPL mutex, which governs the creation        */
+<span class="lineNum">     319 </span>            : /*      of all other mutexes.                                           */
+<span class="lineNum">     320 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     321 </span><span class="lineCov">        719 :     CPLCleanupMasterMutex();</span>
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     324 </span>            : /*      Ensure the global driver manager pointer is NULLed out.         */
+<span class="lineNum">     325 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     326 </span><span class="lineCov">        719 :     if( poDM == this )</span>
+<span class="lineNum">     327 </span><span class="lineCov">        719 :         poDM = nullptr;</span>
+<span class="lineNum">     328 </span><span class="lineCov">       1438 : }</span>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            : /************************************************************************/
+<span class="lineNum">     331 </span>            : /*                           GetDriverCount()                           */
+<span class="lineNum">     332 </span>            : /************************************************************************/
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span>            : /**
+<span class="lineNum">     335 </span>            :  * \brief Fetch the number of registered drivers.
+<span class="lineNum">     336 </span>            :  *
+<span class="lineNum">     337 </span>            :  * This C analog to this is GDALGetDriverCount().
+<span class="lineNum">     338 </span>            :  *
+<span class="lineNum">     339 </span>            :  * @return the number of registered drivers.
+<a name="340"><span class="lineNum">     340 </span>            :  */</a>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineCov">    3399411 : int GDALDriverManager::GetDriverCount() const</span>
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span>            : {
+<span class="lineNum">     345 </span><span class="lineCov">    3399411 :     return nDrivers;</span>
+<span class="lineNum">     346 </span>            : }
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span>            : /************************************************************************/
+<span class="lineNum">     349 </span>            : /*                         GDALGetDriverCount()                         */
+<span class="lineNum">     350 </span>            : /************************************************************************/
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span>            : /**
+<span class="lineNum">     353 </span>            :  * \brief Fetch the number of registered drivers.
+<span class="lineNum">     354 </span>            :  *
+<span class="lineNum">     355 </span>            :  * @see GDALDriverManager::GetDriverCount()
+<a name="356"><span class="lineNum">     356 </span>            :  */</a>
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span><span class="lineCov">       2039 : int CPL_STDCALL GDALGetDriverCount()</span>
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span>            : {
+<span class="lineNum">     361 </span><span class="lineCov">       2039 :     return GetGDALDriverManager()-&gt;GetDriverCount();</span>
+<span class="lineNum">     362 </span>            : }
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span>            : /************************************************************************/
+<span class="lineNum">     365 </span>            : /*                             GetDriver()                              */
+<span class="lineNum">     366 </span>            : /************************************************************************/
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span>            : /**
+<span class="lineNum">     369 </span>            :  * \brief Fetch driver by index.
+<span class="lineNum">     370 </span>            :  *
+<span class="lineNum">     371 </span>            :  * This C analog to this is GDALGetDriver().
+<span class="lineNum">     372 </span>            :  *
+<span class="lineNum">     373 </span>            :  * @param iDriver the driver index from 0 to GetDriverCount()-1.
+<span class="lineNum">     374 </span>            :  *
+<span class="lineNum">     375 </span>            :  * @return the driver identified by the index or NULL if the index is invalid
+<a name="376"><span class="lineNum">     376 </span>            :  */</a>
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span><span class="lineCov">    9564377 : GDALDriver * GDALDriverManager::GetDriver( int iDriver )</span>
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            : {
+<span class="lineNum">     381 </span><span class="lineCov">    9564377 :     CPLMutexHolderD( &amp;hDMMutex );</span>
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span><span class="lineCov">    9565057 :     return GetDriver_unlocked(iDriver);</span>
+<span class="lineNum">     384 </span>            : }
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span>            : /************************************************************************/
+<span class="lineNum">     387 </span>            : /*                           GDALGetDriver()                            */
+<span class="lineNum">     388 </span>            : /************************************************************************/
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span>            : /**
+<span class="lineNum">     391 </span>            :  * \brief Fetch driver by index.
+<span class="lineNum">     392 </span>            :  *
+<span class="lineNum">     393 </span>            :  * @see GDALDriverManager::GetDriver()
+<a name="394"><span class="lineNum">     394 </span>            :  */</a>
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">     264249 : GDALDriverH CPL_STDCALL GDALGetDriver( int iDriver )</span>
+<span class="lineNum">     397 </span>            : 
+<span class="lineNum">     398 </span>            : {
+<span class="lineNum">     399 </span><span class="lineCov">     264249 :     return /* (GDALDriverH) */ GetGDALDriverManager()-&gt;GetDriver(iDriver);</span>
+<span class="lineNum">     400 </span>            : }
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span>            : /************************************************************************/
+<span class="lineNum">     403 </span>            : /*                           RegisterDriver()                           */
+<span class="lineNum">     404 </span>            : /************************************************************************/
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span>            : /**
+<span class="lineNum">     407 </span>            :  * \brief Register a driver for use.
+<span class="lineNum">     408 </span>            :  *
+<span class="lineNum">     409 </span>            :  * The C analog is GDALRegisterDriver().
+<span class="lineNum">     410 </span>            :  *
+<span class="lineNum">     411 </span>            :  * Normally this method is used by format specific C callable registration
+<span class="lineNum">     412 </span>            :  * entry points such as GDALRegister_GTiff() rather than being called
+<span class="lineNum">     413 </span>            :  * directly by application level code.
+<span class="lineNum">     414 </span>            :  *
+<span class="lineNum">     415 </span>            :  * If this driver (based on the object pointer, not short name) is already
+<span class="lineNum">     416 </span>            :  * registered, then no change is made, and the index of the existing driver
+<span class="lineNum">     417 </span>            :  * is returned.  Otherwise the driver list is extended, and the new driver
+<span class="lineNum">     418 </span>            :  * is added at the end.
+<span class="lineNum">     419 </span>            :  *
+<span class="lineNum">     420 </span>            :  * @param poDriver the driver to register.
+<span class="lineNum">     421 </span>            :  *
+<span class="lineNum">     422 </span>            :  * @return the index of the new installed driver.
+<a name="423"><span class="lineNum">     423 </span>            :  */</a>
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span><span class="lineCov">     231113 : int GDALDriverManager::RegisterDriver( GDALDriver * poDriver )</span>
+<span class="lineNum">     426 </span>            : 
+<span class="lineNum">     427 </span>            : {
+<span class="lineNum">     428 </span><span class="lineCov">     231113 :     CPLMutexHolderD( &amp;hDMMutex );</span>
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     431 </span>            : /*      If it is already registered, just return the existing           */
+<span class="lineNum">     432 </span>            : /*      index.                                                          */
+<span class="lineNum">     433 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     434 </span><span class="lineCov">     231113 :     if( GetDriverByName_unlocked( poDriver-&gt;GetDescription() ) != nullptr )</span>
+<span class="lineNum">     435 </span>            :     {
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :         for( int i = 0; i &lt; nDrivers; ++i )</span>
+<span class="lineNum">     437 </span>            :         {
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :             if( papoDrivers[i] == poDriver )</span>
+<span class="lineNum">     439 </span>            :             {
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :                 return i;</span>
+<span class="lineNum">     441 </span>            :             }
+<span class="lineNum">     442 </span>            :         }
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :         CPLAssert( false );</span>
+<span class="lineNum">     445 </span>            :     }
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     448 </span>            : /*      Otherwise grow the list to hold the new entry.                  */
+<span class="lineNum">     449 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     450 </span>            :     GDALDriver** papoNewDrivers = static_cast&lt;GDALDriver **&gt;(
+<span class="lineNum">     451 </span><span class="lineCov">     231113 :         VSI_REALLOC_VERBOSE(papoDrivers, sizeof(GDALDriver *) * (nDrivers+1)) );</span>
+<span class="lineNum">     452 </span><span class="lineCov">     231113 :     if( papoNewDrivers == nullptr )</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     454 </span><span class="lineCov">     231113 :     papoDrivers = papoNewDrivers;</span>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">     231113 :     papoDrivers[nDrivers] = poDriver;</span>
+<span class="lineNum">     457 </span><span class="lineCov">     231113 :     ++nDrivers;</span>
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span><span class="lineCov">     247899 :     if( poDriver-&gt;pfnOpen != nullptr ||</span>
+<span class="lineNum">     460 </span><span class="lineCov">      16786 :         poDriver-&gt;pfnOpenWithDriverArg != nullptr )</span>
+<span class="lineNum">     461 </span><span class="lineCov">     229137 :         poDriver-&gt;SetMetadataItem( GDAL_DCAP_OPEN, &quot;YES&quot; );</span>
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span><span class="lineCov">     231113 :     if( poDriver-&gt;pfnCreate != nullptr )</span>
+<span class="lineNum">     464 </span><span class="lineCov">      89837 :         poDriver-&gt;SetMetadataItem( GDAL_DCAP_CREATE, &quot;YES&quot; );</span>
+<span class="lineNum">     465 </span>            : 
+<span class="lineNum">     466 </span><span class="lineCov">     231113 :     if( poDriver-&gt;pfnCreateCopy != nullptr )</span>
+<span class="lineNum">     467 </span><span class="lineCov">      60313 :         poDriver-&gt;SetMetadataItem( GDAL_DCAP_CREATECOPY, &quot;YES&quot; );</span>
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span>            :     // Backward compatibility for GDAL raster out-of-tree drivers:
+<span class="lineNum">     470 </span>            :     // If a driver hasn't explicitly set a vector capability, assume it is
+<span class="lineNum">     471 </span>            :     // a raster-only driver (legacy OGR drivers will have DCAP_VECTOR set before
+<span class="lineNum">     472 </span>            :     // calling RegisterDriver()).
+<span class="lineNum">     473 </span><span class="lineCov">     542185 :     if( poDriver-&gt;GetMetadataItem( GDAL_DCAP_RASTER ) == nullptr &amp;&amp;</span>
+<span class="lineNum">     474 </span><span class="lineCov">     233089 :         poDriver-&gt;GetMetadataItem( GDAL_DCAP_VECTOR ) == nullptr &amp;&amp;</span>
+<span class="lineNum">     475 </span><span class="lineCov">       1976 :         poDriver-&gt;GetMetadataItem( GDAL_DCAP_GNM ) == nullptr )</span>
+<span class="lineNum">     476 </span>            :     {
+<span class="lineNum">     477 </span>            :         CPLDebug( &quot;GDAL&quot;, &quot;Assuming DCAP_RASTER for driver %s. Please fix it.&quot;,
+<span class="lineNum">     478 </span><span class="lineCov">          2 :                   poDriver-&gt;GetDescription() );</span>
+<span class="lineNum">     479 </span><span class="lineCov">          2 :         poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">     480 </span>            :     }
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span><span class="lineCov">     513653 :     if( poDriver-&gt;GetMetadataItem( GDAL_DMD_OPENOPTIONLIST ) != nullptr &amp;&amp;</span>
+<span class="lineNum">     483 </span><span class="lineCov">     233087 :         poDriver-&gt;pfnIdentify == nullptr &amp;&amp;</span>
+<span class="lineNum">     484 </span><span class="lineCov">       1974 :         !STARTS_WITH_CI(poDriver-&gt;GetDescription(), &quot;Interlis&quot;) )</span>
+<span class="lineNum">     485 </span>            :     {
+<span class="lineNum">     486 </span>            :         CPLDebug( &quot;GDAL&quot;,
+<span class="lineNum">     487 </span>            :                   &quot;Driver %s that defines GDAL_DMD_OPENOPTIONLIST must also &quot;
+<span class="lineNum">     488 </span>            :                   &quot;implement Identify(), so that it can be used&quot;,
+<span class="lineNum">     489 </span><span class="lineNoCov">          0 :                   poDriver-&gt;GetDescription() );</span>
+<span class="lineNum">     490 </span>            :     }
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span><span class="lineCov">     462226 :     oMapNameToDrivers[CPLString(poDriver-&gt;GetDescription()).toupper()] =</span>
+<span class="lineNum">     493 </span><span class="lineCov">     231113 :         poDriver;</span>
+<span class="lineNum">     494 </span>            : 
+<span class="lineNum">     495 </span><span class="lineCov">     231113 :     int iResult = nDrivers - 1;</span>
+<span class="lineNum">     496 </span>            : 
+<span class="lineNum">     497 </span><span class="lineCov">     231113 :     return iResult;</span>
+<span class="lineNum">     498 </span>            : }
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span>            : /************************************************************************/
+<span class="lineNum">     501 </span>            : /*                         GDALRegisterDriver()                         */
+<span class="lineNum">     502 </span>            : /************************************************************************/
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span>            : /**
+<span class="lineNum">     505 </span>            :  * \brief Register a driver for use.
+<span class="lineNum">     506 </span>            :  *
+<span class="lineNum">     507 </span>            :  * @see GDALDriverManager::GetRegisterDriver()
+<a name="508"><span class="lineNum">     508 </span>            :  */</a>
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span><span class="lineCov">       1107 : int CPL_STDCALL GDALRegisterDriver( GDALDriverH hDriver )</span>
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span>            : {
+<span class="lineNum">     513 </span><span class="lineCov">       1107 :     VALIDATE_POINTER1( hDriver, &quot;GDALRegisterDriver&quot;, 0 );</span>
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span>            :     return GetGDALDriverManager()-&gt;
+<span class="lineNum">     516 </span><span class="lineCov">       1107 :         RegisterDriver( static_cast&lt;GDALDriver *&gt;( hDriver ) );</span>
+<span class="lineNum">     517 </span>            : }
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            : /************************************************************************/
+<span class="lineNum">     520 </span>            : /*                          DeregisterDriver()                          */
+<span class="lineNum">     521 </span>            : /************************************************************************/
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span>            : /**
+<span class="lineNum">     524 </span>            :  * \brief Deregister the passed driver.
+<span class="lineNum">     525 </span>            :  *
+<span class="lineNum">     526 </span>            :  * If the driver isn't found no change is made.
+<span class="lineNum">     527 </span>            :  *
+<span class="lineNum">     528 </span>            :  * The C analog is GDALDeregisterDriver().
+<span class="lineNum">     529 </span>            :  *
+<span class="lineNum">     530 </span>            :  * @param poDriver the driver to deregister.
+<a name="531"><span class="lineNum">     531 </span>            :  */</a>
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span><span class="lineCov">     168385 : void GDALDriverManager::DeregisterDriver( GDALDriver * poDriver )</span>
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span>            : {
+<span class="lineNum">     536 </span><span class="lineCov">     168385 :     CPLMutexHolderD( &amp;hDMMutex );</span>
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span><span class="lineCov">     168385 :     int i = 0;  // Used after for.</span>
+<span class="lineNum">     539 </span><span class="lineCov">     199211 :     for( ; i &lt; nDrivers; ++i )</span>
+<span class="lineNum">     540 </span>            :     {
+<span class="lineNum">     541 </span><span class="lineCov">     199211 :         if( papoDrivers[i] == poDriver )</span>
+<span class="lineNum">     542 </span><span class="lineCov">     168385 :             break;</span>
+<span class="lineNum">     543 </span>            :     }
+<span class="lineNum">     544 </span>            : 
+<span class="lineNum">     545 </span><span class="lineCov">     168385 :     if( i == nDrivers )</span>
+<span class="lineNum">     546 </span><span class="lineCov">     168385 :         return;</span>
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span><span class="lineCov">     168385 :     oMapNameToDrivers.erase(CPLString(poDriver-&gt;GetDescription()).toupper());</span>
+<span class="lineNum">     549 </span><span class="lineCov">     168385 :     --nDrivers;</span>
+<span class="lineNum">     550 </span>            :     // Move all following drivers down by one to pack the list.
+<span class="lineNum">     551 </span><span class="lineCov">   19938866 :     while( i &lt; nDrivers )</span>
+<span class="lineNum">     552 </span>            :     {
+<span class="lineNum">     553 </span><span class="lineCov">   19602096 :         papoDrivers[i] = papoDrivers[i+1];</span>
+<span class="lineNum">     554 </span><span class="lineCov">   19602096 :         ++i;</span>
+<span class="lineNum">     555 </span><span class="lineCov">     168385 :     }</span>
+<span class="lineNum">     556 </span>            : }
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span>            : /************************************************************************/
+<span class="lineNum">     559 </span>            : /*                        GDALDeregisterDriver()                        */
+<span class="lineNum">     560 </span>            : /************************************************************************/
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span>            : /**
+<span class="lineNum">     563 </span>            :  * \brief Deregister the passed driver.
+<span class="lineNum">     564 </span>            :  *
+<span class="lineNum">     565 </span>            :  * @see GDALDriverManager::GetDeregisterDriver()
+<a name="566"><span class="lineNum">     566 </span>            :  */</a>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineCov">        120 : void CPL_STDCALL GDALDeregisterDriver( GDALDriverH hDriver )</span>
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span>            : {
+<span class="lineNum">     571 </span><span class="lineCov">        240 :     VALIDATE_POINTER0( hDriver, &quot;GDALDeregisterDriver&quot; );</span>
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span><span class="lineCov">        120 :     GetGDALDriverManager()-&gt;DeregisterDriver( static_cast&lt;GDALDriver *&gt;(hDriver) );</span>
+<span class="lineNum">     574 </span>            : }
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span>            : /************************************************************************/
+<span class="lineNum">     577 </span>            : /*                          GetDriverByName()                           */
+<span class="lineNum">     578 </span>            : /************************************************************************/
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span>            : /**
+<span class="lineNum">     581 </span>            :  * \brief Fetch a driver based on the short name.
+<span class="lineNum">     582 </span>            :  *
+<span class="lineNum">     583 </span>            :  * The C analog is the GDALGetDriverByName() function.
+<span class="lineNum">     584 </span>            :  *
+<span class="lineNum">     585 </span>            :  * @param pszName the short name, such as GTiff, being searched for.
+<span class="lineNum">     586 </span>            :  *
+<span class="lineNum">     587 </span>            :  * @return the identified driver, or NULL if no match is found.
+<a name="588"><span class="lineNum">     588 </span>            :  */</a>
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span><span class="lineCov">     284686 : GDALDriver * GDALDriverManager::GetDriverByName( const char * pszName )</span>
+<span class="lineNum">     591 </span>            : 
+<span class="lineNum">     592 </span>            : {
+<span class="lineNum">     593 </span><span class="lineCov">     284686 :     CPLMutexHolderD( &amp;hDMMutex );</span>
+<span class="lineNum">     594 </span>            : 
+<span class="lineNum">     595 </span>            :     // Alias old name to new name
+<span class="lineNum">     596 </span><span class="lineCov">     284686 :     if( EQUAL(pszName, &quot;CartoDB&quot;) )</span>
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :         pszName = &quot;Carto&quot;;</span>
+<span class="lineNum">     598 </span>            : 
+<span class="lineNum">     599 </span><span class="lineCov">     284686 :     return oMapNameToDrivers[CPLString(pszName).toupper()];</span>
+<span class="lineNum">     600 </span>            : }
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span>            : /************************************************************************/
+<span class="lineNum">     603 </span>            : /*                        GDALGetDriverByName()                         */
+<span class="lineNum">     604 </span>            : /************************************************************************/
+<span class="lineNum">     605 </span>            : 
+<span class="lineNum">     606 </span>            : /**
+<span class="lineNum">     607 </span>            :  * \brief Fetch a driver based on the short name.
+<span class="lineNum">     608 </span>            :  *
+<span class="lineNum">     609 </span>            :  * @see GDALDriverManager::GetDriverByName()
+<a name="610"><span class="lineNum">     610 </span>            :  */</a>
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span><span class="lineCov">     281133 : GDALDriverH CPL_STDCALL GDALGetDriverByName( const char * pszName )</span>
+<span class="lineNum">     613 </span>            : 
+<span class="lineNum">     614 </span>            : {
+<span class="lineNum">     615 </span><span class="lineCov">     281133 :     VALIDATE_POINTER1( pszName, &quot;GDALGetDriverByName&quot;, nullptr );</span>
+<span class="lineNum">     616 </span>            : 
+<span class="lineNum">     617 </span><span class="lineCov">     281133 :     return GetGDALDriverManager()-&gt;GetDriverByName( pszName );</span>
+<span class="lineNum">     618 </span>            : }
+<span class="lineNum">     619 </span>            : 
+<span class="lineNum">     620 </span>            : /************************************************************************/
+<span class="lineNum">     621 </span>            : /*                          AutoSkipDrivers()                           */
+<span class="lineNum">     622 </span>            : /************************************************************************/
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span>            : /**
+<span class="lineNum">     625 </span>            :  * \brief This method unload undesirable drivers.
+<span class="lineNum">     626 </span>            :  *
+<span class="lineNum">     627 </span>            :  * All drivers specified in the comma delimited list in the GDAL_SKIP
+<span class="lineNum">     628 </span>            :  * environment variable) will be deregistered and destroyed.  This method
+<span class="lineNum">     629 </span>            :  * should normally be called after registration of standard drivers to allow
+<span class="lineNum">     630 </span>            :  * the user a way of unloading undesired drivers.  The GDALAllRegister()
+<span class="lineNum">     631 </span>            :  * function already invokes AutoSkipDrivers() at the end, so if that functions
+<span class="lineNum">     632 </span>            :  * is called, it should not be necessary to call this method from application
+<span class="lineNum">     633 </span>            :  * code.
+<span class="lineNum">     634 </span>            :  *
+<span class="lineNum">     635 </span>            :  * Note: space separator is also accepted for backward compatibility, but some
+<span class="lineNum">     636 </span>            :  * vector formats have spaces in their names, so it is encouraged to use comma
+<span class="lineNum">     637 </span>            :  * to avoid issues.
+<a name="638"><span class="lineNum">     638 </span>            :  */</a>
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span><span class="lineCov">       1109 : void GDALDriverManager::AutoSkipDrivers()</span>
+<span class="lineNum">     641 </span>            : 
+<span class="lineNum">     642 </span>            : {
+<span class="lineNum">     643 </span><span class="lineCov">       1109 :     char **apapszList[2] = { nullptr, nullptr };</span>
+<span class="lineNum">     644 </span><span class="lineCov">       1109 :     const char* pszGDAL_SKIP = CPLGetConfigOption( &quot;GDAL_SKIP&quot;, nullptr );</span>
+<span class="lineNum">     645 </span><span class="lineCov">       1109 :     if( pszGDAL_SKIP != nullptr )</span>
+<span class="lineNum">     646 </span>            :     {
+<span class="lineNum">     647 </span>            :         // Favor comma as a separator. If not found, then use space.
+<span class="lineNum">     648 </span><span class="lineCov">         19 :         const char* pszSep = (strchr(pszGDAL_SKIP, ',') != nullptr) ? &quot;,&quot; : &quot; &quot;;</span>
+<span class="lineNum">     649 </span>            :         apapszList[0] =
+<span class="lineNum">     650 </span><span class="lineCov">         19 :             CSLTokenizeStringComplex( pszGDAL_SKIP, pszSep, FALSE, FALSE );</span>
+<span class="lineNum">     651 </span>            :     }
+<span class="lineNum">     652 </span><span class="lineCov">       1109 :     const char* pszOGR_SKIP = CPLGetConfigOption( &quot;OGR_SKIP&quot;, nullptr );</span>
+<span class="lineNum">     653 </span><span class="lineCov">       1109 :     if( pszOGR_SKIP != nullptr )</span>
+<span class="lineNum">     654 </span>            :     {
+<span class="lineNum">     655 </span>            :         // OGR has always used comma as a separator.
+<span class="lineNum">     656 </span><span class="lineCov">          3 :         apapszList[1] = CSLTokenizeStringComplex(pszOGR_SKIP, &quot;,&quot;, FALSE, FALSE);</span>
+<span class="lineNum">     657 </span>            :     }
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span><span class="lineCov">       3327 :     for( auto j: {0, 1} )</span>
+<span class="lineNum">     660 </span>            :     {
+<span class="lineNum">     661 </span><span class="lineCov">       2244 :         for( int i = 0; apapszList[j] != nullptr &amp;&amp; apapszList[j][i] != nullptr; ++i )</span>
+<span class="lineNum">     662 </span>            :         {
+<span class="lineNum">     663 </span><span class="lineCov">         26 :             GDALDriver * const poDriver = GetDriverByName( apapszList[j][i] );</span>
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span><span class="lineCov">         26 :             if( poDriver == nullptr )</span>
+<span class="lineNum">     666 </span>            :             {
+<span class="lineNum">     667 </span>            :                 CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     668 </span>            :                           &quot;Unable to find driver %s to unload from GDAL_SKIP &quot;
+<span class="lineNum">     669 </span>            :                           &quot;environment variable.&quot;,
+<span class="lineNum">     670 </span><span class="lineCov">          1 :                         apapszList[j][i] );</span>
+<span class="lineNum">     671 </span>            :             }
+<span class="lineNum">     672 </span>            :             else
+<span class="lineNum">     673 </span>            :             {
+<span class="lineNum">     674 </span><span class="lineCov">         25 :                 CPLDebug( &quot;GDAL&quot;, &quot;AutoSkipDriver(%s)&quot;, apapszList[j][i] );</span>
+<span class="lineNum">     675 </span><span class="lineCov">         25 :                 DeregisterDriver( poDriver );</span>
+<span class="lineNum">     676 </span><span class="lineCov">         25 :                 delete poDriver;</span>
+<span class="lineNum">     677 </span>            :             }
+<span class="lineNum">     678 </span>            :         }
+<span class="lineNum">     679 </span>            :     }
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span><span class="lineCov">       1109 :     CSLDestroy( apapszList[0] );</span>
+<span class="lineNum">     682 </span><span class="lineCov">       1109 :     CSLDestroy( apapszList[1] );</span>
+<span class="lineNum">     683 </span><span class="lineCov">       1109 : }</span>
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span>            : /************************************************************************/
+<span class="lineNum">     686 </span>            : /*                          AutoLoadDrivers()                           */
+<span class="lineNum">     687 </span>            : /************************************************************************/
+<span class="lineNum">     688 </span>            : 
+<span class="lineNum">     689 </span>            : /**
+<span class="lineNum">     690 </span>            :  * \brief Auto-load GDAL drivers from shared libraries.
+<span class="lineNum">     691 </span>            :  *
+<span class="lineNum">     692 </span>            :  * This function will automatically load drivers from shared libraries.  It
+<span class="lineNum">     693 </span>            :  * searches the &quot;driver path&quot; for .so (or .dll) files that start with the
+<span class="lineNum">     694 </span>            :  * prefix &quot;gdal_X.so&quot;.  It then tries to load them and then tries to call a
+<span class="lineNum">     695 </span>            :  * function within them called GDALRegister_X() where the 'X' is the same as
+<span class="lineNum">     696 </span>            :  * the remainder of the shared library basename ('X' is case sensitive), or
+<span class="lineNum">     697 </span>            :  * failing that to call GDALRegisterMe().
+<span class="lineNum">     698 </span>            :  *
+<span class="lineNum">     699 </span>            :  * There are a few rules for the driver path.  If the GDAL_DRIVER_PATH
+<span class="lineNum">     700 </span>            :  * environment variable it set, it is taken to be a list of directories to
+<span class="lineNum">     701 </span>            :  * search separated by colons on UNIX, or semi-colons on Windows.  Otherwise
+<span class="lineNum">     702 </span>            :  * the /usr/local/lib/gdalplugins directory, and (if known) the
+<span class="lineNum">     703 </span>            :  * lib/gdalplugins subdirectory of the gdal home directory are searched on
+<span class="lineNum">     704 </span>            :  * UNIX and $(BINDIR)\\gdalplugins on Windows.
+<span class="lineNum">     705 </span>            :  *
+<span class="lineNum">     706 </span>            :  * Auto loading can be completely disabled by setting the GDAL_DRIVER_PATH
+<span class="lineNum">     707 </span>            :  * config option to &quot;disable&quot;.
+<a name="708"><span class="lineNum">     708 </span>            :  */</a>
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span><span class="lineCov">       1109 : void GDALDriverManager::AutoLoadDrivers()</span>
+<span class="lineNum">     711 </span>            : 
+<span class="lineNum">     712 </span>            : {
+<span class="lineNum">     713 </span>            : #ifdef GDAL_NO_AUTOLOAD
+<span class="lineNum">     714 </span>            :     CPLDebug( &quot;GDAL&quot;, &quot;GDALDriverManager::AutoLoadDrivers() not compiled in.&quot; );
+<span class="lineNum">     715 </span>            : #else
+<span class="lineNum">     716 </span>            :     const char *pszGDAL_DRIVER_PATH =
+<span class="lineNum">     717 </span><span class="lineCov">       1109 :         CPLGetConfigOption( &quot;GDAL_DRIVER_PATH&quot;, nullptr );</span>
+<span class="lineNum">     718 </span><span class="lineCov">       1109 :     if( pszGDAL_DRIVER_PATH == nullptr )</span>
+<span class="lineNum">     719 </span><span class="lineCov">       1109 :         pszGDAL_DRIVER_PATH = CPLGetConfigOption( &quot;OGR_DRIVER_PATH&quot;, nullptr );</span>
+<span class="lineNum">     720 </span>            : 
+<span class="lineNum">     721 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     722 </span>            : /*      Allow applications to completely disable this search by         */
+<span class="lineNum">     723 </span>            : /*      setting the driver path to the special string &quot;disable&quot;.        */
+<span class="lineNum">     724 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     725 </span><span class="lineCov">       1109 :     if( pszGDAL_DRIVER_PATH != nullptr &amp;&amp; EQUAL(pszGDAL_DRIVER_PATH,&quot;disable&quot;))</span>
+<span class="lineNum">     726 </span>            :     {
+<span class="lineNum">     727 </span><span class="lineNoCov">          0 :         CPLDebug( &quot;GDAL&quot;, &quot;GDALDriverManager::AutoLoadDrivers() disabled.&quot; );</span>
+<span class="lineNum">     728 </span><span class="lineCov">       1109 :         return;</span>
+<span class="lineNum">     729 </span>            :     }
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     732 </span>            : /*      Where should we look for stuff?                                 */
+<span class="lineNum">     733 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     734 </span><span class="lineCov">       1109 :     char **papszSearchPath = nullptr;</span>
+<span class="lineNum">     735 </span>            : 
+<span class="lineNum">     736 </span><span class="lineCov">       1109 :     if( pszGDAL_DRIVER_PATH != nullptr )</span>
+<span class="lineNum">     737 </span>            :     {
+<span class="lineNum">     738 </span>            : #ifdef WIN32
+<span class="lineNum">     739 </span>            :         papszSearchPath =
+<span class="lineNum">     740 </span>            :             CSLTokenizeStringComplex( pszGDAL_DRIVER_PATH, &quot;;&quot;, TRUE, FALSE );
+<span class="lineNum">     741 </span>            : #else
+<span class="lineNum">     742 </span>            :         papszSearchPath =
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :             CSLTokenizeStringComplex( pszGDAL_DRIVER_PATH, &quot;:&quot;, TRUE, FALSE );</span>
+<span class="lineNum">     744 </span>            : #endif
+<span class="lineNum">     745 </span>            :     }
+<span class="lineNum">     746 </span>            :     else
+<span class="lineNum">     747 </span>            :     {
+<span class="lineNum">     748 </span>            : #ifdef GDAL_PREFIX
+<span class="lineNum">     749 </span>            :         papszSearchPath = CSLAddString( papszSearchPath,
+<span class="lineNum">     750 </span>            :     #ifdef MACOSX_FRAMEWORK
+<span class="lineNum">     751 </span>            :                                         GDAL_PREFIX &quot;/PlugIns&quot;);
+<span class="lineNum">     752 </span>            :     #else
+<span class="lineNum">     753 </span><span class="lineCov">       1109 :                                         GDAL_PREFIX &quot;/lib/gdalplugins&quot; );</span>
+<span class="lineNum">     754 </span>            :     #endif
+<span class="lineNum">     755 </span>            : #else
+<span class="lineNum">     756 </span>            :         char szExecPath[1024];
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span>            :         if( CPLGetExecPath( szExecPath, sizeof(szExecPath) ) )
+<span class="lineNum">     759 </span>            :         {
+<span class="lineNum">     760 </span>            :             char szPluginDir[sizeof(szExecPath)+50];
+<span class="lineNum">     761 </span>            :             strcpy( szPluginDir, CPLGetDirname( szExecPath ) );
+<span class="lineNum">     762 </span>            :             strcat( szPluginDir, &quot;\\gdalplugins&quot; );
+<span class="lineNum">     763 </span>            :             papszSearchPath = CSLAddString( papszSearchPath, szPluginDir );
+<span class="lineNum">     764 </span>            :         }
+<span class="lineNum">     765 </span>            :         else
+<span class="lineNum">     766 </span>            :         {
+<span class="lineNum">     767 </span>            :             papszSearchPath = CSLAddString( papszSearchPath,
+<span class="lineNum">     768 </span>            :                                             &quot;/usr/local/lib/gdalplugins&quot; );
+<span class="lineNum">     769 </span>            :         }
+<span class="lineNum">     770 </span>            : #endif
+<span class="lineNum">     771 </span>            : 
+<span class="lineNum">     772 </span>            :    #ifdef MACOSX_FRAMEWORK
+<span class="lineNum">     773 </span>            :    #define num2str(x) str(x)
+<span class="lineNum">     774 </span>            :    #define str(x) #x
+<span class="lineNum">     775 </span>            :      papszSearchPath = CSLAddString( papszSearchPath,
+<span class="lineNum">     776 </span>            :                                      &quot;/Library/Application Support/GDAL/&quot;
+<span class="lineNum">     777 </span>            :                                      num2str(GDAL_VERSION_MAJOR) &quot;.&quot;
+<span class="lineNum">     778 </span>            :                                      num2str(GDAL_VERSION_MINOR) &quot;/PlugIns&quot; );
+<span class="lineNum">     779 </span>            : #endif
+<span class="lineNum">     780 </span>            :     }
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     783 </span>            : /*      Format the ABI version specific subdirectory to look in.        */
+<span class="lineNum">     784 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     785 </span><span class="lineCov">       1109 :     CPLString osABIVersion;</span>
+<span class="lineNum">     786 </span>            : 
+<span class="lineNum">     787 </span><span class="lineCov">       1109 :     osABIVersion.Printf( &quot;%d.%d&quot;, GDAL_VERSION_MAJOR, GDAL_VERSION_MINOR );</span>
+<span class="lineNum">     788 </span>            : 
+<span class="lineNum">     789 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     790 </span>            : /*      Scan each directory looking for files starting with gdal_       */
+<span class="lineNum">     791 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     792 </span><span class="lineCov">       2218 :     for( int iDir = 0; iDir &lt; CSLCount(papszSearchPath); ++iDir )</span>
+<span class="lineNum">     793 </span>            :     {
+<span class="lineNum">     794 </span>            :         CPLString osABISpecificDir =
+<span class="lineNum">     795 </span><span class="lineCov">       1109 :             CPLFormFilename( papszSearchPath[iDir], osABIVersion, nullptr );</span>
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span>            :         VSIStatBufL sStatBuf;
+<span class="lineNum">     798 </span><span class="lineCov">       1109 :         if( VSIStatL( osABISpecificDir, &amp;sStatBuf ) != 0 )</span>
+<span class="lineNum">     799 </span><span class="lineCov">       1109 :             osABISpecificDir = papszSearchPath[iDir];</span>
+<span class="lineNum">     800 </span>            : 
+<span class="lineNum">     801 </span><span class="lineCov">       1109 :         char **papszFiles = VSIReadDir( osABISpecificDir );</span>
+<span class="lineNum">     802 </span><span class="lineCov">       1109 :         const int nFileCount = CSLCount(papszFiles);</span>
+<span class="lineNum">     803 </span>            : 
+<span class="lineNum">     804 </span><span class="lineCov">       3327 :         for( int iFile = 0; iFile &lt; nFileCount; ++iFile )</span>
+<span class="lineNum">     805 </span>            :         {
+<span class="lineNum">     806 </span><span class="lineCov">       2218 :             const char *pszExtension = CPLGetExtension( papszFiles[iFile] );</span>
+<span class="lineNum">     807 </span>            : 
+<span class="lineNum">     808 </span><span class="lineCov">       2218 :             if( !EQUAL(pszExtension,&quot;dll&quot;)</span>
+<span class="lineNum">     809 </span><span class="lineCov">       2218 :                 &amp;&amp; !EQUAL(pszExtension,&quot;so&quot;)</span>
+<span class="lineNum">     810 </span><span class="lineCov">       2218 :                 &amp;&amp; !EQUAL(pszExtension,&quot;dylib&quot;) )</span>
+<span class="lineNum">     811 </span><span class="lineCov">       4436 :                 continue;</span>
+<span class="lineNum">     812 </span>            : 
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :             CPLString osFuncName;</span>
+<span class="lineNum">     814 </span><span class="lineNoCov">          0 :             if( STARTS_WITH_CI(papszFiles[iFile], &quot;gdal_&quot;) )</span>
+<span class="lineNum">     815 </span>            :             {
+<span class="lineNum">     816 </span>            :                 osFuncName.Printf(&quot;GDALRegister_%s&quot;,
+<span class="lineNum">     817 </span><span class="lineNoCov">          0 :                         CPLGetBasename(papszFiles[iFile]) + strlen(&quot;gdal_&quot;) );</span>
+<span class="lineNum">     818 </span>            :             }
+<span class="lineNum">     819 </span><span class="lineNoCov">          0 :             else if( STARTS_WITH_CI(papszFiles[iFile], &quot;ogr_&quot;) )</span>
+<span class="lineNum">     820 </span>            :             {
+<span class="lineNum">     821 </span>            :                 osFuncName.Printf(
+<span class="lineNum">     822 </span>            :                          &quot;RegisterOGR%s&quot;,
+<span class="lineNum">     823 </span><span class="lineNoCov">          0 :                          CPLGetBasename(papszFiles[iFile]) + strlen(&quot;ogr_&quot;) );</span>
+<span class="lineNum">     824 </span>            :             }
+<span class="lineNum">     825 </span>            :             else
+<span class="lineNum">     826 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     827 </span>            : 
+<span class="lineNum">     828 </span>            :             const char *pszFilename
+<span class="lineNum">     829 </span>            :                 = CPLFormFilename( osABISpecificDir,
+<span class="lineNum">     830 </span><span class="lineNoCov">          0 :                                    papszFiles[iFile], nullptr );</span>
+<span class="lineNum">     831 </span>            : 
+<span class="lineNum">     832 </span><span class="lineNoCov">          0 :             CPLErrorReset();</span>
+<span class="lineNum">     833 </span><span class="lineNoCov">          0 :             CPLPushErrorHandler(CPLQuietErrorHandler);</span>
+<span class="lineNum">     834 </span><span class="lineNoCov">          0 :             void *pRegister = CPLGetSymbol( pszFilename, osFuncName );</span>
+<span class="lineNum">     835 </span><span class="lineNoCov">          0 :             CPLPopErrorHandler();</span>
+<span class="lineNum">     836 </span><span class="lineNoCov">          0 :             if( pRegister == nullptr )</span>
+<span class="lineNum">     837 </span>            :             {
+<span class="lineNum">     838 </span><span class="lineNoCov">          0 :                 CPLString osLastErrorMsg(CPLGetLastErrorMsg());</span>
+<span class="lineNum">     839 </span><span class="lineNoCov">          0 :                 osFuncName = &quot;GDALRegisterMe&quot;;</span>
+<span class="lineNum">     840 </span><span class="lineNoCov">          0 :                 pRegister = CPLGetSymbol( pszFilename, osFuncName );</span>
+<span class="lineNum">     841 </span><span class="lineNoCov">          0 :                 if( pRegister == nullptr )</span>
+<span class="lineNum">     842 </span>            :                 {
+<span class="lineNum">     843 </span>            :                     CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :                               &quot;%s&quot;, osLastErrorMsg.c_str() );</span>
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :                 }</span>
+<span class="lineNum">     846 </span>            :             }
+<span class="lineNum">     847 </span>            : 
+<span class="lineNum">     848 </span><span class="lineNoCov">          0 :             if( pRegister != nullptr )</span>
+<span class="lineNum">     849 </span>            :             {
+<span class="lineNum">     850 </span>            :                 CPLDebug( &quot;GDAL&quot;, &quot;Auto register %s using %s.&quot;,
+<span class="lineNum">     851 </span><span class="lineNoCov">          0 :                           pszFilename, osFuncName.c_str() );</span>
+<span class="lineNum">     852 </span>            : 
+<span class="lineNum">     853 </span><span class="lineNoCov">          0 :                 reinterpret_cast&lt;void (*)()&gt;(pRegister)();</span>
+<span class="lineNum">     854 </span>            :             }
+<span class="lineNum">     855 </span><span class="lineNoCov">          0 :         }</span>
+<span class="lineNum">     856 </span>            : 
+<span class="lineNum">     857 </span><span class="lineCov">       1109 :         CSLDestroy( papszFiles );</span>
+<span class="lineNum">     858 </span><span class="lineCov">       1109 :     }</span>
+<span class="lineNum">     859 </span>            : 
+<span class="lineNum">     860 </span><span class="lineCov">       1109 :     CSLDestroy( papszSearchPath );</span>
+<span class="lineNum">     861 </span>            : 
+<span class="lineNum">     862 </span>            : #endif  // GDAL_NO_AUTOLOAD
+<span class="lineNum">     863 </span>            : }
+<span class="lineNum">     864 </span>            : 
+<span class="lineNum">     865 </span>            : /************************************************************************/
+<span class="lineNum">     866 </span>            : /*                      GDALDestroyDriverManager()                      */
+<span class="lineNum">     867 </span>            : /************************************************************************/
+<span class="lineNum">     868 </span>            : 
+<span class="lineNum">     869 </span>            : /**
+<span class="lineNum">     870 </span>            :  * \brief Destroy the driver manager.
+<span class="lineNum">     871 </span>            :  *
+<span class="lineNum">     872 </span>            :  * Incidentally unloads all managed drivers.
+<span class="lineNum">     873 </span>            :  *
+<span class="lineNum">     874 </span>            :  * NOTE: This function is not thread safe.  It should not be called while
+<span class="lineNum">     875 </span>            :  * other threads are actively using GDAL.
+<a name="876"><span class="lineNum">     876 </span>            :  */</a>
+<span class="lineNum">     877 </span>            : 
+<span class="lineNum">     878 </span><span class="lineCov">        894 : void CPL_STDCALL GDALDestroyDriverManager( void )</span>
+<span class="lineNum">     879 </span>            : 
+<span class="lineNum">     880 </span>            : {
+<span class="lineNum">     881 </span>            :     // THREADSAFETY: We would like to lock the mutex here, but it
+<span class="lineNum">     882 </span>            :     // needs to be reacquired within the destructor during driver
+<span class="lineNum">     883 </span>            :     // deregistration.
+<span class="lineNum">     884 </span>            : 
+<span class="lineNum">     885 </span>            : // FIXME: Disable following code as it crashed on OSX CI test.
+<span class="lineNum">     886 </span>            : // std::lock_guard&lt;std::mutex&gt; oLock(oDeleteMutex);
+<span class="lineNum">     887 </span>            : 
+<span class="lineNum">     888 </span><span class="lineCov">        894 :     if( poDM != nullptr )</span>
+<span class="lineNum">     889 </span>            :     {
+<span class="lineNum">     890 </span><span class="lineCov">        719 :         delete poDM;</span>
+<span class="lineNum">     891 </span><span class="lineCov">        719 :         poDM = nullptr;</span>
+<span class="lineNum">     892 </span>            :     }
+<span class="lineNum">     893 </span><span class="lineCov">        894 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,787 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_vsil_swift.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_vsil_swift.cpp<span style="font-size: 80%;"> (source / <a href="cpl_vsil_swift.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">235</td>
+            <td class="headerCovTableEntry">263</td>
+            <td class="headerCovTableEntryMed">89.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">19</td>
+            <td class="headerCovTableEntry">20</td>
+            <td class="headerCovTableEntryHi">95.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  CPL - Common Portability Library
+<span class="lineNum">       4 </span>            :  * Purpose:  Implement VSI large file api for OpenStack Swift
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, even.rouault at spatialys.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2017-2018, Even Rouault &lt;even.rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_json.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;cpl_http.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;cpl_time.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;cpl_vsil_curl_priv.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;cpl_vsil_curl_class.h&quot;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      37 </span>            : #include &lt;set&gt;
+<span class="lineNum">      38 </span>            : #include &lt;map&gt;
+<span class="lineNum">      39 </span>            : #include &lt;memory&gt;
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : #include &quot;cpl_swift.h&quot;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : #ifndef HAVE_CURL
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : void VSIInstallSwiftFileHandler( void )
+<span class="lineNum">      48 </span>            : {
+<span class="lineNum">      49 </span>            :     // Not supported
+<span class="lineNum">      50 </span>            : }
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : #else
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">      55 </span>            : #ifndef DOXYGEN_SKIP
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : #define ENABLE_DEBUG 0
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span>            : namespace cpl {
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            : /************************************************************************/
+<span class="lineNum">      62 </span>            : /*                       AnalyseSwiftFileList()                         */
+<a name="63"><span class="lineNum">      63 </span>            : /************************************************************************/</a>
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span><span class="lineCov">         13 : void VSICurlFilesystemHandler::AnalyseSwiftFileList(</span>
+<span class="lineNum">      66 </span>            :     const CPLString&amp; osBaseURL,
+<span class="lineNum">      67 </span>            :     const CPLString&amp; osPrefix,
+<span class="lineNum">      68 </span>            :     const char* pszJson,
+<span class="lineNum">      69 </span>            :     CPLStringList&amp; osFileList,
+<span class="lineNum">      70 </span>            :     int nMaxFilesThisQuery,
+<span class="lineNum">      71 </span>            :     int nMaxFiles,
+<span class="lineNum">      72 </span>            :     bool&amp; bIsTruncated,
+<span class="lineNum">      73 </span>            :     CPLString&amp; osNextMarker )
+<span class="lineNum">      74 </span>            : {
+<span class="lineNum">      75 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">      76 </span>            :     CPLDebug(&quot;SWIFT&quot;, &quot;%s&quot;, pszJson);
+<span class="lineNum">      77 </span>            : #endif
+<span class="lineNum">      78 </span><span class="lineCov">         13 :     osNextMarker = &quot;&quot;;</span>
+<span class="lineNum">      79 </span><span class="lineCov">         13 :     bIsTruncated = false;</span>
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span><span class="lineCov">         13 :     CPLJSONDocument oDoc;</span>
+<span class="lineNum">      82 </span><span class="lineCov">         13 :     if( !oDoc.LoadMemory(reinterpret_cast&lt;const GByte*&gt;(pszJson)) )</span>
+<span class="lineNum">      83 </span><span class="lineCov">         13 :         return;</span>
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span><span class="lineCov">         26 :     std::vector&lt; std::pair&lt;CPLString, FileProp&gt; &gt; aoProps;</span>
+<span class="lineNum">      86 </span>            :     // Count the number of occurrences of a path. Can be 1 or 2. 2 in the case
+<span class="lineNum">      87 </span>            :     // that both a filename and directory exist
+<span class="lineNum">      88 </span><span class="lineCov">         26 :     std::map&lt;CPLString, int&gt; aoNameCount;</span>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineCov">         26 :     CPLJSONArray oArray = oDoc.GetRoot().ToArray();</span>
+<span class="lineNum">      91 </span><span class="lineCov">         23 :     for( int i = 0; i &lt; oArray.Size(); i++ )</span>
+<span class="lineNum">      92 </span>            :     {
+<span class="lineNum">      93 </span><span class="lineCov">         10 :         CPLJSONObject oItem = oArray[i];</span>
+<span class="lineNum">      94 </span><span class="lineCov">         20 :         std::string osName = oItem.GetString(&quot;name&quot;);</span>
+<span class="lineNum">      95 </span><span class="lineCov">         10 :         GInt64 nSize = oItem.GetLong(&quot;bytes&quot;);</span>
+<span class="lineNum">      96 </span><span class="lineCov">         20 :         std::string osLastModified = oItem.GetString(&quot;last_modified&quot;);</span>
+<span class="lineNum">      97 </span><span class="lineCov">         20 :         CPLString osSubdir = oItem.GetString(&quot;subdir&quot;);</span>
+<span class="lineNum">      98 </span><span class="lineCov">         10 :         bool bHasCount = oItem.GetLong(&quot;count&quot;, -1) &gt;= 0;</span>
+<span class="lineNum">      99 </span><span class="lineCov">         10 :         if( !osName.empty() )</span>
+<span class="lineNum">     100 </span>            :         {
+<span class="lineNum">     101 </span><span class="lineCov">          6 :             osNextMarker = osName;</span>
+<span class="lineNum">     102 </span><span class="lineCov">          6 :             if( osName.size() &gt; osPrefix.size() &amp;&amp; osName.find(osPrefix) == 0 )</span>
+<span class="lineNum">     103 </span>            :             {
+<span class="lineNum">     104 </span><span class="lineCov">          6 :                 if( bHasCount )</span>
+<span class="lineNum">     105 </span>            :                 {
+<span class="lineNum">     106 </span>            :                     // Case when listing /vsiswift/
+<span class="lineNum">     107 </span><span class="lineCov">          2 :                     FileProp prop;</span>
+<span class="lineNum">     108 </span><span class="lineCov">          2 :                     prop.eExists = EXIST_YES;</span>
+<span class="lineNum">     109 </span><span class="lineCov">          2 :                     prop.bIsDirectory = true;</span>
+<span class="lineNum">     110 </span><span class="lineCov">          2 :                     prop.bHasComputedFileSize = true;</span>
+<span class="lineNum">     111 </span><span class="lineCov">          2 :                     prop.fileSize = 0;</span>
+<span class="lineNum">     112 </span><span class="lineCov">          2 :                     prop.mTime = 0;</span>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span>            :                     aoProps.push_back(
+<span class="lineNum">     115 </span>            :                         std::pair&lt;CPLString, FileProp&gt;
+<span class="lineNum">     116 </span><span class="lineCov">          2 :                             (osName, prop));</span>
+<span class="lineNum">     117 </span><span class="lineCov">          2 :                     aoNameCount[ osName ] ++;</span>
+<span class="lineNum">     118 </span>            :                 }
+<span class="lineNum">     119 </span>            :                 else
+<span class="lineNum">     120 </span>            :                 {
+<span class="lineNum">     121 </span><span class="lineCov">          4 :                     FileProp prop;</span>
+<span class="lineNum">     122 </span><span class="lineCov">          4 :                     prop.eExists = EXIST_YES;</span>
+<span class="lineNum">     123 </span><span class="lineCov">          4 :                     prop.bHasComputedFileSize = true;</span>
+<span class="lineNum">     124 </span><span class="lineCov">          4 :                     prop.fileSize = static_cast&lt;GUIntBig&gt;(nSize);</span>
+<span class="lineNum">     125 </span><span class="lineCov">          4 :                     prop.bIsDirectory = false;</span>
+<span class="lineNum">     126 </span><span class="lineCov">          4 :                     prop.mTime = 0;</span>
+<span class="lineNum">     127 </span>            :                     int nYear, nMonth, nDay, nHour, nMin, nSec;
+<span class="lineNum">     128 </span><span class="lineCov">          4 :                     if( sscanf( osLastModified.c_str(),</span>
+<span class="lineNum">     129 </span>            :                                 &quot;%04d-%02d-%02dT%02d:%02d:%02d&quot;,
+<span class="lineNum">     130 </span>            :                                 &amp;nYear, &amp;nMonth, &amp;nDay,
+<span class="lineNum">     131 </span><span class="lineCov">          4 :                                 &amp;nHour, &amp;nMin, &amp;nSec ) == 6 )</span>
+<span class="lineNum">     132 </span>            :                     {
+<span class="lineNum">     133 </span>            :                         struct tm brokendowntime;
+<span class="lineNum">     134 </span><span class="lineCov">          4 :                         brokendowntime.tm_year = nYear - 1900;</span>
+<span class="lineNum">     135 </span><span class="lineCov">          4 :                         brokendowntime.tm_mon = nMonth - 1;</span>
+<span class="lineNum">     136 </span><span class="lineCov">          4 :                         brokendowntime.tm_mday = nDay;</span>
+<span class="lineNum">     137 </span><span class="lineCov">          4 :                         brokendowntime.tm_hour = nHour;</span>
+<span class="lineNum">     138 </span><span class="lineCov">          4 :                         brokendowntime.tm_min = nMin;</span>
+<span class="lineNum">     139 </span><span class="lineCov">          4 :                         brokendowntime.tm_sec = nSec;</span>
+<span class="lineNum">     140 </span>            :                         prop.mTime =
+<span class="lineNum">     141 </span>            :                             static_cast&lt;time_t&gt;(
+<span class="lineNum">     142 </span><span class="lineCov">          4 :                                 CPLYMDHMSToUnixTime(&amp;brokendowntime));</span>
+<span class="lineNum">     143 </span>            :                     }
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span>            :                     aoProps.push_back(
+<span class="lineNum">     146 </span>            :                         std::pair&lt;CPLString, FileProp&gt;
+<span class="lineNum">     147 </span><span class="lineCov">          4 :                             (osName.substr(osPrefix.size()), prop));</span>
+<span class="lineNum">     148 </span><span class="lineCov">          4 :                     aoNameCount[ osName.substr(osPrefix.size()) ] ++;</span>
+<span class="lineNum">     149 </span>            :                 }
+<span class="lineNum">     150 </span>            :             }
+<span class="lineNum">     151 </span>            :         }
+<span class="lineNum">     152 </span><span class="lineCov">          4 :         else if( !osSubdir.empty() )</span>
+<span class="lineNum">     153 </span>            :         {
+<span class="lineNum">     154 </span><span class="lineCov">          4 :             osNextMarker = osSubdir;</span>
+<span class="lineNum">     155 </span><span class="lineCov">          4 :             if( osSubdir.back() == '/' )</span>
+<span class="lineNum">     156 </span><span class="lineCov">          4 :                 osSubdir.resize( osSubdir.size() - 1 );</span>
+<span class="lineNum">     157 </span><span class="lineCov">          4 :             if( osSubdir.find(osPrefix) == 0 )</span>
+<span class="lineNum">     158 </span>            :             {
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span><span class="lineCov">          4 :                 FileProp prop;</span>
+<span class="lineNum">     161 </span><span class="lineCov">          4 :                 prop.eExists = EXIST_YES;</span>
+<span class="lineNum">     162 </span><span class="lineCov">          4 :                 prop.bIsDirectory = true;</span>
+<span class="lineNum">     163 </span><span class="lineCov">          4 :                 prop.bHasComputedFileSize = true;</span>
+<span class="lineNum">     164 </span><span class="lineCov">          4 :                 prop.fileSize = 0;</span>
+<span class="lineNum">     165 </span><span class="lineCov">          4 :                 prop.mTime = 0;</span>
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span>            :                 aoProps.push_back(
+<span class="lineNum">     168 </span>            :                     std::pair&lt;CPLString, FileProp&gt;
+<span class="lineNum">     169 </span><span class="lineCov">          4 :                         (osSubdir.substr(osPrefix.size()), prop));</span>
+<span class="lineNum">     170 </span><span class="lineCov">          4 :                 aoNameCount[ osSubdir.substr(osPrefix.size()) ] ++;</span>
+<span class="lineNum">     171 </span>            :             }
+<span class="lineNum">     172 </span>            :         }
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span><span class="lineCov">         10 :         if( nMaxFiles &gt; 0 &amp;&amp; aoProps.size() &gt; static_cast&lt;unsigned&gt;(nMaxFiles) )</span>
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     176 </span><span class="lineCov">         10 :     }</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            :     bIsTruncated =
+<span class="lineNum">     179 </span><span class="lineCov">         13 :         aoProps.size() &gt;= static_cast&lt;unsigned&gt;(nMaxFilesThisQuery);</span>
+<span class="lineNum">     180 </span><span class="lineCov">         13 :     if( !bIsTruncated )</span>
+<span class="lineNum">     181 </span>            :     {
+<span class="lineNum">     182 </span><span class="lineCov">         11 :         osNextMarker.clear();</span>
+<span class="lineNum">     183 </span>            :     }
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span><span class="lineCov">         23 :     for( size_t i = 0; i &lt; aoProps.size(); i++ )</span>
+<span class="lineNum">     186 </span>            :     {
+<span class="lineNum">     187 </span><span class="lineCov">         10 :         CPLString osSuffix;</span>
+<span class="lineNum">     188 </span><span class="lineCov">         12 :         if( aoNameCount[aoProps[i].first] == 2 &amp;&amp;</span>
+<span class="lineNum">     189 </span><span class="lineCov">          2 :                 aoProps[i].second.bIsDirectory )</span>
+<span class="lineNum">     190 </span>            :         {
+<span class="lineNum">     191 </span>            :             // Add a / suffix to disambiguish the situation
+<span class="lineNum">     192 </span>            :             // Normally we don't suffix directories with /, but we have
+<span class="lineNum">     193 </span>            :             // no alternative here
+<span class="lineNum">     194 </span><span class="lineCov">          1 :             osSuffix = &quot;/&quot;;</span>
+<span class="lineNum">     195 </span>            :         }
+<span class="lineNum">     196 </span><span class="lineCov">         10 :         if( nMaxFiles != 1 )</span>
+<span class="lineNum">     197 </span>            :         {
+<span class="lineNum">     198 </span>            :             CPLString osCachedFilename =
+<span class="lineNum">     199 </span><span class="lineCov">         30 :                     osBaseURL + &quot;/&quot; + CPLAWSURLEncode(osPrefix,false) +</span>
+<span class="lineNum">     200 </span><span class="lineCov">         30 :                     CPLAWSURLEncode(aoProps[i].first,false) + osSuffix;</span>
+<span class="lineNum">     201 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     202 </span>            :             CPLDebug(&quot;SWIFT&quot;, &quot;Cache %s&quot;, osCachedFilename.c_str());
+<span class="lineNum">     203 </span>            : #endif
+<span class="lineNum">     204 </span><span class="lineCov">         10 :             SetCachedFileProp(osCachedFilename, aoProps[i].second);</span>
+<span class="lineNum">     205 </span>            :         }
+<span class="lineNum">     206 </span><span class="lineCov">         10 :         osFileList.AddString( (aoProps[i].first + osSuffix).c_str() );</span>
+<span class="lineNum">     207 </span><span class="lineCov">         23 :     }</span>
+<span class="lineNum">     208 </span>            : }
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            : /************************************************************************/
+<span class="lineNum">     211 </span>            : /*                         VSISwiftFSHandler                            */
+<span class="lineNum">     212 </span>            : /************************************************************************/
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            : class VSISwiftFSHandler final : public IVSIS3LikeFSHandler
+<span class="lineNum">     215 </span>            : {
+<span class="lineNum">     216 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSISwiftFSHandler)
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            : protected:
+<span class="lineNum">     219 </span>            :         VSICurlHandle* CreateFileHandle( const char* pszFilename ) override;
+<a name="220"><span class="lineNum">     220 </span>            :         CPLString GetURLFromFilename( const CPLString&amp; osFilename ) override;</a>
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span><span class="lineCov">          5 :         const char* GetDebugKey() const override { return &quot;SWIFT&quot;; }</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            :         IVSIS3LikeHandleHelper* CreateHandleHelper(
+<a name="225"><span class="lineNum">     225 </span>            :             const char* pszURI, bool bAllowNoObject) override;</a>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineCov">        289 :         CPLString GetFSPrefix() override { return &quot;/vsiswift/&quot;; }</span>
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            :         char** GetFileList( const char *pszFilename,
+<span class="lineNum">     230 </span>            :                             int nMaxFiles,
+<span class="lineNum">     231 </span>            :                             bool* pbGotFileList ) override;
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span>            :         void ClearCache() override;
+<a name="234"><span class="lineNum">     234 </span>            : </a>
+<span class="lineNum">     235 </span>            : public:
+<span class="lineNum">     236 </span><span class="lineCov">        988 :         VSISwiftFSHandler() = default;</span>
+<span class="lineNum">     237 </span>            :         ~VSISwiftFSHandler() override;
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :         VSIVirtualHandle *Open( const char *pszFilename,
+<span class="lineNum">     240 </span>            :                                 const char *pszAccess,
+<span class="lineNum">     241 </span>            :                                 bool bSetError ) override;
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            :         int Stat( const char *pszFilename, VSIStatBufL *pStatBuf,
+<a name="244"><span class="lineNum">     244 </span>            :                 int nFlags ) override;</a>
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :         VSIDIR* OpenDir( const char *pszPath, int nRecurseDepth,</span>
+<span class="lineNum">     247 </span>            :                                 const char* const *papszOptions) override
+<span class="lineNum">     248 </span>            :         {
+<span class="lineNum">     249 </span>            :             return VSICurlFilesystemHandler::OpenDir(pszPath, nRecurseDepth,
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :                                                      papszOptions);</span>
+<span class="lineNum">     251 </span>            :         }
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span>            :         const char* GetOptions() override;
+<span class="lineNum">     254 </span>            : };
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span>            : /************************************************************************/
+<span class="lineNum">     257 </span>            : /*                            VSISwiftHandle                              */
+<span class="lineNum">     258 </span>            : /************************************************************************/
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            : class VSISwiftHandle final : public IVSIS3LikeHandle
+<span class="lineNum">     261 </span>            : {
+<span class="lineNum">     262 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSISwiftHandle)
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span>            :     VSISwiftHandleHelper* m_poHandleHelper = nullptr;
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            :   protected:
+<span class="lineNum">     267 </span>            :     struct curl_slist* GetCurlHeaders(
+<span class="lineNum">     268 </span>            :         const CPLString&amp; osVerb,
+<span class="lineNum">     269 </span>            :         const struct curl_slist* psExistingHeaders ) override;
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            :   public:
+<span class="lineNum">     272 </span>            :     VSISwiftHandle( VSISwiftFSHandler* poFS,
+<span class="lineNum">     273 </span>            :                   const char* pszFilename,
+<span class="lineNum">     274 </span>            :                   VSISwiftHandleHelper* poHandleHelper );
+<span class="lineNum">     275 </span>            :     ~VSISwiftHandle() override;
+<span class="lineNum">     276 </span>            : };
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            : /************************************************************************/
+<span class="lineNum">     279 </span>            : /*                                Open()                                */
+<a name="280"><span class="lineNum">     280 </span>            : /************************************************************************/</a>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineCov">         10 : VSIVirtualHandle* VSISwiftFSHandler::Open( const char *pszFilename,</span>
+<span class="lineNum">     283 </span>            :                                         const char *pszAccess,
+<span class="lineNum">     284 </span>            :                                         bool bSetError)
+<span class="lineNum">     285 </span>            : {
+<span class="lineNum">     286 </span><span class="lineCov">         10 :     if( !STARTS_WITH_CI(pszFilename, GetFSPrefix()) )</span>
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span><span class="lineCov">         10 :     if( strchr(pszAccess, 'w') != nullptr || strchr(pszAccess, 'a') != nullptr )</span>
+<span class="lineNum">     290 </span>            :     {
+<span class="lineNum">     291 </span>            :         /*if( strchr(pszAccess, '+') != nullptr)
+<span class="lineNum">     292 </span>            :         {
+<span class="lineNum">     293 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     294 </span>            :                     &quot;w+ not supported for /vsiSwift. Only w&quot;);
+<span class="lineNum">     295 </span>            :             return nullptr;
+<span class="lineNum">     296 </span>            :         }*/
+<span class="lineNum">     297 </span>            :         VSISwiftHandleHelper* poHandleHelper =
+<span class="lineNum">     298 </span><span class="lineCov">          4 :             VSISwiftHandleHelper::BuildFromURI(pszFilename + GetFSPrefix().size(),</span>
+<span class="lineNum">     299 </span><span class="lineCov">          6 :                                             GetFSPrefix().c_str());</span>
+<span class="lineNum">     300 </span><span class="lineCov">          2 :         if( poHandleHelper == nullptr )</span>
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     302 </span><span class="lineCov">          2 :         UpdateHandleFromMap(poHandleHelper);</span>
+<span class="lineNum">     303 </span>            :         VSIS3WriteHandle* poHandle =
+<span class="lineNum">     304 </span><span class="lineCov">          2 :             new VSIS3WriteHandle(this, pszFilename, poHandleHelper, true);</span>
+<span class="lineNum">     305 </span><span class="lineCov">          2 :         if( !poHandle-&gt;IsOK() )</span>
+<span class="lineNum">     306 </span>            :         {
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :             delete poHandle;</span>
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :             poHandle = nullptr;</span>
+<span class="lineNum">     309 </span>            :         }
+<span class="lineNum">     310 </span><span class="lineCov">          2 :         return poHandle;</span>
+<span class="lineNum">     311 </span>            :     }
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            :     return
+<span class="lineNum">     314 </span><span class="lineCov">          8 :         VSICurlFilesystemHandler::Open(pszFilename, pszAccess, bSetError);</span>
+<span class="lineNum">     315 </span>            : }
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            : /************************************************************************/
+<span class="lineNum">     318 </span>            : /*                       ~VSISwiftFSHandler()                           */
+<a name="319"><span class="lineNum">     319 </span>            : /************************************************************************/</a>
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineCov">       2157 : VSISwiftFSHandler::~VSISwiftFSHandler()</span>
+<span class="lineNum">     322 </span>            : {
+<span class="lineNum">     323 </span><span class="lineCov">        719 :     VSISwiftFSHandler::ClearCache();</span>
+<span class="lineNum">     324 </span><span class="lineCov">        719 :     VSISwiftHandleHelper::CleanMutex();</span>
+<span class="lineNum">     325 </span><span class="lineCov">       1438 : }</span>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            : /************************************************************************/
+<span class="lineNum">     328 </span>            : /*                            ClearCache()                              */
+<a name="329"><span class="lineNum">     329 </span>            : /************************************************************************/</a>
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineCov">        797 : void VSISwiftFSHandler::ClearCache()</span>
+<span class="lineNum">     332 </span>            : {
+<span class="lineNum">     333 </span><span class="lineCov">        797 :     VSICurlFilesystemHandler::ClearCache();</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span><span class="lineCov">        797 :     VSISwiftHandleHelper::ClearCache();</span>
+<span class="lineNum">     336 </span><span class="lineCov">        797 : }</span>
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span>            : /************************************************************************/
+<span class="lineNum">     339 </span>            : /*                           GetOptions()                               */
+<a name="340"><span class="lineNum">     340 </span>            : /************************************************************************/</a>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineCov">          2 : const char* VSISwiftFSHandler::GetOptions()</span>
+<span class="lineNum">     343 </span>            : {
+<span class="lineNum">     344 </span>            :     static CPLString osOptions(
+<span class="lineNum">     345 </span><span class="lineCov">          2 :         CPLString(&quot;&lt;Options&gt;&quot;) +</span>
+<span class="lineNum">     346 </span>            :     &quot;  &lt;Option name='SWIFT_STORAGE_URL' type='string' &quot;
+<span class="lineNum">     347 </span>            :         &quot;description='Storage URL. To use with SWIFT_AUTH_TOKEN'/&gt;&quot;
+<span class="lineNum">     348 </span>            :     &quot;  &lt;Option name='SWIFT_AUTH_TOKEN' type='string' &quot;
+<span class="lineNum">     349 </span>            :         &quot;description='Authorization token'/&gt;&quot;
+<span class="lineNum">     350 </span>            :     &quot;  &lt;Option name='SWIFT_AUTH_V1_URL' type='string' &quot;
+<span class="lineNum">     351 </span>            :         &quot;description='Authentication V1 URL. To use with SWIFT_USER and &quot;
+<span class="lineNum">     352 </span>            :         &quot;SWIFT_KEY'/&gt;&quot;
+<span class="lineNum">     353 </span>            :     &quot;  &lt;Option name='SWIFT_USER' type='string' &quot;
+<span class="lineNum">     354 </span>            :         &quot;description='User name to use with authentication V1'/&gt;&quot;
+<span class="lineNum">     355 </span>            :     &quot;  &lt;Option name='SWIFT_KEY' type='string' &quot;
+<span class="lineNum">     356 </span><span class="lineCov">          3 :         &quot;description='Key/password to use with authentication V1'/&gt;&quot; +</span>
+<span class="lineNum">     357 </span><span class="lineCov">          2 :         VSICurlFilesystemHandler::GetOptionsStatic() +</span>
+<span class="lineNum">     358 </span><span class="lineCov">          3 :         &quot;&lt;/Options&gt;&quot;);</span>
+<span class="lineNum">     359 </span><span class="lineCov">          2 :     return osOptions.c_str();</span>
+<span class="lineNum">     360 </span>            : }
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span>            : /************************************************************************/
+<span class="lineNum">     363 </span>            : /*                          CreateFileHandle()                          */
+<a name="364"><span class="lineNum">     364 </span>            : /************************************************************************/</a>
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span><span class="lineCov">         19 : VSICurlHandle* VSISwiftFSHandler::CreateFileHandle(const char* pszFilename)</span>
+<span class="lineNum">     367 </span>            : {
+<span class="lineNum">     368 </span>            :     VSISwiftHandleHelper* poHandleHelper =
+<span class="lineNum">     369 </span><span class="lineCov">         38 :         VSISwiftHandleHelper::BuildFromURI(pszFilename + GetFSPrefix().size(),</span>
+<span class="lineNum">     370 </span><span class="lineCov">         57 :                                            GetFSPrefix().c_str());</span>
+<span class="lineNum">     371 </span><span class="lineCov">         19 :     if( poHandleHelper )</span>
+<span class="lineNum">     372 </span>            :     {
+<span class="lineNum">     373 </span><span class="lineCov">         17 :         UpdateHandleFromMap(poHandleHelper);</span>
+<span class="lineNum">     374 </span><span class="lineCov">         17 :         return new VSISwiftHandle(this, pszFilename, poHandleHelper);</span>
+<span class="lineNum">     375 </span>            :     }
+<span class="lineNum">     376 </span><span class="lineCov">          2 :     return nullptr;</span>
+<span class="lineNum">     377 </span>            : }
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            : /************************************************************************/
+<span class="lineNum">     380 </span>            : /*                         GetURLFromFilename()                         */
+<a name="381"><span class="lineNum">     381 </span>            : /************************************************************************/</a>
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span><span class="lineCov">         19 : CPLString VSISwiftFSHandler::GetURLFromFilename( const CPLString&amp; osFilename )</span>
+<span class="lineNum">     384 </span>            : {
+<span class="lineNum">     385 </span><span class="lineCov">         19 :     CPLString osFilenameWithoutPrefix = osFilename.substr(GetFSPrefix().size());</span>
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            :     VSISwiftHandleHelper* poHandleHelper =
+<span class="lineNum">     388 </span>            :         VSISwiftHandleHelper::BuildFromURI(osFilenameWithoutPrefix,
+<span class="lineNum">     389 </span><span class="lineCov">         19 :                                            GetFSPrefix().c_str());</span>
+<span class="lineNum">     390 </span><span class="lineCov">         19 :     if( poHandleHelper == nullptr )</span>
+<span class="lineNum">     391 </span>            :     {
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 :         return &quot;&quot;;</span>
+<span class="lineNum">     393 </span>            :     }
+<span class="lineNum">     394 </span><span class="lineCov">         38 :     CPLString osBaseURL(poHandleHelper-&gt;GetURL());</span>
+<span class="lineNum">     395 </span><span class="lineCov">         19 :     if( !osBaseURL.empty() &amp;&amp; osBaseURL.back() == '/' )</span>
+<span class="lineNum">     396 </span><span class="lineCov">          2 :         osBaseURL.resize(osBaseURL.size()-1);</span>
+<span class="lineNum">     397 </span><span class="lineCov">         19 :     delete poHandleHelper;</span>
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span><span class="lineCov">         38 :     return osBaseURL;</span>
+<span class="lineNum">     400 </span>            : }
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span>            : /************************************************************************/
+<span class="lineNum">     403 </span>            : /*                          CreateHandleHelper()                        */
+<a name="404"><span class="lineNum">     404 </span>            : /************************************************************************/</a>
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span><span class="lineCov">         18 : IVSIS3LikeHandleHelper* VSISwiftFSHandler::CreateHandleHelper(const char* pszURI,</span>
+<span class="lineNum">     407 </span>            :                                                               bool)
+<span class="lineNum">     408 </span>            : {
+<span class="lineNum">     409 </span>            :     return VSISwiftHandleHelper::BuildFromURI(
+<span class="lineNum">     410 </span><span class="lineCov">         18 :                                 pszURI, GetFSPrefix().c_str());</span>
+<span class="lineNum">     411 </span>            : }
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span>            : /************************************************************************/
+<span class="lineNum">     414 </span>            : /*                                Stat()                                */
+<a name="415"><span class="lineNum">     415 </span>            : /************************************************************************/</a>
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span><span class="lineCov">         11 : int VSISwiftFSHandler::Stat( const char *pszFilename, VSIStatBufL *pStatBuf,</span>
+<span class="lineNum">     418 </span>            :                              int nFlags )
+<span class="lineNum">     419 </span>            : {
+<span class="lineNum">     420 </span><span class="lineCov">         11 :     if( !STARTS_WITH_CI(pszFilename, GetFSPrefix()) )</span>
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span><span class="lineCov">         11 :     CPLString osFilename(pszFilename);</span>
+<span class="lineNum">     424 </span><span class="lineCov">         11 :     if( osFilename.back() == '/' )</span>
+<span class="lineNum">     425 </span><span class="lineCov">          6 :         osFilename.resize( osFilename.size() - 1 );</span>
+<span class="lineNum">     426 </span>            : 
+<span class="lineNum">     427 </span><span class="lineCov">         11 :     memset(pStatBuf, 0, sizeof(VSIStatBufL));</span>
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineCov">         11 :     if( VSICurlFilesystemHandler::Stat(pszFilename, pStatBuf, nFlags) == 0 )</span>
+<span class="lineNum">     430 </span>            :     {
+<span class="lineNum">     431 </span>            :         // if querying /vsiswift/container_name, the GET will succeed and
+<span class="lineNum">     432 </span>            :         // we would consider this as a file whereas it should be exposed as
+<span class="lineNum">     433 </span>            :         // a directory
+<span class="lineNum">     434 </span><span class="lineCov">          6 :         if( std::count(osFilename.begin(), osFilename.end(), '/') &lt;= 2 )</span>
+<span class="lineNum">     435 </span>            :         {
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span>            :             IVSIS3LikeHandleHelper* poS3HandleHelper =
+<span class="lineNum">     438 </span><span class="lineCov">          1 :                 CreateHandleHelper(pszFilename + GetFSPrefix().size(), true);</span>
+<span class="lineNum">     439 </span><span class="lineCov">          1 :             CPLString osURL(poS3HandleHelper-&gt;GetURL());</span>
+<span class="lineNum">     440 </span><span class="lineCov">          1 :             delete poS3HandleHelper;</span>
+<span class="lineNum">     441 </span>            : 
+<span class="lineNum">     442 </span><span class="lineCov">          2 :             FileProp cachedFileProp;</span>
+<span class="lineNum">     443 </span><span class="lineCov">          1 :             cachedFileProp.eExists = EXIST_YES;</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :             cachedFileProp.bHasComputedFileSize = false;</span>
+<span class="lineNum">     445 </span><span class="lineCov">          1 :             cachedFileProp.fileSize = 0;</span>
+<span class="lineNum">     446 </span><span class="lineCov">          1 :             cachedFileProp.bIsDirectory = true;</span>
+<span class="lineNum">     447 </span><span class="lineCov">          1 :             cachedFileProp.mTime = 0;</span>
+<span class="lineNum">     448 </span><span class="lineCov">          1 :             SetCachedFileProp(osURL, cachedFileProp);</span>
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span><span class="lineCov">          1 :             pStatBuf-&gt;st_size = 0;</span>
+<span class="lineNum">     451 </span><span class="lineCov">          2 :             pStatBuf-&gt;st_mode = S_IFDIR;</span>
+<span class="lineNum">     452 </span>            :         }
+<span class="lineNum">     453 </span><span class="lineCov">          6 :         return 0;</span>
+<span class="lineNum">     454 </span>            :     }
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span>            :     // In the case of a directory, a GET on it will not work, so we have to
+<span class="lineNum">     457 </span>            :     // query the upper directory contents
+<span class="lineNum">     458 </span><span class="lineCov">          5 :     if( std::count(osFilename.begin(), osFilename.end(), '/') &lt; 2 )</span>
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineCov">          5 :     char** papszContents = VSIReadDir( CPLGetPath(osFilename) );</span>
+<span class="lineNum">     462 </span>            :     int nRet = CSLFindStringCaseSensitive(papszContents,
+<span class="lineNum">     463 </span><span class="lineCov">          5 :                     CPLGetFilename(osFilename)) &gt;= 0 ? 0 : -1;</span>
+<span class="lineNum">     464 </span><span class="lineCov">          5 :     CSLDestroy(papszContents);</span>
+<span class="lineNum">     465 </span><span class="lineCov">          5 :     if( nRet == 0 )</span>
+<span class="lineNum">     466 </span>            :     {
+<span class="lineNum">     467 </span><span class="lineCov">          2 :         pStatBuf-&gt;st_mode = S_IFDIR;</span>
+<span class="lineNum">     468 </span>            :     }
+<span class="lineNum">     469 </span><span class="lineCov">          5 :     return nRet;</span>
+<span class="lineNum">     470 </span>            : }
+<span class="lineNum">     471 </span>            : 
+<span class="lineNum">     472 </span>            : /************************************************************************/
+<span class="lineNum">     473 </span>            : /*                           GetFileList()                              */
+<a name="474"><span class="lineNum">     474 </span>            : /************************************************************************/</a>
+<span class="lineNum">     475 </span>            : 
+<span class="lineNum">     476 </span><span class="lineCov">         14 : char** VSISwiftFSHandler::GetFileList( const char *pszDirname,</span>
+<span class="lineNum">     477 </span>            :                                     int nMaxFiles,
+<span class="lineNum">     478 </span>            :                                     bool* pbGotFileList )
+<span class="lineNum">     479 </span>            : {
+<span class="lineNum">     480 </span>            :     if( ENABLE_DEBUG )
+<span class="lineNum">     481 </span>            :         CPLDebug(GetDebugKey(), &quot;GetFileList(%s)&quot; , pszDirname);
+<span class="lineNum">     482 </span><span class="lineCov">         14 :     *pbGotFileList = false;</span>
+<span class="lineNum">     483 </span><span class="lineCov">         14 :     CPLAssert( strlen(pszDirname) &gt;= GetFSPrefix().size() );</span>
+<span class="lineNum">     484 </span><span class="lineCov">         14 :     CPLString osDirnameWithoutPrefix = pszDirname + GetFSPrefix().size();</span>
+<span class="lineNum">     485 </span><span class="lineCov">         25 :     if( !osDirnameWithoutPrefix.empty() &amp;&amp;</span>
+<span class="lineNum">     486 </span><span class="lineCov">         11 :                                 osDirnameWithoutPrefix.back() == '/' )</span>
+<span class="lineNum">     487 </span>            :     {
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :         osDirnameWithoutPrefix.resize(osDirnameWithoutPrefix.size()-1);</span>
+<span class="lineNum">     489 </span>            :     }
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span><span class="lineCov">         28 :     CPLString osBucket(osDirnameWithoutPrefix);</span>
+<span class="lineNum">     492 </span><span class="lineCov">         28 :     CPLString osObjectKey;</span>
+<span class="lineNum">     493 </span><span class="lineCov">         14 :     size_t nSlashPos = osDirnameWithoutPrefix.find('/');</span>
+<span class="lineNum">     494 </span><span class="lineCov">         14 :     if( nSlashPos != std::string::npos )</span>
+<span class="lineNum">     495 </span>            :     {
+<span class="lineNum">     496 </span><span class="lineCov">          3 :         osBucket = osDirnameWithoutPrefix.substr(0, nSlashPos);</span>
+<span class="lineNum">     497 </span><span class="lineCov">          3 :         osObjectKey = osDirnameWithoutPrefix.substr(nSlashPos+1);</span>
+<span class="lineNum">     498 </span>            :     }
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span>            :     IVSIS3LikeHandleHelper* poS3HandleHelper =
+<span class="lineNum">     501 </span><span class="lineCov">         14 :         CreateHandleHelper(osBucket, true);</span>
+<span class="lineNum">     502 </span><span class="lineCov">         14 :     if( poS3HandleHelper == nullptr )</span>
+<span class="lineNum">     503 </span>            :     {
+<span class="lineNum">     504 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     505 </span>            :     }
+<span class="lineNum">     506 </span>            : 
+<span class="lineNum">     507 </span><span class="lineCov">         14 :     WriteFuncStruct sWriteFuncData;</span>
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span><span class="lineCov">         28 :     CPLStringList osFileList; // must be left in this scope !</span>
+<span class="lineNum">     510 </span><span class="lineCov">         28 :     CPLString osNextMarker; // must be left in this scope !</span>
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span><span class="lineCov">         28 :     CPLString osMaxKeys = CPLGetConfigOption(&quot;SWIFT_MAX_KEYS&quot;, &quot;10000&quot;);</span>
+<span class="lineNum">     513 </span><span class="lineCov">         14 :     int nMaxFilesThisQuery = atoi(osMaxKeys);</span>
+<span class="lineNum">     514 </span><span class="lineCov">         14 :     if( nMaxFiles &gt; 0 &amp;&amp; nMaxFiles &lt;= 100 &amp;&amp; nMaxFiles &lt; nMaxFilesThisQuery )</span>
+<span class="lineNum">     515 </span>            :     {
+<span class="lineNum">     516 </span><span class="lineCov">          2 :         nMaxFilesThisQuery = nMaxFiles+1;</span>
+<span class="lineNum">     517 </span>            :     }
+<span class="lineNum">     518 </span><span class="lineCov">         14 :     const CPLString osPrefix(osObjectKey.empty() ? CPLString():</span>
+<span class="lineNum">     519 </span><span class="lineCov">         28 :                                                         osObjectKey + &quot;/&quot;);</span>
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span>            :     while( true )
+<span class="lineNum">     522 </span>            :     {
+<span class="lineNum">     523 </span>            :         bool bRetry;
+<span class="lineNum">     524 </span><span class="lineCov">         16 :         int nRetryCount = 0;</span>
+<span class="lineNum">     525 </span>            :         const int nMaxRetry = atoi(CPLGetConfigOption(&quot;GDAL_HTTP_MAX_RETRY&quot;,
+<span class="lineNum">     526 </span><span class="lineCov">         16 :                                     CPLSPrintf(&quot;%d&quot;,CPL_HTTP_MAX_RETRY)));</span>
+<span class="lineNum">     527 </span>            :         double dfRetryDelay = CPLAtof(CPLGetConfigOption(&quot;GDAL_HTTP_RETRY_DELAY&quot;,
+<span class="lineNum">     528 </span><span class="lineCov">         16 :                                     CPLSPrintf(&quot;%f&quot;, CPL_HTTP_RETRY_DELAY)));</span>
+<span class="lineNum">     529 </span><span class="lineCov">          2 :         do</span>
+<span class="lineNum">     530 </span>            :         {
+<span class="lineNum">     531 </span><span class="lineCov">         16 :             bRetry = false;</span>
+<span class="lineNum">     532 </span><span class="lineCov">         16 :             poS3HandleHelper-&gt;ResetQueryParameters();</span>
+<span class="lineNum">     533 </span><span class="lineCov">         16 :             CPLString osBaseURL(poS3HandleHelper-&gt;GetURL());</span>
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span><span class="lineCov">         16 :             CURLM* hCurlMultiHandle = GetCurlMultiHandleFor(osBaseURL);</span>
+<span class="lineNum">     536 </span><span class="lineCov">         16 :             CURL* hCurlHandle = curl_easy_init();</span>
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span><span class="lineCov">         16 :             if( !osBucket.empty() )</span>
+<span class="lineNum">     539 </span>            :             {
+<span class="lineNum">     540 </span><span class="lineCov">         13 :                 poS3HandleHelper-&gt;AddQueryParameter(&quot;delimiter&quot;, &quot;/&quot;);</span>
+<span class="lineNum">     541 </span><span class="lineCov">         13 :                 if( !osNextMarker.empty() )</span>
+<span class="lineNum">     542 </span><span class="lineCov">          2 :                     poS3HandleHelper-&gt;AddQueryParameter(&quot;marker&quot;, osNextMarker);</span>
+<span class="lineNum">     543 </span>            :                 poS3HandleHelper-&gt;AddQueryParameter(&quot;limit&quot;,
+<span class="lineNum">     544 </span><span class="lineCov">         13 :                                             CPLSPrintf(&quot;%d&quot;, nMaxFilesThisQuery));</span>
+<span class="lineNum">     545 </span><span class="lineCov">         13 :                 if( !osPrefix.empty() )</span>
+<span class="lineNum">     546 </span><span class="lineCov">          3 :                     poS3HandleHelper-&gt;AddQueryParameter(&quot;prefix&quot;, osPrefix);</span>
+<span class="lineNum">     547 </span>            :             }
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span>            :             struct curl_slist* headers =
+<span class="lineNum">     550 </span><span class="lineCov">         16 :                 VSICurlSetOptions(hCurlHandle, poS3HandleHelper-&gt;GetURL(), nullptr);</span>
+<span class="lineNum">     551 </span>            :             // Disable automatic redirection
+<span class="lineNum">     552 </span><span class="lineCov">         16 :             curl_easy_setopt(hCurlHandle, CURLOPT_FOLLOWLOCATION, 0 );</span>
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span><span class="lineCov">         16 :             curl_easy_setopt(hCurlHandle, CURLOPT_RANGE, nullptr);</span>
+<span class="lineNum">     555 </span>            : 
+<span class="lineNum">     556 </span><span class="lineCov">         16 :             VSICURLInitWriteFuncStruct(&amp;sWriteFuncData, nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     557 </span><span class="lineCov">         16 :             curl_easy_setopt(hCurlHandle, CURLOPT_WRITEDATA, &amp;sWriteFuncData);</span>
+<span class="lineNum">     558 </span>            :             curl_easy_setopt(hCurlHandle, CURLOPT_WRITEFUNCTION,
+<span class="lineNum">     559 </span><span class="lineCov">         16 :                             VSICurlHandleWriteFunc);</span>
+<span class="lineNum">     560 </span>            : 
+<span class="lineNum">     561 </span><span class="lineCov">         16 :             WriteFuncStruct sWriteFuncHeaderData;</span>
+<span class="lineNum">     562 </span><span class="lineCov">         16 :             VSICURLInitWriteFuncStruct(&amp;sWriteFuncHeaderData, nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     563 </span><span class="lineCov">         16 :             curl_easy_setopt(hCurlHandle, CURLOPT_HEADERDATA, &amp;sWriteFuncHeaderData);</span>
+<span class="lineNum">     564 </span>            :             curl_easy_setopt(hCurlHandle, CURLOPT_HEADERFUNCTION,
+<span class="lineNum">     565 </span><span class="lineCov">         16 :                             VSICurlHandleWriteFunc);</span>
+<span class="lineNum">     566 </span>            : 
+<span class="lineNum">     567 </span><span class="lineCov">         16 :             char szCurlErrBuf[CURL_ERROR_SIZE+1] = {};</span>
+<span class="lineNum">     568 </span><span class="lineCov">         16 :             curl_easy_setopt(hCurlHandle, CURLOPT_ERRORBUFFER, szCurlErrBuf );</span>
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span>            :             headers = VSICurlMergeHeaders(headers,
+<span class="lineNum">     571 </span><span class="lineCov">         16 :                                 poS3HandleHelper-&gt;GetCurlHeaders(&quot;GET&quot;, headers));</span>
+<span class="lineNum">     572 </span><span class="lineCov">         16 :             curl_easy_setopt(hCurlHandle, CURLOPT_HTTPHEADER, headers);</span>
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span><span class="lineCov">         16 :             MultiPerform(hCurlMultiHandle, hCurlHandle);</span>
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineCov">         16 :             VSICURLResetHeaderAndWriterFunctions(hCurlHandle);</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineCov">         16 :             if( headers != nullptr )</span>
+<span class="lineNum">     579 </span><span class="lineCov">         16 :                 curl_slist_free_all(headers);</span>
+<span class="lineNum">     580 </span>            : 
+<span class="lineNum">     581 </span><span class="lineCov">         16 :             if( sWriteFuncData.pBuffer == nullptr)</span>
+<span class="lineNum">     582 </span>            :             {
+<span class="lineNum">     583 </span><span class="lineCov">          3 :                 delete poS3HandleHelper;</span>
+<span class="lineNum">     584 </span><span class="lineCov">          3 :                 curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     585 </span><span class="lineCov">          3 :                 CPLFree(sWriteFuncHeaderData.pBuffer);</span>
+<span class="lineNum">     586 </span><span class="lineCov">          3 :                 return nullptr;</span>
+<span class="lineNum">     587 </span>            :             }
+<span class="lineNum">     588 </span>            : 
+<span class="lineNum">     589 </span><span class="lineCov">         13 :             long response_code = 0;</span>
+<span class="lineNum">     590 </span><span class="lineCov">         13 :             curl_easy_getinfo(hCurlHandle, CURLINFO_HTTP_CODE, &amp;response_code);</span>
+<span class="lineNum">     591 </span><span class="lineCov">         13 :             if( response_code != 200 )</span>
+<span class="lineNum">     592 </span>            :             {
+<span class="lineNum">     593 </span>            :                 // Look if we should attempt a retry
+<span class="lineNum">     594 </span>            :                 const double dfNewRetryDelay = CPLHTTPGetNewRetryDelay(
+<span class="lineNum">     595 </span>            :                     static_cast&lt;int&gt;(response_code), dfRetryDelay,
+<span class="lineNum">     596 </span><span class="lineNoCov">          0 :                     sWriteFuncHeaderData.pBuffer, szCurlErrBuf);</span>
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :                 if( dfNewRetryDelay &gt; 0 &amp;&amp;</span>
+<span class="lineNum">     598 </span>            :                     nRetryCount &lt; nMaxRetry )
+<span class="lineNum">     599 </span>            :                 {
+<span class="lineNum">     600 </span>            :                     CPLError(CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     601 </span>            :                                 &quot;HTTP error code: %d - %s. &quot;
+<span class="lineNum">     602 </span>            :                                 &quot;Retrying again in %.1f secs&quot;,
+<span class="lineNum">     603 </span>            :                                 static_cast&lt;int&gt;(response_code),
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 :                                 poS3HandleHelper-&gt;GetURL().c_str(),</span>
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :                                 dfRetryDelay);</span>
+<span class="lineNum">     606 </span><span class="lineNoCov">          0 :                     CPLSleep(dfRetryDelay);</span>
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :                     dfRetryDelay = dfNewRetryDelay;</span>
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :                     nRetryCount++;</span>
+<span class="lineNum">     609 </span><span class="lineNoCov">          0 :                     bRetry = true;</span>
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :                     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 :                     CPLFree(sWriteFuncHeaderData.pBuffer);</span>
+<span class="lineNum">     612 </span>            :                 }
+<span class="lineNum">     613 </span>            :                 else
+<span class="lineNum">     614 </span>            :                 {
+<span class="lineNum">     615 </span>            :                     CPLDebug(GetDebugKey(), &quot;%s&quot;,
+<span class="lineNum">     616 </span>            :                                 sWriteFuncData.pBuffer
+<span class="lineNum">     617 </span><span class="lineNoCov">          0 :                                 ? sWriteFuncData.pBuffer : &quot;(null)&quot;);</span>
+<span class="lineNum">     618 </span><span class="lineNoCov">          0 :                     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     619 </span><span class="lineNoCov">          0 :                     CPLFree(sWriteFuncHeaderData.pBuffer);</span>
+<span class="lineNum">     620 </span><span class="lineNoCov">          0 :                     delete poS3HandleHelper;</span>
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 :                     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">     623 </span>            :                 }
+<span class="lineNum">     624 </span>            :             }
+<span class="lineNum">     625 </span>            :             else
+<span class="lineNum">     626 </span>            :             {
+<span class="lineNum">     627 </span><span class="lineCov">         13 :                 *pbGotFileList = true;</span>
+<span class="lineNum">     628 </span>            :                 bool bIsTruncated;
+<span class="lineNum">     629 </span>            :                 AnalyseSwiftFileList( osBaseURL,
+<span class="lineNum">     630 </span>            :                                     osPrefix,
+<span class="lineNum">     631 </span>            :                                     sWriteFuncData.pBuffer,
+<span class="lineNum">     632 </span>            :                                     osFileList,
+<span class="lineNum">     633 </span>            :                                     nMaxFilesThisQuery,
+<span class="lineNum">     634 </span>            :                                     nMaxFiles,
+<span class="lineNum">     635 </span>            :                                     bIsTruncated,
+<span class="lineNum">     636 </span><span class="lineCov">         13 :                                     osNextMarker );</span>
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span><span class="lineCov">         13 :                 CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     639 </span><span class="lineCov">         13 :                 CPLFree(sWriteFuncHeaderData.pBuffer);</span>
+<span class="lineNum">     640 </span>            : 
+<span class="lineNum">     641 </span><span class="lineCov">         13 :                 if( osNextMarker.empty() )</span>
+<span class="lineNum">     642 </span>            :                 {
+<span class="lineNum">     643 </span><span class="lineCov">         11 :                     delete poS3HandleHelper;</span>
+<span class="lineNum">     644 </span><span class="lineCov">         11 :                     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     645 </span><span class="lineCov">         11 :                     return osFileList.StealList();</span>
+<span class="lineNum">     646 </span>            :                 }
+<span class="lineNum">     647 </span>            :             }
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span><span class="lineCov">          2 :             curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     650 </span>            :         }
+<span class="lineNum">     651 </span>            :         while(bRetry);
+<span class="lineNum">     652 </span><span class="lineCov">         14 :     }</span>
+<span class="lineNum">     653 </span>            : }
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span>            : /************************************************************************/
+<span class="lineNum">     656 </span>            : /*                            VSISwiftHandle()                            */
+<a name="657"><span class="lineNum">     657 </span>            : /************************************************************************/</a>
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span><span class="lineCov">         17 : VSISwiftHandle::VSISwiftHandle( VSISwiftFSHandler* poFSIn,</span>
+<span class="lineNum">     660 </span>            :                           const char* pszFilename,
+<span class="lineNum">     661 </span>            :                           VSISwiftHandleHelper* poHandleHelper ) :
+<span class="lineNum">     662 </span><span class="lineCov">         17 :         IVSIS3LikeHandle(poFSIn, pszFilename, poHandleHelper-&gt;GetURL()),</span>
+<span class="lineNum">     663 </span><span class="lineCov">         17 :         m_poHandleHelper(poHandleHelper)</span>
+<span class="lineNum">     664 </span>            : {
+<span class="lineNum">     665 </span><span class="lineCov">         17 : }</span>
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span>            : /************************************************************************/
+<span class="lineNum">     668 </span>            : /*                            ~VSISwiftHandle()                           */
+<a name="669"><span class="lineNum">     669 </span>            : /************************************************************************/</a>
+<span class="lineNum">     670 </span>            : 
+<span class="lineNum">     671 </span><span class="lineCov">         51 : VSISwiftHandle::~VSISwiftHandle()</span>
+<span class="lineNum">     672 </span>            : {
+<span class="lineNum">     673 </span><span class="lineCov">         17 :     delete m_poHandleHelper;</span>
+<span class="lineNum">     674 </span><span class="lineCov">         34 : }</span>
+<span class="lineNum">     675 </span>            : 
+<span class="lineNum">     676 </span>            : /************************************************************************/
+<span class="lineNum">     677 </span>            : /*                           GetCurlHeaders()                           */
+<a name="678"><span class="lineNum">     678 </span>            : /************************************************************************/</a>
+<span class="lineNum">     679 </span>            : 
+<span class="lineNum">     680 </span><span class="lineCov">         15 : struct curl_slist* VSISwiftHandle::GetCurlHeaders( const CPLString&amp; osVerb,</span>
+<span class="lineNum">     681 </span>            :                                 const struct curl_slist* psExistingHeaders )
+<span class="lineNum">     682 </span>            : {
+<span class="lineNum">     683 </span><span class="lineCov">         15 :     return m_poHandleHelper-&gt;GetCurlHeaders(osVerb, psExistingHeaders);</span>
+<span class="lineNum">     684 </span>            : }
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span>            : } /* end of namespace cpl */
+<span class="lineNum">     689 </span>            : 
+<span class="lineNum">     690 </span>            : 
+<span class="lineNum">     691 </span>            : #endif // DOXYGEN_SKIP
+<span class="lineNum">     692 </span>            : //! @endcond
+<span class="lineNum">     693 </span>            : 
+<span class="lineNum">     694 </span>            : /************************************************************************/
+<span class="lineNum">     695 </span>            : /*                     VSIInstallSwiftFileHandler()                     */
+<span class="lineNum">     696 </span>            : /************************************************************************/
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span>            : /**
+<span class="lineNum">     699 </span>            :  * \brief Install /vsiswift/ OpenStack Swif Object Storage (Swift) file
+<span class="lineNum">     700 </span>            :  * system handler (requires libcurl)
+<span class="lineNum">     701 </span>            :  *
+<span class="lineNum">     702 </span>            :  * @see &lt;a href=&quot;gdal_virtual_file_systems.html#gdal_virtual_file_systems_vsiswift&quot;&gt;/vsiswift/ documentation&lt;/a&gt;
+<span class="lineNum">     703 </span>            :  *
+<a name="704"><span class="lineNum">     704 </span>            :  * @since GDAL 2.3</a>
+<span class="lineNum">     705 </span>            :  */
+<span class="lineNum">     706 </span><span class="lineCov">        988 : void VSIInstallSwiftFileHandler( void )</span>
+<span class="lineNum">     707 </span>            : {
+<span class="lineNum">     708 </span><span class="lineCov">        988 :     VSIFileManager::InstallHandler( &quot;/vsiswift/&quot;, new cpl::VSISwiftFSHandler );</span>
+<span class="lineNum">     709 </span><span class="lineCov">        988 : }</span>
+<span class="lineNum">     710 </span>            : 
+<span class="lineNum">     711 </span>            : #endif /* HAVE_CURL */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

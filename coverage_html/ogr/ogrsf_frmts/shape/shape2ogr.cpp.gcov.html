@@ -1,0 +1,1684 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/shape/shape2ogr.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/shape</a> - shape2ogr.cpp<span style="font-size: 80%;"> (source / <a href="shape2ogr.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">628</td>
+            <td class="headerCovTableEntry">669</td>
+            <td class="headerCovTableEntryHi">93.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  OpenGIS Simple Features Reference Implementation
+<span class="lineNum">       4 </span>            :  * Purpose:  Implements translation of Shapefile shapes into OGR
+<span class="lineNum">       5 </span>            :  *           representation.
+<span class="lineNum">       6 </span>            :  * Author:   Frank Warmerdam, warmerda@home.com
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  ******************************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 1999,  Les Technologies SoftMap Inc.
+<span class="lineNum">      10 </span>            :  * Copyright (c) 2007-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      11 </span>            :  *
+<span class="lineNum">      12 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      13 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      14 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      15 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      16 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      17 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      18 </span>            :  *
+<span class="lineNum">      19 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      20 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      21 </span>            :  *
+<span class="lineNum">      22 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      23 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      24 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      25 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      26 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      27 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      28 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      29 </span>            :  ****************************************************************************/
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;ogrshape.h&quot;
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : #include &lt;cmath&gt;
+<span class="lineNum">      35 </span>            : #include &lt;cstdio&gt;
+<span class="lineNum">      36 </span>            : #include &lt;cstdlib&gt;
+<span class="lineNum">      37 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      38 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      39 </span>            : #include &lt;limits&gt;
+<span class="lineNum">      40 </span>            : #include &lt;memory&gt;
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;ogr_core.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;ogr_feature.h&quot;
+<span class="lineNum">      47 </span>            : #include &quot;ogr_geometry.h&quot;
+<span class="lineNum">      48 </span>            : #include &quot;ogrpgeogeometry.h&quot;
+<span class="lineNum">      49 </span>            : #include &quot;ogrshape.h&quot;
+<span class="lineNum">      50 </span>            : #include &quot;shapefil.h&quot;
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : /************************************************************************/
+<span class="lineNum">      55 </span>            : /*                        RingStartEnd                                  */
+<a name="56"><span class="lineNum">      56 </span>            : /*        Set first and last vertex for given ring.                     */</a>
+<span class="lineNum">      57 </span>            : /************************************************************************/
+<span class="lineNum">      58 </span><span class="lineCov">      31602 : static void RingStartEnd( SHPObject *psShape, int ring, int *start, int *end )</span>
+<span class="lineNum">      59 </span>            : {
+<span class="lineNum">      60 </span><span class="lineCov">      31602 :     if( psShape-&gt;panPartStart == nullptr )</span>
+<span class="lineNum">      61 </span>            :     {
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :         *start = 0;</span>
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :         *end = psShape-&gt;nVertices - 1;</span>
+<span class="lineNum">      64 </span>            :     }
+<span class="lineNum">      65 </span>            :     else
+<span class="lineNum">      66 </span>            :     {
+<span class="lineNum">      67 </span><span class="lineCov">      31602 :         *start = psShape-&gt;panPartStart[ring];</span>
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span><span class="lineCov">      31602 :         if( ring == psShape-&gt;nParts - 1 )</span>
+<span class="lineNum">      70 </span><span class="lineCov">      31505 :             *end = psShape-&gt;nVertices - 1;</span>
+<span class="lineNum">      71 </span>            :         else
+<span class="lineNum">      72 </span><span class="lineCov">         97 :             *end = psShape-&gt;panPartStart[ring+1] - 1;</span>
+<span class="lineNum">      73 </span>            :     }
+<span class="lineNum">      74 </span><span class="lineCov">      31602 : }</span>
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span>            : /************************************************************************/
+<a name="77"><span class="lineNum">      77 </span>            : /*                        CreateLinearRing                              */</a>
+<span class="lineNum">      78 </span>            : /************************************************************************/
+<span class="lineNum">      79 </span><span class="lineCov">      31602 : static OGRLinearRing * CreateLinearRing(</span>
+<span class="lineNum">      80 </span>            :     SHPObject *psShape, int ring, bool bHasZ, bool bHasM )
+<span class="lineNum">      81 </span>            : {
+<span class="lineNum">      82 </span><span class="lineCov">      31602 :     int nRingStart = 0;</span>
+<span class="lineNum">      83 </span><span class="lineCov">      31602 :     int nRingEnd = 0;</span>
+<span class="lineNum">      84 </span><span class="lineCov">      31602 :     RingStartEnd( psShape, ring, &amp;nRingStart, &amp;nRingEnd );</span>
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span><span class="lineCov">      31602 :     OGRLinearRing * const poRing = new OGRLinearRing();</span>
+<span class="lineNum">      87 </span><span class="lineCov">      31602 :     if( !(nRingEnd &gt;= nRingStart) )</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :         return poRing;</span>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineCov">      31602 :     const int nRingPoints = nRingEnd - nRingStart + 1;</span>
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span><span class="lineCov">      31602 :     if( bHasZ &amp;&amp; bHasM )</span>
+<span class="lineNum">      93 </span>            :         poRing-&gt;setPoints(
+<span class="lineNum">      94 </span>            :             nRingPoints, psShape-&gt;padfX + nRingStart,
+<span class="lineNum">      95 </span>            :             psShape-&gt;padfY + nRingStart,
+<span class="lineNum">      96 </span>            :             psShape-&gt;padfZ + nRingStart,
+<span class="lineNum">      97 </span><span class="lineCov">         58 :             psShape-&gt;padfM ? psShape-&gt;padfM + nRingStart : nullptr );</span>
+<span class="lineNum">      98 </span><span class="lineCov">      31544 :     else if( bHasM )</span>
+<span class="lineNum">      99 </span>            :         poRing-&gt;setPointsM(
+<span class="lineNum">     100 </span>            :             nRingPoints, psShape-&gt;padfX + nRingStart,
+<span class="lineNum">     101 </span>            :             psShape-&gt;padfY + nRingStart,
+<span class="lineNum">     102 </span><span class="lineCov">         18 :             psShape-&gt;padfM ? psShape-&gt;padfM + nRingStart :nullptr );</span>
+<span class="lineNum">     103 </span>            :     else
+<span class="lineNum">     104 </span>            :         poRing-&gt;setPoints(
+<span class="lineNum">     105 </span>            :             nRingPoints, psShape-&gt;padfX + nRingStart,
+<span class="lineNum">     106 </span><span class="lineCov">      31526 :             psShape-&gt;padfY + nRingStart );</span>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span><span class="lineCov">      31602 :     return poRing;</span>
+<span class="lineNum">     109 </span>            : }
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            : /************************************************************************/
+<span class="lineNum">     112 </span>            : /*                          SHPReadOGRObject()                          */
+<span class="lineNum">     113 </span>            : /*                                                                      */
+<span class="lineNum">     114 </span>            : /*      Read an item in a shapefile, and translate to OGR geometry      */
+<span class="lineNum">     115 </span>            : /*      representation.                                                 */
+<a name="116"><span class="lineNum">     116 </span>            : /************************************************************************/</a>
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span><span class="lineCov">      86609 : OGRGeometry *SHPReadOGRObject( SHPHandle hSHP, int iShape, SHPObject *psShape )</span>
+<span class="lineNum">     119 </span>            : {
+<span class="lineNum">     120 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     121 </span>            :     CPLDebug( &quot;Shape&quot;, &quot;SHPReadOGRObject( iShape=%d )&quot;, iShape );
+<span class="lineNum">     122 </span>            : #endif
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span><span class="lineCov">      86609 :     if( psShape == nullptr )</span>
+<span class="lineNum">     125 </span><span class="lineCov">      56420 :         psShape = SHPReadObject( hSHP, iShape );</span>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineCov">      86609 :     if( psShape == nullptr )</span>
+<span class="lineNum">     128 </span>            :     {
+<span class="lineNum">     129 </span><span class="lineCov">         11 :         return nullptr;</span>
+<span class="lineNum">     130 </span>            :     }
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span><span class="lineCov">      86598 :     OGRGeometry *poOGR = nullptr;</span>
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     135 </span>            : /*      Point.                                                          */
+<span class="lineNum">     136 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     137 </span><span class="lineCov">      86598 :     if( psShape-&gt;nSHPType == SHPT_POINT )</span>
+<span class="lineNum">     138 </span>            :     {
+<span class="lineNum">     139 </span><span class="lineCov">       5620 :         poOGR = new OGRPoint( psShape-&gt;padfX[0], psShape-&gt;padfY[0] );</span>
+<span class="lineNum">     140 </span>            :     }
+<span class="lineNum">     141 </span><span class="lineCov">      80978 :     else if(psShape-&gt;nSHPType == SHPT_POINTZ )</span>
+<span class="lineNum">     142 </span>            :     {
+<span class="lineNum">     143 </span><span class="lineCov">      43952 :         if( psShape-&gt;bMeasureIsUsed )</span>
+<span class="lineNum">     144 </span>            :         {
+<span class="lineNum">     145 </span><span class="lineCov">         24 :             poOGR = new OGRPoint( psShape-&gt;padfX[0], psShape-&gt;padfY[0],</span>
+<span class="lineNum">     146 </span><span class="lineCov">         36 :                                   psShape-&gt;padfZ[0], psShape-&gt;padfM[0] );</span>
+<span class="lineNum">     147 </span>            :         }
+<span class="lineNum">     148 </span>            :         else
+<span class="lineNum">     149 </span>            :         {
+<span class="lineNum">     150 </span><span class="lineCov">      87880 :             poOGR = new OGRPoint( psShape-&gt;padfX[0], psShape-&gt;padfY[0],</span>
+<span class="lineNum">     151 </span><span class="lineCov">     131820 :                                   psShape-&gt;padfZ[0] );</span>
+<span class="lineNum">     152 </span>            :         }
+<span class="lineNum">     153 </span>            :     }
+<span class="lineNum">     154 </span><span class="lineCov">      37026 :     else if( psShape-&gt;nSHPType == SHPT_POINTM )</span>
+<span class="lineNum">     155 </span>            :     {
+<span class="lineNum">     156 </span><span class="lineCov">         20 :         poOGR = new OGRPoint( psShape-&gt;padfX[0], psShape-&gt;padfY[0],</span>
+<span class="lineNum">     157 </span><span class="lineCov">         30 :                               0.0, psShape-&gt;padfM[0] );</span>
+<span class="lineNum">     158 </span><span class="lineCov">         10 :         poOGR-&gt;set3D(FALSE);</span>
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     161 </span>            : /*      Multipoint.                                                     */
+<span class="lineNum">     162 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     163 </span><span class="lineCov">      37016 :     else if( psShape-&gt;nSHPType == SHPT_MULTIPOINT</span>
+<span class="lineNum">     164 </span><span class="lineCov">      37001 :              || psShape-&gt;nSHPType == SHPT_MULTIPOINTM</span>
+<span class="lineNum">     165 </span><span class="lineCov">      36994 :              || psShape-&gt;nSHPType == SHPT_MULTIPOINTZ )</span>
+<span class="lineNum">     166 </span>            :     {
+<span class="lineNum">     167 </span><span class="lineCov">         40 :         if( psShape-&gt;nVertices == 0 )</span>
+<span class="lineNum">     168 </span>            :         {
+<span class="lineNum">     169 </span><span class="lineCov">          1 :             poOGR = nullptr;</span>
+<span class="lineNum">     170 </span>            :         }
+<span class="lineNum">     171 </span>            :         else
+<span class="lineNum">     172 </span>            :         {
+<span class="lineNum">     173 </span><span class="lineCov">         39 :             OGRMultiPoint *poOGRMPoint = new OGRMultiPoint();</span>
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span><span class="lineCov">         88 :             for( int i = 0; i &lt; psShape-&gt;nVertices; i++ )</span>
+<span class="lineNum">     176 </span>            :             {
+<span class="lineNum">     177 </span><span class="lineCov">         49 :                 OGRPoint *poPoint = nullptr;</span>
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span><span class="lineCov">         49 :                 if( psShape-&gt;nSHPType == SHPT_MULTIPOINTZ )</span>
+<span class="lineNum">     180 </span>            :                 {
+<span class="lineNum">     181 </span><span class="lineCov">         22 :                     if( psShape-&gt;padfM )</span>
+<span class="lineNum">     182 </span>            :                     {
+<span class="lineNum">     183 </span>            :                         poPoint = new OGRPoint(
+<span class="lineNum">     184 </span><span class="lineCov">         14 :                             psShape-&gt;padfX[i], psShape-&gt;padfY[i],</span>
+<span class="lineNum">     185 </span><span class="lineCov">         21 :                             psShape-&gt;padfZ[i], psShape-&gt;padfM[i] );</span>
+<span class="lineNum">     186 </span>            :                     }
+<span class="lineNum">     187 </span>            :                     else
+<span class="lineNum">     188 </span>            :                     {
+<span class="lineNum">     189 </span>            :                         poPoint = new OGRPoint(
+<span class="lineNum">     190 </span><span class="lineCov">         30 :                             psShape-&gt;padfX[i], psShape-&gt;padfY[i],</span>
+<span class="lineNum">     191 </span><span class="lineCov">         45 :                             psShape-&gt;padfZ[i] );</span>
+<span class="lineNum">     192 </span>            :                     }
+<span class="lineNum">     193 </span>            :                 }
+<span class="lineNum">     194 </span><span class="lineCov">         27 :                 else if( psShape-&gt;nSHPType == SHPT_MULTIPOINTM &amp;&amp;</span>
+<span class="lineNum">     195 </span>            :                          psShape-&gt;padfM )
+<span class="lineNum">     196 </span>            :                 {
+<span class="lineNum">     197 </span><span class="lineCov">         14 :                     poPoint = new OGRPoint(psShape-&gt;padfX[i], psShape-&gt;padfY[i],</span>
+<span class="lineNum">     198 </span><span class="lineCov">         21 :                                            0.0, psShape-&gt;padfM[i]);</span>
+<span class="lineNum">     199 </span><span class="lineCov">          7 :                     poPoint-&gt;set3D(FALSE);</span>
+<span class="lineNum">     200 </span>            :                 }
+<span class="lineNum">     201 </span>            :                 else
+<span class="lineNum">     202 </span>            :                 {
+<span class="lineNum">     203 </span>            :                     poPoint =
+<span class="lineNum">     204 </span><span class="lineCov">         20 :                         new OGRPoint( psShape-&gt;padfX[i], psShape-&gt;padfY[i] );</span>
+<span class="lineNum">     205 </span>            :                 }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span><span class="lineCov">         49 :                 poOGRMPoint-&gt;addGeometry( poPoint );</span>
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineCov">         49 :                 delete poPoint;</span>
+<span class="lineNum">     210 </span>            :             }
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineCov">         39 :             poOGR = poOGRMPoint;</span>
+<span class="lineNum">     213 </span><span class="lineCov">         40 :         }</span>
+<span class="lineNum">     214 </span>            :     }
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     217 </span>            : /*      Arc (LineString)                                                */
+<span class="lineNum">     218 </span>            : /*                                                                      */
+<span class="lineNum">     219 </span>            : /*      Ignoring parts though they can apply to arcs as well.           */
+<span class="lineNum">     220 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     221 </span><span class="lineCov">      36976 :     else if( psShape-&gt;nSHPType == SHPT_ARC</span>
+<span class="lineNum">     222 </span><span class="lineCov">      34168 :              || psShape-&gt;nSHPType == SHPT_ARCM</span>
+<span class="lineNum">     223 </span><span class="lineCov">      34154 :              || psShape-&gt;nSHPType == SHPT_ARCZ )</span>
+<span class="lineNum">     224 </span>            :     {
+<span class="lineNum">     225 </span><span class="lineCov">       4713 :         if( psShape-&gt;nParts == 0 )</span>
+<span class="lineNum">     226 </span>            :         {
+<span class="lineNum">     227 </span><span class="lineCov">          1 :             poOGR = nullptr;</span>
+<span class="lineNum">     228 </span>            :         }
+<span class="lineNum">     229 </span><span class="lineCov">       4712 :         else if( psShape-&gt;nParts == 1 )</span>
+<span class="lineNum">     230 </span>            :         {
+<span class="lineNum">     231 </span><span class="lineCov">       4689 :             OGRLineString *poOGRLine = new OGRLineString();</span>
+<span class="lineNum">     232 </span><span class="lineCov">       4689 :             poOGR = poOGRLine;</span>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineCov">       4689 :             if( psShape-&gt;nSHPType == SHPT_ARCZ )</span>
+<span class="lineNum">     235 </span>            :                 poOGRLine-&gt;setPoints( psShape-&gt;nVertices,
+<span class="lineNum">     236 </span>            :                                       psShape-&gt;padfX, psShape-&gt;padfY,
+<span class="lineNum">     237 </span><span class="lineCov">       1884 :                                       psShape-&gt;padfZ, psShape-&gt;padfM );</span>
+<span class="lineNum">     238 </span><span class="lineCov">       2805 :             else if( psShape-&gt;nSHPType == SHPT_ARCM )</span>
+<span class="lineNum">     239 </span>            :                 poOGRLine-&gt;setPointsM( psShape-&gt;nVertices,
+<span class="lineNum">     240 </span>            :                                        psShape-&gt;padfX, psShape-&gt;padfY,
+<span class="lineNum">     241 </span><span class="lineCov">         10 :                                        psShape-&gt;padfM );</span>
+<span class="lineNum">     242 </span>            :             else
+<span class="lineNum">     243 </span>            :                 poOGRLine-&gt;setPoints( psShape-&gt;nVertices,
+<span class="lineNum">     244 </span><span class="lineCov">       2795 :                                       psShape-&gt;padfX, psShape-&gt;padfY );</span>
+<span class="lineNum">     245 </span>            :         }
+<span class="lineNum">     246 </span>            :         else
+<span class="lineNum">     247 </span>            :         {
+<span class="lineNum">     248 </span><span class="lineCov">         23 :             OGRMultiLineString *poOGRMulti = new OGRMultiLineString();</span>
+<span class="lineNum">     249 </span><span class="lineCov">         23 :             poOGR = poOGRMulti;</span>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineCov">         70 :             for( int iRing = 0; iRing &lt; psShape-&gt;nParts; iRing++ )</span>
+<span class="lineNum">     252 </span>            :             {
+<span class="lineNum">     253 </span><span class="lineCov">         47 :                 int nRingPoints = 0;</span>
+<span class="lineNum">     254 </span><span class="lineCov">         47 :                 int nRingStart = 0;</span>
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineCov">         47 :                 OGRLineString *poLine = new OGRLineString();</span>
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineCov">         47 :                 if( psShape-&gt;panPartStart == nullptr )</span>
+<span class="lineNum">     259 </span>            :                 {
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :                     nRingPoints = psShape-&gt;nVertices;</span>
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :                     nRingStart = 0;</span>
+<span class="lineNum">     262 </span>            :                 }
+<span class="lineNum">     263 </span>            :                 else
+<span class="lineNum">     264 </span>            :                 {
+<span class="lineNum">     265 </span><span class="lineCov">         47 :                     if( iRing == psShape-&gt;nParts - 1 )</span>
+<span class="lineNum">     266 </span>            :                         nRingPoints =
+<span class="lineNum">     267 </span><span class="lineCov">         23 :                             psShape-&gt;nVertices - psShape-&gt;panPartStart[iRing];</span>
+<span class="lineNum">     268 </span>            :                     else
+<span class="lineNum">     269 </span><span class="lineCov">         24 :                         nRingPoints = psShape-&gt;panPartStart[iRing+1]</span>
+<span class="lineNum">     270 </span><span class="lineCov">         24 :                             - psShape-&gt;panPartStart[iRing];</span>
+<span class="lineNum">     271 </span><span class="lineCov">         47 :                     nRingStart = psShape-&gt;panPartStart[iRing];</span>
+<span class="lineNum">     272 </span>            :                 }
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span><span class="lineCov">         47 :                 if( psShape-&gt;nSHPType == SHPT_ARCZ )</span>
+<span class="lineNum">     275 </span>            :                     poLine-&gt;setPoints(
+<span class="lineNum">     276 </span>            :                         nRingPoints,
+<span class="lineNum">     277 </span>            :                         psShape-&gt;padfX + nRingStart,
+<span class="lineNum">     278 </span>            :                         psShape-&gt;padfY + nRingStart,
+<span class="lineNum">     279 </span>            :                         psShape-&gt;padfZ + nRingStart,
+<span class="lineNum">     280 </span><span class="lineCov">         14 :                         psShape-&gt;padfM ? psShape-&gt;padfM + nRingStart : nullptr );</span>
+<span class="lineNum">     281 </span><span class="lineCov">         41 :                 else if( psShape-&gt;nSHPType == SHPT_ARCM &amp;&amp;</span>
+<span class="lineNum">     282 </span><span class="lineCov">          8 :                          psShape-&gt;padfM != nullptr )</span>
+<span class="lineNum">     283 </span>            :                     poLine-&gt;setPointsM( nRingPoints,
+<span class="lineNum">     284 </span>            :                                         psShape-&gt;padfX + nRingStart,
+<span class="lineNum">     285 </span>            :                                         psShape-&gt;padfY + nRingStart,
+<span class="lineNum">     286 </span><span class="lineCov">          6 :                                         psShape-&gt;padfM + nRingStart );</span>
+<span class="lineNum">     287 </span>            :                 else
+<span class="lineNum">     288 </span>            :                     poLine-&gt;setPoints( nRingPoints,
+<span class="lineNum">     289 </span>            :                                        psShape-&gt;padfX + nRingStart,
+<span class="lineNum">     290 </span><span class="lineCov">         27 :                                        psShape-&gt;padfY + nRingStart );</span>
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span><span class="lineCov">         47 :                 poOGRMulti-&gt;addGeometryDirectly( poLine );</span>
+<span class="lineNum">     293 </span>            :             }
+<span class="lineNum">     294 </span><span class="lineCov">       4713 :         }</span>
+<span class="lineNum">     295 </span>            :     }
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     298 </span>            : /*      Polygon                                                         */
+<span class="lineNum">     299 </span>            : /*                                                                      */
+<span class="lineNum">     300 </span>            : /* As for now Z coordinate is not handled correctly                     */
+<span class="lineNum">     301 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     302 </span><span class="lineCov">      32263 :     else if( psShape-&gt;nSHPType == SHPT_POLYGON</span>
+<span class="lineNum">     303 </span><span class="lineCov">        818 :              || psShape-&gt;nSHPType == SHPT_POLYGONM</span>
+<span class="lineNum">     304 </span><span class="lineCov">        804 :              || psShape-&gt;nSHPType == SHPT_POLYGONZ )</span>
+<span class="lineNum">     305 </span>            :     {
+<span class="lineNum">     306 </span><span class="lineCov">      31506 :         const bool bHasZ = psShape-&gt;nSHPType == SHPT_POLYGONZ;</span>
+<span class="lineNum">     307 </span><span class="lineCov">      31506 :         const bool bHasM = bHasZ || psShape-&gt;nSHPType == SHPT_POLYGONM;</span>
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     310 </span>            :         CPLDebug( &quot;Shape&quot;, &quot;Shape type: polygon with nParts=%d&quot;,
+<span class="lineNum">     311 </span>            :                   psShape-&gt;nParts );
+<span class="lineNum">     312 </span>            : #endif
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span><span class="lineCov">      31506 :         if( psShape-&gt;nParts == 0 )</span>
+<span class="lineNum">     315 </span>            :         {
+<span class="lineNum">     316 </span><span class="lineCov">          1 :             poOGR = nullptr;</span>
+<span class="lineNum">     317 </span>            :         }
+<span class="lineNum">     318 </span><span class="lineCov">      31505 :         else if( psShape-&gt;nParts == 1 )</span>
+<span class="lineNum">     319 </span>            :         {
+<span class="lineNum">     320 </span>            :             // Surely outer ring.
+<span class="lineNum">     321 </span><span class="lineCov">      31437 :             OGRPolygon *poOGRPoly = new OGRPolygon();</span>
+<span class="lineNum">     322 </span><span class="lineCov">      31437 :             poOGR = poOGRPoly;</span>
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span>            :             OGRLinearRing *poRing =
+<span class="lineNum">     325 </span><span class="lineCov">      31437 :                 CreateLinearRing( psShape, 0, bHasZ, bHasM );</span>
+<span class="lineNum">     326 </span><span class="lineCov">      31437 :             poOGRPoly-&gt;addRingDirectly( poRing );</span>
+<span class="lineNum">     327 </span>            :         }
+<span class="lineNum">     328 </span>            :         else
+<span class="lineNum">     329 </span>            :         {
+<span class="lineNum">     330 </span><span class="lineCov">         68 :             OGRPolygon** tabPolygons = new OGRPolygon*[psShape-&gt;nParts];</span>
+<span class="lineNum">     331 </span><span class="lineCov">        233 :             for( int iRing = 0; iRing &lt; psShape-&gt;nParts; iRing++ )</span>
+<span class="lineNum">     332 </span>            :             {
+<span class="lineNum">     333 </span><span class="lineCov">        165 :                 tabPolygons[iRing] = new OGRPolygon();</span>
+<span class="lineNum">     334 </span><span class="lineCov">        495 :                 tabPolygons[iRing]-&gt;addRingDirectly(</span>
+<span class="lineNum">     335 </span><span class="lineCov">        495 :                     CreateLinearRing( psShape, iRing, bHasZ, bHasM ));</span>
+<span class="lineNum">     336 </span>            :             }
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span><span class="lineCov">         68 :             int isValidGeometry = FALSE;</span>
+<span class="lineNum">     339 </span><span class="lineCov">         68 :             const char* papszOptions[] = { &quot;METHOD=ONLY_CCW&quot;, nullptr };</span>
+<span class="lineNum">     340 </span>            :             OGRGeometry **tabGeom =
+<span class="lineNum">     341 </span><span class="lineCov">         68 :                 reinterpret_cast&lt;OGRGeometry**&gt;(tabPolygons);</span>
+<span class="lineNum">     342 </span>            :             poOGR = OGRGeometryFactory::organizePolygons(
+<span class="lineNum">     343 </span><span class="lineCov">         68 :                 tabGeom, psShape-&gt;nParts, &amp;isValidGeometry, papszOptions );</span>
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineCov">         68 :             if( !isValidGeometry )</span>
+<span class="lineNum">     346 </span>            :             {
+<span class="lineNum">     347 </span>            :                 CPLError(
+<span class="lineNum">     348 </span>            :                     CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     349 </span>            :                     &quot;Geometry of polygon of fid %d cannot be translated to &quot;
+<span class="lineNum">     350 </span>            :                     &quot;Simple Geometry. &quot;
+<span class="lineNum">     351 </span>            :                     &quot;All polygons will be contained in a multipolygon.&quot;,
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :                     iShape);</span>
+<span class="lineNum">     353 </span>            :             }
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineCov">         68 :             delete[] tabPolygons;</span>
+<span class="lineNum">     356 </span><span class="lineCov">      31506 :         }</span>
+<span class="lineNum">     357 </span>            :     }
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     360 </span>            : /*      MultiPatch                                                      */
+<span class="lineNum">     361 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     362 </span><span class="lineCov">        757 :     else if( psShape-&gt;nSHPType == SHPT_MULTIPATCH )</span>
+<span class="lineNum">     363 </span>            :     {
+<span class="lineNum">     364 </span>            :         poOGR = OGRCreateFromMultiPatch( psShape-&gt;nParts,
+<span class="lineNum">     365 </span>            :                                          psShape-&gt;panPartStart,
+<span class="lineNum">     366 </span>            :                                          psShape-&gt;panPartType,
+<span class="lineNum">     367 </span>            :                                          psShape-&gt;nVertices,
+<span class="lineNum">     368 </span>            :                                          psShape-&gt;padfX,
+<span class="lineNum">     369 </span>            :                                          psShape-&gt;padfY,
+<span class="lineNum">     370 </span><span class="lineCov">         12 :                                          psShape-&gt;padfZ );</span>
+<span class="lineNum">     371 </span>            :     }
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     374 </span>            : /*      Otherwise for now we just ignore the object.                    */
+<span class="lineNum">     375 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     376 </span>            :     else
+<span class="lineNum">     377 </span>            :     {
+<span class="lineNum">     378 </span><span class="lineCov">        745 :         if( psShape-&gt;nSHPType != SHPT_NULL )</span>
+<span class="lineNum">     379 </span>            :         {
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :             CPLDebug( &quot;OGR&quot;, &quot;Unsupported shape type in SHPReadOGRObject()&quot; );</span>
+<span class="lineNum">     381 </span>            :         }
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span>            :         // Nothing returned.
+<span class="lineNum">     384 </span>            :     }
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     387 </span>            : /*      Cleanup shape, and set feature id.                              */
+<span class="lineNum">     388 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     389 </span><span class="lineCov">      86598 :     SHPDestroyObject( psShape );</span>
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span><span class="lineCov">      86598 :     return poOGR;</span>
+<span class="lineNum">     392 </span>            : }
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span>            : /************************************************************************/
+<span class="lineNum">     395 </span>            : /*                         SHPWriteOGRObject()                          */
+<a name="396"><span class="lineNum">     396 </span>            : /************************************************************************/</a>
+<span class="lineNum">     397 </span>            : static
+<span class="lineNum">     398 </span><span class="lineCov">      45648 : OGRErr SHPWriteOGRObject( SHPHandle hSHP, int iShape,</span>
+<span class="lineNum">     399 </span>            :                           const OGRGeometry *poGeom,
+<span class="lineNum">     400 </span>            :                           bool bRewind, OGRwkbGeometryType eLayerGeomType )
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span>            : {
+<span class="lineNum">     403 </span>            : /* ==================================================================== */
+<span class="lineNum">     404 </span>            : /*      Write &quot;shape&quot; with no geometry or with empty geometry           */
+<span class="lineNum">     405 </span>            : /* ==================================================================== */
+<span class="lineNum">     406 </span><span class="lineCov">      45648 :     if( poGeom == nullptr || poGeom-&gt;IsEmpty() )</span>
+<span class="lineNum">     407 </span>            :     {
+<span class="lineNum">     408 </span>            :         SHPObject *psShape =
+<span class="lineNum">     409 </span>            :             SHPCreateObject( SHPT_NULL, -1, 0, nullptr, nullptr, 0,
+<span class="lineNum">     410 </span><span class="lineCov">        596 :                              nullptr, nullptr, nullptr, nullptr );</span>
+<span class="lineNum">     411 </span><span class="lineCov">        596 :         const int nReturnedShapeID = SHPWriteObject( hSHP, iShape, psShape );</span>
+<span class="lineNum">     412 </span><span class="lineCov">        596 :         SHPDestroyObject( psShape );</span>
+<span class="lineNum">     413 </span><span class="lineCov">        596 :         if( nReturnedShapeID == -1 )</span>
+<span class="lineNum">     414 </span>            :         {
+<span class="lineNum">     415 </span>            :             // Assuming error is reported by SHPWriteObject().
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :             return OGRERR_FAILURE;</span>
+<span class="lineNum">     417 </span>            :         }
+<span class="lineNum">     418 </span>            :     }
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span>            : /* ==================================================================== */
+<span class="lineNum">     421 </span>            : /*      Write point geometry.                                           */
+<span class="lineNum">     422 </span>            : /* ==================================================================== */
+<span class="lineNum">     423 </span><span class="lineCov">      45052 :     else if( hSHP-&gt;nShapeType == SHPT_POINT</span>
+<span class="lineNum">     424 </span><span class="lineCov">      44331 :              || hSHP-&gt;nShapeType == SHPT_POINTM</span>
+<span class="lineNum">     425 </span><span class="lineCov">      44322 :              || hSHP-&gt;nShapeType == SHPT_POINTZ )</span>
+<span class="lineNum">     426 </span>            :     {
+<span class="lineNum">     427 </span><span class="lineCov">      30037 :         if( wkbFlatten(poGeom-&gt;getGeometryType()) != wkbPoint )</span>
+<span class="lineNum">     428 </span>            :         {
+<span class="lineNum">     429 </span>            :             CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     430 </span>            :                       &quot;Attempt to write non-point (%s) geometry to&quot;
+<span class="lineNum">     431 </span>            :                       &quot; point shapefile.&quot;,
+<span class="lineNum">     432 </span><span class="lineCov">          8 :                       poGeom-&gt;getGeometryName() );</span>
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span><span class="lineCov">         16 :             return OGRERR_UNSUPPORTED_GEOMETRY_TYPE;</span>
+<span class="lineNum">     435 </span>            :         }
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span><span class="lineCov">      30029 :         const OGRPoint *poPoint = poGeom-&gt;toPoint();</span>
+<span class="lineNum">     438 </span><span class="lineCov">      30029 :         const double dfX = poPoint-&gt;getX();</span>
+<span class="lineNum">     439 </span><span class="lineCov">      30029 :         const double dfY = poPoint-&gt;getY();</span>
+<span class="lineNum">     440 </span><span class="lineCov">      30029 :         const double dfZ = poPoint-&gt;getZ();</span>
+<span class="lineNum">     441 </span><span class="lineCov">      30029 :         double dfM = 0.0;</span>
+<span class="lineNum">     442 </span><span class="lineCov">      30029 :         double *pdfM = nullptr;</span>
+<span class="lineNum">     443 </span><span class="lineCov">      30065 :         if( wkbHasM(eLayerGeomType) &amp;&amp;</span>
+<span class="lineNum">     444 </span><span class="lineCov">         27 :             (hSHP-&gt;nShapeType == SHPT_POINTM ||</span>
+<span class="lineNum">     445 </span><span class="lineCov">          9 :              hSHP-&gt;nShapeType == SHPT_POINTZ) )</span>
+<span class="lineNum">     446 </span>            :         {
+<span class="lineNum">     447 </span><span class="lineCov">         18 :             if( poGeom-&gt;IsMeasured() )</span>
+<span class="lineNum">     448 </span><span class="lineCov">         14 :                 dfM = poPoint-&gt;getM();</span>
+<span class="lineNum">     449 </span>            :             else
+<span class="lineNum">     450 </span><span class="lineCov">          4 :                 dfM = -std::numeric_limits&lt;double&gt;::max();</span>
+<span class="lineNum">     451 </span><span class="lineCov">         18 :             pdfM = &amp;dfM;</span>
+<span class="lineNum">     452 </span>            :         }
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span>            :         SHPObject *psShape =
+<span class="lineNum">     455 </span>            :             SHPCreateObject( hSHP-&gt;nShapeType, -1, 0, nullptr, nullptr, 1,
+<span class="lineNum">     456 </span><span class="lineCov">      30029 :                              &amp;dfX, &amp;dfY, &amp;dfZ, pdfM );</span>
+<span class="lineNum">     457 </span><span class="lineCov">      30029 :         const int nReturnedShapeID = SHPWriteObject( hSHP, iShape, psShape );</span>
+<span class="lineNum">     458 </span><span class="lineCov">      30029 :         SHPDestroyObject( psShape );</span>
+<span class="lineNum">     459 </span><span class="lineCov">      30029 :         if( nReturnedShapeID == -1 )</span>
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :             return OGRERR_FAILURE;</span>
+<span class="lineNum">     461 </span>            :     }
+<span class="lineNum">     462 </span>            : /* ==================================================================== */
+<span class="lineNum">     463 </span>            : /*      MultiPoint.                                                     */
+<span class="lineNum">     464 </span>            : /* ==================================================================== */
+<span class="lineNum">     465 </span><span class="lineCov">      15015 :     else if( hSHP-&gt;nShapeType == SHPT_MULTIPOINT</span>
+<span class="lineNum">     466 </span><span class="lineCov">      14997 :              || hSHP-&gt;nShapeType == SHPT_MULTIPOINTM</span>
+<span class="lineNum">     467 </span><span class="lineCov">      14990 :              || hSHP-&gt;nShapeType == SHPT_MULTIPOINTZ )</span>
+<span class="lineNum">     468 </span>            :     {
+<span class="lineNum">     469 </span><span class="lineCov">         47 :         if( wkbFlatten(poGeom-&gt;getGeometryType()) != wkbMultiPoint )</span>
+<span class="lineNum">     470 </span>            :         {
+<span class="lineNum">     471 </span>            :             CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     472 </span>            :                       &quot;Attempt to write non-multipoint (%s) geometry to &quot;
+<span class="lineNum">     473 </span>            :                       &quot;multipoint shapefile.&quot;,
+<span class="lineNum">     474 </span><span class="lineCov">          8 :                       poGeom-&gt;getGeometryName() );</span>
+<span class="lineNum">     475 </span>            : 
+<span class="lineNum">     476 </span><span class="lineCov">          8 :             return OGRERR_UNSUPPORTED_GEOMETRY_TYPE;</span>
+<span class="lineNum">     477 </span>            :         }
+<span class="lineNum">     478 </span>            : 
+<span class="lineNum">     479 </span><span class="lineCov">         39 :         const OGRMultiPoint   *poMP = poGeom-&gt;toMultiPoint();</span>
+<span class="lineNum">     480 </span>            :         double *padfX = static_cast&lt;double *&gt;(
+<span class="lineNum">     481 </span><span class="lineCov">         39 :             CPLMalloc(sizeof(double) * poMP-&gt;getNumGeometries()));</span>
+<span class="lineNum">     482 </span>            :         double *padfY = static_cast&lt;double *&gt;(
+<span class="lineNum">     483 </span><span class="lineCov">         39 :             CPLMalloc(sizeof(double) * poMP-&gt;getNumGeometries()));</span>
+<span class="lineNum">     484 </span>            :         // TODO(schwehr): Why a calloc for padfZ?
+<span class="lineNum">     485 </span>            :         double *padfZ = static_cast&lt;double *&gt;(
+<span class="lineNum">     486 </span><span class="lineCov">         39 :             CPLCalloc(sizeof(double), poMP-&gt;getNumGeometries()));</span>
+<span class="lineNum">     487 </span><span class="lineCov">         39 :         double *padfM = nullptr;</span>
+<span class="lineNum">     488 </span><span class="lineCov">         67 :         if( wkbHasM(eLayerGeomType) &amp;&amp;</span>
+<span class="lineNum">     489 </span><span class="lineCov">         21 :             (hSHP-&gt;nShapeType == SHPT_MULTIPOINTM ||</span>
+<span class="lineNum">     490 </span><span class="lineCov">          7 :              hSHP-&gt;nShapeType == SHPT_MULTIPOINTZ) )</span>
+<span class="lineNum">     491 </span>            :             padfM = static_cast&lt;double *&gt;(
+<span class="lineNum">     492 </span><span class="lineCov">         14 :                 CPLCalloc(sizeof(double), poMP-&gt;getNumGeometries()));</span>
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span><span class="lineCov">         39 :         int iDstPoints = 0;</span>
+<span class="lineNum">     495 </span><span class="lineCov">         85 :         for( int iPoint = 0; iPoint &lt; poMP-&gt;getNumGeometries(); iPoint++ )</span>
+<span class="lineNum">     496 </span>            :         {
+<span class="lineNum">     497 </span><span class="lineCov">         46 :             const OGRPoint *poPoint = poMP-&gt;getGeometryRef(iPoint)-&gt;toPoint();</span>
+<span class="lineNum">     498 </span>            :             // Ignore POINT EMPTY.
+<span class="lineNum">     499 </span><span class="lineCov">         46 :             if( !poPoint-&gt;IsEmpty() )</span>
+<span class="lineNum">     500 </span>            :             {
+<span class="lineNum">     501 </span><span class="lineCov">         45 :                 padfX[iDstPoints] = poPoint-&gt;getX();</span>
+<span class="lineNum">     502 </span><span class="lineCov">         45 :                 padfY[iDstPoints] = poPoint-&gt;getY();</span>
+<span class="lineNum">     503 </span><span class="lineCov">         45 :                 padfZ[iDstPoints] = poPoint-&gt;getZ();</span>
+<span class="lineNum">     504 </span><span class="lineCov">         45 :                 if( padfM )</span>
+<span class="lineNum">     505 </span>            :                 {
+<span class="lineNum">     506 </span><span class="lineCov">         14 :                     if( poGeom-&gt;IsMeasured() )</span>
+<span class="lineNum">     507 </span><span class="lineCov">         10 :                         padfM[iDstPoints] = poPoint-&gt;getM();</span>
+<span class="lineNum">     508 </span>            :                     else
+<span class="lineNum">     509 </span><span class="lineCov">          4 :                         padfM[iDstPoints] = -std::numeric_limits&lt;double&gt;::max();</span>
+<span class="lineNum">     510 </span>            :                 }
+<span class="lineNum">     511 </span><span class="lineCov">         45 :                 iDstPoints++;</span>
+<span class="lineNum">     512 </span>            :             }
+<span class="lineNum">     513 </span>            :             else
+<span class="lineNum">     514 </span>            :             {
+<span class="lineNum">     515 </span>            :                 CPLDebug(
+<span class="lineNum">     516 </span>            :                     &quot;OGR&quot;,
+<span class="lineNum">     517 </span>            :                     &quot;Ignored POINT EMPTY inside MULTIPOINT in shapefile &quot;
+<span class="lineNum">     518 </span><span class="lineCov">          1 :                     &quot;writer.&quot; );</span>
+<span class="lineNum">     519 </span>            :             }
+<span class="lineNum">     520 </span>            :         }
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span>            :         SHPObject *psShape =
+<span class="lineNum">     523 </span>            :             SHPCreateObject( hSHP-&gt;nShapeType, -1, 0, nullptr, nullptr,
+<span class="lineNum">     524 </span>            :                              iDstPoints,
+<span class="lineNum">     525 </span><span class="lineCov">         39 :                              padfX, padfY, padfZ, padfM );</span>
+<span class="lineNum">     526 </span><span class="lineCov">         39 :         const int nReturnedShapeID = SHPWriteObject( hSHP, iShape, psShape );</span>
+<span class="lineNum">     527 </span><span class="lineCov">         39 :         SHPDestroyObject( psShape );</span>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineCov">         39 :         CPLFree( padfX );</span>
+<span class="lineNum">     530 </span><span class="lineCov">         39 :         CPLFree( padfY );</span>
+<span class="lineNum">     531 </span><span class="lineCov">         39 :         CPLFree( padfZ );</span>
+<span class="lineNum">     532 </span><span class="lineCov">         39 :         CPLFree( padfM );</span>
+<span class="lineNum">     533 </span><span class="lineCov">         39 :         if( nReturnedShapeID == -1 )</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :             return OGRERR_FAILURE;</span>
+<span class="lineNum">     535 </span>            :     }
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span>            : /* ==================================================================== */
+<span class="lineNum">     538 </span>            : /*      Arcs from simple line strings.                                  */
+<span class="lineNum">     539 </span>            : /* ==================================================================== */
+<span class="lineNum">     540 </span><span class="lineCov">      29936 :     else if( (hSHP-&gt;nShapeType == SHPT_ARC</span>
+<span class="lineNum">     541 </span><span class="lineCov">      14680 :               || hSHP-&gt;nShapeType == SHPT_ARCM</span>
+<span class="lineNum">     542 </span><span class="lineCov">      14670 :               || hSHP-&gt;nShapeType == SHPT_ARCZ)</span>
+<span class="lineNum">     543 </span><span class="lineCov">      16543 :              &amp;&amp; wkbFlatten(poGeom-&gt;getGeometryType()) == wkbLineString )</span>
+<span class="lineNum">     544 </span>            :     {
+<span class="lineNum">     545 </span><span class="lineCov">       1530 :         const OGRLineString *poArc = poGeom-&gt;toLineString();</span>
+<span class="lineNum">     546 </span>            :         double *padfX = static_cast&lt;double *&gt;(
+<span class="lineNum">     547 </span><span class="lineCov">       1530 :             CPLMalloc(sizeof(double) * poArc-&gt;getNumPoints()));</span>
+<span class="lineNum">     548 </span>            :         double *padfY = static_cast&lt;double *&gt;(
+<span class="lineNum">     549 </span><span class="lineCov">       1530 :             CPLMalloc(sizeof(double)*poArc-&gt;getNumPoints()));</span>
+<span class="lineNum">     550 </span>            :         double *padfZ = static_cast&lt;double *&gt;(
+<span class="lineNum">     551 </span><span class="lineCov">       1530 :             CPLCalloc(sizeof(double), poArc-&gt;getNumPoints()));</span>
+<span class="lineNum">     552 </span><span class="lineCov">       1530 :         double *padfM = nullptr;</span>
+<span class="lineNum">     553 </span><span class="lineCov">       1558 :         if( wkbHasM(eLayerGeomType) &amp;&amp;</span>
+<span class="lineNum">     554 </span><span class="lineCov">         21 :             (hSHP-&gt;nShapeType == SHPT_ARCM ||</span>
+<span class="lineNum">     555 </span><span class="lineCov">          7 :              hSHP-&gt;nShapeType == SHPT_ARCZ) )</span>
+<span class="lineNum">     556 </span>            :             padfM = static_cast&lt;double *&gt;(
+<span class="lineNum">     557 </span><span class="lineCov">         14 :                 CPLCalloc(sizeof(double),poArc-&gt;getNumPoints()));</span>
+<span class="lineNum">     558 </span>            : 
+<span class="lineNum">     559 </span><span class="lineCov">      39695 :         for( int iPoint = 0; iPoint &lt; poArc-&gt;getNumPoints(); iPoint++ )</span>
+<span class="lineNum">     560 </span>            :         {
+<span class="lineNum">     561 </span><span class="lineCov">      38165 :             padfX[iPoint] = poArc-&gt;getX( iPoint );</span>
+<span class="lineNum">     562 </span><span class="lineCov">      38165 :             padfY[iPoint] = poArc-&gt;getY( iPoint );</span>
+<span class="lineNum">     563 </span><span class="lineCov">      38165 :             padfZ[iPoint] = poArc-&gt;getZ( iPoint );</span>
+<span class="lineNum">     564 </span><span class="lineCov">      38165 :             if( padfM )</span>
+<span class="lineNum">     565 </span>            :             {
+<span class="lineNum">     566 </span><span class="lineCov">         18 :                 if( poGeom-&gt;IsMeasured() )</span>
+<span class="lineNum">     567 </span><span class="lineCov">         14 :                     padfM[iPoint] = poArc-&gt;getM( iPoint );</span>
+<span class="lineNum">     568 </span>            :                 else
+<span class="lineNum">     569 </span><span class="lineCov">          4 :                     padfM[iPoint] = -std::numeric_limits&lt;double&gt;::max();</span>
+<span class="lineNum">     570 </span>            :             }
+<span class="lineNum">     571 </span>            :         }
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span>            :         SHPObject *psShape =
+<span class="lineNum">     574 </span>            :             SHPCreateObject( hSHP-&gt;nShapeType, -1, 0, nullptr, nullptr,
+<span class="lineNum">     575 </span><span class="lineCov">       1530 :                              poArc-&gt;getNumPoints(),</span>
+<span class="lineNum">     576 </span><span class="lineCov">       3060 :                              padfX, padfY, padfZ, padfM );</span>
+<span class="lineNum">     577 </span><span class="lineCov">       1530 :         const int nReturnedShapeID = SHPWriteObject( hSHP, iShape, psShape );</span>
+<span class="lineNum">     578 </span><span class="lineCov">       1530 :         SHPDestroyObject( psShape );</span>
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span><span class="lineCov">       1530 :         CPLFree( padfX );</span>
+<span class="lineNum">     581 </span><span class="lineCov">       1530 :         CPLFree( padfY );</span>
+<span class="lineNum">     582 </span><span class="lineCov">       1530 :         CPLFree( padfZ );</span>
+<span class="lineNum">     583 </span><span class="lineCov">       1530 :         CPLFree( padfM );</span>
+<span class="lineNum">     584 </span><span class="lineCov">       1530 :         if( nReturnedShapeID == -1 )</span>
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :             return OGRERR_FAILURE;</span>
+<span class="lineNum">     586 </span>            :     }
+<span class="lineNum">     587 </span>            : /* ==================================================================== */
+<span class="lineNum">     588 </span>            : /*      Arcs - Try to treat as MultiLineString.                         */
+<span class="lineNum">     589 </span>            : /* ==================================================================== */
+<span class="lineNum">     590 </span><span class="lineCov">      13438 :     else if( hSHP-&gt;nShapeType == SHPT_ARC</span>
+<span class="lineNum">     591 </span><span class="lineCov">      13412 :              || hSHP-&gt;nShapeType == SHPT_ARCM</span>
+<span class="lineNum">     592 </span><span class="lineCov">      13409 :              || hSHP-&gt;nShapeType == SHPT_ARCZ )</span>
+<span class="lineNum">     593 </span>            :     {
+<span class="lineNum">     594 </span>            :         OGRGeometry *poForcedGeom =
+<span class="lineNum">     595 </span><span class="lineCov">         45 :             OGRGeometryFactory::forceToMultiLineString( poGeom-&gt;clone() );</span>
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span><span class="lineCov">         45 :         if( wkbFlatten(poForcedGeom-&gt;getGeometryType()) != wkbMultiLineString )</span>
+<span class="lineNum">     598 </span>            :         {
+<span class="lineNum">     599 </span><span class="lineCov">         13 :             delete poForcedGeom;</span>
+<span class="lineNum">     600 </span>            :             CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     601 </span>            :                       &quot;Attempt to write non-linestring (%s) geometry to &quot;
+<span class="lineNum">     602 </span>            :                       &quot;ARC type shapefile.&quot;,
+<span class="lineNum">     603 </span><span class="lineCov">         13 :                       poGeom-&gt;getGeometryName() );</span>
+<span class="lineNum">     604 </span>            : 
+<span class="lineNum">     605 </span><span class="lineCov">         13 :             return OGRERR_UNSUPPORTED_GEOMETRY_TYPE;</span>
+<span class="lineNum">     606 </span>            :         }
+<span class="lineNum">     607 </span><span class="lineCov">         32 :         const OGRMultiLineString *poML = poForcedGeom-&gt;toMultiLineString();</span>
+<span class="lineNum">     608 </span>            : 
+<span class="lineNum">     609 </span>            :         int *panRingStart = static_cast&lt;int *&gt;(
+<span class="lineNum">     610 </span><span class="lineCov">         32 :             CPLMalloc(sizeof(int) * poML-&gt;getNumGeometries()) );</span>
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span><span class="lineCov">         32 :         double *padfX = nullptr;</span>
+<span class="lineNum">     613 </span><span class="lineCov">         32 :         double *padfY = nullptr;</span>
+<span class="lineNum">     614 </span><span class="lineCov">         32 :         double *padfZ = nullptr;</span>
+<span class="lineNum">     615 </span><span class="lineCov">         32 :         double *padfM = nullptr;</span>
+<span class="lineNum">     616 </span><span class="lineCov">         32 :         int nPointCount = 0;</span>
+<span class="lineNum">     617 </span><span class="lineCov">         32 :         int nParts = 0;</span>
+<span class="lineNum">     618 </span>            :         const bool bSupportMeasures =
+<span class="lineNum">     619 </span><span class="lineCov">         35 :             wkbHasM(eLayerGeomType) &amp;&amp; (hSHP-&gt;nShapeType == SHPT_ARCM ||</span>
+<span class="lineNum">     620 </span><span class="lineCov">         35 :                                             hSHP-&gt;nShapeType == SHPT_ARCZ);</span>
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span><span class="lineCov">         84 :         for( int iGeom = 0; iGeom &lt; poML-&gt;getNumGeometries(); iGeom++ )</span>
+<span class="lineNum">     623 </span>            :         {
+<span class="lineNum">     624 </span><span class="lineCov">         52 :             const OGRLineString *poArc = poML-&gt;getGeometryRef(iGeom)-&gt;toLineString();</span>
+<span class="lineNum">     625 </span><span class="lineCov">         52 :             const int nNewPoints = poArc-&gt;getNumPoints();</span>
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span>            :             // Ignore LINESTRING EMPTY.
+<span class="lineNum">     628 </span><span class="lineCov">         52 :             if( nNewPoints == 0 )</span>
+<span class="lineNum">     629 </span>            :             {
+<span class="lineNum">     630 </span>            :                 CPLDebug(
+<span class="lineNum">     631 </span>            :                     &quot;OGR&quot;,
+<span class="lineNum">     632 </span>            :                     &quot;Ignore LINESTRING EMPTY inside MULTILINESTRING in &quot;
+<span class="lineNum">     633 </span><span class="lineCov">          1 :                     &quot;shapefile writer.&quot; );</span>
+<span class="lineNum">     634 </span><span class="lineCov">          1 :                 continue;</span>
+<span class="lineNum">     635 </span>            :             }
+<span class="lineNum">     636 </span>            : 
+<span class="lineNum">     637 </span><span class="lineCov">         51 :             panRingStart[nParts++] = nPointCount;</span>
+<span class="lineNum">     638 </span>            : 
+<span class="lineNum">     639 </span>            :             padfX = static_cast&lt;double *&gt;(
+<span class="lineNum">     640 </span><span class="lineCov">         51 :                 CPLRealloc( padfX, sizeof(double)*(nNewPoints+nPointCount) ));</span>
+<span class="lineNum">     641 </span>            :             padfY = static_cast&lt;double *&gt;(
+<span class="lineNum">     642 </span><span class="lineCov">         51 :                 CPLRealloc( padfY, sizeof(double)*(nNewPoints+nPointCount) ));</span>
+<span class="lineNum">     643 </span>            :             padfZ = static_cast&lt;double *&gt;(
+<span class="lineNum">     644 </span><span class="lineCov">         51 :                 CPLRealloc( padfZ, sizeof(double)*(nNewPoints+nPointCount) ));</span>
+<span class="lineNum">     645 </span><span class="lineCov">         51 :             if( bSupportMeasures )</span>
+<span class="lineNum">     646 </span>            :             {
+<span class="lineNum">     647 </span>            :                 padfM = static_cast&lt;double *&gt;(
+<span class="lineNum">     648 </span><span class="lineCov">         10 :                     CPLRealloc(padfM, sizeof(double)*(nNewPoints+nPointCount)));</span>
+<span class="lineNum">     649 </span>            :             }
+<span class="lineNum">     650 </span>            : 
+<span class="lineNum">     651 </span><span class="lineCov">        200 :             for( int iPoint = 0; iPoint &lt; nNewPoints; iPoint++ )</span>
+<span class="lineNum">     652 </span>            :             {
+<span class="lineNum">     653 </span><span class="lineCov">        149 :                 padfX[nPointCount] = poArc-&gt;getX( iPoint );</span>
+<span class="lineNum">     654 </span><span class="lineCov">        149 :                 padfY[nPointCount] = poArc-&gt;getY( iPoint );</span>
+<span class="lineNum">     655 </span><span class="lineCov">        149 :                 padfZ[nPointCount] = poArc-&gt;getZ( iPoint );</span>
+<span class="lineNum">     656 </span><span class="lineCov">        149 :                 if( bSupportMeasures )</span>
+<span class="lineNum">     657 </span><span class="lineCov">         18 :                     padfM[nPointCount] = poGeom-&gt;IsMeasured() ?</span>
+<span class="lineNum">     658 </span><span class="lineCov">         18 :                         poArc-&gt;getM( iPoint ) :</span>
+<span class="lineNum">     659 </span><span class="lineCov">         36 :                         -std::numeric_limits&lt;double&gt;::max();</span>
+<span class="lineNum">     660 </span><span class="lineCov">        149 :                 nPointCount++;</span>
+<span class="lineNum">     661 </span>            :             }
+<span class="lineNum">     662 </span>            :         }
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span><span class="lineCov">         32 :         CPLAssert(nParts != 0);</span>
+<span class="lineNum">     665 </span>            : 
+<span class="lineNum">     666 </span>            :         SHPObject *psShape =
+<span class="lineNum">     667 </span>            :             SHPCreateObject( hSHP-&gt;nShapeType, iShape,
+<span class="lineNum">     668 </span>            :                              nParts,
+<span class="lineNum">     669 </span>            :                              panRingStart, nullptr,
+<span class="lineNum">     670 </span><span class="lineCov">         32 :                              nPointCount, padfX, padfY, padfZ, padfM );</span>
+<span class="lineNum">     671 </span><span class="lineCov">         32 :         const int nReturnedShapeID = SHPWriteObject( hSHP, iShape, psShape );</span>
+<span class="lineNum">     672 </span><span class="lineCov">         32 :         SHPDestroyObject( psShape );</span>
+<span class="lineNum">     673 </span>            : 
+<span class="lineNum">     674 </span><span class="lineCov">         32 :         CPLFree( panRingStart );</span>
+<span class="lineNum">     675 </span><span class="lineCov">         32 :         CPLFree( padfX );</span>
+<span class="lineNum">     676 </span><span class="lineCov">         32 :         CPLFree( padfY );</span>
+<span class="lineNum">     677 </span><span class="lineCov">         32 :         CPLFree( padfZ );</span>
+<span class="lineNum">     678 </span><span class="lineCov">         32 :         CPLFree( padfM );</span>
+<span class="lineNum">     679 </span>            : 
+<span class="lineNum">     680 </span><span class="lineCov">         32 :         delete poML;</span>
+<span class="lineNum">     681 </span><span class="lineCov">         32 :         if( nReturnedShapeID == -1 )</span>
+<span class="lineNum">     682 </span><span class="lineNoCov">          0 :             return OGRERR_FAILURE;</span>
+<span class="lineNum">     683 </span>            :     }
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span>            : /* ==================================================================== */
+<span class="lineNum">     686 </span>            : /*      Polygons/MultiPolygons                                          */
+<span class="lineNum">     687 </span>            : /* ==================================================================== */
+<span class="lineNum">     688 </span><span class="lineCov">      13393 :     else if( hSHP-&gt;nShapeType == SHPT_POLYGON</span>
+<span class="lineNum">     689 </span><span class="lineCov">        149 :              || hSHP-&gt;nShapeType == SHPT_POLYGONM</span>
+<span class="lineNum">     690 </span><span class="lineCov">        139 :              || hSHP-&gt;nShapeType == SHPT_POLYGONZ )</span>
+<span class="lineNum">     691 </span>            :     {
+<span class="lineNum">     692 </span><span class="lineCov">      13381 :         const OGRLinearRing **papoRings = nullptr;</span>
+<span class="lineNum">     693 </span><span class="lineCov">      13381 :         int nRings = 0;</span>
+<span class="lineNum">     694 </span><span class="lineCov">      13381 :         const OGRwkbGeometryType eType = wkbFlatten(poGeom-&gt;getGeometryType());</span>
+<span class="lineNum">     695 </span><span class="lineCov">      13381 :         std::unique_ptr&lt;OGRGeometry&gt; poGeomToDelete;</span>
+<span class="lineNum">     696 </span>            : 
+<span class="lineNum">     697 </span><span class="lineCov">      13381 :         if( eType == wkbPolygon || eType == wkbTriangle )</span>
+<span class="lineNum">     698 </span>            :         {
+<span class="lineNum">     699 </span><span class="lineCov">      13303 :             const OGRPolygon* poPoly = poGeom-&gt;toPolygon();</span>
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span><span class="lineCov">      26606 :             if( poPoly-&gt;getExteriorRing() == nullptr ||</span>
+<span class="lineNum">     702 </span><span class="lineCov">      13303 :                 poPoly-&gt;getExteriorRing()-&gt;IsEmpty() )</span>
+<span class="lineNum">     703 </span>            :             {
+<span class="lineNum">     704 </span>            :                 CPLDebug( &quot;OGR&quot;,
+<span class="lineNum">     705 </span><span class="lineCov">          1 :                           &quot;Ignore POLYGON EMPTY in shapefile writer.&quot; );</span>
+<span class="lineNum">     706 </span>            :             }
+<span class="lineNum">     707 </span>            :             else
+<span class="lineNum">     708 </span>            :             {
+<span class="lineNum">     709 </span><span class="lineCov">      13302 :                 const int nSrcRings = poPoly-&gt;getNumInteriorRings()+1;</span>
+<span class="lineNum">     710 </span>            :                 papoRings = static_cast&lt;const OGRLinearRing **&gt;(
+<span class="lineNum">     711 </span><span class="lineCov">      13302 :                     CPLMalloc(sizeof(const OGRLinearRing *)*nSrcRings));</span>
+<span class="lineNum">     712 </span><span class="lineCov">      26616 :                 for( int iRing = 0; iRing &lt; nSrcRings; iRing++ )</span>
+<span class="lineNum">     713 </span>            :                 {
+<span class="lineNum">     714 </span><span class="lineCov">      13314 :                     if( iRing == 0 )</span>
+<span class="lineNum">     715 </span><span class="lineCov">      13302 :                         papoRings[nRings] = poPoly-&gt;getExteriorRing();</span>
+<span class="lineNum">     716 </span>            :                     else
+<span class="lineNum">     717 </span><span class="lineCov">         12 :                         papoRings[nRings] = poPoly-&gt;getInteriorRing( iRing-1 );</span>
+<span class="lineNum">     718 </span>            : 
+<span class="lineNum">     719 </span>            :                     // Ignore LINEARRING EMPTY.
+<span class="lineNum">     720 </span><span class="lineCov">      13314 :                     if( papoRings[nRings]-&gt;getNumPoints() != 0 )</span>
+<span class="lineNum">     721 </span><span class="lineCov">      13313 :                         nRings++;</span>
+<span class="lineNum">     722 </span>            :                     else
+<span class="lineNum">     723 </span>            :                         CPLDebug(
+<span class="lineNum">     724 </span>            :                             &quot;OGR&quot;,
+<span class="lineNum">     725 </span>            :                             &quot;Ignore LINEARRING EMPTY inside POLYGON in &quot;
+<span class="lineNum">     726 </span><span class="lineCov">          1 :                             &quot;shapefile writer.&quot; );</span>
+<span class="lineNum">     727 </span>            :                 }
+<span class="lineNum">     728 </span><span class="lineCov">      13303 :             }</span>
+<span class="lineNum">     729 </span>            :         }
+<span class="lineNum">     730 </span><span class="lineCov">         78 :         else if( eType == wkbMultiPolygon ||</span>
+<span class="lineNum">     731 </span><span class="lineCov">         14 :                  eType == wkbGeometryCollection ||</span>
+<span class="lineNum">     732 </span><span class="lineCov">         14 :                  eType == wkbPolyhedralSurface ||</span>
+<span class="lineNum">     733 </span>            :                  eType == wkbTIN)
+<span class="lineNum">     734 </span>            :         {
+<span class="lineNum">     735 </span>            :             const OGRGeometryCollection *poGC;
+<span class="lineNum">     736 </span>            :             // for PolyhedralSurface and TIN
+<span class="lineNum">     737 </span><span class="lineCov">         64 :             if (eType == wkbPolyhedralSurface || eType == wkbTIN)</span>
+<span class="lineNum">     738 </span>            :             {
+<span class="lineNum">     739 </span><span class="lineNoCov">          0 :                 poGeomToDelete = std::unique_ptr&lt;OGRGeometry&gt;(</span>
+<span class="lineNum">     740 </span><span class="lineNoCov">          0 :                     OGRGeometryFactory::forceTo(poGeom-&gt;clone(),</span>
+<span class="lineNum">     741 </span>            :                                                              wkbMultiPolygon,
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :                                                              nullptr));</span>
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :                 poGC = poGeomToDelete-&gt;toGeometryCollection();</span>
+<span class="lineNum">     744 </span>            :             }
+<span class="lineNum">     745 </span>            : 
+<span class="lineNum">     746 </span>            :             else
+<span class="lineNum">     747 </span><span class="lineCov">         64 :                 poGC = poGeom-&gt;toGeometryCollection();</span>
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span><span class="lineCov">        314 :             for( int iGeom=0; poGC != nullptr &amp;&amp;</span>
+<span class="lineNum">     750 </span><span class="lineCov">        157 :                               iGeom &lt; poGC-&gt;getNumGeometries(); iGeom++ )</span>
+<span class="lineNum">     751 </span>            :             {
+<span class="lineNum">     752 </span><span class="lineCov">         96 :                 const OGRGeometry* poSubGeom = poGC-&gt;getGeometryRef( iGeom );</span>
+<span class="lineNum">     753 </span>            : 
+<span class="lineNum">     754 </span><span class="lineCov">         96 :                 if( wkbFlatten(poSubGeom-&gt;getGeometryType()) != wkbPolygon )</span>
+<span class="lineNum">     755 </span>            :                 {
+<span class="lineNum">     756 </span><span class="lineCov">          3 :                     CPLFree( papoRings );</span>
+<span class="lineNum">     757 </span>            :                     CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     758 </span>            :                               &quot;Attempt to write non-polygon (%s) geometry to &quot;
+<span class="lineNum">     759 </span>            :                               &quot;POLYGON type shapefile.&quot;,
+<span class="lineNum">     760 </span><span class="lineCov">          3 :                               poSubGeom-&gt;getGeometryName());</span>
+<span class="lineNum">     761 </span>            : 
+<span class="lineNum">     762 </span><span class="lineCov">          3 :                     return OGRERR_UNSUPPORTED_GEOMETRY_TYPE;</span>
+<span class="lineNum">     763 </span>            :                 }
+<span class="lineNum">     764 </span><span class="lineCov">         93 :                 const OGRPolygon* poPoly = poSubGeom-&gt;toPolygon();</span>
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span>            :                 // Ignore POLYGON EMPTY.
+<span class="lineNum">     767 </span><span class="lineCov">        185 :                 if( poPoly-&gt;getExteriorRing() == nullptr ||</span>
+<span class="lineNum">     768 </span><span class="lineCov">         92 :                     poPoly-&gt;getExteriorRing()-&gt;IsEmpty() )</span>
+<span class="lineNum">     769 </span>            :                 {
+<span class="lineNum">     770 </span>            :                     CPLDebug(
+<span class="lineNum">     771 </span>            :                         &quot;OGR&quot;,
+<span class="lineNum">     772 </span>            :                         &quot;Ignore POLYGON EMPTY inside MULTIPOLYGON in &quot;
+<span class="lineNum">     773 </span><span class="lineCov">          1 :                         &quot;shapefile writer.&quot; );</span>
+<span class="lineNum">     774 </span><span class="lineCov">          1 :                     continue;</span>
+<span class="lineNum">     775 </span>            :                 }
+<span class="lineNum">     776 </span>            : 
+<span class="lineNum">     777 </span>            :                 papoRings = static_cast&lt;const OGRLinearRing **&gt;(
+<span class="lineNum">     778 </span>            :                     CPLRealloc(papoRings,
+<span class="lineNum">     779 </span>            :                                sizeof(const OGRLinearRing *) *
+<span class="lineNum">     780 </span><span class="lineCov">         92 :                                (nRings+poPoly-&gt;getNumInteriorRings() + 1)) );</span>
+<span class="lineNum">     781 </span><span class="lineCov">        418 :                 for( int iRing = 0;</span>
+<span class="lineNum">     782 </span><span class="lineCov">        209 :                      iRing &lt; poPoly-&gt;getNumInteriorRings()+1;</span>
+<span class="lineNum">     783 </span>            :                      iRing++ )
+<span class="lineNum">     784 </span>            :                 {
+<span class="lineNum">     785 </span><span class="lineCov">        117 :                     if( iRing == 0 )</span>
+<span class="lineNum">     786 </span><span class="lineCov">         92 :                         papoRings[nRings] = poPoly-&gt;getExteriorRing();</span>
+<span class="lineNum">     787 </span>            :                     else
+<span class="lineNum">     788 </span><span class="lineCov">         25 :                         papoRings[nRings] =</span>
+<span class="lineNum">     789 </span><span class="lineCov">         25 :                             poPoly-&gt;getInteriorRing( iRing - 1 );</span>
+<span class="lineNum">     790 </span>            : 
+<span class="lineNum">     791 </span>            :                     // Ignore LINEARRING EMPTY.
+<span class="lineNum">     792 </span><span class="lineCov">        117 :                     if( papoRings[nRings]-&gt;getNumPoints() != 0 )</span>
+<span class="lineNum">     793 </span><span class="lineCov">        116 :                         nRings++;</span>
+<span class="lineNum">     794 </span>            :                     else
+<span class="lineNum">     795 </span>            :                         CPLDebug(
+<span class="lineNum">     796 </span>            :                             &quot;OGR&quot;,
+<span class="lineNum">     797 </span>            :                             &quot;Ignore LINEARRING EMPTY inside POLYGON in &quot;
+<span class="lineNum">     798 </span><span class="lineCov">          1 :                             &quot;shapefile writer.&quot; );</span>
+<span class="lineNum">     799 </span>            :                 }
+<span class="lineNum">     800 </span><span class="lineCov">         61 :             }</span>
+<span class="lineNum">     801 </span>            :         }
+<span class="lineNum">     802 </span>            :         else
+<span class="lineNum">     803 </span>            :         {
+<span class="lineNum">     804 </span>            :             CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     805 </span>            :                       &quot;Attempt to write non-polygon (%s) geometry to &quot;
+<span class="lineNum">     806 </span>            :                       &quot;POLYGON type shapefile.&quot;,
+<span class="lineNum">     807 </span><span class="lineCov">         14 :                       poGeom-&gt;getGeometryName() );</span>
+<span class="lineNum">     808 </span>            : 
+<span class="lineNum">     809 </span><span class="lineCov">         14 :             return OGRERR_UNSUPPORTED_GEOMETRY_TYPE;</span>
+<span class="lineNum">     810 </span>            :         }
+<span class="lineNum">     811 </span>            : 
+<span class="lineNum">     812 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     813 </span>            : /*      If we only had emptypolygons or unacceptable geometries         */
+<span class="lineNum">     814 </span>            : /*      write NULL geometry object.                                     */
+<span class="lineNum">     815 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     816 </span><span class="lineCov">      13364 :         if( nRings == 0 )</span>
+<span class="lineNum">     817 </span>            :         {
+<span class="lineNum">     818 </span>            :             SHPObject *psShape =
+<span class="lineNum">     819 </span>            :                 SHPCreateObject( SHPT_NULL, -1, 0, nullptr, nullptr,
+<span class="lineNum">     820 </span><span class="lineCov">          1 :                                  0, nullptr, nullptr, nullptr, nullptr );</span>
+<span class="lineNum">     821 </span>            :             const int nReturnedShapeID =
+<span class="lineNum">     822 </span><span class="lineCov">          1 :                 SHPWriteObject( hSHP, iShape, psShape );</span>
+<span class="lineNum">     823 </span><span class="lineCov">          1 :             SHPDestroyObject( psShape );</span>
+<span class="lineNum">     824 </span>            : 
+<span class="lineNum">     825 </span><span class="lineCov">          1 :             if( nReturnedShapeID == -1 )</span>
+<span class="lineNum">     826 </span><span class="lineNoCov">          0 :                 return OGRERR_FAILURE;</span>
+<span class="lineNum">     827 </span>            : 
+<span class="lineNum">     828 </span><span class="lineCov">          1 :             return OGRERR_NONE;</span>
+<span class="lineNum">     829 </span>            :         }
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span>            :         // Count vertices.
+<span class="lineNum">     832 </span><span class="lineCov">      13363 :         int nVertex = 0;</span>
+<span class="lineNum">     833 </span><span class="lineCov">      26792 :         for( int iRing = 0; iRing &lt; nRings; iRing++ )</span>
+<span class="lineNum">     834 </span><span class="lineCov">      13429 :             nVertex += papoRings[iRing]-&gt;getNumPoints();</span>
+<span class="lineNum">     835 </span>            : 
+<span class="lineNum">     836 </span>            :         int *panRingStart =
+<span class="lineNum">     837 </span><span class="lineCov">      13363 :             static_cast&lt;int *&gt;( CPLMalloc(sizeof(int) * nRings) );</span>
+<span class="lineNum">     838 </span>            :         double *padfX =
+<span class="lineNum">     839 </span><span class="lineCov">      13363 :             static_cast&lt;double *&gt;( CPLMalloc(sizeof(double) * nVertex) );</span>
+<span class="lineNum">     840 </span>            :         double *padfY =
+<span class="lineNum">     841 </span><span class="lineCov">      13363 :             static_cast&lt;double *&gt;( CPLMalloc(sizeof(double) * nVertex) );</span>
+<span class="lineNum">     842 </span>            :         double *padfZ =
+<span class="lineNum">     843 </span><span class="lineCov">      13363 :             static_cast&lt;double *&gt;( CPLMalloc(sizeof(double) * nVertex) );</span>
+<span class="lineNum">     844 </span>            : 
+<span class="lineNum">     845 </span><span class="lineCov">      13363 :         double *padfM = nullptr;</span>
+<span class="lineNum">     846 </span><span class="lineCov">      13403 :         if( wkbHasM(eLayerGeomType) &amp;&amp;</span>
+<span class="lineNum">     847 </span><span class="lineCov">         30 :             (hSHP-&gt;nShapeType == SHPT_POLYGONM ||</span>
+<span class="lineNum">     848 </span><span class="lineCov">         10 :              hSHP-&gt;nShapeType == SHPT_POLYGONZ) )</span>
+<span class="lineNum">     849 </span>            :             padfM = static_cast&lt;double *&gt;(
+<span class="lineNum">     850 </span><span class="lineCov">         20 :                 CPLMalloc(sizeof(double) * nVertex));</span>
+<span class="lineNum">     851 </span>            : 
+<span class="lineNum">     852 </span>            :         // Collect vertices.
+<span class="lineNum">     853 </span><span class="lineCov">      13363 :         nVertex = 0;</span>
+<span class="lineNum">     854 </span><span class="lineCov">      26792 :         for( int iRing = 0; iRing &lt; nRings; iRing++ )</span>
+<span class="lineNum">     855 </span>            :         {
+<span class="lineNum">     856 </span><span class="lineCov">      13429 :             const OGRLinearRing *poRing = papoRings[iRing];</span>
+<span class="lineNum">     857 </span><span class="lineCov">      13429 :             panRingStart[iRing] = nVertex;</span>
+<span class="lineNum">     858 </span>            : 
+<span class="lineNum">     859 </span><span class="lineCov">      98711 :             for( int iPoint = 0; iPoint &lt; poRing-&gt;getNumPoints(); iPoint++ )</span>
+<span class="lineNum">     860 </span>            :             {
+<span class="lineNum">     861 </span><span class="lineCov">      85282 :                 padfX[nVertex] = poRing-&gt;getX( iPoint );</span>
+<span class="lineNum">     862 </span><span class="lineCov">      85282 :                 padfY[nVertex] = poRing-&gt;getY( iPoint );</span>
+<span class="lineNum">     863 </span><span class="lineCov">      85282 :                 padfZ[nVertex] = poRing-&gt;getZ( iPoint );</span>
+<span class="lineNum">     864 </span><span class="lineCov">      85282 :                 if( padfM )</span>
+<span class="lineNum">     865 </span>            :                 {
+<span class="lineNum">     866 </span><span class="lineCov">         60 :                     padfM[nVertex] = poGeom-&gt;IsMeasured() ?</span>
+<span class="lineNum">     867 </span><span class="lineCov">         56 :                         poRing-&gt;getM( iPoint ) :</span>
+<span class="lineNum">     868 </span><span class="lineCov">        116 :                         -std::numeric_limits&lt;double&gt;::max();</span>
+<span class="lineNum">     869 </span>            :                 }
+<span class="lineNum">     870 </span><span class="lineCov">      85282 :                 nVertex++;</span>
+<span class="lineNum">     871 </span>            :             }
+<span class="lineNum">     872 </span>            :         }
+<span class="lineNum">     873 </span>            : 
+<span class="lineNum">     874 </span>            :         SHPObject* psShape =
+<span class="lineNum">     875 </span>            :             SHPCreateObject( hSHP-&gt;nShapeType, iShape, nRings, panRingStart,
+<span class="lineNum">     876 </span><span class="lineCov">      13363 :                              nullptr, nVertex, padfX, padfY, padfZ, padfM );</span>
+<span class="lineNum">     877 </span><span class="lineCov">      13363 :         if( bRewind )</span>
+<span class="lineNum">     878 </span><span class="lineCov">      13363 :             SHPRewindObject( hSHP, psShape );</span>
+<span class="lineNum">     879 </span><span class="lineCov">      13363 :         const int nReturnedShapeID = SHPWriteObject( hSHP, iShape, psShape );</span>
+<span class="lineNum">     880 </span><span class="lineCov">      13363 :         SHPDestroyObject( psShape );</span>
+<span class="lineNum">     881 </span>            : 
+<span class="lineNum">     882 </span><span class="lineCov">      13363 :         CPLFree( papoRings );</span>
+<span class="lineNum">     883 </span><span class="lineCov">      13363 :         CPLFree( panRingStart );</span>
+<span class="lineNum">     884 </span><span class="lineCov">      13363 :         CPLFree( padfX );</span>
+<span class="lineNum">     885 </span><span class="lineCov">      13363 :         CPLFree( padfY );</span>
+<span class="lineNum">     886 </span><span class="lineCov">      13363 :         CPLFree( padfZ );</span>
+<span class="lineNum">     887 </span><span class="lineCov">      13363 :         CPLFree( padfM );</span>
+<span class="lineNum">     888 </span>            : 
+<span class="lineNum">     889 </span><span class="lineCov">      13363 :         if( nReturnedShapeID == -1 )</span>
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 :             return OGRERR_FAILURE;</span>
+<span class="lineNum">     891 </span>            :     }
+<span class="lineNum">     892 </span>            : 
+<span class="lineNum">     893 </span>            : /* ==================================================================== */
+<span class="lineNum">     894 </span>            : /*      Multipatch                                                      */
+<span class="lineNum">     895 </span>            : /* ==================================================================== */
+<span class="lineNum">     896 </span><span class="lineCov">         12 :     else if( hSHP-&gt;nShapeType == SHPT_MULTIPATCH )</span>
+<span class="lineNum">     897 </span>            :     {
+<span class="lineNum">     898 </span><span class="lineCov">         12 :         int nParts = 0;</span>
+<span class="lineNum">     899 </span><span class="lineCov">         12 :         int* panPartStart = nullptr;</span>
+<span class="lineNum">     900 </span><span class="lineCov">         12 :         int* panPartType = nullptr;</span>
+<span class="lineNum">     901 </span><span class="lineCov">         12 :         int nPoints = 0;</span>
+<span class="lineNum">     902 </span><span class="lineCov">         12 :         OGRRawPoint* poPoints = nullptr;</span>
+<span class="lineNum">     903 </span><span class="lineCov">         12 :         double* padfZ = nullptr;</span>
+<span class="lineNum">     904 </span>            :         OGRErr eErr = OGRCreateMultiPatch( poGeom,
+<span class="lineNum">     905 </span>            :                                            FALSE, // no SHPP_TRIANGLES
+<span class="lineNum">     906 </span>            :                                            nParts,
+<span class="lineNum">     907 </span>            :                                            panPartStart,
+<span class="lineNum">     908 </span>            :                                            panPartType,
+<span class="lineNum">     909 </span>            :                                            nPoints,
+<span class="lineNum">     910 </span>            :                                            poPoints,
+<span class="lineNum">     911 </span><span class="lineCov">         12 :                                            padfZ );</span>
+<span class="lineNum">     912 </span><span class="lineCov">         12 :         if( eErr != OGRERR_NONE )</span>
+<span class="lineNum">     913 </span><span class="lineCov">          2 :             return OGRERR_UNSUPPORTED_GEOMETRY_TYPE;</span>
+<span class="lineNum">     914 </span>            : 
+<span class="lineNum">     915 </span>            :         double *padfX =
+<span class="lineNum">     916 </span><span class="lineCov">         11 :             static_cast&lt;double *&gt;( CPLMalloc(sizeof(double) * nPoints) );</span>
+<span class="lineNum">     917 </span>            :         double *padfY =
+<span class="lineNum">     918 </span><span class="lineCov">         11 :             static_cast&lt;double *&gt;( CPLMalloc(sizeof(double) * nPoints) );</span>
+<span class="lineNum">     919 </span><span class="lineCov">         60 :         for( int i = 0; i &lt; nPoints; ++i )</span>
+<span class="lineNum">     920 </span>            :         {
+<span class="lineNum">     921 </span><span class="lineCov">         49 :             padfX[i] = poPoints[i].x;</span>
+<span class="lineNum">     922 </span><span class="lineCov">         49 :             padfY[i] = poPoints[i].y;</span>
+<span class="lineNum">     923 </span>            :         }
+<span class="lineNum">     924 </span><span class="lineCov">         11 :         CPLFree(poPoints);</span>
+<span class="lineNum">     925 </span>            : 
+<span class="lineNum">     926 </span>            :         SHPObject* psShape =
+<span class="lineNum">     927 </span>            :             SHPCreateObject( hSHP-&gt;nShapeType, iShape, nParts, panPartStart,
+<span class="lineNum">     928 </span><span class="lineCov">         11 :                              panPartType, nPoints, padfX, padfY, padfZ, nullptr );</span>
+<span class="lineNum">     929 </span><span class="lineCov">         11 :         if( bRewind )</span>
+<span class="lineNum">     930 </span><span class="lineCov">         11 :             SHPRewindObject( hSHP, psShape );</span>
+<span class="lineNum">     931 </span><span class="lineCov">         11 :         const int nReturnedShapeID = SHPWriteObject( hSHP, iShape, psShape );</span>
+<span class="lineNum">     932 </span><span class="lineCov">         11 :         SHPDestroyObject( psShape );</span>
+<span class="lineNum">     933 </span>            : 
+<span class="lineNum">     934 </span><span class="lineCov">         11 :         CPLFree(panPartStart);</span>
+<span class="lineNum">     935 </span><span class="lineCov">         11 :         CPLFree(panPartType);</span>
+<span class="lineNum">     936 </span><span class="lineCov">         11 :         CPLFree(padfX);</span>
+<span class="lineNum">     937 </span><span class="lineCov">         11 :         CPLFree(padfY);</span>
+<span class="lineNum">     938 </span><span class="lineCov">         11 :         CPLFree(padfZ);</span>
+<span class="lineNum">     939 </span>            : 
+<span class="lineNum">     940 </span><span class="lineCov">         11 :         if( nReturnedShapeID == -1 )</span>
+<span class="lineNum">     941 </span><span class="lineNoCov">          0 :             return OGRERR_FAILURE;</span>
+<span class="lineNum">     942 </span>            :     }
+<span class="lineNum">     943 </span>            : 
+<span class="lineNum">     944 </span>            :     else
+<span class="lineNum">     945 </span>            :     {
+<span class="lineNum">     946 </span><span class="lineNoCov">          0 :         return OGRERR_UNSUPPORTED_GEOMETRY_TYPE;</span>
+<span class="lineNum">     947 </span>            :     }
+<span class="lineNum">     948 </span>            : 
+<span class="lineNum">     949 </span><span class="lineCov">      45600 :     return OGRERR_NONE;</span>
+<span class="lineNum">     950 </span>            : }
+<span class="lineNum">     951 </span>            : 
+<span class="lineNum">     952 </span>            : /************************************************************************/
+<span class="lineNum">     953 </span>            : /*                       SHPReadOGRFeatureDefn()                        */
+<a name="954"><span class="lineNum">     954 </span>            : /************************************************************************/</a>
+<span class="lineNum">     955 </span>            : 
+<span class="lineNum">     956 </span><span class="lineCov">       4886 : OGRFeatureDefn *SHPReadOGRFeatureDefn( const char * pszName,</span>
+<span class="lineNum">     957 </span>            :                                        SHPHandle hSHP, DBFHandle hDBF,
+<span class="lineNum">     958 </span>            :                                        const char* pszSHPEncoding,
+<span class="lineNum">     959 </span>            :                                        int bAdjustType )
+<span class="lineNum">     960 </span>            : 
+<span class="lineNum">     961 </span>            : {
+<span class="lineNum">     962 </span><span class="lineCov">       4886 :     int nAdjustableFields = 0;</span>
+<span class="lineNum">     963 </span><span class="lineCov">       4886 :     const int nFieldCount = hDBF ? DBFGetFieldCount(hDBF) : 0;</span>
+<span class="lineNum">     964 </span>            : 
+<span class="lineNum">     965 </span><span class="lineCov">       4886 :     OGRFeatureDefn * const poDefn = new OGRFeatureDefn( pszName );</span>
+<span class="lineNum">     966 </span><span class="lineCov">       4886 :     poDefn-&gt;Reference();</span>
+<span class="lineNum">     967 </span>            : 
+<span class="lineNum">     968 </span><span class="lineCov">      10238 :     for( int iField = 0; iField &lt; nFieldCount; iField++ )</span>
+<span class="lineNum">     969 </span>            :     {
+<span class="lineNum">     970 </span>            :         // On reading we support up to 11 characters
+<span class="lineNum">     971 </span><span class="lineCov">       5352 :         char szFieldName[XBASE_FLDNAME_LEN_READ+1] = {};</span>
+<span class="lineNum">     972 </span><span class="lineCov">       5352 :         int nWidth = 0;</span>
+<span class="lineNum">     973 </span><span class="lineCov">       5352 :         int nPrecision = 0;</span>
+<span class="lineNum">     974 </span>            :         DBFFieldType eDBFType =
+<span class="lineNum">     975 </span><span class="lineCov">       5352 :             DBFGetFieldInfo( hDBF, iField, szFieldName, &amp;nWidth, &amp;nPrecision );</span>
+<span class="lineNum">     976 </span>            : 
+<span class="lineNum">     977 </span><span class="lineCov">       5352 :         OGRFieldDefn oField(&quot;&quot;, OFTInteger);</span>
+<span class="lineNum">     978 </span><span class="lineCov">       5352 :         if( strlen(pszSHPEncoding) &gt; 0 )</span>
+<span class="lineNum">     979 </span>            :         {
+<span class="lineNum">     980 </span>            :             char * const pszUTF8Field =
+<span class="lineNum">     981 </span><span class="lineCov">       4052 :                 CPLRecode( szFieldName, pszSHPEncoding, CPL_ENC_UTF8);</span>
+<span class="lineNum">     982 </span><span class="lineCov">       4052 :             oField.SetName( pszUTF8Field );</span>
+<span class="lineNum">     983 </span><span class="lineCov">       4052 :             CPLFree( pszUTF8Field );</span>
+<span class="lineNum">     984 </span>            :         }
+<span class="lineNum">     985 </span>            :         else
+<span class="lineNum">     986 </span>            :         {
+<span class="lineNum">     987 </span><span class="lineCov">       1300 :             oField.SetName( szFieldName );</span>
+<span class="lineNum">     988 </span>            :         }
+<span class="lineNum">     989 </span>            : 
+<span class="lineNum">     990 </span><span class="lineCov">       5352 :         oField.SetWidth( nWidth );</span>
+<span class="lineNum">     991 </span><span class="lineCov">       5352 :         oField.SetPrecision( nPrecision );</span>
+<span class="lineNum">     992 </span>            : 
+<span class="lineNum">     993 </span><span class="lineCov">       5352 :         if( eDBFType == FTDate )</span>
+<span class="lineNum">     994 </span>            :         {
+<span class="lineNum">     995 </span>            :             // Shapefile date has following 8-chars long format:
+<span class="lineNum">     996 </span>            :             //
+<span class="lineNum">     997 </span>            :             //     20060101.
+<span class="lineNum">     998 </span>            :             //
+<span class="lineNum">     999 </span>            :             // Split as YYYY/MM/DD, so 2 additional characters are required.
+<span class="lineNum">    1000 </span><span class="lineCov">         20 :             oField.SetWidth( nWidth + 2 );</span>
+<span class="lineNum">    1001 </span><span class="lineCov">         20 :             oField.SetType( OFTDate );</span>
+<span class="lineNum">    1002 </span>            :         }
+<span class="lineNum">    1003 </span><span class="lineCov">       5332 :         else if( eDBFType == FTDouble )</span>
+<span class="lineNum">    1004 </span>            :         {
+<span class="lineNum">    1005 </span><span class="lineCov">       2154 :             nAdjustableFields += (nPrecision == 0);</span>
+<span class="lineNum">    1006 </span><span class="lineCov">       2154 :             if( nPrecision == 0 &amp;&amp; nWidth &lt; 19 )</span>
+<span class="lineNum">    1007 </span><span class="lineCov">       1508 :                 oField.SetType( OFTInteger64 );</span>
+<span class="lineNum">    1008 </span>            :             else
+<span class="lineNum">    1009 </span><span class="lineCov">        646 :                 oField.SetType( OFTReal );</span>
+<span class="lineNum">    1010 </span>            :         }
+<span class="lineNum">    1011 </span><span class="lineCov">       3178 :         else if( eDBFType == FTInteger )</span>
+<span class="lineNum">    1012 </span><span class="lineCov">        367 :             oField.SetType( OFTInteger );</span>
+<span class="lineNum">    1013 </span>            :         else
+<span class="lineNum">    1014 </span><span class="lineCov">       2811 :             oField.SetType( OFTString );</span>
+<span class="lineNum">    1015 </span>            : 
+<span class="lineNum">    1016 </span><span class="lineCov">       5352 :         poDefn-&gt;AddFieldDefn( &amp;oField );</span>
+<span class="lineNum">    1017 </span><span class="lineCov">       5352 :     }</span>
+<span class="lineNum">    1018 </span>            : 
+<span class="lineNum">    1019 </span>            :     // Do an optional past if requested and needed to demote Integer64-&gt;Integer
+<span class="lineNum">    1020 </span>            :     // or Real-&gt;Integer64/Integer.
+<span class="lineNum">    1021 </span><span class="lineCov">       4886 :     if( nAdjustableFields &amp;&amp; bAdjustType )</span>
+<span class="lineNum">    1022 </span>            :     {
+<span class="lineNum">    1023 </span>            :         int *panAdjustableField = static_cast&lt;int *&gt;(
+<span class="lineNum">    1024 </span><span class="lineCov">          1 :             CPLCalloc(sizeof(int), nFieldCount));</span>
+<span class="lineNum">    1025 </span><span class="lineCov">          3 :         for( int iField = 0; iField &lt; nFieldCount; iField++ )</span>
+<span class="lineNum">    1026 </span>            :         {
+<span class="lineNum">    1027 </span><span class="lineCov">          2 :             OGRFieldType eType = poDefn-&gt;GetFieldDefn(iField)-&gt;GetType();</span>
+<span class="lineNum">    1028 </span><span class="lineCov">          4 :             if( poDefn-&gt;GetFieldDefn(iField)-&gt;GetPrecision() == 0 &amp;&amp;</span>
+<span class="lineNum">    1029 </span><span class="lineCov">          1 :                (eType == OFTInteger64 || eType == OFTReal) )</span>
+<span class="lineNum">    1030 </span>            :             {
+<span class="lineNum">    1031 </span><span class="lineCov">          2 :                 panAdjustableField[iField] = TRUE;</span>
+<span class="lineNum">    1032 </span><span class="lineCov">          2 :                 poDefn-&gt;GetFieldDefn(iField)-&gt;SetType(OFTInteger);</span>
+<span class="lineNum">    1033 </span>            :             }
+<span class="lineNum">    1034 </span>            :         }
+<span class="lineNum">    1035 </span>            : 
+<span class="lineNum">    1036 </span><span class="lineCov">          1 :         const int nRowCount = DBFGetRecordCount(hDBF);</span>
+<span class="lineNum">    1037 </span><span class="lineCov">          2 :         for( int iRow = 0; iRow &lt; nRowCount &amp;&amp; nAdjustableFields; iRow++ )</span>
+<span class="lineNum">    1038 </span>            :         {
+<span class="lineNum">    1039 </span><span class="lineCov">          3 :            for( int iField = 0; iField &lt; nFieldCount; iField++ )</span>
+<span class="lineNum">    1040 </span>            :            {
+<span class="lineNum">    1041 </span><span class="lineCov">          2 :                if( panAdjustableField[iField] )</span>
+<span class="lineNum">    1042 </span>            :                {
+<span class="lineNum">    1043 </span>            :                    const char* pszValue =
+<span class="lineNum">    1044 </span><span class="lineCov">          2 :                        DBFReadStringAttribute( hDBF, iRow, iField );</span>
+<span class="lineNum">    1045 </span><span class="lineCov">          2 :                    const int nValueLength = static_cast&lt;int&gt;(strlen(pszValue));</span>
+<span class="lineNum">    1046 </span><span class="lineCov">          2 :                    if( nValueLength &gt;= 10 )</span>
+<span class="lineNum">    1047 </span>            :                    {
+<span class="lineNum">    1048 </span><span class="lineCov">          2 :                        int bOverflow = FALSE;</span>
+<span class="lineNum">    1049 </span>            :                        const GIntBig nVal =
+<span class="lineNum">    1050 </span><span class="lineCov">          2 :                            CPLAtoGIntBigEx(pszValue, FALSE, &amp;bOverflow);</span>
+<span class="lineNum">    1051 </span><span class="lineCov">          2 :                        if( bOverflow )</span>
+<span class="lineNum">    1052 </span>            :                        {
+<span class="lineNum">    1053 </span><span class="lineNoCov">          0 :                            poDefn-&gt;GetFieldDefn(iField)-&gt;SetType(OFTReal);</span>
+<span class="lineNum">    1054 </span><span class="lineNoCov">          0 :                            panAdjustableField[iField] = FALSE;</span>
+<span class="lineNum">    1055 </span><span class="lineNoCov">          0 :                            nAdjustableFields--;</span>
+<span class="lineNum">    1056 </span>            :                        }
+<span class="lineNum">    1057 </span><span class="lineCov">          2 :                        else if( !CPL_INT64_FITS_ON_INT32(nVal) )</span>
+<span class="lineNum">    1058 </span>            :                        {
+<span class="lineNum">    1059 </span><span class="lineCov">          1 :                            poDefn-&gt;GetFieldDefn(iField)-&gt;SetType(OFTInteger64);</span>
+<span class="lineNum">    1060 </span><span class="lineCov">          1 :                            if( poDefn-&gt;GetFieldDefn(iField)-&gt;GetWidth() &lt;= 18 )</span>
+<span class="lineNum">    1061 </span>            :                            {
+<span class="lineNum">    1062 </span><span class="lineNoCov">          0 :                                panAdjustableField[iField] = FALSE;</span>
+<span class="lineNum">    1063 </span><span class="lineNoCov">          0 :                                nAdjustableFields--;</span>
+<span class="lineNum">    1064 </span>            :                            }
+<span class="lineNum">    1065 </span>            :                        }
+<span class="lineNum">    1066 </span>            :                    }
+<span class="lineNum">    1067 </span>            :                }
+<span class="lineNum">    1068 </span>            :            }
+<span class="lineNum">    1069 </span>            :         }
+<span class="lineNum">    1070 </span>            : 
+<span class="lineNum">    1071 </span><span class="lineCov">          1 :         CPLFree(panAdjustableField);</span>
+<span class="lineNum">    1072 </span>            :     }
+<span class="lineNum">    1073 </span>            : 
+<span class="lineNum">    1074 </span><span class="lineCov">       4886 :     if( hSHP == nullptr )</span>
+<span class="lineNum">    1075 </span>            :     {
+<span class="lineNum">    1076 </span><span class="lineCov">        156 :         poDefn-&gt;SetGeomType( wkbNone );</span>
+<span class="lineNum">    1077 </span>            :     }
+<span class="lineNum">    1078 </span>            :     else
+<span class="lineNum">    1079 </span>            :     {
+<span class="lineNum">    1080 </span><span class="lineCov">       4730 :         switch( hSHP-&gt;nShapeType )</span>
+<span class="lineNum">    1081 </span>            :         {
+<span class="lineNum">    1082 </span>            :           case SHPT_POINT:
+<span class="lineNum">    1083 </span><span class="lineCov">       1054 :             poDefn-&gt;SetGeomType( wkbPoint );</span>
+<span class="lineNum">    1084 </span><span class="lineCov">       1054 :             break;</span>
+<span class="lineNum">    1085 </span>            : 
+<span class="lineNum">    1086 </span>            :           case SHPT_POINTZ:
+<span class="lineNum">    1087 </span><span class="lineCov">         98 :             poDefn-&gt;SetGeomType( wkbPointZM );</span>
+<span class="lineNum">    1088 </span><span class="lineCov">         98 :             break;</span>
+<span class="lineNum">    1089 </span>            : 
+<span class="lineNum">    1090 </span>            :           case SHPT_POINTM:
+<span class="lineNum">    1091 </span><span class="lineCov">         18 :             poDefn-&gt;SetGeomType( wkbPointM );</span>
+<span class="lineNum">    1092 </span><span class="lineCov">         18 :             break;</span>
+<span class="lineNum">    1093 </span>            : 
+<span class="lineNum">    1094 </span>            :           case SHPT_ARC:
+<span class="lineNum">    1095 </span><span class="lineCov">       2201 :             poDefn-&gt;SetGeomType( wkbLineString );</span>
+<span class="lineNum">    1096 </span><span class="lineCov">       2201 :             break;</span>
+<span class="lineNum">    1097 </span>            : 
+<span class="lineNum">    1098 </span>            :           case SHPT_ARCZ:
+<span class="lineNum">    1099 </span><span class="lineCov">        123 :             poDefn-&gt;SetGeomType( wkbLineStringZM );</span>
+<span class="lineNum">    1100 </span><span class="lineCov">        123 :             break;</span>
+<span class="lineNum">    1101 </span>            : 
+<span class="lineNum">    1102 </span>            :           case SHPT_ARCM:
+<span class="lineNum">    1103 </span><span class="lineCov">         24 :             poDefn-&gt;SetGeomType( wkbLineStringM );</span>
+<span class="lineNum">    1104 </span><span class="lineCov">         24 :             break;</span>
+<span class="lineNum">    1105 </span>            : 
+<span class="lineNum">    1106 </span>            :           case SHPT_MULTIPOINT:
+<span class="lineNum">    1107 </span><span class="lineCov">         96 :             poDefn-&gt;SetGeomType( wkbMultiPoint );</span>
+<span class="lineNum">    1108 </span><span class="lineCov">         96 :             break;</span>
+<span class="lineNum">    1109 </span>            : 
+<span class="lineNum">    1110 </span>            :           case SHPT_MULTIPOINTZ:
+<span class="lineNum">    1111 </span><span class="lineCov">         74 :             poDefn-&gt;SetGeomType( wkbMultiPointZM );</span>
+<span class="lineNum">    1112 </span><span class="lineCov">         74 :             break;</span>
+<span class="lineNum">    1113 </span>            : 
+<span class="lineNum">    1114 </span>            :           case SHPT_MULTIPOINTM:
+<span class="lineNum">    1115 </span><span class="lineCov">         14 :             poDefn-&gt;SetGeomType( wkbMultiPointM );</span>
+<span class="lineNum">    1116 </span><span class="lineCov">         14 :             break;</span>
+<span class="lineNum">    1117 </span>            : 
+<span class="lineNum">    1118 </span>            :           case SHPT_POLYGON:
+<span class="lineNum">    1119 </span><span class="lineCov">        869 :             poDefn-&gt;SetGeomType( wkbPolygon );</span>
+<span class="lineNum">    1120 </span><span class="lineCov">        869 :             break;</span>
+<span class="lineNum">    1121 </span>            : 
+<span class="lineNum">    1122 </span>            :           case SHPT_POLYGONZ:
+<span class="lineNum">    1123 </span><span class="lineCov">        117 :             poDefn-&gt;SetGeomType( wkbPolygonZM );</span>
+<span class="lineNum">    1124 </span><span class="lineCov">        117 :             break;</span>
+<span class="lineNum">    1125 </span>            : 
+<span class="lineNum">    1126 </span>            :           case SHPT_POLYGONM:
+<span class="lineNum">    1127 </span><span class="lineCov">         24 :             poDefn-&gt;SetGeomType( wkbPolygonM );</span>
+<span class="lineNum">    1128 </span><span class="lineCov">         24 :             break;</span>
+<span class="lineNum">    1129 </span>            : 
+<span class="lineNum">    1130 </span>            :           case SHPT_MULTIPATCH:
+<span class="lineNum">    1131 </span><span class="lineCov">         18 :             poDefn-&gt;SetGeomType( wkbUnknown ); // not ideal</span>
+<span class="lineNum">    1132 </span><span class="lineCov">         18 :             break;</span>
+<span class="lineNum">    1133 </span>            :         }
+<span class="lineNum">    1134 </span>            :     }
+<span class="lineNum">    1135 </span>            : 
+<span class="lineNum">    1136 </span><span class="lineCov">       4886 :     return poDefn;</span>
+<span class="lineNum">    1137 </span>            : }
+<span class="lineNum">    1138 </span>            : 
+<span class="lineNum">    1139 </span>            : /************************************************************************/
+<span class="lineNum">    1140 </span>            : /*                         SHPReadOGRFeature()                          */
+<a name="1141"><span class="lineNum">    1141 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1142 </span>            : 
+<span class="lineNum">    1143 </span><span class="lineCov">      90080 : OGRFeature *SHPReadOGRFeature( SHPHandle hSHP, DBFHandle hDBF,</span>
+<span class="lineNum">    1144 </span>            :                                OGRFeatureDefn * poDefn, int iShape,
+<span class="lineNum">    1145 </span>            :                                SHPObject *psShape, const char *pszSHPEncoding )
+<span class="lineNum">    1146 </span>            : 
+<span class="lineNum">    1147 </span>            : {
+<span class="lineNum">    1148 </span><span class="lineCov">      90080 :     if( iShape &lt; 0</span>
+<span class="lineNum">    1149 </span><span class="lineCov">      90070 :         || (hSHP != nullptr &amp;&amp; iShape &gt;= hSHP-&gt;nRecords)</span>
+<span class="lineNum">    1150 </span><span class="lineCov">      90059 :         || (hDBF != nullptr &amp;&amp; iShape &gt;= hDBF-&gt;nRecords) )</span>
+<span class="lineNum">    1151 </span>            :     {
+<span class="lineNum">    1152 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1153 </span>            :                   &quot;Attempt to read shape with feature id (%d) out of available&quot;
+<span class="lineNum">    1154 </span><span class="lineCov">         21 :                   &quot; range.&quot;, iShape );</span>
+<span class="lineNum">    1155 </span><span class="lineCov">         21 :         return nullptr;</span>
+<span class="lineNum">    1156 </span>            :     }
+<span class="lineNum">    1157 </span>            : 
+<span class="lineNum">    1158 </span><span class="lineCov">      90059 :     if( hDBF &amp;&amp; DBFIsRecordDeleted( hDBF, iShape ) )</span>
+<span class="lineNum">    1159 </span>            :     {
+<span class="lineNum">    1160 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1161 </span>            :                   &quot;Attempt to read shape with feature id (%d), &quot;
+<span class="lineNum">    1162 </span>            :                   &quot;but it is marked deleted.&quot;,
+<span class="lineNum">    1163 </span><span class="lineCov">          5 :                   iShape );</span>
+<span class="lineNum">    1164 </span><span class="lineCov">          5 :         if( psShape != nullptr )</span>
+<span class="lineNum">    1165 </span><span class="lineNoCov">          0 :             SHPDestroyObject(psShape);</span>
+<span class="lineNum">    1166 </span><span class="lineCov">          5 :         return nullptr;</span>
+<span class="lineNum">    1167 </span>            :     }
+<span class="lineNum">    1168 </span>            : 
+<span class="lineNum">    1169 </span><span class="lineCov">      90054 :     OGRFeature  *poFeature = new OGRFeature( poDefn );</span>
+<span class="lineNum">    1170 </span>            : 
+<span class="lineNum">    1171 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1172 </span>            : /*      Fetch geometry from Shapefile to OGRFeature.                    */
+<span class="lineNum">    1173 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1174 </span><span class="lineCov">      90054 :     if( hSHP != nullptr )</span>
+<span class="lineNum">    1175 </span>            :     {
+<span class="lineNum">    1176 </span><span class="lineCov">      86795 :         if( !poDefn-&gt;IsGeometryIgnored() )</span>
+<span class="lineNum">    1177 </span>            :         {
+<span class="lineNum">    1178 </span>            :             OGRGeometry* poGeometry =
+<span class="lineNum">    1179 </span><span class="lineCov">      86042 :                 SHPReadOGRObject( hSHP, iShape, psShape );</span>
+<span class="lineNum">    1180 </span>            : 
+<span class="lineNum">    1181 </span>            :             // Two possibilities are expected here (both are tested by
+<span class="lineNum">    1182 </span>            :             // GDAL Autotests):
+<span class="lineNum">    1183 </span>            :             //   1. Read valid geometry and assign it directly.
+<span class="lineNum">    1184 </span>            :             //   2. Read and assign null geometry if it can not be read
+<span class="lineNum">    1185 </span>            :             //      correctly from a shapefile.
+<span class="lineNum">    1186 </span>            :             //
+<span class="lineNum">    1187 </span>            :             // It is NOT required here to test poGeometry == NULL.
+<span class="lineNum">    1188 </span>            : 
+<span class="lineNum">    1189 </span><span class="lineCov">      86042 :             if( poGeometry )</span>
+<span class="lineNum">    1190 </span>            :             {
+<span class="lineNum">    1191 </span>            :                 // Set/unset flags.
+<span class="lineNum">    1192 </span>            :                 const OGRwkbGeometryType eMyGeomType =
+<span class="lineNum">    1193 </span><span class="lineCov">      85283 :                     poFeature-&gt;GetDefnRef()-&gt;GetGeomFieldDefn(0)-&gt;GetType();</span>
+<span class="lineNum">    1194 </span>            : 
+<span class="lineNum">    1195 </span><span class="lineCov">      85283 :                 if( eMyGeomType != wkbUnknown )</span>
+<span class="lineNum">    1196 </span>            :                 {
+<span class="lineNum">    1197 </span>            :                     OGRwkbGeometryType eGeomInType =
+<span class="lineNum">    1198 </span><span class="lineCov">      85271 :                         poGeometry-&gt;getGeometryType();</span>
+<span class="lineNum">    1199 </span><span class="lineCov">      85271 :                     if( wkbHasZ(eMyGeomType) &amp;&amp; !wkbHasZ(eGeomInType) )</span>
+<span class="lineNum">    1200 </span>            :                     {
+<span class="lineNum">    1201 </span><span class="lineNoCov">          0 :                         poGeometry-&gt;set3D(TRUE);</span>
+<span class="lineNum">    1202 </span>            :                     }
+<span class="lineNum">    1203 </span><span class="lineCov">      85271 :                     else if( !wkbHasZ(eMyGeomType) &amp;&amp; wkbHasZ(eGeomInType) )</span>
+<span class="lineNum">    1204 </span>            :                     {
+<span class="lineNum">    1205 </span><span class="lineNoCov">          0 :                         poGeometry-&gt;set3D(FALSE);</span>
+<span class="lineNum">    1206 </span>            :                     }
+<span class="lineNum">    1207 </span><span class="lineCov">      85271 :                     if( wkbHasM(eMyGeomType) &amp;&amp; !wkbHasM(eGeomInType) )</span>
+<span class="lineNum">    1208 </span>            :                     {
+<span class="lineNum">    1209 </span><span class="lineNoCov">          0 :                         poGeometry-&gt;setMeasured(TRUE);</span>
+<span class="lineNum">    1210 </span>            :                     }
+<span class="lineNum">    1211 </span><span class="lineCov">      85271 :                     else if( !wkbHasM(eMyGeomType) &amp;&amp; wkbHasM(eGeomInType) )</span>
+<span class="lineNum">    1212 </span>            :                     {
+<span class="lineNum">    1213 </span><span class="lineCov">          1 :                         poGeometry-&gt;setMeasured(FALSE);</span>
+<span class="lineNum">    1214 </span>            :                     }
+<span class="lineNum">    1215 </span>            :                 }
+<span class="lineNum">    1216 </span>            :             }
+<span class="lineNum">    1217 </span>            : 
+<span class="lineNum">    1218 </span><span class="lineCov">      86042 :             poFeature-&gt;SetGeometryDirectly( poGeometry );</span>
+<span class="lineNum">    1219 </span>            :         }
+<span class="lineNum">    1220 </span><span class="lineCov">        753 :         else if( psShape != nullptr )</span>
+<span class="lineNum">    1221 </span>            :         {
+<span class="lineNum">    1222 </span><span class="lineNoCov">          0 :             SHPDestroyObject( psShape );</span>
+<span class="lineNum">    1223 </span>            :         }
+<span class="lineNum">    1224 </span>            :     }
+<span class="lineNum">    1225 </span>            : 
+<span class="lineNum">    1226 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1227 </span>            : /*      Fetch feature attributes to OGRFeature fields.                  */
+<span class="lineNum">    1228 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1229 </span>            : 
+<span class="lineNum">    1230 </span><span class="lineCov">     428298 :     for( int iField = 0;</span>
+<span class="lineNum">    1231 </span><span class="lineCov">     214149 :          hDBF != nullptr &amp;&amp; iField &lt; poDefn-&gt;GetFieldCount();</span>
+<span class="lineNum">    1232 </span>            :          iField++ )
+<span class="lineNum">    1233 </span>            :     {
+<span class="lineNum">    1234 </span><span class="lineCov">     124095 :         const OGRFieldDefn * const poFieldDefn = poDefn-&gt;GetFieldDefn(iField);</span>
+<span class="lineNum">    1235 </span><span class="lineCov">     124095 :         if( poFieldDefn-&gt;IsIgnored() )</span>
+<span class="lineNum">    1236 </span><span class="lineCov">       1700 :             continue;</span>
+<span class="lineNum">    1237 </span>            : 
+<span class="lineNum">    1238 </span><span class="lineCov">     122395 :         switch( poFieldDefn-&gt;GetType() )</span>
+<span class="lineNum">    1239 </span>            :         {
+<span class="lineNum">    1240 </span>            :           case OFTString:
+<span class="lineNum">    1241 </span>            :           {
+<span class="lineNum">    1242 </span>            :               const char * const pszFieldVal =
+<span class="lineNum">    1243 </span><span class="lineCov">       9756 :                   DBFReadStringAttribute( hDBF, iShape, iField );</span>
+<span class="lineNum">    1244 </span><span class="lineCov">       9756 :               if( pszFieldVal != nullptr &amp;&amp; pszFieldVal[0] != '\0' )</span>
+<span class="lineNum">    1245 </span>            :               {
+<span class="lineNum">    1246 </span><span class="lineCov">       8290 :                 if( pszSHPEncoding[0] != '\0' )</span>
+<span class="lineNum">    1247 </span>            :                 {
+<span class="lineNum">    1248 </span>            :                     char * const pszUTF8Field =
+<span class="lineNum">    1249 </span><span class="lineCov">       4141 :                         CPLRecode( pszFieldVal, pszSHPEncoding, CPL_ENC_UTF8);</span>
+<span class="lineNum">    1250 </span><span class="lineCov">       4141 :                     poFeature-&gt;SetField( iField, pszUTF8Field );</span>
+<span class="lineNum">    1251 </span><span class="lineCov">       4141 :                     CPLFree( pszUTF8Field );</span>
+<span class="lineNum">    1252 </span>            :                 }
+<span class="lineNum">    1253 </span>            :                 else
+<span class="lineNum">    1254 </span><span class="lineCov">       4149 :                     poFeature-&gt;SetField( iField, pszFieldVal );</span>
+<span class="lineNum">    1255 </span>            :               }
+<span class="lineNum">    1256 </span>            :               else
+<span class="lineNum">    1257 </span>            :               {
+<span class="lineNum">    1258 </span><span class="lineCov">       1466 :                   poFeature-&gt;SetFieldNull(iField);</span>
+<span class="lineNum">    1259 </span>            :               }
+<span class="lineNum">    1260 </span><span class="lineCov">       9756 :               break;</span>
+<span class="lineNum">    1261 </span>            :           }
+<span class="lineNum">    1262 </span>            :           case OFTInteger:
+<span class="lineNum">    1263 </span>            :           case OFTInteger64:
+<span class="lineNum">    1264 </span>            :           case OFTReal:
+<span class="lineNum">    1265 </span>            :           {
+<span class="lineNum">    1266 </span><span class="lineCov">     112609 :               if( DBFIsAttributeNULL( hDBF, iShape, iField ) )</span>
+<span class="lineNum">    1267 </span>            :               {
+<span class="lineNum">    1268 </span><span class="lineCov">         90 :                   poFeature-&gt;SetFieldNull(iField);</span>
+<span class="lineNum">    1269 </span>            :               }
+<span class="lineNum">    1270 </span>            :               else
+<span class="lineNum">    1271 </span>            :               {
+<span class="lineNum">    1272 </span>            :                   poFeature-&gt;SetField(
+<span class="lineNum">    1273 </span>            :                       iField,
+<span class="lineNum">    1274 </span><span class="lineCov">     112519 :                       DBFReadStringAttribute( hDBF, iShape, iField ) );</span>
+<span class="lineNum">    1275 </span>            :               }
+<span class="lineNum">    1276 </span><span class="lineCov">     112609 :               break;</span>
+<span class="lineNum">    1277 </span>            :           }
+<span class="lineNum">    1278 </span>            :           case OFTDate:
+<span class="lineNum">    1279 </span>            :           {
+<span class="lineNum">    1280 </span><span class="lineCov">         30 :               if( DBFIsAttributeNULL( hDBF, iShape, iField ) )</span>
+<span class="lineNum">    1281 </span>            :               {
+<span class="lineNum">    1282 </span><span class="lineCov">         28 :                   poFeature-&gt;SetFieldNull(iField);</span>
+<span class="lineNum">    1283 </span><span class="lineCov">         56 :                   continue;</span>
+<span class="lineNum">    1284 </span>            :               }
+<span class="lineNum">    1285 </span>            : 
+<span class="lineNum">    1286 </span>            :               const char* const pszDateValue =
+<span class="lineNum">    1287 </span><span class="lineCov">          2 :                   DBFReadStringAttribute(hDBF,iShape,iField);</span>
+<span class="lineNum">    1288 </span>            : 
+<span class="lineNum">    1289 </span>            :               // Some DBF files have fields filled with spaces
+<span class="lineNum">    1290 </span>            :               // (trimmed by DBFReadStringAttribute) to indicate null
+<span class="lineNum">    1291 </span>            :               // values for dates (#4265).
+<span class="lineNum">    1292 </span><span class="lineCov">          2 :               if( pszDateValue[0] == '\0' )</span>
+<span class="lineNum">    1293 </span><span class="lineNoCov">          0 :                   continue;</span>
+<span class="lineNum">    1294 </span>            : 
+<span class="lineNum">    1295 </span>            :               OGRField sFld;
+<span class="lineNum">    1296 </span><span class="lineCov">          2 :               memset( &amp;sFld, 0, sizeof(sFld) );</span>
+<span class="lineNum">    1297 </span>            : 
+<span class="lineNum">    1298 </span><span class="lineCov">          3 :               if( strlen(pszDateValue) &gt;= 10 &amp;&amp;</span>
+<span class="lineNum">    1299 </span><span class="lineCov">          2 :                   pszDateValue[2] == '/' &amp;&amp; pszDateValue[5] == '/' )</span>
+<span class="lineNum">    1300 </span>            :               {
+<span class="lineNum">    1301 </span><span class="lineCov">          1 :                   sFld.Date.Month = static_cast&lt;GByte&gt;(atoi(pszDateValue + 0));</span>
+<span class="lineNum">    1302 </span><span class="lineCov">          1 :                   sFld.Date.Day   = static_cast&lt;GByte&gt;(atoi(pszDateValue + 3));</span>
+<span class="lineNum">    1303 </span><span class="lineCov">          1 :                   sFld.Date.Year  = static_cast&lt;GInt16&gt;(atoi(pszDateValue + 6));</span>
+<span class="lineNum">    1304 </span>            :               }
+<span class="lineNum">    1305 </span>            :               else
+<span class="lineNum">    1306 </span>            :               {
+<span class="lineNum">    1307 </span><span class="lineCov">          1 :                   const int nFullDate = atoi(pszDateValue);</span>
+<span class="lineNum">    1308 </span><span class="lineCov">          1 :                   sFld.Date.Year = static_cast&lt;GInt16&gt;(nFullDate / 10000);</span>
+<span class="lineNum">    1309 </span><span class="lineCov">          1 :                   sFld.Date.Month = static_cast&lt;GByte&gt;((nFullDate / 100) % 100);</span>
+<span class="lineNum">    1310 </span><span class="lineCov">          1 :                   sFld.Date.Day = static_cast&lt;GByte&gt;(nFullDate % 100);</span>
+<span class="lineNum">    1311 </span>            :               }
+<span class="lineNum">    1312 </span>            : 
+<span class="lineNum">    1313 </span><span class="lineCov">          2 :               poFeature-&gt;SetField( iField, &amp;sFld );</span>
+<span class="lineNum">    1314 </span>            :           }
+<span class="lineNum">    1315 </span><span class="lineCov">          2 :           break;</span>
+<span class="lineNum">    1316 </span>            : 
+<span class="lineNum">    1317 </span>            :           default:
+<span class="lineNum">    1318 </span><span class="lineNoCov">          0 :             CPLAssert( false );</span>
+<span class="lineNum">    1319 </span>            :         }
+<span class="lineNum">    1320 </span>            :     }
+<span class="lineNum">    1321 </span>            : 
+<span class="lineNum">    1322 </span><span class="lineCov">      90054 :     if( poFeature != nullptr )</span>
+<span class="lineNum">    1323 </span><span class="lineCov">      90054 :         poFeature-&gt;SetFID( iShape );</span>
+<span class="lineNum">    1324 </span>            : 
+<span class="lineNum">    1325 </span><span class="lineCov">      90054 :     return poFeature;</span>
+<span class="lineNum">    1326 </span>            : }
+<span class="lineNum">    1327 </span>            : 
+<span class="lineNum">    1328 </span>            : /************************************************************************/
+<span class="lineNum">    1329 </span>            : /*                             GrowField()                              */
+<a name="1330"><span class="lineNum">    1330 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1331 </span>            : 
+<span class="lineNum">    1332 </span><span class="lineCov">          6 : static OGRErr GrowField( DBFHandle hDBF, int iField, OGRFieldDefn* poFieldDefn,</span>
+<span class="lineNum">    1333 </span>            :                          int nNewSize )
+<span class="lineNum">    1334 </span>            : {
+<span class="lineNum">    1335 </span><span class="lineCov">          6 :     char szFieldName[20] = {};</span>
+<span class="lineNum">    1336 </span><span class="lineCov">          6 :     int nOriWidth = 0;</span>
+<span class="lineNum">    1337 </span><span class="lineCov">          6 :     int nPrecision = 0;</span>
+<span class="lineNum">    1338 </span><span class="lineCov">          6 :     DBFGetFieldInfo( hDBF, iField, szFieldName, &amp;nOriWidth, &amp;nPrecision );</span>
+<span class="lineNum">    1339 </span>            : 
+<span class="lineNum">    1340 </span>            :     CPLDebug(&quot;SHAPE&quot;, &quot;Extending field %d (%s) from %d to %d characters&quot;,
+<span class="lineNum">    1341 </span><span class="lineCov">          6 :              iField, poFieldDefn-&gt;GetNameRef(), nOriWidth, nNewSize);</span>
+<span class="lineNum">    1342 </span>            : 
+<span class="lineNum">    1343 </span><span class="lineCov">          6 :     const char chNativeType = DBFGetNativeFieldType( hDBF, iField );</span>
+<span class="lineNum">    1344 </span><span class="lineCov">          6 :     if( !DBFAlterFieldDefn( hDBF, iField, szFieldName,</span>
+<span class="lineNum">    1345 </span><span class="lineCov">          6 :                             chNativeType, nNewSize, nPrecision ) )</span>
+<span class="lineNum">    1346 </span>            :     {
+<span class="lineNum">    1347 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1348 </span>            :                  &quot;Extending field %d (%s) from %d to %d characters failed&quot;,
+<span class="lineNum">    1349 </span><span class="lineNoCov">          0 :                  iField, poFieldDefn-&gt;GetNameRef(), nOriWidth, nNewSize);</span>
+<span class="lineNum">    1350 </span><span class="lineNoCov">          0 :         return OGRERR_FAILURE;</span>
+<span class="lineNum">    1351 </span>            :     }
+<span class="lineNum">    1352 </span>            : 
+<span class="lineNum">    1353 </span><span class="lineCov">          6 :     poFieldDefn-&gt;SetWidth(nNewSize);</span>
+<span class="lineNum">    1354 </span><span class="lineCov">          6 :     return OGRERR_NONE;</span>
+<span class="lineNum">    1355 </span>            : }
+<span class="lineNum">    1356 </span>            : 
+<span class="lineNum">    1357 </span>            : /************************************************************************/
+<span class="lineNum">    1358 </span>            : /*                         SHPWriteOGRFeature()                         */
+<span class="lineNum">    1359 </span>            : /*                                                                      */
+<span class="lineNum">    1360 </span>            : /*      Write to an existing feature in a shapefile, or create a new    */
+<span class="lineNum">    1361 </span>            : /*      feature.                                                        */
+<a name="1362"><span class="lineNum">    1362 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1363 </span>            : 
+<span class="lineNum">    1364 </span><span class="lineCov">      45908 : OGRErr SHPWriteOGRFeature( SHPHandle hSHP, DBFHandle hDBF,</span>
+<span class="lineNum">    1365 </span>            :                            OGRFeatureDefn * poDefn,
+<span class="lineNum">    1366 </span>            :                            OGRFeature * poFeature,
+<span class="lineNum">    1367 </span>            :                            const char *pszSHPEncoding,
+<span class="lineNum">    1368 </span>            :                            bool* pbTruncationWarningEmitted,
+<span class="lineNum">    1369 </span>            :                            bool bRewind )
+<span class="lineNum">    1370 </span>            : 
+<span class="lineNum">    1371 </span>            : {
+<span class="lineNum">    1372 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1373 </span>            : /*      Write the geometry.                                             */
+<span class="lineNum">    1374 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1375 </span><span class="lineCov">      45908 :     if( hSHP != nullptr )</span>
+<span class="lineNum">    1376 </span>            :     {
+<span class="lineNum">    1377 </span>            :         const OGRErr eErr =
+<span class="lineNum">    1378 </span><span class="lineCov">      45648 :             SHPWriteOGRObject( hSHP, static_cast&lt;int&gt;(poFeature-&gt;GetFID()),</span>
+<span class="lineNum">    1379 </span><span class="lineCov">      45648 :                                poFeature-&gt;GetGeometryRef(),</span>
+<span class="lineNum">    1380 </span>            :                                bRewind,
+<span class="lineNum">    1381 </span><span class="lineCov">      91296 :                                poDefn-&gt;GetGeomType() );</span>
+<span class="lineNum">    1382 </span><span class="lineCov">      45648 :         if( eErr != OGRERR_NONE )</span>
+<span class="lineNum">    1383 </span><span class="lineCov">         47 :             return eErr;</span>
+<span class="lineNum">    1384 </span>            :     }
+<span class="lineNum">    1385 </span>            : 
+<span class="lineNum">    1386 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1387 </span>            : /*      If there is no DBF, the job is done now.                        */
+<span class="lineNum">    1388 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1389 </span><span class="lineCov">      45861 :     if( hDBF == nullptr )</span>
+<span class="lineNum">    1390 </span>            :     {
+<span class="lineNum">    1391 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1392 </span>            : /*      If this is a new feature, establish its feature id.             */
+<span class="lineNum">    1393 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1394 </span><span class="lineCov">         15 :         if( hSHP != nullptr &amp;&amp; poFeature-&gt;GetFID() == OGRNullFID )</span>
+<span class="lineNum">    1395 </span><span class="lineCov">          1 :             poFeature-&gt;SetFID( hSHP-&gt;nRecords - 1 );</span>
+<span class="lineNum">    1396 </span>            : 
+<span class="lineNum">    1397 </span><span class="lineCov">         15 :         return OGRERR_NONE;</span>
+<span class="lineNum">    1398 </span>            :     }
+<span class="lineNum">    1399 </span>            : 
+<span class="lineNum">    1400 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1401 </span>            : /*      If this is a new feature, establish its feature id.             */
+<span class="lineNum">    1402 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1403 </span><span class="lineCov">      45846 :     if( poFeature-&gt;GetFID() == OGRNullFID )</span>
+<span class="lineNum">    1404 </span><span class="lineCov">      45793 :         poFeature-&gt;SetFID( DBFGetRecordCount( hDBF ) );</span>
+<span class="lineNum">    1405 </span>            : 
+<span class="lineNum">    1406 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1407 </span>            : /*      If this is the first feature to be written, verify that we      */
+<span class="lineNum">    1408 </span>            : /*      have at least one attribute in the DBF file.  If not, create    */
+<span class="lineNum">    1409 </span>            : /*      a dummy FID attribute to satisfy the requirement that there     */
+<span class="lineNum">    1410 </span>            : /*      be at least one attribute.                                      */
+<span class="lineNum">    1411 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1412 </span><span class="lineCov">      45846 :     if( DBFGetRecordCount( hDBF ) == 0 &amp;&amp; DBFGetFieldCount( hDBF ) == 0 )</span>
+<span class="lineNum">    1413 </span>            :     {
+<span class="lineNum">    1414 </span>            :         CPLDebug(
+<span class="lineNum">    1415 </span>            :             &quot;OGR&quot;,
+<span class="lineNum">    1416 </span><span class="lineCov">        259 :             &quot;Created dummy FID field for shapefile since schema is empty.&quot;);</span>
+<span class="lineNum">    1417 </span><span class="lineCov">        259 :         DBFAddField( hDBF, &quot;FID&quot;, FTInteger, 11, 0 );</span>
+<span class="lineNum">    1418 </span>            :     }
+<span class="lineNum">    1419 </span>            : 
+<span class="lineNum">    1420 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1421 </span>            : /*      Write out dummy field value if it exists.                       */
+<span class="lineNum">    1422 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1423 </span><span class="lineCov">      45846 :     if( DBFGetFieldCount( hDBF ) == 1 &amp;&amp; poDefn-&gt;GetFieldCount() == 0 )</span>
+<span class="lineNum">    1424 </span>            :     {
+<span class="lineNum">    1425 </span>            :         DBFWriteIntegerAttribute(
+<span class="lineNum">    1426 </span><span class="lineCov">      41855 :             hDBF, static_cast&lt;int&gt;(poFeature-&gt;GetFID()), 0,</span>
+<span class="lineNum">    1427 </span><span class="lineCov">      83710 :             static_cast&lt;int&gt;(poFeature-&gt;GetFID()) );</span>
+<span class="lineNum">    1428 </span>            :     }
+<span class="lineNum">    1429 </span>            : 
+<span class="lineNum">    1430 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1431 </span>            : /*      Write all the fields.                                           */
+<span class="lineNum">    1432 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1433 </span><span class="lineCov">      59240 :     for( int iField = 0; iField &lt; poDefn-&gt;GetFieldCount(); iField++ )</span>
+<span class="lineNum">    1434 </span>            :     {
+<span class="lineNum">    1435 </span><span class="lineCov">      13394 :         if( !poFeature-&gt;IsFieldSetAndNotNull( iField ) )</span>
+<span class="lineNum">    1436 </span>            :         {
+<span class="lineNum">    1437 </span>            :             DBFWriteNULLAttribute(
+<span class="lineNum">    1438 </span><span class="lineCov">        562 :                 hDBF, static_cast&lt;int&gt;(poFeature-&gt;GetFID()), iField );</span>
+<span class="lineNum">    1439 </span><span class="lineCov">        562 :             continue;</span>
+<span class="lineNum">    1440 </span>            :         }
+<span class="lineNum">    1441 </span>            : 
+<span class="lineNum">    1442 </span><span class="lineCov">      12832 :         OGRFieldDefn * const poFieldDefn = poDefn-&gt;GetFieldDefn(iField);</span>
+<span class="lineNum">    1443 </span>            : 
+<span class="lineNum">    1444 </span><span class="lineCov">      12832 :         switch( poFieldDefn-&gt;GetType() )</span>
+<span class="lineNum">    1445 </span>            :         {
+<span class="lineNum">    1446 </span>            :           case OFTString:
+<span class="lineNum">    1447 </span>            :           {
+<span class="lineNum">    1448 </span><span class="lineCov">       3997 :               const char *pszStr = poFeature-&gt;GetFieldAsString(iField);</span>
+<span class="lineNum">    1449 </span><span class="lineCov">       3997 :               char *pszEncoded = nullptr;</span>
+<span class="lineNum">    1450 </span><span class="lineCov">       3997 :               if( strlen(pszSHPEncoding) &gt; 0 )</span>
+<span class="lineNum">    1451 </span>            :               {
+<span class="lineNum">    1452 </span>            :                   pszEncoded =
+<span class="lineNum">    1453 </span><span class="lineCov">       3989 :                       CPLRecode( pszStr, CPL_ENC_UTF8, pszSHPEncoding );</span>
+<span class="lineNum">    1454 </span><span class="lineCov">       3989 :                   pszStr = pszEncoded;</span>
+<span class="lineNum">    1455 </span>            :               }
+<span class="lineNum">    1456 </span>            : 
+<span class="lineNum">    1457 </span><span class="lineCov">       3997 :               int nStrLen = static_cast&lt;int&gt;(strlen(pszStr));</span>
+<span class="lineNum">    1458 </span><span class="lineCov">       3997 :               if( nStrLen &gt; OGR_DBF_MAX_FIELD_WIDTH )</span>
+<span class="lineNum">    1459 </span>            :               {
+<span class="lineNum">    1460 </span><span class="lineCov">          3 :                   if( !(*pbTruncationWarningEmitted) )</span>
+<span class="lineNum">    1461 </span>            :                   {
+<span class="lineNum">    1462 </span><span class="lineCov">          2 :                       *pbTruncationWarningEmitted = true;</span>
+<span class="lineNum">    1463 </span>            :                       CPLError(
+<span class="lineNum">    1464 </span>            :                           CE_Warning, CPLE_AppDefined,
+<span class="lineNum">    1465 </span>            :                           &quot;Value '%s' of field %s has been truncated to %d &quot;
+<span class="lineNum">    1466 </span>            :                           &quot;characters.  This warning will not be emitted any &quot;
+<span class="lineNum">    1467 </span>            :                           &quot;more for that layer.&quot;,
+<span class="lineNum">    1468 </span>            :                           poFeature-&gt;GetFieldAsString(iField),
+<span class="lineNum">    1469 </span>            :                           poFieldDefn-&gt;GetNameRef(),
+<span class="lineNum">    1470 </span><span class="lineCov">          2 :                           OGR_DBF_MAX_FIELD_WIDTH);</span>
+<span class="lineNum">    1471 </span>            :                   }
+<span class="lineNum">    1472 </span>            : 
+<span class="lineNum">    1473 </span><span class="lineCov">          3 :                   nStrLen = OGR_DBF_MAX_FIELD_WIDTH;</span>
+<span class="lineNum">    1474 </span>            : 
+<span class="lineNum">    1475 </span><span class="lineCov">          6 :                   if( pszEncoded != nullptr &amp;&amp;  // For Coverity.</span>
+<span class="lineNum">    1476 </span><span class="lineCov">          3 :                       EQUAL(pszSHPEncoding, CPL_ENC_UTF8))</span>
+<span class="lineNum">    1477 </span>            :                   {
+<span class="lineNum">    1478 </span>            :                       // TODO(schwehr): Provide a comment about what this does.
+<span class="lineNum">    1479 </span><span class="lineCov">          2 :                       const char *p = pszStr + nStrLen;</span>
+<span class="lineNum">    1480 </span><span class="lineCov">          2 :                       int byteCount = nStrLen;</span>
+<span class="lineNum">    1481 </span><span class="lineCov">          4 :                       while( byteCount &gt; 0 )</span>
+<span class="lineNum">    1482 </span>            :                       {
+<span class="lineNum">    1483 </span><span class="lineCov">          2 :                           if( (*p &amp; 0xc0) != 0x80 )</span>
+<span class="lineNum">    1484 </span>            :                           {
+<span class="lineNum">    1485 </span><span class="lineCov">          2 :                               nStrLen = byteCount;</span>
+<span class="lineNum">    1486 </span><span class="lineCov">          2 :                               break;</span>
+<span class="lineNum">    1487 </span>            :                           }
+<span class="lineNum">    1488 </span>            : 
+<span class="lineNum">    1489 </span><span class="lineNoCov">          0 :                           byteCount--;</span>
+<span class="lineNum">    1490 </span><span class="lineNoCov">          0 :                           p--;</span>
+<span class="lineNum">    1491 </span>            :                       }
+<span class="lineNum">    1492 </span>            : 
+<span class="lineNum">    1493 </span><span class="lineCov">          2 :                       pszEncoded[nStrLen] = 0;</span>
+<span class="lineNum">    1494 </span>            :                   }
+<span class="lineNum">    1495 </span>            :               }
+<span class="lineNum">    1496 </span>            : 
+<span class="lineNum">    1497 </span><span class="lineCov">       3997 :               if( nStrLen &gt; poFieldDefn-&gt;GetWidth() )</span>
+<span class="lineNum">    1498 </span>            :               {
+<span class="lineNum">    1499 </span><span class="lineCov">          2 :                   if( GrowField(hDBF, iField, poFieldDefn, nStrLen) !=</span>
+<span class="lineNum">    1500 </span>            :                           OGRERR_NONE )
+<span class="lineNum">    1501 </span>            :                   {
+<span class="lineNum">    1502 </span><span class="lineNoCov">          0 :                       CPLFree( pszEncoded );</span>
+<span class="lineNum">    1503 </span><span class="lineNoCov">          0 :                       return OGRERR_FAILURE;</span>
+<span class="lineNum">    1504 </span>            :                   }
+<span class="lineNum">    1505 </span>            :               }
+<span class="lineNum">    1506 </span>            : 
+<span class="lineNum">    1507 </span>            :               DBFWriteStringAttribute(
+<span class="lineNum">    1508 </span><span class="lineCov">       3997 :                   hDBF, static_cast&lt;int&gt;(poFeature-&gt;GetFID()), iField, pszStr );</span>
+<span class="lineNum">    1509 </span>            : 
+<span class="lineNum">    1510 </span><span class="lineCov">       3997 :               CPLFree( pszEncoded );</span>
+<span class="lineNum">    1511 </span><span class="lineCov">       3997 :               break;</span>
+<span class="lineNum">    1512 </span>            :           }
+<span class="lineNum">    1513 </span>            :           case OFTInteger:
+<span class="lineNum">    1514 </span>            :           case OFTInteger64:
+<span class="lineNum">    1515 </span>            :           {
+<span class="lineNum">    1516 </span><span class="lineCov">       7585 :               char szFormat[20] = {};</span>
+<span class="lineNum">    1517 </span><span class="lineCov">       7585 :               char szValue[32] = {};</span>
+<span class="lineNum">    1518 </span><span class="lineCov">       7585 :               int nFieldWidth = poFieldDefn-&gt;GetWidth();</span>
+<span class="lineNum">    1519 </span>            :               snprintf(szFormat, sizeof(szFormat),
+<span class="lineNum">    1520 </span>            :                        &quot;%%%d&quot; CPL_FRMT_GB_WITHOUT_PREFIX &quot;d&quot;,
+<span class="lineNum">    1521 </span><span class="lineCov">       7585 :                        std::min(nFieldWidth, static_cast&lt;int&gt;(sizeof(szValue)) - 1));</span>
+<span class="lineNum">    1522 </span>            :               snprintf(szValue, sizeof(szValue), szFormat,
+<span class="lineNum">    1523 </span><span class="lineCov">       7585 :                        poFeature-&gt;GetFieldAsInteger64(iField));</span>
+<span class="lineNum">    1524 </span>            : 
+<span class="lineNum">    1525 </span><span class="lineCov">       7585 :               const int nStrLen = static_cast&lt;int&gt;(strlen(szValue));</span>
+<span class="lineNum">    1526 </span><span class="lineCov">       7585 :               if( nStrLen &gt; nFieldWidth )</span>
+<span class="lineNum">    1527 </span>            :               {
+<span class="lineNum">    1528 </span><span class="lineCov">          4 :                   if( GrowField(hDBF, iField, poFieldDefn, nStrLen) !=</span>
+<span class="lineNum">    1529 </span>            :                           OGRERR_NONE )
+<span class="lineNum">    1530 </span>            :                   {
+<span class="lineNum">    1531 </span><span class="lineNoCov">          0 :                       return OGRERR_FAILURE;</span>
+<span class="lineNum">    1532 </span>            :                   }
+<span class="lineNum">    1533 </span>            :               }
+<span class="lineNum">    1534 </span>            : 
+<span class="lineNum">    1535 </span>            :               DBFWriteAttributeDirectly(
+<span class="lineNum">    1536 </span><span class="lineCov">       7585 :                   hDBF, static_cast&lt;int&gt;(poFeature-&gt;GetFID()),</span>
+<span class="lineNum">    1537 </span><span class="lineCov">       7585 :                   iField, szValue );</span>
+<span class="lineNum">    1538 </span>            : 
+<span class="lineNum">    1539 </span><span class="lineCov">       7585 :               break;</span>
+<span class="lineNum">    1540 </span>            :           }
+<span class="lineNum">    1541 </span>            : 
+<span class="lineNum">    1542 </span>            :           case OFTReal:
+<span class="lineNum">    1543 </span>            :           {
+<span class="lineNum">    1544 </span><span class="lineCov">       1183 :               const double dfVal = poFeature-&gt;GetFieldAsDouble(iField);</span>
+<span class="lineNum">    1545 </span>            :               // IEEE754 doubles can store exact values of all integers
+<span class="lineNum">    1546 </span>            :               // below 2^53.
+<span class="lineNum">    1547 </span><span class="lineCov">       1185 :               if( poFieldDefn-&gt;GetPrecision() == 0 &amp;&amp;</span>
+<span class="lineNum">    1548 </span><span class="lineCov">          2 :                   fabs(dfVal) &gt; (static_cast&lt;GIntBig&gt;(1) &lt;&lt; 53) )</span>
+<span class="lineNum">    1549 </span>            :               {
+<span class="lineNum">    1550 </span>            :                   static int nCounter = 0;
+<span class="lineNum">    1551 </span><span class="lineCov">          1 :                   if( nCounter &lt;= 10 )</span>
+<span class="lineNum">    1552 </span>            :                   {
+<span class="lineNum">    1553 </span>            :                       CPLError(
+<span class="lineNum">    1554 </span>            :                           CE_Warning, CPLE_AppDefined,
+<span class="lineNum">    1555 </span>            :                           &quot;Value %.18g of field %s with 0 decimal of feature &quot;
+<span class="lineNum">    1556 </span>            :                           CPL_FRMT_GIB &quot; is bigger than 2^53. &quot;
+<span class="lineNum">    1557 </span>            :                           &quot;Precision loss likely occurred or going to happen.%s&quot;,
+<span class="lineNum">    1558 </span>            :                           dfVal, poFieldDefn-&gt;GetNameRef(),
+<span class="lineNum">    1559 </span>            :                           poFeature-&gt;GetFID(),
+<span class="lineNum">    1560 </span><span class="lineCov">          1 :                           (nCounter == 10) ? &quot; This warning will not be &quot;</span>
+<span class="lineNum">    1561 </span><span class="lineCov">          1 :                           &quot;emitted anymore.&quot; : &quot;&quot;);</span>
+<span class="lineNum">    1562 </span><span class="lineCov">          1 :                       nCounter++;</span>
+<span class="lineNum">    1563 </span>            :                   }
+<span class="lineNum">    1564 </span>            :               }
+<span class="lineNum">    1565 </span>            :               int ret = DBFWriteDoubleAttribute(
+<span class="lineNum">    1566 </span><span class="lineCov">       1183 :                   hDBF, static_cast&lt;int&gt;(poFeature-&gt;GetFID()), iField, dfVal );</span>
+<span class="lineNum">    1567 </span><span class="lineCov">       1183 :               if( !ret )</span>
+<span class="lineNum">    1568 </span>            :               {
+<span class="lineNum">    1569 </span>            :                   CPLError(
+<span class="lineNum">    1570 </span>            :                       CE_Warning, CPLE_AppDefined,
+<span class="lineNum">    1571 </span>            :                       &quot;Value %.18g of field %s of feature &quot; CPL_FRMT_GIB &quot; not &quot;
+<span class="lineNum">    1572 </span>            :                       &quot;successfully written. Possibly due to too larger number &quot;
+<span class="lineNum">    1573 </span>            :                       &quot;with respect to field width&quot;,
+<span class="lineNum">    1574 </span><span class="lineCov">          1 :                       dfVal, poFieldDefn-&gt;GetNameRef(), poFeature-&gt;GetFID());</span>
+<span class="lineNum">    1575 </span>            :               }
+<span class="lineNum">    1576 </span><span class="lineCov">       1183 :               break;</span>
+<span class="lineNum">    1577 </span>            :           }
+<span class="lineNum">    1578 </span>            :           case OFTDate:
+<span class="lineNum">    1579 </span>            :           {
+<span class="lineNum">    1580 </span>            :               const OGRField * const psField =
+<span class="lineNum">    1581 </span><span class="lineCov">         67 :                   poFeature-&gt;GetRawFieldRef(iField);</span>
+<span class="lineNum">    1582 </span>            : 
+<span class="lineNum">    1583 </span><span class="lineCov">         67 :               if( psField-&gt;Date.Year &lt; 0 || psField-&gt;Date.Year &gt; 9999 )</span>
+<span class="lineNum">    1584 </span>            :               {
+<span class="lineNum">    1585 </span>            :                   CPLError(
+<span class="lineNum">    1586 </span>            :                       CE_Warning, CPLE_NotSupported,
+<span class="lineNum">    1587 </span><span class="lineNoCov">          0 :                       &quot;Year &lt; 0 or &gt; 9999 is not a valid date for shapefile&quot;);</span>
+<span class="lineNum">    1588 </span>            :               }
+<span class="lineNum">    1589 </span>            :               else
+<span class="lineNum">    1590 </span>            :               {
+<span class="lineNum">    1591 </span>            :                   DBFWriteIntegerAttribute(
+<span class="lineNum">    1592 </span><span class="lineCov">         67 :                       hDBF, static_cast&lt;int&gt;(poFeature-&gt;GetFID()), iField,</span>
+<span class="lineNum">    1593 </span><span class="lineCov">         67 :                       psField-&gt;Date.Year*10000 + psField-&gt;Date.Month*100 +</span>
+<span class="lineNum">    1594 </span><span class="lineCov">        134 :                       psField-&gt;Date.Day);</span>
+<span class="lineNum">    1595 </span>            :               }
+<span class="lineNum">    1596 </span>            :           }
+<span class="lineNum">    1597 </span><span class="lineCov">         67 :           break;</span>
+<span class="lineNum">    1598 </span>            : 
+<span class="lineNum">    1599 </span>            :           default:
+<span class="lineNum">    1600 </span>            :           {
+<span class="lineNum">    1601 </span>            :               // Ignore fields of other types.
+<span class="lineNum">    1602 </span><span class="lineNoCov">          0 :               break;</span>
+<span class="lineNum">    1603 </span>            :           }
+<span class="lineNum">    1604 </span>            :         }
+<span class="lineNum">    1605 </span>            :     }
+<span class="lineNum">    1606 </span>            : 
+<span class="lineNum">    1607 </span><span class="lineCov">      45846 :     return OGRERR_NONE;</span>
+<span class="lineNum">    1608 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,1739 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/raw/mffdataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/raw</a> - mffdataset.cpp<span style="font-size: 80%;"> (source / <a href="mffdataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">405</td>
+            <td class="headerCovTableEntry">726</td>
+            <td class="headerCovTableEntryLo">55.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntry">24</td>
+            <td class="headerCovTableEntryLo">66.7 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GView
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of Atlantis MFF Support
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerda@home.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2000, Frank Warmerdam
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2008-2012, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;atlsci_spheroid.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;gdal_frmts.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;ogr_spatialref.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;rawdataset.h&quot;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : #include &lt;cctype&gt;
+<span class="lineNum">      37 </span>            : #include &lt;cmath&gt;
+<span class="lineNum">      38 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : enum {
+<span class="lineNum">      43 </span>            :   MFFPRJ_NONE,
+<span class="lineNum">      44 </span>            :   MFFPRJ_LL,
+<span class="lineNum">      45 </span>            :   MFFPRJ_UTM,
+<span class="lineNum">      46 </span>            :   MFFPRJ_UNRECOGNIZED
+<span class="lineNum">      47 </span>            : };
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            : static int GetMFFProjectionType(const char * pszNewProjection);
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : /************************************************************************/
+<span class="lineNum">      52 </span>            : /* ==================================================================== */
+<span class="lineNum">      53 </span>            : /*                              MFFDataset                              */
+<span class="lineNum">      54 </span>            : /* ==================================================================== */
+<span class="lineNum">      55 </span>            : /************************************************************************/
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : class MFFDataset final : public RawDataset
+<span class="lineNum">      58 </span>            : {
+<span class="lineNum">      59 </span>            :     int         nGCPCount;
+<span class="lineNum">      60 </span>            :     GDAL_GCP    *pasGCPList;
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span>            :     char *pszProjection;
+<span class="lineNum">      63 </span>            :     char *pszGCPProjection;
+<span class="lineNum">      64 </span>            :     double adfGeoTransform[6];
+<span class="lineNum">      65 </span>            :     char**      m_papszFileList;
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            :     void        ScanForGCPs();
+<span class="lineNum">      68 </span>            :     void        ScanForProjectionInfo();
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            :     CPL_DISALLOW_COPY_ASSIGN(MFFDataset)
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            :   public:
+<span class="lineNum">      73 </span>            :     MFFDataset();
+<span class="lineNum">      74 </span>            :     ~MFFDataset() override;
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span>            :     char        **papszHdrLines;
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            :     VSILFILE        **pafpBandFiles;
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            :     char** GetFileList() override;
+<span class="lineNum">      81 </span>            : 
+<a name="82"><span class="lineNum">      82 </span>            :     int GetGCPCount() override;</a>
+<span class="lineNum">      83 </span>            :     const char *_GetGCPProjection() override;
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :     const OGRSpatialReference* GetGCPSpatialRef() const override {</span>
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :         return GetGCPSpatialRefFromOldGetGCPProjection();</span>
+<span class="lineNum">      86 </span>            :     }
+<span class="lineNum">      87 </span>            :     const GDAL_GCP *GetGCPs() override;
+<a name="88"><span class="lineNum">      88 </span>            : </a>
+<span class="lineNum">      89 </span>            :     const char *_GetProjectionRef() override;
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :     const OGRSpatialReference* GetSpatialRef() const override {</span>
+<span class="lineNum">      91 </span><span class="lineNoCov">          0 :         return GetSpatialRefFromOldGetProjectionRef();</span>
+<span class="lineNum">      92 </span>            :     }
+<span class="lineNum">      93 </span>            :     CPLErr GetGeoTransform( double * ) override;
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            :     static GDALDataset *Open( GDALOpenInfo * );
+<span class="lineNum">      96 </span>            :     static GDALDataset *Create( const char * pszFilename,
+<span class="lineNum">      97 </span>            :                                 int nXSize, int nYSize, int nBands,
+<span class="lineNum">      98 </span>            :                                 GDALDataType eType, char ** papszParmList );
+<span class="lineNum">      99 </span>            :     static GDALDataset *CreateCopy( const char * pszFilename,
+<span class="lineNum">     100 </span>            :                                     GDALDataset *poSrcDS,
+<span class="lineNum">     101 </span>            :                                     int bStrict, char ** papszOptions,
+<span class="lineNum">     102 </span>            :                                     GDALProgressFunc pfnProgress,
+<span class="lineNum">     103 </span>            :                                     void * pProgressData );
+<span class="lineNum">     104 </span>            : };
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span>            : /************************************************************************/
+<span class="lineNum">     107 </span>            : /* ==================================================================== */
+<span class="lineNum">     108 </span>            : /*                            MFFTiledBand                              */
+<span class="lineNum">     109 </span>            : /* ==================================================================== */
+<span class="lineNum">     110 </span>            : /************************************************************************/
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            : class MFFTiledBand final: public GDALRasterBand
+<span class="lineNum">     113 </span>            : {
+<span class="lineNum">     114 </span>            :     friend class MFFDataset;
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span>            :     VSILFILE      *fpRaw;
+<span class="lineNum">     117 </span>            :     bool           bNative;
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span>            :     CPL_DISALLOW_COPY_ASSIGN(MFFTiledBand)
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            :   public:
+<span class="lineNum">     122 </span>            :     MFFTiledBand( MFFDataset *, int, VSILFILE *, int, int,
+<span class="lineNum">     123 </span>            :                   GDALDataType, int );
+<span class="lineNum">     124 </span>            :     ~MFFTiledBand() override;
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            :     CPLErr IReadBlock( int, int, void * ) override;
+<span class="lineNum">     127 </span>            : };
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span>            : /************************************************************************/
+<span class="lineNum">     130 </span>            : /*                            MFFTiledBand()                            */
+<a name="131"><span class="lineNum">     131 </span>            : /************************************************************************/</a>
+<span class="lineNum">     132 </span>            : 
+<span class="lineNum">     133 </span><span class="lineCov">          2 : MFFTiledBand::MFFTiledBand( MFFDataset *poDSIn, int nBandIn, VSILFILE *fp,</span>
+<span class="lineNum">     134 </span>            :                             int nTileXSize, int nTileYSize,
+<span class="lineNum">     135 </span>            :                             GDALDataType eDataTypeIn, int bNativeIn ) :
+<span class="lineNum">     136 </span>            :     fpRaw(fp),
+<span class="lineNum">     137 </span><span class="lineCov">          2 :     bNative(CPL_TO_BOOL(bNativeIn))</span>
+<span class="lineNum">     138 </span>            : {
+<span class="lineNum">     139 </span><span class="lineCov">          2 :     poDS = poDSIn;</span>
+<span class="lineNum">     140 </span><span class="lineCov">          2 :     nBand = nBandIn;</span>
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span><span class="lineCov">          2 :     eDataType = eDataTypeIn;</span>
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span><span class="lineCov">          2 :     nBlockXSize = nTileXSize;</span>
+<span class="lineNum">     145 </span><span class="lineCov">          2 :     nBlockYSize = nTileYSize;</span>
+<span class="lineNum">     146 </span><span class="lineCov">          2 : }</span>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            : /************************************************************************/
+<span class="lineNum">     149 </span>            : /*                           ~MFFTiledBand()                            */
+<a name="150"><span class="lineNum">     150 </span>            : /************************************************************************/</a>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">          6 : MFFTiledBand::~MFFTiledBand()</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            : {
+<span class="lineNum">     155 </span><span class="lineCov">          2 :     if( VSIFCloseL( fpRaw ) != 0 )</span>
+<span class="lineNum">     156 </span>            :     {
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :         CPLError( CE_Failure, CPLE_FileIO, &quot;I/O error&quot; );</span>
+<span class="lineNum">     158 </span>            :     }
+<span class="lineNum">     159 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            : /************************************************************************/
+<span class="lineNum">     162 </span>            : /*                             IReadBlock()                             */
+<a name="163"><span class="lineNum">     163 </span>            : /************************************************************************/</a>
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span><span class="lineCov">          1 : CPLErr MFFTiledBand::IReadBlock( int nBlockXOff, int nBlockYOff,</span>
+<span class="lineNum">     166 </span>            :                                  void * pImage )
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            : {
+<span class="lineNum">     169 </span><span class="lineCov">          1 :     const int nTilesPerRow = (nRasterXSize + nBlockXSize - 1) / nBlockXSize;</span>
+<span class="lineNum">     170 </span><span class="lineCov">          1 :     const int nWordSize = GDALGetDataTypeSize( eDataType ) / 8;</span>
+<span class="lineNum">     171 </span><span class="lineCov">          1 :     const int nBlockSize = nWordSize * nBlockXSize * nBlockYSize;</span>
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span><span class="lineCov">          2 :     const vsi_l_offset nOffset = nBlockSize * (nBlockXOff +</span>
+<span class="lineNum">     174 </span><span class="lineCov">          2 :                         static_cast&lt;vsi_l_offset&gt;(nBlockYOff)*nTilesPerRow);</span>
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span><span class="lineCov">          2 :     if( VSIFSeekL( fpRaw, nOffset, SEEK_SET ) == -1</span>
+<span class="lineNum">     177 </span><span class="lineCov">          1 :         || VSIFReadL( pImage, 1, nBlockSize, fpRaw ) &lt; 1 )</span>
+<span class="lineNum">     178 </span>            :     {
+<span class="lineNum">     179 </span>            :         CPLError( CE_Failure, CPLE_FileIO,
+<span class="lineNum">     180 </span>            :                   &quot;Read of tile %d/%d failed with fseek or fread error.&quot;,
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :                   nBlockXOff, nBlockYOff );</span>
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     183 </span>            :     }
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     if( !bNative &amp;&amp; nWordSize &gt; 1 )</span>
+<span class="lineNum">     186 </span>            :     {
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :         if( GDALDataTypeIsComplex( eDataType ) )</span>
+<span class="lineNum">     188 </span>            :         {
+<span class="lineNum">     189 </span>            :             GDALSwapWords( pImage, nWordSize/2, nBlockXSize*nBlockYSize,
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :                            nWordSize );</span>
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :             GDALSwapWords( reinterpret_cast&lt;GByte *&gt;( pImage ) + nWordSize / 2,</span>
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :                            nWordSize/2, nBlockXSize*nBlockYSize, nWordSize );</span>
+<span class="lineNum">     193 </span>            :         }
+<span class="lineNum">     194 </span>            :         else
+<span class="lineNum">     195 </span>            :             GDALSwapWords( pImage, nWordSize,
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :                            nBlockXSize * nBlockYSize, nWordSize );</span>
+<span class="lineNum">     197 </span>            :     }
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineCov">          1 :     return CE_None;</span>
+<span class="lineNum">     200 </span>            : }
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span>            : /************************************************************************/
+<span class="lineNum">     203 </span>            : /*                      MFF Spheroids                                   */
+<span class="lineNum">     204 </span>            : /************************************************************************/
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            : class MFFSpheroidList : public SpheroidList
+<span class="lineNum">     207 </span>            : {
+<a name="208"><span class="lineNum">     208 </span>            : public:</a>
+<span class="lineNum">     209 </span>            :   MFFSpheroidList();
+<span class="lineNum">     210 </span><span class="lineCov">          6 :   ~MFFSpheroidList() {}</span>
+<a name="211"><span class="lineNum">     211 </span>            : };</a>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span><span class="lineCov">          6 : MFFSpheroidList :: MFFSpheroidList()</span>
+<span class="lineNum">     214 </span>            : {
+<span class="lineNum">     215 </span><span class="lineCov">          6 :   num_spheroids = 18;</span>
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span><span class="lineCov">          6 :   epsilonR = 0.1;</span>
+<span class="lineNum">     218 </span><span class="lineCov">          6 :   epsilonI = 0.000001;</span>
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span><span class="lineCov">          6 :   spheroids[0].SetValuesByRadii(&quot;SPHERE&quot;,6371007.0,6371007.0);</span>
+<span class="lineNum">     221 </span><span class="lineCov">          6 :   spheroids[1].SetValuesByRadii(&quot;EVEREST&quot;,6377304.0,6356103.0);</span>
+<span class="lineNum">     222 </span><span class="lineCov">          6 :   spheroids[2].SetValuesByRadii(&quot;BESSEL&quot;,6377397.0,6356082.0);</span>
+<span class="lineNum">     223 </span><span class="lineCov">          6 :   spheroids[3].SetValuesByRadii(&quot;AIRY&quot;,6377563.0,6356300.0);</span>
+<span class="lineNum">     224 </span><span class="lineCov">          6 :   spheroids[4].SetValuesByRadii(&quot;CLARKE_1858&quot;,6378294.0,6356621.0);</span>
+<span class="lineNum">     225 </span><span class="lineCov">          6 :   spheroids[5].SetValuesByRadii(&quot;CLARKE_1866&quot;,6378206.4,6356583.8);</span>
+<span class="lineNum">     226 </span><span class="lineCov">          6 :   spheroids[6].SetValuesByRadii(&quot;CLARKE_1880&quot;,6378249.0,6356517.0);</span>
+<span class="lineNum">     227 </span><span class="lineCov">          6 :   spheroids[7].SetValuesByRadii(&quot;HAYFORD&quot;,6378388.0,6356915.0);</span>
+<span class="lineNum">     228 </span><span class="lineCov">          6 :   spheroids[8].SetValuesByRadii(&quot;KRASOVSKI&quot;,6378245.0,6356863.0);</span>
+<span class="lineNum">     229 </span><span class="lineCov">          6 :   spheroids[9].SetValuesByRadii(&quot;HOUGH&quot;,6378270.0,6356794.0);</span>
+<span class="lineNum">     230 </span><span class="lineCov">          6 :   spheroids[10].SetValuesByRadii(&quot;FISHER_60&quot;,6378166.0,6356784.0);</span>
+<span class="lineNum">     231 </span><span class="lineCov">          6 :   spheroids[11].SetValuesByRadii(&quot;KAULA&quot;,6378165.0,6356345.0);</span>
+<span class="lineNum">     232 </span><span class="lineCov">          6 :   spheroids[12].SetValuesByRadii(&quot;IUGG_67&quot;,6378160.0,6356775.0);</span>
+<span class="lineNum">     233 </span><span class="lineCov">          6 :   spheroids[13].SetValuesByRadii(&quot;FISHER_68&quot;,6378150.0,6356330.0);</span>
+<span class="lineNum">     234 </span><span class="lineCov">          6 :   spheroids[14].SetValuesByRadii(&quot;WGS_72&quot;,6378135.0,6356751.0);</span>
+<span class="lineNum">     235 </span><span class="lineCov">          6 :   spheroids[15].SetValuesByRadii(&quot;IUGG_75&quot;,6378140.0,6356755.0);</span>
+<span class="lineNum">     236 </span><span class="lineCov">          6 :   spheroids[16].SetValuesByRadii(&quot;WGS_84&quot;,6378137.0,6356752.0);</span>
+<span class="lineNum">     237 </span><span class="lineCov">          6 :   spheroids[17].SetValuesByRadii(&quot;HUGHES&quot;,6378273.0,6356889.4);</span>
+<span class="lineNum">     238 </span><span class="lineCov">          6 : }</span>
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            : /************************************************************************/
+<span class="lineNum">     241 </span>            : /* ==================================================================== */
+<span class="lineNum">     242 </span>            : /*                              MFFDataset                              */
+<span class="lineNum">     243 </span>            : /* ==================================================================== */
+<span class="lineNum">     244 </span>            : /************************************************************************/
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            : /************************************************************************/
+<span class="lineNum">     247 </span>            : /*                            MFFDataset()                             */
+<a name="248"><span class="lineNum">     248 </span>            : /************************************************************************/</a>
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span><span class="lineCov">         20 : MFFDataset::MFFDataset() :</span>
+<span class="lineNum">     251 </span>            :     nGCPCount(0),
+<span class="lineNum">     252 </span>            :     pasGCPList(nullptr),
+<span class="lineNum">     253 </span><span class="lineCov">         20 :     pszProjection(CPLStrdup(&quot;&quot;)),</span>
+<span class="lineNum">     254 </span><span class="lineCov">         20 :     pszGCPProjection(CPLStrdup(&quot;&quot;)),</span>
+<span class="lineNum">     255 </span>            :     m_papszFileList(nullptr),
+<span class="lineNum">     256 </span>            :     papszHdrLines(nullptr),
+<span class="lineNum">     257 </span><span class="lineCov">         60 :     pafpBandFiles(nullptr)</span>
+<span class="lineNum">     258 </span>            : {
+<span class="lineNum">     259 </span><span class="lineCov">         20 :     adfGeoTransform[0] = 0.0;</span>
+<span class="lineNum">     260 </span><span class="lineCov">         20 :     adfGeoTransform[1] = 1.0;</span>
+<span class="lineNum">     261 </span><span class="lineCov">         20 :     adfGeoTransform[2] = 0.0;</span>
+<span class="lineNum">     262 </span><span class="lineCov">         20 :     adfGeoTransform[3] = 0.0;</span>
+<span class="lineNum">     263 </span><span class="lineCov">         20 :     adfGeoTransform[4] = 0.0;</span>
+<span class="lineNum">     264 </span><span class="lineCov">         20 :     adfGeoTransform[5] = 1.0;</span>
+<span class="lineNum">     265 </span><span class="lineCov">         20 : }</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span>            : /************************************************************************/
+<span class="lineNum">     268 </span>            : /*                            ~MFFDataset()                            */
+<a name="269"><span class="lineNum">     269 </span>            : /************************************************************************/</a>
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span><span class="lineCov">         60 : MFFDataset::~MFFDataset()</span>
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span>            : {
+<span class="lineNum">     274 </span><span class="lineCov">         20 :     FlushCache();</span>
+<span class="lineNum">     275 </span><span class="lineCov">         20 :     CSLDestroy( papszHdrLines );</span>
+<span class="lineNum">     276 </span><span class="lineCov">         20 :     if( pafpBandFiles != nullptr )</span>
+<span class="lineNum">     277 </span>            :     {
+<span class="lineNum">     278 </span><span class="lineNoCov">          0 :         for( int i = 0; i &lt; GetRasterCount(); i++ )</span>
+<span class="lineNum">     279 </span>            :         {
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :             if( pafpBandFiles[i] != nullptr )</span>
+<span class="lineNum">     281 </span>            :             {
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :                 if( VSIFCloseL( pafpBandFiles[i] ) != 0 )</span>
+<span class="lineNum">     283 </span>            :                 {
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :                     CPLError( CE_Failure, CPLE_FileIO, &quot;I/O error&quot; );</span>
+<span class="lineNum">     285 </span>            :                 }
+<span class="lineNum">     286 </span>            :             }
+<span class="lineNum">     287 </span>            :         }
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :         CPLFree( pafpBandFiles );</span>
+<span class="lineNum">     289 </span>            :     }
+<span class="lineNum">     290 </span>            : 
+<span class="lineNum">     291 </span><span class="lineCov">         20 :     if( nGCPCount &gt; 0 )</span>
+<span class="lineNum">     292 </span>            :     {
+<span class="lineNum">     293 </span><span class="lineCov">          6 :         GDALDeinitGCPs( nGCPCount, pasGCPList );</span>
+<span class="lineNum">     294 </span>            :     }
+<span class="lineNum">     295 </span><span class="lineCov">         20 :     CPLFree( pasGCPList );</span>
+<span class="lineNum">     296 </span><span class="lineCov">         20 :     CPLFree( pszProjection );</span>
+<span class="lineNum">     297 </span><span class="lineCov">         20 :     CPLFree( pszGCPProjection );</span>
+<span class="lineNum">     298 </span><span class="lineCov">         20 :     CSLDestroy( m_papszFileList );</span>
+<span class="lineNum">     299 </span><span class="lineCov">         40 : }</span>
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span>            : /************************************************************************/
+<span class="lineNum">     302 </span>            : /*                            GetFileList()                             */
+<a name="303"><span class="lineNum">     303 </span>            : /************************************************************************/</a>
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span><span class="lineCov">          3 : char** MFFDataset::GetFileList()</span>
+<span class="lineNum">     306 </span>            : {
+<span class="lineNum">     307 </span><span class="lineCov">          3 :     char** papszFileList = RawDataset::GetFileList();</span>
+<span class="lineNum">     308 </span><span class="lineCov">          3 :     papszFileList = CSLInsertStrings(papszFileList, -1, m_papszFileList);</span>
+<span class="lineNum">     309 </span><span class="lineCov">          3 :     return papszFileList;</span>
+<span class="lineNum">     310 </span>            : }
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span>            : /************************************************************************/
+<span class="lineNum">     313 </span>            : /*                            GetGCPCount()                             */
+<a name="314"><span class="lineNum">     314 </span>            : /************************************************************************/</a>
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 : int MFFDataset::GetGCPCount()</span>
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span>            : {
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :     return nGCPCount;</span>
+<span class="lineNum">     320 </span>            : }
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span>            : /************************************************************************/
+<span class="lineNum">     323 </span>            : /*                          GetGCPProjection()                          */
+<a name="324"><span class="lineNum">     324 </span>            : /************************************************************************/</a>
+<span class="lineNum">     325 </span>            : 
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 : const char *MFFDataset::_GetGCPProjection()</span>
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span>            : {
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :     if( nGCPCount &gt; 0 )</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :         return pszGCPProjection;</span>
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :     return &quot;&quot;;</span>
+<span class="lineNum">     333 </span>            : }
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span>            : /************************************************************************/
+<span class="lineNum">     336 </span>            : /*                          GetProjectionRef()                          */
+<a name="337"><span class="lineNum">     337 </span>            : /************************************************************************/</a>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 : const char *MFFDataset::_GetProjectionRef()</span>
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            : {
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :    return pszProjection;</span>
+<span class="lineNum">     343 </span>            : }
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span>            : /************************************************************************/
+<span class="lineNum">     346 </span>            : /*                          GetGeoTransform()                           */
+<a name="347"><span class="lineNum">     347 </span>            : /************************************************************************/</a>
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 : CPLErr MFFDataset::GetGeoTransform( double * padfTransform )</span>
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span>            : {
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :     memcpy( padfTransform,  adfGeoTransform, sizeof(double) * 6 );</span>
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :     return CE_None;</span>
+<span class="lineNum">     354 </span>            : }
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            : /************************************************************************/
+<span class="lineNum">     357 </span>            : /*                               GetGCP()                               */
+<a name="358"><span class="lineNum">     358 </span>            : /************************************************************************/</a>
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 : const GDAL_GCP *MFFDataset::GetGCPs()</span>
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span>            : {
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     return pasGCPList;</span>
+<span class="lineNum">     364 </span>            : }
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span>            : /************************************************************************/
+<span class="lineNum">     367 </span>            : /*                            ScanForGCPs()                             */
+<a name="368"><span class="lineNum">     368 </span>            : /************************************************************************/</a>
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span><span class="lineCov">         20 : void MFFDataset::ScanForGCPs()</span>
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span>            : {
+<span class="lineNum">     373 </span><span class="lineCov">         20 :     int NUM_GCPS = 0;</span>
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span><span class="lineCov">         20 :     if( CSLFetchNameValue(papszHdrLines, &quot;NUM_GCPS&quot;) != nullptr )</span>
+<span class="lineNum">     376 </span><span class="lineCov">          4 :         NUM_GCPS = atoi(CSLFetchNameValue(papszHdrLines, &quot;NUM_GCPS&quot;));</span>
+<span class="lineNum">     377 </span><span class="lineCov">         20 :     if (NUM_GCPS &lt; 0)</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span><span class="lineCov">         20 :     nGCPCount = 0;</span>
+<span class="lineNum">     381 </span>            :     pasGCPList = static_cast&lt;GDAL_GCP *&gt;(
+<span class="lineNum">     382 </span><span class="lineCov">         20 :         VSICalloc( sizeof(GDAL_GCP) , 5 + NUM_GCPS ) );</span>
+<span class="lineNum">     383 </span><span class="lineCov">         20 :     if (pasGCPList == nullptr)</span>
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span><span class="lineCov">        120 :     for( int nCorner = 0; nCorner &lt; 5; nCorner++ )</span>
+<span class="lineNum">     387 </span>            :     {
+<span class="lineNum">     388 </span><span class="lineCov">        100 :         const char * pszBase=nullptr;</span>
+<span class="lineNum">     389 </span><span class="lineCov">        100 :         double dfRasterX = 0.0;</span>
+<span class="lineNum">     390 </span><span class="lineCov">        100 :         double dfRasterY = 0.0;</span>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineCov">        100 :         if( nCorner == 0 )</span>
+<span class="lineNum">     393 </span>            :         {
+<span class="lineNum">     394 </span><span class="lineCov">         20 :             dfRasterX = 0.5;</span>
+<span class="lineNum">     395 </span><span class="lineCov">         20 :             dfRasterY = 0.5;</span>
+<span class="lineNum">     396 </span><span class="lineCov">         20 :             pszBase = &quot;TOP_LEFT_CORNER&quot;;</span>
+<span class="lineNum">     397 </span>            :         }
+<span class="lineNum">     398 </span><span class="lineCov">         80 :         else if( nCorner == 1 )</span>
+<span class="lineNum">     399 </span>            :         {
+<span class="lineNum">     400 </span><span class="lineCov">         20 :             dfRasterX = GetRasterXSize()-0.5;</span>
+<span class="lineNum">     401 </span><span class="lineCov">         20 :             dfRasterY = 0.5;</span>
+<span class="lineNum">     402 </span><span class="lineCov">         20 :             pszBase = &quot;TOP_RIGHT_CORNER&quot;;</span>
+<span class="lineNum">     403 </span>            :         }
+<span class="lineNum">     404 </span><span class="lineCov">         60 :         else if( nCorner == 2 )</span>
+<span class="lineNum">     405 </span>            :         {
+<span class="lineNum">     406 </span><span class="lineCov">         20 :             dfRasterX = GetRasterXSize()-0.5;</span>
+<span class="lineNum">     407 </span><span class="lineCov">         20 :             dfRasterY = GetRasterYSize()-0.5;</span>
+<span class="lineNum">     408 </span><span class="lineCov">         20 :             pszBase = &quot;BOTTOM_RIGHT_CORNER&quot;;</span>
+<span class="lineNum">     409 </span>            :         }
+<span class="lineNum">     410 </span><span class="lineCov">         40 :         else if( nCorner == 3 )</span>
+<span class="lineNum">     411 </span>            :         {
+<span class="lineNum">     412 </span><span class="lineCov">         20 :             dfRasterX = 0.5;</span>
+<span class="lineNum">     413 </span><span class="lineCov">         20 :             dfRasterY = GetRasterYSize()-0.5;</span>
+<span class="lineNum">     414 </span><span class="lineCov">         20 :             pszBase = &quot;BOTTOM_LEFT_CORNER&quot;;</span>
+<span class="lineNum">     415 </span>            :         }
+<span class="lineNum">     416 </span>            :         else /* if( nCorner == 4 ) */
+<span class="lineNum">     417 </span>            :         {
+<span class="lineNum">     418 </span><span class="lineCov">         20 :             dfRasterX = GetRasterXSize()/2.0;</span>
+<span class="lineNum">     419 </span><span class="lineCov">         20 :             dfRasterY = GetRasterYSize()/2.0;</span>
+<span class="lineNum">     420 </span><span class="lineCov">         20 :             pszBase = &quot;CENTRE&quot;;</span>
+<span class="lineNum">     421 </span>            :         }
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span><span class="lineCov">        100 :         char szLatName[40] = { '\0' };</span>
+<span class="lineNum">     424 </span><span class="lineCov">        100 :         char szLongName[40] = { '\0' };</span>
+<span class="lineNum">     425 </span><span class="lineCov">        100 :         snprintf( szLatName, sizeof(szLatName), &quot;%s_LATITUDE&quot;, pszBase );</span>
+<span class="lineNum">     426 </span><span class="lineCov">        100 :         snprintf( szLongName, sizeof(szLongName), &quot;%s_LONGITUDE&quot;, pszBase );</span>
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span><span class="lineCov">        200 :         if( CSLFetchNameValue(papszHdrLines, szLatName) != nullptr</span>
+<span class="lineNum">     429 </span><span class="lineCov">        100 :             &amp;&amp; CSLFetchNameValue(papszHdrLines, szLongName) != nullptr )</span>
+<span class="lineNum">     430 </span>            :         {
+<span class="lineNum">     431 </span><span class="lineCov">         10 :             GDALInitGCPs( 1, pasGCPList + nGCPCount );</span>
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span><span class="lineCov">         10 :             CPLFree( pasGCPList[nGCPCount].pszId );</span>
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span><span class="lineCov">         10 :             pasGCPList[nGCPCount].pszId = CPLStrdup( pszBase );</span>
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span><span class="lineCov">         10 :             pasGCPList[nGCPCount].dfGCPX =</span>
+<span class="lineNum">     438 </span><span class="lineCov">         10 :                 CPLAtof(CSLFetchNameValue(papszHdrLines, szLongName));</span>
+<span class="lineNum">     439 </span><span class="lineCov">         10 :             pasGCPList[nGCPCount].dfGCPY =</span>
+<span class="lineNum">     440 </span><span class="lineCov">         10 :                 CPLAtof(CSLFetchNameValue(papszHdrLines, szLatName));</span>
+<span class="lineNum">     441 </span><span class="lineCov">         10 :             pasGCPList[nGCPCount].dfGCPZ = 0.0;</span>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span><span class="lineCov">         10 :             pasGCPList[nGCPCount].dfGCPPixel = dfRasterX;</span>
+<span class="lineNum">     444 </span><span class="lineCov">         10 :             pasGCPList[nGCPCount].dfGCPLine = dfRasterY;</span>
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span><span class="lineCov">         10 :             nGCPCount++;</span>
+<span class="lineNum">     447 </span>            :         }
+<span class="lineNum">     448 </span>            :     }
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     451 </span>            : /*      Collect standalone GCPs.  They look like:                       */
+<span class="lineNum">     452 </span>            : /*                                                                      */
+<span class="lineNum">     453 </span>            : /*      GCPn = row, col, lat, long                                      */
+<span class="lineNum">     454 </span>            : /*      GCP1 = 1, 1, 45.0, -75.0                                        */
+<span class="lineNum">     455 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     456 </span><span class="lineCov">         24 :     for( int i = 0; i &lt; NUM_GCPS; i++ )</span>
+<span class="lineNum">     457 </span>            :     {
+<span class="lineNum">     458 </span><span class="lineCov">          4 :         char szName[25] = { '\0' };</span>
+<span class="lineNum">     459 </span><span class="lineCov">          4 :         snprintf( szName, sizeof(szName), &quot;GCP%d&quot;, i+1 );</span>
+<span class="lineNum">     460 </span><span class="lineCov">          4 :         if( CSLFetchNameValue( papszHdrLines, szName ) == nullptr )</span>
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span>            :         char **papszTokens = CSLTokenizeStringComplex(
+<span class="lineNum">     464 </span>            :             CSLFetchNameValue( papszHdrLines, szName ),
+<span class="lineNum">     465 </span><span class="lineCov">          4 :             &quot;,&quot;, FALSE, FALSE );</span>
+<span class="lineNum">     466 </span><span class="lineCov">          4 :         if( CSLCount(papszTokens) == 4 )</span>
+<span class="lineNum">     467 </span>            :         {
+<span class="lineNum">     468 </span><span class="lineCov">          4 :             GDALInitGCPs( 1, pasGCPList + nGCPCount );</span>
+<span class="lineNum">     469 </span>            : 
+<span class="lineNum">     470 </span><span class="lineCov">          4 :             CPLFree( pasGCPList[nGCPCount].pszId );</span>
+<span class="lineNum">     471 </span><span class="lineCov">          4 :             pasGCPList[nGCPCount].pszId = CPLStrdup( szName );</span>
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span><span class="lineCov">          4 :             pasGCPList[nGCPCount].dfGCPX = CPLAtof(papszTokens[3]);</span>
+<span class="lineNum">     474 </span><span class="lineCov">          4 :             pasGCPList[nGCPCount].dfGCPY = CPLAtof(papszTokens[2]);</span>
+<span class="lineNum">     475 </span><span class="lineCov">          4 :             pasGCPList[nGCPCount].dfGCPZ = 0.0;</span>
+<span class="lineNum">     476 </span><span class="lineCov">          4 :             pasGCPList[nGCPCount].dfGCPPixel = CPLAtof(papszTokens[1])+0.5;</span>
+<span class="lineNum">     477 </span><span class="lineCov">          4 :             pasGCPList[nGCPCount].dfGCPLine = CPLAtof(papszTokens[0])+0.5;</span>
+<span class="lineNum">     478 </span>            : 
+<span class="lineNum">     479 </span><span class="lineCov">          4 :             nGCPCount++;</span>
+<span class="lineNum">     480 </span>            :         }
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span><span class="lineCov">          4 :         CSLDestroy(papszTokens);</span>
+<span class="lineNum">     483 </span>            :     }
+<span class="lineNum">     484 </span>            : }
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span>            : /************************************************************************/
+<span class="lineNum">     487 </span>            : /*                        ScanForProjectionInfo                         */
+<a name="488"><span class="lineNum">     488 </span>            : /************************************************************************/</a>
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span><span class="lineCov">         20 : void MFFDataset::ScanForProjectionInfo()</span>
+<span class="lineNum">     491 </span>            : {
+<span class="lineNum">     492 </span>            :     const char *pszProjName
+<span class="lineNum">     493 </span><span class="lineCov">         20 :         = CSLFetchNameValue(papszHdrLines, &quot;PROJECTION_NAME&quot;);</span>
+<span class="lineNum">     494 </span>            :     const char *pszOriginLong
+<span class="lineNum">     495 </span><span class="lineCov">         20 :         = CSLFetchNameValue(papszHdrLines, &quot;PROJECTION_ORIGIN_LONGITUDE&quot;);</span>
+<span class="lineNum">     496 </span>            :     const char *pszSpheroidName
+<span class="lineNum">     497 </span><span class="lineCov">         20 :         = CSLFetchNameValue(papszHdrLines, &quot;SPHEROID_NAME&quot;);</span>
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span><span class="lineCov">         20 :     if (pszProjName == nullptr)</span>
+<span class="lineNum">     500 </span>            :     {
+<span class="lineNum">     501 </span><span class="lineCov">         14 :         CPLFree( pszProjection );</span>
+<span class="lineNum">     502 </span><span class="lineCov">         14 :         CPLFree( pszGCPProjection );</span>
+<span class="lineNum">     503 </span><span class="lineCov">         14 :         pszProjection=CPLStrdup(&quot;&quot;);</span>
+<span class="lineNum">     504 </span><span class="lineCov">         14 :         pszGCPProjection=CPLStrdup(&quot;&quot;);</span>
+<span class="lineNum">     505 </span><span class="lineCov">         28 :         return;</span>
+<span class="lineNum">     506 </span>            :     }
+<span class="lineNum">     507 </span><span class="lineCov">          6 :     else if ((!EQUAL(pszProjName,&quot;utm&quot;)) &amp;&amp; (!EQUAL(pszProjName,&quot;ll&quot;)))</span>
+<span class="lineNum">     508 </span>            :     {
+<span class="lineNum">     509 </span>            :         CPLError(
+<span class="lineNum">     510 </span>            :             CE_Warning,CPLE_AppDefined,
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :             &quot;Only utm and lat/long projections are currently supported.&quot; );</span>
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :         CPLFree( pszProjection );</span>
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :         CPLFree( pszGCPProjection );</span>
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :         pszProjection=CPLStrdup(&quot;&quot;);</span>
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :         pszGCPProjection=CPLStrdup(&quot;&quot;);</span>
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     517 </span>            :     }
+<span class="lineNum">     518 </span><span class="lineCov">          6 :     MFFSpheroidList *mffEllipsoids = new MFFSpheroidList;</span>
+<span class="lineNum">     519 </span>            : 
+<span class="lineNum">     520 </span><span class="lineCov">          6 :     OGRSpatialReference oProj;</span>
+<span class="lineNum">     521 </span><span class="lineCov">          6 :     if( EQUAL(pszProjName,&quot;utm&quot;) )</span>
+<span class="lineNum">     522 </span>            :     {
+<span class="lineNum">     523 </span>            :         int nZone;
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span><span class="lineCov">          6 :         if (pszOriginLong == nullptr)</span>
+<span class="lineNum">     526 </span>            :         {
+<span class="lineNum">     527 </span>            :           // If origin not specified, assume 0.0.
+<span class="lineNum">     528 </span>            :             CPLError(
+<span class="lineNum">     529 </span>            :                 CE_Warning,CPLE_AppDefined,
+<span class="lineNum">     530 </span><span class="lineCov">          4 :                 &quot;No projection origin longitude specified.  Assuming 0.0.&quot; );</span>
+<span class="lineNum">     531 </span><span class="lineCov">          4 :             nZone = 31;</span>
+<span class="lineNum">     532 </span>            :         }
+<span class="lineNum">     533 </span>            :         else
+<span class="lineNum">     534 </span><span class="lineCov">          2 :             nZone = 31 + static_cast&lt;int&gt;(</span>
+<span class="lineNum">     535 </span><span class="lineCov">          4 :                 floor( CPLAtof( pszOriginLong ) / 6.0) );</span>
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span><span class="lineCov">          6 :         if( nGCPCount &gt;= 5 &amp;&amp; pasGCPList[4].dfGCPY &lt; 0 )</span>
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :             oProj.SetUTM( nZone, 0 );</span>
+<span class="lineNum">     539 </span>            :         else
+<span class="lineNum">     540 </span><span class="lineCov">          6 :             oProj.SetUTM( nZone, 1 );</span>
+<span class="lineNum">     541 </span>            : 
+<span class="lineNum">     542 </span><span class="lineCov">          6 :         if (pszOriginLong != nullptr)</span>
+<span class="lineNum">     543 </span><span class="lineCov">          2 :             oProj.SetProjParm(SRS_PP_CENTRAL_MERIDIAN,CPLAtof(pszOriginLong));</span>
+<span class="lineNum">     544 </span>            :     }
+<span class="lineNum">     545 </span>            : 
+<span class="lineNum">     546 </span><span class="lineCov">         12 :     OGRSpatialReference oLL;</span>
+<span class="lineNum">     547 </span><span class="lineCov">          6 :     oLL.SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">     548 </span><span class="lineCov">          6 :     if (pszOriginLong != nullptr)</span>
+<span class="lineNum">     549 </span><span class="lineCov">          2 :         oLL.SetProjParm(SRS_PP_LONGITUDE_OF_ORIGIN,CPLAtof(pszOriginLong));</span>
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span><span class="lineCov">          6 :     if (pszSpheroidName == nullptr)</span>
+<span class="lineNum">     552 </span>            :     {
+<span class="lineNum">     553 </span>            :         CPLError(
+<span class="lineNum">     554 </span>            :             CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     555 </span><span class="lineCov">          4 :             &quot;Unspecified ellipsoid.  Using wgs-84 parameters.\n&quot; );</span>
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span><span class="lineCov">          4 :         oProj.SetWellKnownGeogCS( &quot;WGS84&quot; );</span>
+<span class="lineNum">     558 </span><span class="lineCov">          4 :         oLL.SetWellKnownGeogCS( &quot;WGS84&quot; );</span>
+<span class="lineNum">     559 </span>            :     }
+<span class="lineNum">     560 </span>            :     else
+<span class="lineNum">     561 </span>            :     {
+<span class="lineNum">     562 </span><span class="lineCov">          2 :       if (mffEllipsoids-&gt;SpheroidInList(pszSpheroidName))</span>
+<span class="lineNum">     563 </span>            :       {
+<span class="lineNum">     564 </span>            :          oProj.SetGeogCS(
+<span class="lineNum">     565 </span>            :              &quot;unknown&quot;,&quot;unknown&quot;,pszSpheroidName,
+<span class="lineNum">     566 </span>            :              mffEllipsoids-&gt;GetSpheroidEqRadius(pszSpheroidName),
+<span class="lineNum">     567 </span><span class="lineCov">          2 :              mffEllipsoids-&gt;GetSpheroidInverseFlattening(pszSpheroidName) );</span>
+<span class="lineNum">     568 </span>            :          oLL.SetGeogCS(
+<span class="lineNum">     569 </span>            :              &quot;unknown&quot;,&quot;unknown&quot;,pszSpheroidName,
+<span class="lineNum">     570 </span>            :              mffEllipsoids-&gt;GetSpheroidEqRadius(pszSpheroidName),
+<span class="lineNum">     571 </span><span class="lineCov">          2 :              mffEllipsoids-&gt;GetSpheroidInverseFlattening(pszSpheroidName) );</span>
+<span class="lineNum">     572 </span>            :       }
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :       else if (EQUAL(pszSpheroidName,&quot;USER_DEFINED&quot;))</span>
+<span class="lineNum">     574 </span>            :       {
+<span class="lineNum">     575 </span>            :           const char *pszSpheroidEqRadius
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :               = CSLFetchNameValue(papszHdrLines, &quot;SPHEROID_EQUATORIAL_RADIUS&quot;);</span>
+<span class="lineNum">     577 </span>            :           const char *pszSpheroidPolarRadius
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :               = CSLFetchNameValue(papszHdrLines, &quot;SPHEROID_POLAR_RADIUS&quot;);</span>
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :           if ((pszSpheroidEqRadius != nullptr) &amp;&amp; (pszSpheroidPolarRadius != nullptr))</span>
+<span class="lineNum">     580 </span>            :           {
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :             const double eq_radius = CPLAtof( pszSpheroidEqRadius );</span>
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :             const double polar_radius = CPLAtof( pszSpheroidPolarRadius );</span>
+<span class="lineNum">     583 </span>            :             oProj.SetGeogCS( &quot;unknown&quot;,&quot;unknown&quot;,&quot;unknown&quot;,
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :                          eq_radius, eq_radius/(eq_radius - polar_radius));</span>
+<span class="lineNum">     585 </span>            :             oLL.SetGeogCS( &quot;unknown&quot;,&quot;unknown&quot;,&quot;unknown&quot;,
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :                          eq_radius, eq_radius/(eq_radius - polar_radius));</span>
+<span class="lineNum">     587 </span>            :           }
+<span class="lineNum">     588 </span>            :           else
+<span class="lineNum">     589 </span>            :           {
+<span class="lineNum">     590 </span>            :               CPLError(
+<span class="lineNum">     591 </span>            :                   CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     592 </span>            :                   &quot;Radii not specified for user-defined ellipsoid. &quot;
+<span class="lineNum">     593 </span><span class="lineNoCov">          0 :                   &quot;Using wgs-84 parameters.&quot;);</span>
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :               oProj.SetWellKnownGeogCS( &quot;WGS84&quot; );</span>
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :               oLL.SetWellKnownGeogCS( &quot;WGS84&quot; );</span>
+<span class="lineNum">     596 </span>            :           }
+<span class="lineNum">     597 </span>            :       }
+<span class="lineNum">     598 </span>            :       else
+<span class="lineNum">     599 </span>            :       {
+<span class="lineNum">     600 </span>            :           CPLError(
+<span class="lineNum">     601 </span>            :               CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :               &quot;Unrecognized ellipsoid.  Using wgs-84 parameters.&quot;);</span>
+<span class="lineNum">     603 </span><span class="lineNoCov">          0 :           oProj.SetWellKnownGeogCS( &quot;WGS84&quot; );</span>
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 :           oLL.SetWellKnownGeogCS( &quot;WGS84&quot; );</span>
+<span class="lineNum">     605 </span>            :       }
+<span class="lineNum">     606 </span>            :     }
+<span class="lineNum">     607 </span>            : 
+<span class="lineNum">     608 </span>            :     /* If a geotransform is sufficient to represent the GCP's (i.e. each */
+<span class="lineNum">     609 </span>            :     /* estimated gcp is within 0.25*pixel size of the actual value- this */
+<span class="lineNum">     610 </span>            :     /* is the test applied by GDALGCPsToGeoTransform), store the         */
+<span class="lineNum">     611 </span>            :     /* geotransform.                                                     */
+<span class="lineNum">     612 </span><span class="lineCov">          6 :     bool transform_ok = false;</span>
+<span class="lineNum">     613 </span>            : 
+<span class="lineNum">     614 </span><span class="lineCov">          6 :     if (EQUAL(pszProjName,&quot;LL&quot;))</span>
+<span class="lineNum">     615 </span>            :     {
+<span class="lineNum">     616 </span>            :         transform_ok =
+<span class="lineNum">     617 </span>            :             CPL_TO_BOOL(
+<span class="lineNum">     618 </span>            :                 GDALGCPsToGeoTransform(
+<span class="lineNum">     619 </span><span class="lineNoCov">          0 :                     nGCPCount, pasGCPList, adfGeoTransform, 0 ) );</span>
+<span class="lineNum">     620 </span>            :     }
+<span class="lineNum">     621 </span>            :     else
+<span class="lineNum">     622 </span>            :     {
+<span class="lineNum">     623 </span>            :         OGRCoordinateTransformation *poTransform
+<span class="lineNum">     624 </span><span class="lineCov">          6 :             = OGRCreateCoordinateTransformation( &amp;oLL, &amp;oProj );</span>
+<span class="lineNum">     625 </span><span class="lineCov">          6 :         bool bSuccess = true;</span>
+<span class="lineNum">     626 </span><span class="lineCov">          6 :         if( poTransform == nullptr )</span>
+<span class="lineNum">     627 </span>            :         {
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 :             CPLErrorReset();</span>
+<span class="lineNum">     629 </span><span class="lineNoCov">          0 :             bSuccess = FALSE;</span>
+<span class="lineNum">     630 </span>            :         }
+<span class="lineNum">     631 </span>            : 
+<span class="lineNum">     632 </span>            :         double *dfPrjX =
+<span class="lineNum">     633 </span><span class="lineCov">          6 :             static_cast&lt;double *&gt;( CPLMalloc(nGCPCount*sizeof(double)) );</span>
+<span class="lineNum">     634 </span>            :         double *dfPrjY =
+<span class="lineNum">     635 </span><span class="lineCov">          6 :             static_cast&lt;double *&gt;( CPLMalloc(nGCPCount*sizeof(double)) );</span>
+<span class="lineNum">     636 </span>            : 
+<span class="lineNum">     637 </span><span class="lineCov">         20 :         for( int gcp_index = 0; gcp_index &lt; nGCPCount; gcp_index++ )</span>
+<span class="lineNum">     638 </span>            :         {
+<span class="lineNum">     639 </span><span class="lineCov">         14 :             dfPrjX[gcp_index] = pasGCPList[gcp_index].dfGCPX;</span>
+<span class="lineNum">     640 </span><span class="lineCov">         14 :             dfPrjY[gcp_index] = pasGCPList[gcp_index].dfGCPY;</span>
+<span class="lineNum">     641 </span>            : 
+<span class="lineNum">     642 </span><span class="lineCov">         28 :             if( bSuccess &amp;&amp;</span>
+<span class="lineNum">     643 </span>            :                 !poTransform-&gt;Transform( 1,
+<span class="lineNum">     644 </span>            :                                          &amp;(dfPrjX[gcp_index]),
+<span class="lineNum">     645 </span><span class="lineCov">         14 :                                          &amp;(dfPrjY[gcp_index]) ) )</span>
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :                 bSuccess = FALSE;</span>
+<span class="lineNum">     647 </span>            :         }
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span><span class="lineCov">          6 :         if( bSuccess )</span>
+<span class="lineNum">     650 </span>            :         {
+<span class="lineNum">     651 </span><span class="lineCov">         20 :             for(int gcp_index = 0; gcp_index &lt; nGCPCount; gcp_index++ )</span>
+<span class="lineNum">     652 </span>            :             {
+<span class="lineNum">     653 </span><span class="lineCov">         14 :                 pasGCPList[gcp_index].dfGCPX = dfPrjX[gcp_index];</span>
+<span class="lineNum">     654 </span><span class="lineCov">         14 :                 pasGCPList[gcp_index].dfGCPY = dfPrjY[gcp_index];</span>
+<span class="lineNum">     655 </span>            :             }
+<span class="lineNum">     656 </span>            :             transform_ok =
+<span class="lineNum">     657 </span>            :                 CPL_TO_BOOL(
+<span class="lineNum">     658 </span>            :                     GDALGCPsToGeoTransform(
+<span class="lineNum">     659 </span><span class="lineCov">          6 :                         nGCPCount, pasGCPList, adfGeoTransform, 0 ) );</span>
+<span class="lineNum">     660 </span>            :         }
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span><span class="lineCov">          6 :         if (poTransform)</span>
+<span class="lineNum">     663 </span><span class="lineCov">          6 :             delete poTransform;</span>
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span><span class="lineCov">          6 :         CPLFree(dfPrjX);</span>
+<span class="lineNum">     666 </span><span class="lineCov">          6 :         CPLFree(dfPrjY);</span>
+<span class="lineNum">     667 </span>            :     }
+<span class="lineNum">     668 </span>            : 
+<span class="lineNum">     669 </span><span class="lineCov">          6 :     CPLFree( pszProjection );</span>
+<span class="lineNum">     670 </span><span class="lineCov">          6 :     CPLFree( pszGCPProjection );</span>
+<span class="lineNum">     671 </span><span class="lineCov">          6 :     pszProjection = nullptr;</span>
+<span class="lineNum">     672 </span><span class="lineCov">          6 :     pszGCPProjection = nullptr;</span>
+<span class="lineNum">     673 </span><span class="lineCov">          6 :     oProj.exportToWkt( &amp;pszProjection );</span>
+<span class="lineNum">     674 </span><span class="lineCov">          6 :     oProj.exportToWkt( &amp;pszGCPProjection );</span>
+<span class="lineNum">     675 </span>            : 
+<span class="lineNum">     676 </span><span class="lineCov">          6 :     if( !transform_ok )</span>
+<span class="lineNum">     677 </span>            :     {
+<span class="lineNum">     678 </span>            :     /* transform is sufficient in some cases (slant range, standalone gcps) */
+<span class="lineNum">     679 </span><span class="lineCov">          4 :         adfGeoTransform[0] = 0.0;</span>
+<span class="lineNum">     680 </span><span class="lineCov">          4 :         adfGeoTransform[1] = 1.0;</span>
+<span class="lineNum">     681 </span><span class="lineCov">          4 :         adfGeoTransform[2] = 0.0;</span>
+<span class="lineNum">     682 </span><span class="lineCov">          4 :         adfGeoTransform[3] = 0.0;</span>
+<span class="lineNum">     683 </span><span class="lineCov">          4 :         adfGeoTransform[4] = 0.0;</span>
+<span class="lineNum">     684 </span><span class="lineCov">          4 :         adfGeoTransform[5] = 1.0;</span>
+<span class="lineNum">     685 </span><span class="lineCov">          4 :         CPLFree( pszProjection );</span>
+<span class="lineNum">     686 </span><span class="lineCov">          4 :         pszProjection = CPLStrdup(&quot;&quot;);</span>
+<span class="lineNum">     687 </span>            :     }
+<span class="lineNum">     688 </span>            : 
+<span class="lineNum">     689 </span><span class="lineCov">         12 :     delete mffEllipsoids;</span>
+<span class="lineNum">     690 </span>            : }
+<span class="lineNum">     691 </span>            : 
+<span class="lineNum">     692 </span>            : /************************************************************************/
+<span class="lineNum">     693 </span>            : /*                                Open()                                */
+<a name="694"><span class="lineNum">     694 </span>            : /************************************************************************/</a>
+<span class="lineNum">     695 </span>            : 
+<span class="lineNum">     696 </span><span class="lineCov">      20668 : GDALDataset *MFFDataset::Open( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span>            : {
+<span class="lineNum">     699 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     700 </span>            : /*      We assume the user is pointing to the header file.              */
+<span class="lineNum">     701 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     702 </span><span class="lineCov">      20668 :     if( poOpenInfo-&gt;nHeaderBytes &lt; 17 || poOpenInfo-&gt;fpL == nullptr )</span>
+<span class="lineNum">     703 </span><span class="lineCov">      18302 :         return nullptr;</span>
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span><span class="lineCov">       2366 :     if( !EQUAL(CPLGetExtension(poOpenInfo-&gt;pszFilename), &quot;hdr&quot;) )</span>
+<span class="lineNum">     706 </span><span class="lineCov">       2337 :         return nullptr;</span>
+<span class="lineNum">     707 </span>            : 
+<span class="lineNum">     708 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     709 </span>            : /*      Load the .hdr file, and compress white space out around the     */
+<span class="lineNum">     710 </span>            : /*      equal sign.                                                     */
+<span class="lineNum">     711 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     712 </span><span class="lineCov">         29 :     char **papszHdrLines = CSLLoad( poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     713 </span><span class="lineCov">         29 :     if( papszHdrLines == nullptr )</span>
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     715 </span>            : 
+<span class="lineNum">     716 </span>            :     // Remove spaces.  e.g.
+<span class="lineNum">     717 </span>            :     // SPHEROID_NAME = CLARKE_1866 -&gt; SPHEROID_NAME=CLARKE_1866
+<span class="lineNum">     718 </span><span class="lineCov">        550 :     for( int i = 0; papszHdrLines[i] != nullptr; i++ )</span>
+<span class="lineNum">     719 </span>            :     {
+<span class="lineNum">     720 </span><span class="lineCov">        521 :         int iDst = 0;</span>
+<span class="lineNum">     721 </span><span class="lineCov">        521 :         char *pszLine = papszHdrLines[i];</span>
+<span class="lineNum">     722 </span>            : 
+<span class="lineNum">     723 </span><span class="lineCov">      14079 :         for( int iSrc=0; pszLine[iSrc] != '\0'; iSrc++ )</span>
+<span class="lineNum">     724 </span>            :         {
+<span class="lineNum">     725 </span><span class="lineCov">      13558 :             if( pszLine[iSrc] != ' ' )</span>
+<span class="lineNum">     726 </span>            :             {
+<span class="lineNum">     727 </span><span class="lineCov">      11879 :                 pszLine[iDst++] = pszLine[iSrc];</span>
+<span class="lineNum">     728 </span>            :             }
+<span class="lineNum">     729 </span>            :         }
+<span class="lineNum">     730 </span><span class="lineCov">        521 :         pszLine[iDst] = '\0';</span>
+<span class="lineNum">     731 </span>            :     }
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     734 </span>            : /*      Verify it is an MFF file.                                       */
+<span class="lineNum">     735 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     736 </span><span class="lineCov">         58 :     if( CSLFetchNameValue( papszHdrLines, &quot;IMAGE_FILE_FORMAT&quot; ) != nullptr</span>
+<span class="lineNum">     737 </span><span class="lineCov">         29 :         &amp;&amp; !EQUAL(CSLFetchNameValue(papszHdrLines, &quot;IMAGE_FILE_FORMAT&quot;),</span>
+<span class="lineNum">     738 </span>            :                   &quot;MFF&quot;) )
+<span class="lineNum">     739 </span>            :     {
+<span class="lineNum">     740 </span><span class="lineNoCov">          0 :         CSLDestroy( papszHdrLines );</span>
+<span class="lineNum">     741 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     742 </span>            :     }
+<span class="lineNum">     743 </span>            : 
+<span class="lineNum">     744 </span><span class="lineCov">         58 :     if( (CSLFetchNameValue( papszHdrLines, &quot;IMAGE_LINES&quot; ) == nullptr</span>
+<span class="lineNum">     745 </span><span class="lineCov">         20 :          || CSLFetchNameValue(papszHdrLines,&quot;LINE_SAMPLES&quot;) == nullptr)</span>
+<span class="lineNum">     746 </span><span class="lineCov">         47 :         &amp;&amp; (CSLFetchNameValue( papszHdrLines, &quot;no_rows&quot; ) == nullptr</span>
+<span class="lineNum">     747 </span><span class="lineNoCov">          0 :             || CSLFetchNameValue(papszHdrLines,&quot;no_columns&quot;) == nullptr) )</span>
+<span class="lineNum">     748 </span>            :     {
+<span class="lineNum">     749 </span><span class="lineCov">          9 :         CSLDestroy( papszHdrLines );</span>
+<span class="lineNum">     750 </span><span class="lineCov">          9 :         return nullptr;</span>
+<span class="lineNum">     751 </span>            :     }
+<span class="lineNum">     752 </span>            : 
+<span class="lineNum">     753 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     754 </span>            : /*      Create a corresponding GDALDataset.                             */
+<span class="lineNum">     755 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     756 </span><span class="lineCov">         20 :     MFFDataset *poDS = new MFFDataset();</span>
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span><span class="lineCov">         20 :     poDS-&gt;papszHdrLines = papszHdrLines;</span>
+<span class="lineNum">     759 </span>            : 
+<span class="lineNum">     760 </span><span class="lineCov">         20 :     poDS-&gt;eAccess = poOpenInfo-&gt;eAccess;</span>
+<span class="lineNum">     761 </span>            : 
+<span class="lineNum">     762 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     763 </span>            : /*      Set some dataset wide information.                              */
+<span class="lineNum">     764 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     765 </span><span class="lineCov">         40 :     if( CSLFetchNameValue(papszHdrLines,&quot;no_rows&quot;) != nullptr</span>
+<span class="lineNum">     766 </span><span class="lineCov">         20 :         &amp;&amp; CSLFetchNameValue(papszHdrLines,&quot;no_columns&quot;) != nullptr )</span>
+<span class="lineNum">     767 </span>            :     {
+<span class="lineNum">     768 </span><span class="lineNoCov">          0 :         poDS-&gt;nRasterXSize = atoi(CSLFetchNameValue(papszHdrLines,&quot;no_columns&quot;));</span>
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :         poDS-&gt;nRasterYSize = atoi(CSLFetchNameValue(papszHdrLines,&quot;no_rows&quot;));</span>
+<span class="lineNum">     770 </span>            :     }
+<span class="lineNum">     771 </span>            :     else
+<span class="lineNum">     772 </span>            :     {
+<span class="lineNum">     773 </span>            :         poDS-&gt;nRasterXSize =
+<span class="lineNum">     774 </span><span class="lineCov">         20 :             atoi(CSLFetchNameValue(papszHdrLines, &quot;LINE_SAMPLES&quot;));</span>
+<span class="lineNum">     775 </span>            :         poDS-&gt;nRasterYSize =
+<span class="lineNum">     776 </span><span class="lineCov">         20 :             atoi(CSLFetchNameValue(papszHdrLines, &quot;IMAGE_LINES&quot;));</span>
+<span class="lineNum">     777 </span>            :     }
+<span class="lineNum">     778 </span>            : 
+<span class="lineNum">     779 </span><span class="lineCov">         20 :     if (!GDALCheckDatasetDimensions(poDS-&gt;nRasterXSize, poDS-&gt;nRasterYSize))</span>
+<span class="lineNum">     780 </span>            :     {
+<span class="lineNum">     781 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">     782 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     783 </span>            :     }
+<span class="lineNum">     784 </span>            : 
+<span class="lineNum">     785 </span><span class="lineCov">         20 :     bool bNative = true;</span>
+<span class="lineNum">     786 </span><span class="lineCov">         20 :     if( CSLFetchNameValue( papszHdrLines, &quot;BYTE_ORDER&quot; ) != nullptr )</span>
+<span class="lineNum">     787 </span>            :     {
+<span class="lineNum">     788 </span>            : #ifdef CPL_MSB
+<span class="lineNum">     789 </span>            :         bNative = EQUAL(CSLFetchNameValue(papszHdrLines, &quot;BYTE_ORDER&quot;), &quot;MSB&quot;);
+<span class="lineNum">     790 </span>            : #else
+<span class="lineNum">     791 </span><span class="lineCov">         16 :         bNative = EQUAL(CSLFetchNameValue(papszHdrLines, &quot;BYTE_ORDER&quot;), &quot;LSB&quot;);</span>
+<span class="lineNum">     792 </span>            : #endif
+<span class="lineNum">     793 </span>            :     }
+<span class="lineNum">     794 </span>            : 
+<span class="lineNum">     795 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     796 </span>            : /*      Get some information specific to APP tiled files.               */
+<span class="lineNum">     797 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     798 </span><span class="lineCov">         20 :     int nTileXSize = 0;</span>
+<span class="lineNum">     799 </span><span class="lineCov">         20 :     int nTileYSize = 0;</span>
+<span class="lineNum">     800 </span><span class="lineCov">         20 :     const char *pszRefinedType = CSLFetchNameValue(papszHdrLines, &quot;type&quot; );</span>
+<span class="lineNum">     801 </span><span class="lineCov">         20 :     const bool bTiled = CSLFetchNameValue(papszHdrLines, &quot;no_rows&quot;) != nullptr;</span>
+<span class="lineNum">     802 </span>            : 
+<span class="lineNum">     803 </span><span class="lineCov">         20 :     if( bTiled )</span>
+<span class="lineNum">     804 </span>            :     {
+<span class="lineNum">     805 </span><span class="lineCov">          2 :         if( CSLFetchNameValue(papszHdrLines,&quot;tile_size_rows&quot;) )</span>
+<span class="lineNum">     806 </span>            :             nTileYSize =
+<span class="lineNum">     807 </span><span class="lineCov">          2 :                 atoi(CSLFetchNameValue(papszHdrLines,&quot;tile_size_rows&quot;));</span>
+<span class="lineNum">     808 </span><span class="lineCov">          2 :         if( CSLFetchNameValue(papszHdrLines,&quot;tile_size_columns&quot;) )</span>
+<span class="lineNum">     809 </span>            :             nTileXSize =
+<span class="lineNum">     810 </span><span class="lineCov">          2 :                 atoi(CSLFetchNameValue(papszHdrLines,&quot;tile_size_columns&quot;) );</span>
+<span class="lineNum">     811 </span>            : 
+<span class="lineNum">     812 </span><span class="lineCov">          4 :         if (nTileXSize &lt;= 0 || nTileYSize &lt;= 0 ||</span>
+<span class="lineNum">     813 </span><span class="lineCov">          4 :             poDS-&gt;nRasterXSize-1 &gt; INT_MAX - nTileXSize ||</span>
+<span class="lineNum">     814 </span><span class="lineCov">          2 :             poDS-&gt;nRasterYSize-1 &gt; INT_MAX - nTileYSize )</span>
+<span class="lineNum">     815 </span>            :         {
+<span class="lineNum">     816 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">     817 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     818 </span>            :         }
+<span class="lineNum">     819 </span>            :     }
+<span class="lineNum">     820 </span>            : 
+<span class="lineNum">     821 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     822 </span>            : /*      Read the directory to find matching band files.                 */
+<span class="lineNum">     823 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     824 </span><span class="lineCov">         20 :     char * const pszTargetPath = CPLStrdup(CPLGetPath(poOpenInfo-&gt;pszFilename));</span>
+<span class="lineNum">     825 </span>            :     char * const pszTargetBase =
+<span class="lineNum">     826 </span><span class="lineCov">         20 :         CPLStrdup(CPLGetBasename( poOpenInfo-&gt;pszFilename ));</span>
+<span class="lineNum">     827 </span><span class="lineCov">         20 :     char **papszDirFiles = VSIReadDir( CPLGetPath( poOpenInfo-&gt;pszFilename ) );</span>
+<span class="lineNum">     828 </span><span class="lineCov">         20 :     if( papszDirFiles == nullptr )</span>
+<span class="lineNum">     829 </span>            :     {
+<span class="lineNum">     830 </span><span class="lineNoCov">          0 :         CPLFree(pszTargetPath);</span>
+<span class="lineNum">     831 </span><span class="lineNoCov">          0 :         CPLFree(pszTargetBase);</span>
+<span class="lineNum">     832 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">     833 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     834 </span>            :     }
+<span class="lineNum">     835 </span>            : 
+<span class="lineNum">     836 </span><span class="lineCov">         20 :     int nSkipped = 0;</span>
+<span class="lineNum">     837 </span><span class="lineCov">         58 :     for( int nRawBand = 0; true; nRawBand++ )</span>
+<span class="lineNum">     838 </span>            :     {
+<span class="lineNum">     839 </span><span class="lineCov">         58 :         const char *pszExtension = nullptr;</span>
+<span class="lineNum">     840 </span>            : 
+<span class="lineNum">     841 </span>            :         /* Find the next raw band file. */
+<span class="lineNum">     842 </span>            : 
+<span class="lineNum">     843 </span><span class="lineCov">         58 :         int i = 0;  // Used after for.</span>
+<span class="lineNum">     844 </span><span class="lineCov">       2527 :         for( ; papszDirFiles[i] != nullptr; i++ )</span>
+<span class="lineNum">     845 </span>            :         {
+<span class="lineNum">     846 </span><span class="lineCov">       2507 :             if( !EQUAL(CPLGetBasename(papszDirFiles[i]),pszTargetBase) )</span>
+<span class="lineNum">     847 </span><span class="lineCov">       2368 :                 continue;</span>
+<span class="lineNum">     848 </span>            : 
+<span class="lineNum">     849 </span><span class="lineCov">        139 :             pszExtension = CPLGetExtension(papszDirFiles[i]);</span>
+<span class="lineNum">     850 </span><span class="lineCov">        139 :             if( strlen(pszExtension) &gt;= 2</span>
+<span class="lineNum">     851 </span><span class="lineCov">        139 :                 &amp;&amp; isdigit(pszExtension[1])</span>
+<span class="lineNum">     852 </span><span class="lineCov">        108 :                 &amp;&amp; atoi(pszExtension+1) == nRawBand</span>
+<span class="lineNum">     853 </span><span class="lineCov">         38 :                 &amp;&amp; strchr(&quot;bBcCiIjJrRxXzZ&quot;,pszExtension[0]) != nullptr )</span>
+<span class="lineNum">     854 </span><span class="lineCov">         38 :                 break;</span>
+<span class="lineNum">     855 </span>            :         }
+<span class="lineNum">     856 </span>            : 
+<span class="lineNum">     857 </span><span class="lineCov">         58 :         if( papszDirFiles[i] == nullptr  )</span>
+<span class="lineNum">     858 </span><span class="lineCov">         20 :             break;</span>
+<span class="lineNum">     859 </span>            : 
+<span class="lineNum">     860 </span>            :         /* open the file for required level of access */
+<span class="lineNum">     861 </span>            :         const char *pszRawFilename = CPLFormFilename(pszTargetPath,
+<span class="lineNum">     862 </span><span class="lineCov">         38 :                                                      papszDirFiles[i], nullptr );</span>
+<span class="lineNum">     863 </span>            : 
+<span class="lineNum">     864 </span><span class="lineCov">         38 :         VSILFILE *fpRaw = nullptr;</span>
+<span class="lineNum">     865 </span><span class="lineCov">         38 :         if( poOpenInfo-&gt;eAccess == GA_Update )</span>
+<span class="lineNum">     866 </span><span class="lineCov">         31 :             fpRaw = VSIFOpenL( pszRawFilename, &quot;rb+&quot; );</span>
+<span class="lineNum">     867 </span>            :         else
+<span class="lineNum">     868 </span><span class="lineCov">          7 :             fpRaw = VSIFOpenL( pszRawFilename, &quot;rb&quot; );</span>
+<span class="lineNum">     869 </span>            : 
+<span class="lineNum">     870 </span><span class="lineCov">         38 :         if( fpRaw == nullptr )</span>
+<span class="lineNum">     871 </span>            :         {
+<span class="lineNum">     872 </span>            :             CPLError( CE_Warning, CPLE_OpenFailed,
+<span class="lineNum">     873 </span>            :                       &quot;Unable to open %s ... skipping.&quot;,
+<span class="lineNum">     874 </span><span class="lineNoCov">          0 :                       pszRawFilename );</span>
+<span class="lineNum">     875 </span><span class="lineNoCov">          0 :             nSkipped++;</span>
+<span class="lineNum">     876 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     877 </span>            :         }
+<span class="lineNum">     878 </span><span class="lineCov">         38 :         poDS-&gt;m_papszFileList = CSLAddString(poDS-&gt;m_papszFileList, pszRawFilename);</span>
+<span class="lineNum">     879 </span>            : 
+<span class="lineNum">     880 </span><span class="lineCov">         38 :         GDALDataType eDataType = GDT_Unknown;</span>
+<span class="lineNum">     881 </span><span class="lineCov">         38 :         pszExtension = CPLGetExtension(papszDirFiles[i]);</span>
+<span class="lineNum">     882 </span><span class="lineCov">         38 :         if( pszRefinedType != nullptr )</span>
+<span class="lineNum">     883 </span>            :         {
+<span class="lineNum">     884 </span><span class="lineNoCov">          0 :             if( EQUAL(pszRefinedType, &quot;C*4&quot;) )</span>
+<span class="lineNum">     885 </span><span class="lineNoCov">          0 :                 eDataType = GDT_CFloat32;</span>
+<span class="lineNum">     886 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;C*8&quot;) )</span>
+<span class="lineNum">     887 </span><span class="lineNoCov">          0 :                 eDataType = GDT_CFloat64;</span>
+<span class="lineNum">     888 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;R*4&quot;) )</span>
+<span class="lineNum">     889 </span><span class="lineNoCov">          0 :                 eDataType = GDT_Float32;</span>
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;R*8&quot;) )</span>
+<span class="lineNum">     891 </span><span class="lineNoCov">          0 :                 eDataType = GDT_Float64;</span>
+<span class="lineNum">     892 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;I*1&quot;) )</span>
+<span class="lineNum">     893 </span><span class="lineNoCov">          0 :                 eDataType = GDT_Byte;</span>
+<span class="lineNum">     894 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;I*2&quot;) )</span>
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :                 eDataType = GDT_Int16;</span>
+<span class="lineNum">     896 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;I*4&quot;) )</span>
+<span class="lineNum">     897 </span><span class="lineNoCov">          0 :                 eDataType = GDT_Int32;</span>
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;U*2&quot;) )</span>
+<span class="lineNum">     899 </span><span class="lineNoCov">          0 :                 eDataType = GDT_UInt16;</span>
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;U*4&quot;) )</span>
+<span class="lineNum">     901 </span><span class="lineNoCov">          0 :                 eDataType = GDT_UInt32;</span>
+<span class="lineNum">     902 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;J*1&quot;) )</span>
+<span class="lineNum">     903 </span>            :             {
+<span class="lineNum">     904 </span>            :                 CPLError(
+<span class="lineNum">     905 </span>            :                     CE_Warning, CPLE_OpenFailed,
+<span class="lineNum">     906 </span>            :                     &quot;Unable to open band %d because type J*1 is not handled. &quot;
+<span class="lineNum">     907 </span>            :                     &quot;Skipping.&quot;,
+<span class="lineNum">     908 </span><span class="lineNoCov">          0 :                     nRawBand + 1 );</span>
+<span class="lineNum">     909 </span><span class="lineNoCov">          0 :                 nSkipped++;</span>
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :                 CPL_IGNORE_RET_VAL(VSIFCloseL(fpRaw));</span>
+<span class="lineNum">     911 </span><span class="lineNoCov">          0 :                 continue;  // Does not support 1 byte complex.</span>
+<span class="lineNum">     912 </span>            :             }
+<span class="lineNum">     913 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;J*2&quot;) )</span>
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :                 eDataType = GDT_CInt16;</span>
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :             else if( EQUAL(pszRefinedType, &quot;K*4&quot;) )</span>
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :                 eDataType = GDT_CInt32;</span>
+<span class="lineNum">     917 </span>            :             else
+<span class="lineNum">     918 </span>            :             {
+<span class="lineNum">     919 </span>            :                 CPLError(
+<span class="lineNum">     920 </span>            :                     CE_Warning, CPLE_OpenFailed,
+<span class="lineNum">     921 </span>            :                     &quot;Unable to open band %d because type %s is not handled. &quot;
+<span class="lineNum">     922 </span>            :                     &quot;Skipping.\n&quot;,
+<span class="lineNum">     923 </span><span class="lineNoCov">          0 :                     nRawBand + 1, pszRefinedType );</span>
+<span class="lineNum">     924 </span><span class="lineNoCov">          0 :                 nSkipped++;</span>
+<span class="lineNum">     925 </span><span class="lineNoCov">          0 :                 CPL_IGNORE_RET_VAL(VSIFCloseL(fpRaw));</span>
+<span class="lineNum">     926 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     927 </span>            :             }
+<span class="lineNum">     928 </span>            :         }
+<span class="lineNum">     929 </span><span class="lineCov">         38 :         else if( STARTS_WITH_CI(pszExtension, &quot;b&quot;) )</span>
+<span class="lineNum">     930 </span>            :         {
+<span class="lineNum">     931 </span><span class="lineCov">         21 :             eDataType = GDT_Byte;</span>
+<span class="lineNum">     932 </span>            :         }
+<span class="lineNum">     933 </span><span class="lineCov">         17 :         else if( STARTS_WITH_CI(pszExtension, &quot;i&quot;) )</span>
+<span class="lineNum">     934 </span>            :         {
+<span class="lineNum">     935 </span><span class="lineCov">          4 :             eDataType = GDT_UInt16;</span>
+<span class="lineNum">     936 </span>            :         }
+<span class="lineNum">     937 </span><span class="lineCov">         13 :         else if( STARTS_WITH_CI(pszExtension, &quot;j&quot;) )</span>
+<span class="lineNum">     938 </span>            :         {
+<span class="lineNum">     939 </span><span class="lineCov">          4 :             eDataType = GDT_CInt16;</span>
+<span class="lineNum">     940 </span>            :         }
+<span class="lineNum">     941 </span><span class="lineCov">          9 :         else if( STARTS_WITH_CI(pszExtension, &quot;r&quot;) )</span>
+<span class="lineNum">     942 </span>            :         {
+<span class="lineNum">     943 </span><span class="lineCov">          5 :             eDataType = GDT_Float32;</span>
+<span class="lineNum">     944 </span>            :         }
+<span class="lineNum">     945 </span><span class="lineCov">          4 :         else if( STARTS_WITH_CI(pszExtension, &quot;x&quot;) )</span>
+<span class="lineNum">     946 </span>            :         {
+<span class="lineNum">     947 </span><span class="lineCov">          4 :             eDataType = GDT_CFloat32;</span>
+<span class="lineNum">     948 </span>            :         }
+<span class="lineNum">     949 </span>            :         else
+<span class="lineNum">     950 </span>            :         {
+<span class="lineNum">     951 </span>            :             CPLError( CE_Warning, CPLE_OpenFailed,
+<span class="lineNum">     952 </span>            :                       &quot;Unable to open band %d because extension %s is not &quot;
+<span class="lineNum">     953 </span>            :                       &quot;handled.  Skipping.&quot;,
+<span class="lineNum">     954 </span><span class="lineNoCov">          0 :                       nRawBand + 1, pszExtension );</span>
+<span class="lineNum">     955 </span><span class="lineNoCov">          0 :             nSkipped++;</span>
+<span class="lineNum">     956 </span><span class="lineNoCov">          0 :             CPL_IGNORE_RET_VAL(VSIFCloseL(fpRaw));</span>
+<span class="lineNum">     957 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     958 </span>            :         }
+<span class="lineNum">     959 </span>            : 
+<span class="lineNum">     960 </span><span class="lineCov">         38 :         const int nBand = poDS-&gt;GetRasterCount() + 1;</span>
+<span class="lineNum">     961 </span>            : 
+<span class="lineNum">     962 </span><span class="lineCov">         38 :         const int nPixelOffset = GDALGetDataTypeSize(eDataType)/8;</span>
+<span class="lineNum">     963 </span><span class="lineCov">         38 :         GDALRasterBand *poBand = nullptr;</span>
+<span class="lineNum">     964 </span>            : 
+<span class="lineNum">     965 </span><span class="lineCov">         38 :         if( bTiled )</span>
+<span class="lineNum">     966 </span>            :         {
+<span class="lineNum">     967 </span>            :             poBand =
+<span class="lineNum">     968 </span>            :                 new MFFTiledBand( poDS, nBand, fpRaw, nTileXSize, nTileYSize,
+<span class="lineNum">     969 </span><span class="lineCov">          2 :                                   eDataType, bNative );</span>
+<span class="lineNum">     970 </span>            :         }
+<span class="lineNum">     971 </span>            :         else
+<span class="lineNum">     972 </span>            :         {
+<span class="lineNum">     973 </span><span class="lineCov">         36 :             if (poDS-&gt;GetRasterXSize() &gt; INT_MAX / nPixelOffset)</span>
+<span class="lineNum">     974 </span>            :             {
+<span class="lineNum">     975 </span>            :                 CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     976 </span><span class="lineNoCov">          0 :                           &quot;Int overflow occurred... skipping&quot; );</span>
+<span class="lineNum">     977 </span><span class="lineNoCov">          0 :                 nSkipped++;</span>
+<span class="lineNum">     978 </span><span class="lineNoCov">          0 :                 CPL_IGNORE_RET_VAL(VSIFCloseL(fpRaw));</span>
+<span class="lineNum">     979 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     980 </span>            :             }
+<span class="lineNum">     981 </span>            : 
+<span class="lineNum">     982 </span>            :             poBand =
+<span class="lineNum">     983 </span>            :                 new RawRasterBand( poDS, nBand, fpRaw, 0, nPixelOffset,
+<span class="lineNum">     984 </span><span class="lineCov">         36 :                                    nPixelOffset * poDS-&gt;GetRasterXSize(),</span>
+<span class="lineNum">     985 </span><span class="lineCov">         36 :                                    eDataType, bNative, RawRasterBand::OwnFP::YES );</span>
+<span class="lineNum">     986 </span>            :         }
+<span class="lineNum">     987 </span>            : 
+<span class="lineNum">     988 </span><span class="lineCov">         38 :         poDS-&gt;SetBand( nBand, poBand );</span>
+<span class="lineNum">     989 </span><span class="lineCov">         38 :     }</span>
+<span class="lineNum">     990 </span>            : 
+<span class="lineNum">     991 </span><span class="lineCov">         20 :     CPLFree(pszTargetPath);</span>
+<span class="lineNum">     992 </span><span class="lineCov">         20 :     CPLFree(pszTargetBase);</span>
+<span class="lineNum">     993 </span><span class="lineCov">         20 :     CSLDestroy(papszDirFiles);</span>
+<span class="lineNum">     994 </span>            : 
+<span class="lineNum">     995 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     996 </span>            : /*      Check if we have bands.                                         */
+<span class="lineNum">     997 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     998 </span><span class="lineCov">         20 :     if( poDS-&gt;GetRasterCount() == 0 )</span>
+<span class="lineNum">     999 </span>            :     {
+<span class="lineNum">    1000 </span><span class="lineNoCov">          0 :         if( nSkipped &gt; 0 &amp;&amp; poOpenInfo-&gt;eAccess )</span>
+<span class="lineNum">    1001 </span>            :         {
+<span class="lineNum">    1002 </span>            :             CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1003 </span>            :                       &quot;Failed to open %d files that were apparently bands.  &quot;
+<span class="lineNum">    1004 </span>            :                       &quot;Perhaps this dataset is readonly?&quot;,
+<span class="lineNum">    1005 </span><span class="lineNoCov">          0 :                       nSkipped );</span>
+<span class="lineNum">    1006 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">    1007 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1008 </span>            :         }
+<span class="lineNum">    1009 </span>            :         else
+<span class="lineNum">    1010 </span>            :         {
+<span class="lineNum">    1011 </span>            :             CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1012 </span>            :                       &quot;MFF header file read successfully, but no bands &quot;
+<span class="lineNum">    1013 </span><span class="lineNoCov">          0 :                       &quot;were successfully found and opened.&quot; );</span>
+<span class="lineNum">    1014 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">    1015 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1016 </span>            :         }
+<span class="lineNum">    1017 </span>            :     }
+<span class="lineNum">    1018 </span>            : 
+<span class="lineNum">    1019 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1020 </span>            : /*      Set all information from the .hdr that isn't well know to be    */
+<span class="lineNum">    1021 </span>            : /*      metadata.                                                       */
+<span class="lineNum">    1022 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1023 </span><span class="lineCov">        172 :     for( int i = 0; papszHdrLines[i] != nullptr; i++ )</span>
+<span class="lineNum">    1024 </span>            :     {
+<span class="lineNum">    1025 </span><span class="lineCov">        152 :         char *pszName = nullptr;</span>
+<span class="lineNum">    1026 </span>            : 
+<span class="lineNum">    1027 </span><span class="lineCov">        152 :         const char *pszValue = CPLParseNameValue(papszHdrLines[i], &amp;pszName);</span>
+<span class="lineNum">    1028 </span><span class="lineCov">        152 :         if( pszName == nullptr || pszValue == nullptr )</span>
+<span class="lineNum">    1029 </span><span class="lineCov">         16 :             continue;</span>
+<span class="lineNum">    1030 </span>            : 
+<span class="lineNum">    1031 </span><span class="lineCov">        136 :         if( !EQUAL(pszName,&quot;END&quot;)</span>
+<span class="lineNum">    1032 </span><span class="lineCov">        136 :             &amp;&amp; !EQUAL(pszName,&quot;FILE_TYPE&quot;)</span>
+<span class="lineNum">    1033 </span><span class="lineCov">        120 :             &amp;&amp; !EQUAL(pszName,&quot;BYTE_ORDER&quot;)</span>
+<span class="lineNum">    1034 </span><span class="lineCov">        104 :             &amp;&amp; !EQUAL(pszName,&quot;no_columns&quot;)</span>
+<span class="lineNum">    1035 </span><span class="lineCov">        104 :             &amp;&amp; !EQUAL(pszName,&quot;no_rows&quot;)</span>
+<span class="lineNum">    1036 </span><span class="lineCov">        102 :             &amp;&amp; !EQUAL(pszName,&quot;type&quot;)</span>
+<span class="lineNum">    1037 </span><span class="lineCov">        102 :             &amp;&amp; !EQUAL(pszName,&quot;tile_size_rows&quot;)</span>
+<span class="lineNum">    1038 </span><span class="lineCov">        100 :             &amp;&amp; !EQUAL(pszName,&quot;tile_size_columns&quot;)</span>
+<span class="lineNum">    1039 </span><span class="lineCov">         98 :             &amp;&amp; !EQUAL(pszName,&quot;IMAGE_FILE_FORMAT&quot;)</span>
+<span class="lineNum">    1040 </span><span class="lineCov">         78 :             &amp;&amp; !EQUAL(pszName,&quot;IMAGE_LINES&quot;)</span>
+<span class="lineNum">    1041 </span><span class="lineCov">         58 :             &amp;&amp; !EQUAL(pszName,&quot;LINE_SAMPLES&quot;) )</span>
+<span class="lineNum">    1042 </span>            :         {
+<span class="lineNum">    1043 </span><span class="lineCov">         38 :             poDS-&gt;SetMetadataItem( pszName, pszValue );</span>
+<span class="lineNum">    1044 </span>            :         }
+<span class="lineNum">    1045 </span>            : 
+<span class="lineNum">    1046 </span><span class="lineCov">        136 :         CPLFree( pszName );</span>
+<span class="lineNum">    1047 </span>            :     }
+<span class="lineNum">    1048 </span>            : 
+<span class="lineNum">    1049 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1050 </span>            : /*      Any GCPs in header file?                                        */
+<span class="lineNum">    1051 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1052 </span><span class="lineCov">         20 :     poDS-&gt;ScanForGCPs();</span>
+<span class="lineNum">    1053 </span><span class="lineCov">         20 :     poDS-&gt;ScanForProjectionInfo();</span>
+<span class="lineNum">    1054 </span>            : 
+<span class="lineNum">    1055 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1056 </span>            : /*      Initialize any PAM information.                                 */
+<span class="lineNum">    1057 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1058 </span><span class="lineCov">         20 :     poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1059 </span><span class="lineCov">         20 :     poDS-&gt;TryLoadXML();</span>
+<span class="lineNum">    1060 </span>            : 
+<span class="lineNum">    1061 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1062 </span>            : /*      Check for overviews.                                            */
+<span class="lineNum">    1063 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1064 </span><span class="lineCov">         20 :     poDS-&gt;oOvManager.Initialize( poDS, poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1065 </span>            : 
+<span class="lineNum">    1066 </span><span class="lineCov">         20 :     return poDS;</span>
+<a name="1067"><span class="lineNum">    1067 </span>            : }</a>
+<span class="lineNum">    1068 </span>            : 
+<span class="lineNum">    1069 </span><span class="lineNoCov">          0 : int GetMFFProjectionType(const char *pszNewProjection)</span>
+<span class="lineNum">    1070 </span>            : {
+<span class="lineNum">    1071 </span><span class="lineNoCov">          0 :     OGRSpatialReference oSRS(pszNewProjection);</span>
+<span class="lineNum">    1072 </span>            : 
+<span class="lineNum">    1073 </span><span class="lineNoCov">          0 :     if( !STARTS_WITH_CI(pszNewProjection, &quot;GEOGCS&quot;)</span>
+<span class="lineNum">    1074 </span><span class="lineNoCov">          0 :        &amp;&amp; !STARTS_WITH_CI(pszNewProjection, &quot;PROJCS&quot;)</span>
+<span class="lineNum">    1075 </span><span class="lineNoCov">          0 :        &amp;&amp; !EQUAL(pszNewProjection,&quot;&quot;) )</span>
+<span class="lineNum">    1076 </span>            :       {
+<span class="lineNum">    1077 </span><span class="lineNoCov">          0 :           return MFFPRJ_UNRECOGNIZED;</span>
+<span class="lineNum">    1078 </span>            :       }
+<span class="lineNum">    1079 </span><span class="lineNoCov">          0 :       else if( EQUAL(pszNewProjection,&quot;&quot;) )</span>
+<span class="lineNum">    1080 </span>            :       {
+<span class="lineNum">    1081 </span><span class="lineNoCov">          0 :           return MFFPRJ_NONE;</span>
+<span class="lineNum">    1082 </span>            :       }
+<span class="lineNum">    1083 </span>            :       else
+<span class="lineNum">    1084 </span>            :       {
+<span class="lineNum">    1085 </span><span class="lineNoCov">          0 :           if( oSRS.GetAttrValue(&quot;PROJECTION&quot;) != nullptr &amp;&amp;</span>
+<span class="lineNum">    1086 </span><span class="lineNoCov">          0 :               EQUAL(oSRS.GetAttrValue(&quot;PROJECTION&quot;),</span>
+<span class="lineNum">    1087 </span>            :                     SRS_PT_TRANSVERSE_MERCATOR) )
+<span class="lineNum">    1088 </span>            :           {
+<span class="lineNum">    1089 </span><span class="lineNoCov">          0 :               return MFFPRJ_UTM;</span>
+<span class="lineNum">    1090 </span>            :           }
+<span class="lineNum">    1091 </span><span class="lineNoCov">          0 :           else if( oSRS.GetAttrValue(&quot;PROJECTION&quot;) == nullptr &amp;&amp;</span>
+<span class="lineNum">    1092 </span><span class="lineNoCov">          0 :                    oSRS.IsGeographic() )</span>
+<span class="lineNum">    1093 </span>            :           {
+<span class="lineNum">    1094 </span><span class="lineNoCov">          0 :               return MFFPRJ_LL;</span>
+<span class="lineNum">    1095 </span>            :           }
+<span class="lineNum">    1096 </span>            :           else
+<span class="lineNum">    1097 </span>            :           {
+<span class="lineNum">    1098 </span><span class="lineNoCov">          0 :               return MFFPRJ_UNRECOGNIZED;</span>
+<span class="lineNum">    1099 </span>            :           }
+<span class="lineNum">    1100 </span><span class="lineNoCov">          0 :       }</span>
+<span class="lineNum">    1101 </span>            : }
+<span class="lineNum">    1102 </span>            : 
+<span class="lineNum">    1103 </span>            : /************************************************************************/
+<span class="lineNum">    1104 </span>            : /*                               Create()                               */
+<a name="1105"><span class="lineNum">    1105 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1106 </span>            : 
+<span class="lineNum">    1107 </span><span class="lineCov">         28 : GDALDataset *MFFDataset::Create( const char * pszFilenameIn,</span>
+<span class="lineNum">    1108 </span>            :                                  int nXSize, int nYSize, int nBands,
+<span class="lineNum">    1109 </span>            :                                  GDALDataType eType,
+<span class="lineNum">    1110 </span>            :                                  char ** papszParmList )
+<span class="lineNum">    1111 </span>            : 
+<span class="lineNum">    1112 </span>            : {
+<span class="lineNum">    1113 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1114 </span>            : /*      Verify input options.                                           */
+<span class="lineNum">    1115 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1116 </span><span class="lineCov">         28 :     if( nBands &lt;= 0 )</span>
+<span class="lineNum">    1117 </span>            :     {
+<span class="lineNum">    1118 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1119 </span><span class="lineCov">          1 :                   &quot;MFF driver does not support %d bands.&quot;, nBands );</span>
+<span class="lineNum">    1120 </span><span class="lineCov">          1 :         return nullptr;</span>
+<span class="lineNum">    1121 </span>            :     }
+<span class="lineNum">    1122 </span>            : 
+<span class="lineNum">    1123 </span><span class="lineCov">         27 :     if( eType != GDT_Byte &amp;&amp; eType != GDT_Float32 &amp;&amp; eType != GDT_UInt16</span>
+<span class="lineNum">    1124 </span><span class="lineCov">         16 :         &amp;&amp; eType != GDT_CInt16 &amp;&amp; eType != GDT_CFloat32 )</span>
+<span class="lineNum">    1125 </span>            :     {
+<span class="lineNum">    1126 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1127 </span>            :               &quot;Attempt to create MFF file with currently unsupported\n&quot;
+<span class="lineNum">    1128 </span>            :               &quot;data type (%s).\n&quot;,
+<span class="lineNum">    1129 </span><span class="lineCov">         12 :               GDALGetDataTypeName(eType) );</span>
+<span class="lineNum">    1130 </span>            : 
+<span class="lineNum">    1131 </span><span class="lineCov">         12 :         return nullptr;</span>
+<span class="lineNum">    1132 </span>            :     }
+<span class="lineNum">    1133 </span>            : 
+<span class="lineNum">    1134 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1135 </span>            : /*      Establish the base filename (path+filename, less extension).    */
+<span class="lineNum">    1136 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1137 </span>            :     char *pszBaseFilename
+<span class="lineNum">    1138 </span><span class="lineCov">         15 :         = static_cast&lt;char *&gt;( CPLMalloc( strlen( pszFilenameIn ) + 5 ) );</span>
+<span class="lineNum">    1139 </span><span class="lineCov">         15 :     strcpy( pszBaseFilename, pszFilenameIn );</span>
+<span class="lineNum">    1140 </span>            : 
+<span class="lineNum">    1141 </span><span class="lineCov">         60 :     for( int i = static_cast&lt;int&gt;(strlen(pszBaseFilename))-1; i &gt; 0; i-- )</span>
+<span class="lineNum">    1142 </span>            :     {
+<span class="lineNum">    1143 </span><span class="lineCov">         60 :         if( pszBaseFilename[i] == '.' )</span>
+<span class="lineNum">    1144 </span>            :         {
+<span class="lineNum">    1145 </span><span class="lineNoCov">          0 :             pszBaseFilename[i] = '\0';</span>
+<span class="lineNum">    1146 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1147 </span>            :         }
+<span class="lineNum">    1148 </span>            : 
+<span class="lineNum">    1149 </span><span class="lineCov">         60 :         if( pszBaseFilename[i] == '/' || pszBaseFilename[i] == '\\' )</span>
+<span class="lineNum">    1150 </span>            :             break;
+<span class="lineNum">    1151 </span>            :     }
+<span class="lineNum">    1152 </span>            : 
+<span class="lineNum">    1153 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1154 </span>            : /*      Create the header file.                                         */
+<span class="lineNum">    1155 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1156 </span><span class="lineCov">         15 :     const char *pszFilename = CPLFormFilename( nullptr, pszBaseFilename, &quot;hdr&quot; );</span>
+<span class="lineNum">    1157 </span>            : 
+<span class="lineNum">    1158 </span><span class="lineCov">         15 :     VSILFILE *fp = VSIFOpenL( pszFilename, &quot;wt&quot; );</span>
+<span class="lineNum">    1159 </span><span class="lineCov">         15 :     if( fp == nullptr )</span>
+<span class="lineNum">    1160 </span>            :     {
+<span class="lineNum">    1161 </span>            :         CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1162 </span><span class="lineCov">          2 :                   &quot;Couldn't create %s.\n&quot;, pszFilename );</span>
+<span class="lineNum">    1163 </span><span class="lineCov">          2 :         CPLFree(pszBaseFilename);</span>
+<span class="lineNum">    1164 </span><span class="lineCov">          2 :         return nullptr;</span>
+<span class="lineNum">    1165 </span>            :     }
+<span class="lineNum">    1166 </span>            : 
+<span class="lineNum">    1167 </span><span class="lineCov">         13 :     bool bOK = VSIFPrintfL( fp, &quot;IMAGE_FILE_FORMAT = MFF\n&quot; ) &gt;= 0;</span>
+<span class="lineNum">    1168 </span><span class="lineCov">         13 :     bOK &amp;= VSIFPrintfL( fp, &quot;FILE_TYPE = IMAGE\n&quot; ) &gt;= 0;</span>
+<span class="lineNum">    1169 </span><span class="lineCov">         13 :     bOK &amp;= VSIFPrintfL( fp, &quot;IMAGE_LINES = %d\n&quot;, nYSize ) &gt;= 0;</span>
+<span class="lineNum">    1170 </span><span class="lineCov">         13 :     bOK &amp;= VSIFPrintfL( fp, &quot;LINE_SAMPLES = %d\n&quot;, nXSize ) &gt;= 0;</span>
+<span class="lineNum">    1171 </span>            : #ifdef CPL_MSB
+<span class="lineNum">    1172 </span>            :     bOK &amp;= VSIFPrintfL( fp, &quot;BYTE_ORDER = MSB\n&quot; ) &gt;= 0;
+<span class="lineNum">    1173 </span>            : #else
+<span class="lineNum">    1174 </span><span class="lineCov">         13 :     bOK &amp;= VSIFPrintfL( fp, &quot;BYTE_ORDER = LSB\n&quot; ) &gt;= 0;</span>
+<span class="lineNum">    1175 </span>            : #endif
+<span class="lineNum">    1176 </span>            : 
+<span class="lineNum">    1177 </span><span class="lineCov">         13 :     if (CSLFetchNameValue(papszParmList,&quot;NO_END&quot;) == nullptr)</span>
+<span class="lineNum">    1178 </span><span class="lineCov">         13 :         bOK &amp;= VSIFPrintfL( fp, &quot;END\n&quot; ) &gt;= 0;</span>
+<span class="lineNum">    1179 </span>            : 
+<span class="lineNum">    1180 </span><span class="lineCov">         13 :     if( VSIFCloseL( fp ) != 0 )</span>
+<span class="lineNum">    1181 </span><span class="lineNoCov">          0 :         bOK = false;</span>
+<span class="lineNum">    1182 </span>            : 
+<span class="lineNum">    1183 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1184 </span>            : /*      Create the data files, but don't bother writing any data to them.*/
+<span class="lineNum">    1185 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1186 </span><span class="lineCov">         44 :     for( int iBand = 0; bOK &amp;&amp; iBand &lt; nBands; iBand++ )</span>
+<span class="lineNum">    1187 </span>            :     {
+<span class="lineNum">    1188 </span><span class="lineCov">         31 :         char szExtension[4] = { '\0' };</span>
+<span class="lineNum">    1189 </span>            : 
+<span class="lineNum">    1190 </span><span class="lineCov">         31 :         if( eType == GDT_Byte )</span>
+<span class="lineNum">    1191 </span><span class="lineCov">         15 :             CPLsnprintf( szExtension, sizeof(szExtension), &quot;b%02d&quot;, iBand );</span>
+<span class="lineNum">    1192 </span><span class="lineCov">         16 :         else if( eType == GDT_UInt16 )</span>
+<span class="lineNum">    1193 </span><span class="lineCov">          4 :             CPLsnprintf( szExtension, sizeof(szExtension), &quot;i%02d&quot;, iBand );</span>
+<span class="lineNum">    1194 </span><span class="lineCov">         12 :         else if( eType == GDT_Float32 )</span>
+<span class="lineNum">    1195 </span><span class="lineCov">          4 :             CPLsnprintf( szExtension, sizeof(szExtension),  &quot;r%02d&quot;, iBand );</span>
+<span class="lineNum">    1196 </span><span class="lineCov">          8 :         else if( eType == GDT_CInt16 )</span>
+<span class="lineNum">    1197 </span><span class="lineCov">          4 :             CPLsnprintf( szExtension, sizeof(szExtension), &quot;j%02d&quot;, iBand );</span>
+<span class="lineNum">    1198 </span><span class="lineCov">          4 :         else if( eType == GDT_CFloat32 )</span>
+<span class="lineNum">    1199 </span><span class="lineCov">          4 :             CPLsnprintf( szExtension, sizeof(szExtension), &quot;x%02d&quot;, iBand );</span>
+<span class="lineNum">    1200 </span>            : 
+<span class="lineNum">    1201 </span><span class="lineCov">         31 :         pszFilename = CPLFormFilename( nullptr, pszBaseFilename, szExtension );</span>
+<span class="lineNum">    1202 </span><span class="lineCov">         31 :         fp = VSIFOpenL( pszFilename, &quot;wb&quot; );</span>
+<span class="lineNum">    1203 </span><span class="lineCov">         31 :         if( fp == nullptr )</span>
+<span class="lineNum">    1204 </span>            :         {
+<span class="lineNum">    1205 </span>            :             CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1206 </span><span class="lineNoCov">          0 :                       &quot;Couldn't create %s.\n&quot;, pszFilename );</span>
+<span class="lineNum">    1207 </span><span class="lineNoCov">          0 :             CPLFree(pszBaseFilename);</span>
+<span class="lineNum">    1208 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1209 </span>            :         }
+<span class="lineNum">    1210 </span>            : 
+<span class="lineNum">    1211 </span><span class="lineCov">         31 :         bOK &amp;= VSIFWriteL( &quot;&quot;, 1, 1, fp ) == 1;</span>
+<span class="lineNum">    1212 </span><span class="lineCov">         31 :         if( VSIFCloseL( fp ) != 0 )</span>
+<span class="lineNum">    1213 </span><span class="lineNoCov">          0 :             bOK = false;</span>
+<span class="lineNum">    1214 </span>            :     }
+<span class="lineNum">    1215 </span>            : 
+<span class="lineNum">    1216 </span><span class="lineCov">         13 :     if( !bOK )</span>
+<span class="lineNum">    1217 </span>            :     {
+<span class="lineNum">    1218 </span><span class="lineNoCov">          0 :         CPLFree( pszBaseFilename );</span>
+<span class="lineNum">    1219 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1220 </span>            :     }
+<span class="lineNum">    1221 </span>            : 
+<span class="lineNum">    1222 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1223 </span>            : /*      Open the dataset normally.                                      */
+<span class="lineNum">    1224 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1225 </span><span class="lineCov">         13 :     strcat( pszBaseFilename, &quot;.hdr&quot; );</span>
+<span class="lineNum">    1226 </span>            :     GDALDataset *poDS = static_cast&lt;GDALDataset *&gt;(
+<span class="lineNum">    1227 </span><span class="lineCov">         13 :         GDALOpen( pszBaseFilename, GA_Update ) );</span>
+<span class="lineNum">    1228 </span><span class="lineCov">         13 :     CPLFree( pszBaseFilename );</span>
+<span class="lineNum">    1229 </span>            : 
+<span class="lineNum">    1230 </span><span class="lineCov">         13 :     return poDS;</span>
+<span class="lineNum">    1231 </span>            : }
+<span class="lineNum">    1232 </span>            : 
+<span class="lineNum">    1233 </span>            : /************************************************************************/
+<span class="lineNum">    1234 </span>            : /*                             CreateCopy()                             */
+<span class="lineNum">    1235 </span>            : /************************************************************************/
+<a name="1236"><span class="lineNum">    1236 </span>            : </a>
+<span class="lineNum">    1237 </span>            : GDALDataset *
+<span class="lineNum">    1238 </span><span class="lineCov">          3 : MFFDataset::CreateCopy( const char * pszFilename,</span>
+<span class="lineNum">    1239 </span>            :                         GDALDataset *poSrcDS,
+<span class="lineNum">    1240 </span>            :                         int /* bStrict */,
+<span class="lineNum">    1241 </span>            :                         char ** papszOptions,
+<span class="lineNum">    1242 </span>            :                         GDALProgressFunc pfnProgress,
+<span class="lineNum">    1243 </span>            :                         void * pProgressData )
+<span class="lineNum">    1244 </span>            : {
+<span class="lineNum">    1245 </span><span class="lineCov">          3 :     const int nBands = poSrcDS-&gt;GetRasterCount();</span>
+<span class="lineNum">    1246 </span><span class="lineCov">          3 :     if (nBands == 0)</span>
+<span class="lineNum">    1247 </span>            :     {
+<span class="lineNum">    1248 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1249 </span><span class="lineCov">          1 :                   &quot;MFF driver does not support source dataset with zero band.&quot;);</span>
+<span class="lineNum">    1250 </span><span class="lineCov">          1 :         return nullptr;</span>
+<span class="lineNum">    1251 </span>            :     }
+<span class="lineNum">    1252 </span>            : 
+<span class="lineNum">    1253 </span><span class="lineCov">          2 :     GDALDataType eType = poSrcDS-&gt;GetRasterBand(1)-&gt;GetRasterDataType();</span>
+<span class="lineNum">    1254 </span><span class="lineCov">          2 :     if( !pfnProgress( 0.0, nullptr, pProgressData ) )</span>
+<span class="lineNum">    1255 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1256 </span>            : 
+<span class="lineNum">    1257 </span>            :     // Check that other bands match type- sets type
+<span class="lineNum">    1258 </span>            :     // to unknown if they differ.
+<span class="lineNum">    1259 </span><span class="lineCov">          2 :     for( int iBand = 1; iBand &lt; poSrcDS-&gt;GetRasterCount(); iBand++ )</span>
+<span class="lineNum">    1260 </span>            :      {
+<span class="lineNum">    1261 </span><span class="lineNoCov">          0 :          GDALRasterBand *poBand = poSrcDS-&gt;GetRasterBand( iBand+1 );</span>
+<span class="lineNum">    1262 </span><span class="lineNoCov">          0 :          eType = GDALDataTypeUnion( eType, poBand-&gt;GetRasterDataType() );</span>
+<span class="lineNum">    1263 </span>            :      }
+<span class="lineNum">    1264 </span>            : 
+<span class="lineNum">    1265 </span><span class="lineCov">          2 :     char **newpapszOptions = CSLDuplicate(papszOptions);</span>
+<span class="lineNum">    1266 </span><span class="lineCov">          2 :     newpapszOptions=CSLSetNameValue(newpapszOptions,&quot;NO_END&quot;,&quot;TRUE&quot;);</span>
+<span class="lineNum">    1267 </span>            : 
+<span class="lineNum">    1268 </span>            :     MFFDataset *poDS = reinterpret_cast&lt;MFFDataset *&gt;(
+<span class="lineNum">    1269 </span>            :         Create( pszFilename,
+<span class="lineNum">    1270 </span>            :                 poSrcDS-&gt;GetRasterXSize(),
+<span class="lineNum">    1271 </span>            :                 poSrcDS-&gt;GetRasterYSize(),
+<span class="lineNum">    1272 </span>            :                 poSrcDS-&gt;GetRasterCount(),
+<span class="lineNum">    1273 </span><span class="lineCov">          2 :                 eType, newpapszOptions ) );</span>
+<span class="lineNum">    1274 </span>            : 
+<span class="lineNum">    1275 </span><span class="lineCov">          2 :     CSLDestroy(newpapszOptions);</span>
+<span class="lineNum">    1276 </span>            : 
+<span class="lineNum">    1277 </span><span class="lineCov">          2 :     if (poDS == nullptr)</span>
+<span class="lineNum">    1278 </span><span class="lineCov">          2 :         return nullptr;</span>
+<span class="lineNum">    1279 </span>            : 
+<span class="lineNum">    1280 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1281 </span>            : /*      Copy the image data.                                            */
+<span class="lineNum">    1282 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1283 </span><span class="lineNoCov">          0 :     const int nXSize = poDS-&gt;GetRasterXSize();</span>
+<span class="lineNum">    1284 </span><span class="lineNoCov">          0 :     const int nYSize = poDS-&gt;GetRasterYSize();</span>
+<span class="lineNum">    1285 </span>            : 
+<span class="lineNum">    1286 </span><span class="lineNoCov">          0 :     int nBlockXSize = 0;</span>
+<span class="lineNum">    1287 </span><span class="lineNoCov">          0 :     int nBlockYSize = 0;</span>
+<span class="lineNum">    1288 </span><span class="lineNoCov">          0 :     poDS-&gt;GetRasterBand(1)-&gt;GetBlockSize( &amp;nBlockXSize, &amp;nBlockYSize );</span>
+<span class="lineNum">    1289 </span>            : 
+<span class="lineNum">    1290 </span><span class="lineNoCov">          0 :     const int nBlockTotal = ((nXSize + nBlockXSize - 1) / nBlockXSize)</span>
+<span class="lineNum">    1291 </span><span class="lineNoCov">          0 :         * ((nYSize + nBlockYSize - 1) / nBlockYSize)</span>
+<span class="lineNum">    1292 </span><span class="lineNoCov">          0 :         * poSrcDS-&gt;GetRasterCount();</span>
+<span class="lineNum">    1293 </span>            : 
+<span class="lineNum">    1294 </span><span class="lineNoCov">          0 :     int nBlocksDone = 0;</span>
+<span class="lineNum">    1295 </span><span class="lineNoCov">          0 :     for( int iBand = 0; iBand &lt; poSrcDS-&gt;GetRasterCount(); iBand++ )</span>
+<span class="lineNum">    1296 </span>            :     {
+<span class="lineNum">    1297 </span><span class="lineNoCov">          0 :         GDALRasterBand *poSrcBand = poSrcDS-&gt;GetRasterBand( iBand+1 );</span>
+<span class="lineNum">    1298 </span><span class="lineNoCov">          0 :         GDALRasterBand *poDstBand = poDS-&gt;GetRasterBand( iBand+1 );</span>
+<span class="lineNum">    1299 </span>            : 
+<span class="lineNum">    1300 </span>            :         void *pData = CPLMalloc(
+<span class="lineNum">    1301 </span><span class="lineNoCov">          0 :             nBlockXSize * nBlockYSize * GDALGetDataTypeSizeBytes(eType) );</span>
+<span class="lineNum">    1302 </span>            : 
+<span class="lineNum">    1303 </span><span class="lineNoCov">          0 :         for( int iYOffset = 0; iYOffset &lt; nYSize; iYOffset += nBlockYSize )</span>
+<span class="lineNum">    1304 </span>            :         {
+<span class="lineNum">    1305 </span><span class="lineNoCov">          0 :             for( int iXOffset = 0; iXOffset &lt; nXSize; iXOffset += nBlockXSize )</span>
+<span class="lineNum">    1306 </span>            :             {
+<span class="lineNum">    1307 </span><span class="lineNoCov">          0 :                 if( !pfnProgress(</span>
+<span class="lineNum">    1308 </span><span class="lineNoCov">          0 :                        (nBlocksDone++) / static_cast&lt;float&gt;( nBlockTotal ),</span>
+<span class="lineNum">    1309 </span><span class="lineNoCov">          0 :                        nullptr, pProgressData ) )</span>
+<span class="lineNum">    1310 </span>            :                 {
+<span class="lineNum">    1311 </span>            :                     CPLError( CE_Failure, CPLE_UserInterrupt,
+<span class="lineNum">    1312 </span><span class="lineNoCov">          0 :                               &quot;User terminated&quot; );</span>
+<span class="lineNum">    1313 </span><span class="lineNoCov">          0 :                     delete poDS;</span>
+<span class="lineNum">    1314 </span><span class="lineNoCov">          0 :                     CPLFree( pData );</span>
+<span class="lineNum">    1315 </span>            : 
+<span class="lineNum">    1316 </span>            :                     GDALDriver *poMFFDriver = static_cast&lt;GDALDriver *&gt;(
+<span class="lineNum">    1317 </span><span class="lineNoCov">          0 :                         GDALGetDriverByName( &quot;MFF&quot; ) );</span>
+<span class="lineNum">    1318 </span><span class="lineNoCov">          0 :                     poMFFDriver-&gt;Delete( pszFilename );</span>
+<span class="lineNum">    1319 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">    1320 </span>            :                 }
+<span class="lineNum">    1321 </span>            : 
+<span class="lineNum">    1322 </span><span class="lineNoCov">          0 :                 const int nTBXSize = std::min( nBlockXSize, nXSize - iXOffset );</span>
+<span class="lineNum">    1323 </span><span class="lineNoCov">          0 :                 const int nTBYSize = std::min( nBlockYSize, nYSize - iYOffset );</span>
+<span class="lineNum">    1324 </span>            : 
+<span class="lineNum">    1325 </span>            :                 CPLErr eErr = poSrcBand-&gt;RasterIO(
+<span class="lineNum">    1326 </span>            :                     GF_Read, iXOffset, iYOffset, nTBXSize, nTBYSize,
+<span class="lineNum">    1327 </span><span class="lineNoCov">          0 :                     pData, nTBXSize, nTBYSize, eType, 0, 0, nullptr );</span>
+<span class="lineNum">    1328 </span>            : 
+<span class="lineNum">    1329 </span><span class="lineNoCov">          0 :                 if( eErr != CE_None )</span>
+<span class="lineNum">    1330 </span>            :                 {
+<span class="lineNum">    1331 </span><span class="lineNoCov">          0 :                     delete poDS;</span>
+<span class="lineNum">    1332 </span><span class="lineNoCov">          0 :                     CPLFree( pData );</span>
+<span class="lineNum">    1333 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">    1334 </span>            :                 }
+<span class="lineNum">    1335 </span>            : 
+<span class="lineNum">    1336 </span>            :                 eErr = poDstBand-&gt;RasterIO( GF_Write,
+<span class="lineNum">    1337 </span>            :                                             iXOffset, iYOffset,
+<span class="lineNum">    1338 </span>            :                                             nTBXSize, nTBYSize,
+<span class="lineNum">    1339 </span>            :                                             pData, nTBXSize, nTBYSize,
+<span class="lineNum">    1340 </span><span class="lineNoCov">          0 :                                             eType, 0, 0, nullptr );</span>
+<span class="lineNum">    1341 </span>            : 
+<span class="lineNum">    1342 </span><span class="lineNoCov">          0 :                 if( eErr != CE_None )</span>
+<span class="lineNum">    1343 </span>            :                 {
+<span class="lineNum">    1344 </span><span class="lineNoCov">          0 :                     delete poDS;</span>
+<span class="lineNum">    1345 </span><span class="lineNoCov">          0 :                     CPLFree( pData );</span>
+<span class="lineNum">    1346 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">    1347 </span>            :                 }
+<span class="lineNum">    1348 </span>            :             }
+<span class="lineNum">    1349 </span>            :         }
+<span class="lineNum">    1350 </span>            : 
+<span class="lineNum">    1351 </span><span class="lineNoCov">          0 :         CPLFree( pData );</span>
+<span class="lineNum">    1352 </span>            :     }
+<span class="lineNum">    1353 </span>            : 
+<span class="lineNum">    1354 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1355 </span>            : /*      Copy georeferencing information, if enough is available.        */
+<span class="lineNum">    1356 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1357 </span>            : 
+<span class="lineNum">    1358 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1359 </span>            : /*      Establish the base filename (path+filename, less extension).    */
+<span class="lineNum">    1360 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1361 </span>            :     char *pszBaseFilename = static_cast&lt;char *&gt;(
+<span class="lineNum">    1362 </span><span class="lineNoCov">          0 :         CPLMalloc( strlen(pszFilename)+5) );</span>
+<span class="lineNum">    1363 </span><span class="lineNoCov">          0 :     strcpy( pszBaseFilename, pszFilename );</span>
+<span class="lineNum">    1364 </span>            : 
+<span class="lineNum">    1365 </span><span class="lineNoCov">          0 :     for( int i = static_cast&lt;int&gt;(strlen(pszBaseFilename))-1; i &gt; 0; i-- )</span>
+<span class="lineNum">    1366 </span>            :     {
+<span class="lineNum">    1367 </span><span class="lineNoCov">          0 :         if( pszBaseFilename[i] == '.' )</span>
+<span class="lineNum">    1368 </span>            :         {
+<span class="lineNum">    1369 </span><span class="lineNoCov">          0 :             pszBaseFilename[i] = '\0';</span>
+<span class="lineNum">    1370 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1371 </span>            :         }
+<span class="lineNum">    1372 </span>            : 
+<span class="lineNum">    1373 </span><span class="lineNoCov">          0 :         if( pszBaseFilename[i] == '/' || pszBaseFilename[i] == '\\' )</span>
+<span class="lineNum">    1374 </span>            :             break;
+<span class="lineNum">    1375 </span>            :     }
+<span class="lineNum">    1376 </span>            : 
+<span class="lineNum">    1377 </span>            :     const char *pszFilenameGEO
+<span class="lineNum">    1378 </span><span class="lineNoCov">          0 :         = CPLFormFilename( nullptr, pszBaseFilename, &quot;hdr&quot; );</span>
+<span class="lineNum">    1379 </span>            : 
+<span class="lineNum">    1380 </span><span class="lineNoCov">          0 :     VSILFILE *fp = VSIFOpenL( pszFilenameGEO, &quot;at&quot; );</span>
+<span class="lineNum">    1381 </span><span class="lineNoCov">          0 :     if( fp == nullptr )</span>
+<span class="lineNum">    1382 </span>            :     {
+<span class="lineNum">    1383 </span>            :         CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1384 </span><span class="lineNoCov">          0 :                   &quot;Couldn't open %s for appending.\n&quot;, pszFilenameGEO );</span>
+<span class="lineNum">    1385 </span><span class="lineNoCov">          0 :         CPLFree(pszBaseFilename);</span>
+<span class="lineNum">    1386 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1387 </span>            :     }
+<span class="lineNum">    1388 </span>            : 
+<span class="lineNum">    1389 </span>            :     /* MFF requires corner and center gcps */
+<span class="lineNum">    1390 </span><span class="lineNoCov">          0 :     bool georef_created = false;</span>
+<span class="lineNum">    1391 </span>            : 
+<span class="lineNum">    1392 </span>            :     double *padfTiepoints = static_cast&lt;double *&gt;(
+<span class="lineNum">    1393 </span><span class="lineNoCov">          0 :         CPLMalloc( 2 * sizeof(double) * 5 ) );</span>
+<span class="lineNum">    1394 </span>            : 
+<span class="lineNum">    1395 </span><span class="lineNoCov">          0 :     const int src_prj = GetMFFProjectionType(poSrcDS-&gt;GetProjectionRef());</span>
+<span class="lineNum">    1396 </span>            : 
+<span class="lineNum">    1397 </span><span class="lineNoCov">          0 :     if ((src_prj != MFFPRJ_NONE) &amp;&amp; (src_prj != MFFPRJ_UNRECOGNIZED))</span>
+<span class="lineNum">    1398 </span>            :     {
+<span class="lineNum">    1399 </span>            :       double *tempGeoTransform = static_cast&lt;double *&gt;(
+<span class="lineNum">    1400 </span><span class="lineNoCov">          0 :           CPLMalloc( 6 * sizeof(double) ) );</span>
+<span class="lineNum">    1401 </span>            : 
+<span class="lineNum">    1402 </span><span class="lineNoCov">          0 :       if( ( poSrcDS-&gt;GetGeoTransform( tempGeoTransform ) == CE_None)</span>
+<span class="lineNum">    1403 </span><span class="lineNoCov">          0 :           &amp;&amp; (tempGeoTransform[0] != 0.0 || tempGeoTransform[1] != 1.0</span>
+<span class="lineNum">    1404 </span><span class="lineNoCov">          0 :           || tempGeoTransform[2] != 0.0 || tempGeoTransform[3] != 0.0</span>
+<span class="lineNum">    1405 </span><span class="lineNoCov">          0 :               || tempGeoTransform[4] != 0.0</span>
+<span class="lineNum">    1406 </span><span class="lineNoCov">          0 :               || std::abs(tempGeoTransform[5]) != 1.0 ) )</span>
+<span class="lineNum">    1407 </span>            :       {
+<span class="lineNum">    1408 </span>            :           padfTiepoints[0] =
+<span class="lineNum">    1409 </span><span class="lineNoCov">          0 :               tempGeoTransform[0] + tempGeoTransform[1]*0.5 +</span>
+<span class="lineNum">    1410 </span><span class="lineNoCov">          0 :               tempGeoTransform[2]*0.5;</span>
+<span class="lineNum">    1411 </span>            : 
+<span class="lineNum">    1412 </span><span class="lineNoCov">          0 :           padfTiepoints[1] =</span>
+<span class="lineNum">    1413 </span><span class="lineNoCov">          0 :               tempGeoTransform[3] + tempGeoTransform[4]*0.5 +</span>
+<span class="lineNum">    1414 </span><span class="lineNoCov">          0 :               tempGeoTransform[5]*0.5;</span>
+<span class="lineNum">    1415 </span>            : 
+<span class="lineNum">    1416 </span><span class="lineNoCov">          0 :           padfTiepoints[2] =</span>
+<span class="lineNum">    1417 </span><span class="lineNoCov">          0 :               tempGeoTransform[0] + tempGeoTransform[2]*0.5 +</span>
+<span class="lineNum">    1418 </span><span class="lineNoCov">          0 :               tempGeoTransform[1]*(poSrcDS-&gt;GetRasterXSize()-0.5);</span>
+<span class="lineNum">    1419 </span>            : 
+<span class="lineNum">    1420 </span><span class="lineNoCov">          0 :           padfTiepoints[3] =</span>
+<span class="lineNum">    1421 </span><span class="lineNoCov">          0 :               tempGeoTransform[3] + tempGeoTransform[5]*0.5 +</span>
+<span class="lineNum">    1422 </span><span class="lineNoCov">          0 :               tempGeoTransform[4]*(poSrcDS-&gt;GetRasterXSize()-0.5);</span>
+<span class="lineNum">    1423 </span>            : 
+<span class="lineNum">    1424 </span><span class="lineNoCov">          0 :           padfTiepoints[4] =</span>
+<span class="lineNum">    1425 </span><span class="lineNoCov">          0 :               tempGeoTransform[0] + tempGeoTransform[1]*0.5 +</span>
+<span class="lineNum">    1426 </span><span class="lineNoCov">          0 :               tempGeoTransform[2]*(poSrcDS-&gt;GetRasterYSize()-0.5);</span>
+<span class="lineNum">    1427 </span>            : 
+<span class="lineNum">    1428 </span><span class="lineNoCov">          0 :           padfTiepoints[5] =</span>
+<span class="lineNum">    1429 </span><span class="lineNoCov">          0 :               tempGeoTransform[3] + tempGeoTransform[4]*0.5 +</span>
+<span class="lineNum">    1430 </span><span class="lineNoCov">          0 :               tempGeoTransform[5]*(poSrcDS-&gt;GetRasterYSize()-0.5);</span>
+<span class="lineNum">    1431 </span>            : 
+<span class="lineNum">    1432 </span><span class="lineNoCov">          0 :           padfTiepoints[6] =</span>
+<span class="lineNum">    1433 </span><span class="lineNoCov">          0 :               tempGeoTransform[0] +</span>
+<span class="lineNum">    1434 </span><span class="lineNoCov">          0 :               tempGeoTransform[1]*(poSrcDS-&gt;GetRasterXSize()-0.5) +</span>
+<span class="lineNum">    1435 </span><span class="lineNoCov">          0 :               tempGeoTransform[2]*(poSrcDS-&gt;GetRasterYSize()-0.5);</span>
+<span class="lineNum">    1436 </span>            : 
+<span class="lineNum">    1437 </span><span class="lineNoCov">          0 :           padfTiepoints[7] =</span>
+<span class="lineNum">    1438 </span><span class="lineNoCov">          0 :               tempGeoTransform[3]+</span>
+<span class="lineNum">    1439 </span><span class="lineNoCov">          0 :               tempGeoTransform[4]*(poSrcDS-&gt;GetRasterXSize()-0.5)+</span>
+<span class="lineNum">    1440 </span><span class="lineNoCov">          0 :               tempGeoTransform[5]*(poSrcDS-&gt;GetRasterYSize()-0.5);</span>
+<span class="lineNum">    1441 </span>            : 
+<span class="lineNum">    1442 </span><span class="lineNoCov">          0 :           padfTiepoints[8] =</span>
+<span class="lineNum">    1443 </span><span class="lineNoCov">          0 :               tempGeoTransform[0]+</span>
+<span class="lineNum">    1444 </span><span class="lineNoCov">          0 :               tempGeoTransform[1]*(poSrcDS-&gt;GetRasterXSize())/2.0+</span>
+<span class="lineNum">    1445 </span><span class="lineNoCov">          0 :               tempGeoTransform[2]*(poSrcDS-&gt;GetRasterYSize())/2.0;</span>
+<span class="lineNum">    1446 </span>            : 
+<span class="lineNum">    1447 </span><span class="lineNoCov">          0 :           padfTiepoints[9] =</span>
+<span class="lineNum">    1448 </span><span class="lineNoCov">          0 :               tempGeoTransform[3]+</span>
+<span class="lineNum">    1449 </span><span class="lineNoCov">          0 :               tempGeoTransform[4]*(poSrcDS-&gt;GetRasterXSize())/2.0+</span>
+<span class="lineNum">    1450 </span><span class="lineNoCov">          0 :               tempGeoTransform[5]*(poSrcDS-&gt;GetRasterYSize())/2.0;</span>
+<span class="lineNum">    1451 </span>            : 
+<span class="lineNum">    1452 </span><span class="lineNoCov">          0 :           OGRSpatialReference oUTMorLL(poSrcDS-&gt;GetProjectionRef());</span>
+<span class="lineNum">    1453 </span><span class="lineNoCov">          0 :           auto poLLSRS = oUTMorLL.CloneGeogCS();</span>
+<span class="lineNum">    1454 </span><span class="lineNoCov">          0 :           if( poLLSRS &amp;&amp; oUTMorLL.IsProjected() )</span>
+<span class="lineNum">    1455 </span>            :           {
+<span class="lineNum">    1456 </span><span class="lineNoCov">          0 :             poLLSRS-&gt;SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">    1457 </span>            :             OGRCoordinateTransformation *poTransform
+<span class="lineNum">    1458 </span><span class="lineNoCov">          0 :                 = OGRCreateCoordinateTransformation( &amp;oUTMorLL, poLLSRS );</span>
+<span class="lineNum">    1459 </span>            : 
+<span class="lineNum">    1460 </span>            :             // projected coordinate system- need to translate gcps */
+<span class="lineNum">    1461 </span><span class="lineNoCov">          0 :             bool bSuccess = poTransform != nullptr;</span>
+<span class="lineNum">    1462 </span>            : 
+<span class="lineNum">    1463 </span><span class="lineNoCov">          0 :             for ( int index = 0; index &lt; 5; index++ )</span>
+<span class="lineNum">    1464 </span>            :             {
+<span class="lineNum">    1465 </span>            :                 // TODO: If bSuccess is false, set it to false?
+<span class="lineNum">    1466 </span><span class="lineNoCov">          0 :                 if( !bSuccess ||</span>
+<span class="lineNum">    1467 </span>            :                     !poTransform-&gt;Transform(
+<span class="lineNum">    1468 </span>            :                         1,
+<span class="lineNum">    1469 </span>            :                         &amp;(padfTiepoints[index*2]),
+<span class="lineNum">    1470 </span><span class="lineNoCov">          0 :                         &amp;(padfTiepoints[index*2+1]) ) )</span>
+<span class="lineNum">    1471 </span><span class="lineNoCov">          0 :                   bSuccess = false;</span>
+<span class="lineNum">    1472 </span>            :             }
+<span class="lineNum">    1473 </span><span class="lineNoCov">          0 :             if( bSuccess )</span>
+<span class="lineNum">    1474 </span><span class="lineNoCov">          0 :                georef_created = true;</span>
+<span class="lineNum">    1475 </span>            :           }
+<span class="lineNum">    1476 </span>            :           else
+<span class="lineNum">    1477 </span>            :           {
+<span class="lineNum">    1478 </span><span class="lineNoCov">          0 :             georef_created = true;</span>
+<span class="lineNum">    1479 </span>            :           }
+<span class="lineNum">    1480 </span><span class="lineNoCov">          0 :           delete poLLSRS;</span>
+<span class="lineNum">    1481 </span>            :       }
+<span class="lineNum">    1482 </span><span class="lineNoCov">          0 :       CPLFree(tempGeoTransform);</span>
+<span class="lineNum">    1483 </span>            :     }
+<span class="lineNum">    1484 </span>            : 
+<span class="lineNum">    1485 </span><span class="lineNoCov">          0 :     bool bOK = true;</span>
+<span class="lineNum">    1486 </span><span class="lineNoCov">          0 :     if( georef_created )</span>
+<span class="lineNum">    1487 </span>            :     {
+<span class="lineNum">    1488 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1489 </span>            :     /*      top left                                                        */
+<span class="lineNum">    1490 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1491 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;TOP_LEFT_CORNER_LATITUDE = %.10f\n&quot;,
+<span class="lineNum">    1492 </span><span class="lineNoCov">          0 :                               padfTiepoints[1] ) &gt;= 0;</span>
+<span class="lineNum">    1493 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;TOP_LEFT_CORNER_LONGITUDE = %.10f\n&quot;,
+<span class="lineNum">    1494 </span><span class="lineNoCov">          0 :                               padfTiepoints[0] ) &gt;= 0;</span>
+<span class="lineNum">    1495 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1496 </span>            :     /*      top_right                                                       */
+<span class="lineNum">    1497 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1498 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;TOP_RIGHT_CORNER_LATITUDE = %.10f\n&quot;,
+<span class="lineNum">    1499 </span><span class="lineNoCov">          0 :                               padfTiepoints[3] ) &gt;= 0;</span>
+<span class="lineNum">    1500 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;TOP_RIGHT_CORNER_LONGITUDE = %.10f\n&quot;,
+<span class="lineNum">    1501 </span><span class="lineNoCov">          0 :                               padfTiepoints[2] ) &gt;= 0;</span>
+<span class="lineNum">    1502 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1503 </span>            :     /*      bottom_left                                                     */
+<span class="lineNum">    1504 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1505 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;BOTTOM_LEFT_CORNER_LATITUDE = %.10f\n&quot;,
+<span class="lineNum">    1506 </span><span class="lineNoCov">          0 :                               padfTiepoints[5] ) &gt;= 0;</span>
+<span class="lineNum">    1507 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;BOTTOM_LEFT_CORNER_LONGITUDE = %.10f\n&quot;,
+<span class="lineNum">    1508 </span><span class="lineNoCov">          0 :                               padfTiepoints[4] ) &gt;= 0;</span>
+<span class="lineNum">    1509 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1510 </span>            :     /*      bottom_right                                                    */
+<span class="lineNum">    1511 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1512 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;BOTTOM_RIGHT_CORNER_LATITUDE = %.10f\n&quot;,
+<span class="lineNum">    1513 </span><span class="lineNoCov">          0 :                               padfTiepoints[7] ) &gt;= 0;</span>
+<span class="lineNum">    1514 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;BOTTOM_RIGHT_CORNER_LONGITUDE = %.10f\n&quot;,
+<span class="lineNum">    1515 </span><span class="lineNoCov">          0 :                               padfTiepoints[6] ) &gt;= 0;</span>
+<span class="lineNum">    1516 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1517 </span>            :     /*      Center                                                          */
+<span class="lineNum">    1518 </span>            :     /* -------------------------------------------------------------------- */
+<span class="lineNum">    1519 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;CENTRE_LATITUDE = %.10f\n&quot;,
+<span class="lineNum">    1520 </span><span class="lineNoCov">          0 :                               padfTiepoints[9] ) &gt;= 0;</span>
+<span class="lineNum">    1521 </span>            :           bOK &amp;= VSIFPrintfL( fp, &quot;CENTRE_LONGITUDE = %.10f\n&quot;,
+<span class="lineNum">    1522 </span><span class="lineNoCov">          0 :                               padfTiepoints[8] ) &gt;= 0;</span>
+<span class="lineNum">    1523 </span>            :     /* ------------------------------------------------------------------- */
+<span class="lineNum">    1524 </span>            :     /*     Ellipsoid/projection                                            */
+<span class="lineNum">    1525 </span>            :     /* --------------------------------------------------------------------*/
+<span class="lineNum">    1526 </span>            : 
+<span class="lineNum">    1527 </span><span class="lineNoCov">          0 :           const char *pszSrcProjection = poSrcDS-&gt;GetProjectionRef();</span>
+<span class="lineNum">    1528 </span><span class="lineNoCov">          0 :           char *spheroid_name = nullptr;</span>
+<span class="lineNum">    1529 </span>            : 
+<span class="lineNum">    1530 </span><span class="lineNoCov">          0 :           if( !STARTS_WITH_CI(pszSrcProjection, &quot;GEOGCS&quot;)</span>
+<span class="lineNum">    1531 </span><span class="lineNoCov">          0 :            &amp;&amp; !STARTS_WITH_CI(pszSrcProjection, &quot;PROJCS&quot;)</span>
+<span class="lineNum">    1532 </span><span class="lineNoCov">          0 :            &amp;&amp; !EQUAL(pszSrcProjection,&quot;&quot;) )</span>
+<span class="lineNum">    1533 </span>            :           {
+<span class="lineNum">    1534 </span>            :             CPLError(
+<span class="lineNum">    1535 </span>            :                 CE_Warning, CPLE_AppDefined,
+<span class="lineNum">    1536 </span>            :                 &quot;Only OGC WKT Projections supported for writing to MFF. &quot;
+<span class="lineNum">    1537 </span>            :                 &quot;%s not supported.&quot;,
+<span class="lineNum">    1538 </span><span class="lineNoCov">          0 :                 pszSrcProjection );</span>
+<span class="lineNum">    1539 </span>            :           }
+<span class="lineNum">    1540 </span><span class="lineNoCov">          0 :           else if (!EQUAL(pszSrcProjection,&quot;&quot;))</span>
+<span class="lineNum">    1541 </span>            :           {
+<span class="lineNum">    1542 </span><span class="lineNoCov">          0 :              OGRSpatialReference oSRS(pszSrcProjection);</span>
+<span class="lineNum">    1543 </span>            : 
+<span class="lineNum">    1544 </span><span class="lineNoCov">          0 :              if( oSRS.GetAttrValue(&quot;PROJECTION&quot;) != nullptr &amp;&amp;</span>
+<span class="lineNum">    1545 </span><span class="lineNoCov">          0 :                  EQUAL(oSRS.GetAttrValue(&quot;PROJECTION&quot;),</span>
+<span class="lineNum">    1546 </span>            :                        SRS_PT_TRANSVERSE_MERCATOR) )
+<span class="lineNum">    1547 </span>            :              {
+<span class="lineNum">    1548 </span><span class="lineNoCov">          0 :                  bOK &amp;= VSIFPrintfL(fp, &quot;PROJECTION_NAME = UTM\n&quot;) &gt;= 0;</span>
+<span class="lineNum">    1549 </span><span class="lineNoCov">          0 :                  OGRErr ogrerrorOl = OGRERR_NONE;</span>
+<span class="lineNum">    1550 </span>            :                  bOK &amp;= VSIFPrintfL(fp, &quot;PROJECTION_ORIGIN_LONGITUDE = %f\n&quot;,
+<span class="lineNum">    1551 </span>            :                          oSRS.GetProjParm(SRS_PP_CENTRAL_MERIDIAN, 0.0,
+<span class="lineNum">    1552 </span><span class="lineNoCov">          0 :                                           &amp;ogrerrorOl)) &gt;= 0;</span>
+<span class="lineNum">    1553 </span>            :              }
+<span class="lineNum">    1554 </span><span class="lineNoCov">          0 :              else if (oSRS.GetAttrValue(&quot;PROJECTION&quot;) == nullptr &amp;&amp;</span>
+<span class="lineNum">    1555 </span><span class="lineNoCov">          0 :                       oSRS.IsGeographic())</span>
+<span class="lineNum">    1556 </span>            :              {
+<span class="lineNum">    1557 </span><span class="lineNoCov">          0 :                   bOK &amp;= VSIFPrintfL(fp,&quot;PROJECTION_NAME = LL\n&quot;) &gt;= 0;</span>
+<span class="lineNum">    1558 </span>            :              }
+<span class="lineNum">    1559 </span>            :              else
+<span class="lineNum">    1560 </span>            :              {
+<span class="lineNum">    1561 </span>            :                   CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">    1562 </span>            :                             &quot;Unrecognized projection- no georeferencing &quot;
+<span class="lineNum">    1563 </span><span class="lineNoCov">          0 :                             &quot;information transferred.&quot; );</span>
+<span class="lineNum">    1564 </span><span class="lineNoCov">          0 :                   bOK &amp;= VSIFPrintfL(fp, &quot;PROJECTION_NAME = LL\n&quot;) &gt;= 0;</span>
+<span class="lineNum">    1565 </span>            :              }
+<span class="lineNum">    1566 </span><span class="lineNoCov">          0 :              OGRErr ogrerrorEq = OGRERR_NONE;</span>
+<span class="lineNum">    1567 </span><span class="lineNoCov">          0 :              const double eq_radius = oSRS.GetSemiMajor(&amp;ogrerrorEq);</span>
+<span class="lineNum">    1568 </span><span class="lineNoCov">          0 :              OGRErr ogrerrorInvf = OGRERR_NONE;</span>
+<span class="lineNum">    1569 </span><span class="lineNoCov">          0 :              const double inv_flattening = oSRS.GetInvFlattening(&amp;ogrerrorInvf);</span>
+<span class="lineNum">    1570 </span><span class="lineNoCov">          0 :              if( ogrerrorEq == OGRERR_NONE &amp;&amp; ogrerrorInvf == OGRERR_NONE )</span>
+<span class="lineNum">    1571 </span>            :              {
+<span class="lineNum">    1572 </span><span class="lineNoCov">          0 :                  MFFSpheroidList *mffEllipsoids = new MFFSpheroidList;</span>
+<span class="lineNum">    1573 </span>            :                  spheroid_name =
+<span class="lineNum">    1574 </span>            :                      mffEllipsoids-&gt;GetSpheroidNameByEqRadiusAndInvFlattening(
+<span class="lineNum">    1575 </span><span class="lineNoCov">          0 :                          eq_radius, inv_flattening);</span>
+<span class="lineNum">    1576 </span><span class="lineNoCov">          0 :                  if (spheroid_name != nullptr)</span>
+<span class="lineNum">    1577 </span>            :                  {
+<span class="lineNum">    1578 </span>            :                      bOK &amp;= VSIFPrintfL(fp, &quot;SPHEROID_NAME = %s\n&quot;,
+<span class="lineNum">    1579 </span><span class="lineNoCov">          0 :                                         spheroid_name ) &gt;= 0;</span>
+<span class="lineNum">    1580 </span>            :                  }
+<span class="lineNum">    1581 </span>            :                  else
+<span class="lineNum">    1582 </span>            :                  {
+<span class="lineNum">    1583 </span>            :                      bOK &amp;= VSIFPrintfL(
+<span class="lineNum">    1584 </span>            :                          fp, &quot;SPHEROID_NAME = USER_DEFINED\n&quot;
+<span class="lineNum">    1585 </span>            :                          &quot;SPHEROID_EQUATORIAL_RADIUS = %.10f\n&quot;
+<span class="lineNum">    1586 </span>            :                          &quot;SPHEROID_POLAR_RADIUS = %.10f\n&quot;,
+<span class="lineNum">    1587 </span><span class="lineNoCov">          0 :                          eq_radius,eq_radius*(1-1.0/inv_flattening) ) &gt;= 0;</span>
+<span class="lineNum">    1588 </span>            :                  }
+<span class="lineNum">    1589 </span><span class="lineNoCov">          0 :                  delete mffEllipsoids;</span>
+<span class="lineNum">    1590 </span><span class="lineNoCov">          0 :                  CPLFree(spheroid_name);</span>
+<span class="lineNum">    1591 </span><span class="lineNoCov">          0 :               }</span>
+<span class="lineNum">    1592 </span>            :           }
+<span class="lineNum">    1593 </span>            :     }
+<span class="lineNum">    1594 </span>            : 
+<span class="lineNum">    1595 </span><span class="lineNoCov">          0 :     CPLFree( padfTiepoints );</span>
+<span class="lineNum">    1596 </span><span class="lineNoCov">          0 :     bOK &amp;= VSIFPrintfL( fp, &quot;END\n&quot; ) &gt;= 0;</span>
+<span class="lineNum">    1597 </span><span class="lineNoCov">          0 :     if( VSIFCloseL( fp ) != 0 )</span>
+<span class="lineNum">    1598 </span><span class="lineNoCov">          0 :         bOK = false;</span>
+<span class="lineNum">    1599 </span>            : 
+<span class="lineNum">    1600 </span><span class="lineNoCov">          0 :     if( !bOK )</span>
+<span class="lineNum">    1601 </span>            :     {
+<span class="lineNum">    1602 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">    1603 </span><span class="lineNoCov">          0 :         CPLFree(pszBaseFilename);</span>
+<span class="lineNum">    1604 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1605 </span>            :     }
+<span class="lineNum">    1606 </span>            : 
+<span class="lineNum">    1607 </span>            :     /* End of georeferencing stuff */
+<span class="lineNum">    1608 </span>            : 
+<span class="lineNum">    1609 </span>            :     /* Make sure image data gets flushed */
+<span class="lineNum">    1610 </span><span class="lineNoCov">          0 :     for( int iBand = 0; iBand &lt; poDS-&gt;GetRasterCount(); iBand++ )</span>
+<span class="lineNum">    1611 </span>            :     {
+<span class="lineNum">    1612 </span>            :         RawRasterBand *poDstBand = reinterpret_cast&lt;RawRasterBand *&gt;(
+<span class="lineNum">    1613 </span><span class="lineNoCov">          0 :             poDS-&gt;GetRasterBand( iBand+1 ) );</span>
+<span class="lineNum">    1614 </span><span class="lineNoCov">          0 :         poDstBand-&gt;FlushCache();</span>
+<span class="lineNum">    1615 </span>            :     }
+<span class="lineNum">    1616 </span>            : 
+<span class="lineNum">    1617 </span><span class="lineNoCov">          0 :     if( !pfnProgress( 1.0, nullptr, pProgressData ) )</span>
+<span class="lineNum">    1618 </span>            :     {
+<span class="lineNum">    1619 </span>            :         CPLError( CE_Failure, CPLE_UserInterrupt,
+<span class="lineNum">    1620 </span><span class="lineNoCov">          0 :                   &quot;User terminated&quot; );</span>
+<span class="lineNum">    1621 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">    1622 </span>            : 
+<span class="lineNum">    1623 </span>            :         GDALDriver *poMFFDriver = static_cast&lt;GDALDriver *&gt;(
+<span class="lineNum">    1624 </span><span class="lineNoCov">          0 :             GDALGetDriverByName( &quot;MFF&quot; ) );</span>
+<span class="lineNum">    1625 </span><span class="lineNoCov">          0 :         poMFFDriver-&gt;Delete( pszFilename );</span>
+<span class="lineNum">    1626 </span><span class="lineNoCov">          0 :         CPLFree(pszBaseFilename);</span>
+<span class="lineNum">    1627 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1628 </span>            :     }
+<span class="lineNum">    1629 </span>            : 
+<span class="lineNum">    1630 </span><span class="lineNoCov">          0 :     poDS-&gt;CloneInfo( poSrcDS, GCIF_PAM_DEFAULT );</span>
+<span class="lineNum">    1631 </span><span class="lineNoCov">          0 :     CPLFree(pszBaseFilename);</span>
+<span class="lineNum">    1632 </span>            : 
+<span class="lineNum">    1633 </span><span class="lineNoCov">          0 :     return poDS;</span>
+<span class="lineNum">    1634 </span>            : }
+<span class="lineNum">    1635 </span>            : 
+<span class="lineNum">    1636 </span>            : /************************************************************************/
+<span class="lineNum">    1637 </span>            : /*                         GDALRegister_MFF()                           */
+<a name="1638"><span class="lineNum">    1638 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1639 </span>            : 
+<span class="lineNum">    1640 </span><span class="lineCov">       1109 : void GDALRegister_MFF()</span>
+<span class="lineNum">    1641 </span>            : 
+<span class="lineNum">    1642 </span>            : {
+<span class="lineNum">    1643 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( &quot;MFF&quot; ) != nullptr )</span>
+<span class="lineNum">    1644 </span><span class="lineCov">       1231 :         return;</span>
+<span class="lineNum">    1645 </span>            : 
+<span class="lineNum">    1646 </span><span class="lineCov">        987 :     GDALDriver *poDriver = new GDALDriver();</span>
+<span class="lineNum">    1647 </span>            : 
+<span class="lineNum">    1648 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( &quot;MFF&quot; );</span>
+<span class="lineNum">    1649 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">    1650 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME, &quot;Vexcel MFF Raster&quot; );</span>
+<span class="lineNum">    1651 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_HELPTOPIC, &quot;frmt_various.html#MFF&quot; );</span>
+<span class="lineNum">    1652 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_EXTENSION, &quot;hdr&quot; );</span>
+<span class="lineNum">    1653 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_CREATIONDATATYPES,
+<span class="lineNum">    1654 </span><span class="lineCov">        987 :                                &quot;Byte UInt16 Float32 CInt16 CFloat32&quot; );</span>
+<span class="lineNum">    1655 </span>            : 
+<span class="lineNum">    1656 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VIRTUALIO, &quot;YES&quot; );</span>
+<span class="lineNum">    1657 </span>            : 
+<span class="lineNum">    1658 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = MFFDataset::Open;</span>
+<span class="lineNum">    1659 </span><span class="lineCov">        987 :     poDriver-&gt;pfnCreate = MFFDataset::Create;</span>
+<span class="lineNum">    1660 </span><span class="lineCov">        987 :     poDriver-&gt;pfnCreateCopy = MFFDataset::CreateCopy;</span>
+<span class="lineNum">    1661 </span>            : 
+<span class="lineNum">    1662 </span><span class="lineCov">        987 :     GetGDALDriverManager()-&gt;RegisterDriver( poDriver );</span>
+<span class="lineNum">    1663 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

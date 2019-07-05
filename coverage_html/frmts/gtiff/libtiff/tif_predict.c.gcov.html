@@ -1,0 +1,955 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/gtiff/libtiff/tif_predict.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">frmts/gtiff/libtiff</a> - tif_predict.c<span style="font-size: 80%;"> (source / <a href="tif_predict.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">349</td>
+            <td class="headerCovTableEntry">420</td>
+            <td class="headerCovTableEntryMed">83.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntry">24</td>
+            <td class="headerCovTableEntryMed">87.5 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright (c) 1988-1997 Sam Leffler
+<span class="lineNum">       3 </span>            :  * Copyright (c) 1991-1997 Silicon Graphics, Inc.
+<span class="lineNum">       4 </span>            :  *
+<span class="lineNum">       5 </span>            :  * Permission to use, copy, modify, distribute, and sell this software and 
+<span class="lineNum">       6 </span>            :  * its documentation for any purpose is hereby granted without fee, provided
+<span class="lineNum">       7 </span>            :  * that (i) the above copyright notices and this permission notice appear in
+<span class="lineNum">       8 </span>            :  * all copies of the software and related documentation, and (ii) the names of
+<span class="lineNum">       9 </span>            :  * Sam Leffler and Silicon Graphics may not be used in any advertising or
+<span class="lineNum">      10 </span>            :  * publicity relating to the software without the specific, prior written
+<span class="lineNum">      11 </span>            :  * permission of Sam Leffler and Silicon Graphics.
+<span class="lineNum">      12 </span>            :  * 
+<span class="lineNum">      13 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS-IS&quot; AND WITHOUT WARRANTY OF ANY KIND, 
+<span class="lineNum">      14 </span>            :  * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
+<span class="lineNum">      15 </span>            :  * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  
+<span class="lineNum">      16 </span>            :  * 
+<span class="lineNum">      17 </span>            :  * IN NO EVENT SHALL SAM LEFFLER OR SILICON GRAPHICS BE LIABLE FOR
+<span class="lineNum">      18 </span>            :  * ANY SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND,
+<span class="lineNum">      19 </span>            :  * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+<span class="lineNum">      20 </span>            :  * WHETHER OR NOT ADVISED OF THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF 
+<span class="lineNum">      21 </span>            :  * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE 
+<span class="lineNum">      22 </span>            :  * OF THIS SOFTWARE.
+<span class="lineNum">      23 </span>            :  */
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : /*
+<span class="lineNum">      26 </span>            :  * TIFF Library.
+<span class="lineNum">      27 </span>            :  *
+<span class="lineNum">      28 </span>            :  * Predictor Tag Support (used by multiple codecs).
+<span class="lineNum">      29 </span>            :  */
+<span class="lineNum">      30 </span>            : #include &quot;tiffiop.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;tif_predict.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #define PredictorState(tif) ((TIFFPredictorState*) (tif)-&gt;tif_data)
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : static int horAcc8(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      36 </span>            : static int horAcc16(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      37 </span>            : static int horAcc32(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      38 </span>            : static int swabHorAcc16(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      39 </span>            : static int swabHorAcc32(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      40 </span>            : static int horDiff8(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      41 </span>            : static int horDiff16(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      42 </span>            : static int horDiff32(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      43 </span>            : static int swabHorDiff16(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      44 </span>            : static int swabHorDiff32(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      45 </span>            : static int fpAcc(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      46 </span>            : static int fpDiff(TIFF* tif, uint8* cp0, tmsize_t cc);
+<span class="lineNum">      47 </span>            : static int PredictorDecodeRow(TIFF* tif, uint8* op0, tmsize_t occ0, uint16 s);
+<span class="lineNum">      48 </span>            : static int PredictorDecodeTile(TIFF* tif, uint8* op0, tmsize_t occ0, uint16 s);
+<span class="lineNum">      49 </span>            : static int PredictorEncodeRow(TIFF* tif, uint8* bp, tmsize_t cc, uint16 s);
+<span class="lineNum">      50 </span>            : static int PredictorEncodeTile(TIFF* tif, uint8* bp0, tmsize_t cc0, uint16 s);
+<a name="51"><span class="lineNum">      51 </span>            : </a>
+<span class="lineNum">      52 </span>            : static int
+<span class="lineNum">      53 </span><span class="lineCov">      14818 : PredictorSetup(TIFF* tif)</span>
+<span class="lineNum">      54 </span>            : {
+<span class="lineNum">      55 </span>            :   static const char module[] = &quot;PredictorSetup&quot;;
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span><span class="lineCov">      14818 :   TIFFPredictorState* sp = PredictorState(tif);</span>
+<span class="lineNum">      58 </span><span class="lineCov">      14818 :   TIFFDirectory* td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span><span class="lineCov">      14818 :   switch (sp-&gt;predictor)   /* no differencing */</span>
+<span class="lineNum">      61 </span>            :   {
+<span class="lineNum">      62 </span>            :     case PREDICTOR_NONE:
+<span class="lineNum">      63 </span><span class="lineCov">      14511 :       return 1;</span>
+<span class="lineNum">      64 </span>            :     case PREDICTOR_HORIZONTAL:
+<span class="lineNum">      65 </span><span class="lineCov">        304 :       if (td-&gt;td_bitspersample != 8</span>
+<span class="lineNum">      66 </span><span class="lineCov">         30 :           &amp;&amp; td-&gt;td_bitspersample != 16</span>
+<span class="lineNum">      67 </span><span class="lineCov">          4 :           &amp;&amp; td-&gt;td_bitspersample != 32) {</span>
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">      69 </span>            :             &quot;Horizontal differencing \&quot;Predictor\&quot; not supported with %d-bit samples&quot;,
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :             td-&gt;td_bitspersample);</span>
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">      72 </span>            :       }
+<span class="lineNum">      73 </span><span class="lineCov">        304 :       break;</span>
+<span class="lineNum">      74 </span>            :     case PREDICTOR_FLOATINGPOINT:
+<span class="lineNum">      75 </span><span class="lineCov">          2 :       if (td-&gt;td_sampleformat != SAMPLEFORMAT_IEEEFP) {</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">      77 </span>            :             &quot;Floating point \&quot;Predictor\&quot; not supported with %d data format&quot;,
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :             td-&gt;td_sampleformat);</span>
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">      80 </span>            :       }
+<span class="lineNum">      81 </span><span class="lineCov">          2 :                         if (td-&gt;td_bitspersample != 16</span>
+<span class="lineNum">      82 </span><span class="lineCov">          2 :                             &amp;&amp; td-&gt;td_bitspersample != 24</span>
+<span class="lineNum">      83 </span><span class="lineCov">          2 :                             &amp;&amp; td-&gt;td_bitspersample != 32</span>
+<span class="lineNum">      84 </span><span class="lineCov">          2 :                             &amp;&amp; td-&gt;td_bitspersample != 64) { /* Should 64 be allowed? */</span>
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :                                 TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">      86 </span>            :                                              &quot;Floating point \&quot;Predictor\&quot; not supported with %d-bit samples&quot;,
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :                                              td-&gt;td_bitspersample);</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">      89 </span>            :                             }
+<span class="lineNum">      90 </span><span class="lineCov">          2 :       break;</span>
+<span class="lineNum">      91 </span>            :     default:
+<span class="lineNum">      92 </span><span class="lineCov">          1 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">      93 </span>            :           &quot;\&quot;Predictor\&quot; value %d not supported&quot;,
+<span class="lineNum">      94 </span>            :           sp-&gt;predictor);
+<span class="lineNum">      95 </span><span class="lineCov">          1 :       return 0;</span>
+<span class="lineNum">      96 </span>            :   }
+<span class="lineNum">      97 </span><span class="lineCov">        612 :   sp-&gt;stride = (td-&gt;td_planarconfig == PLANARCONFIG_CONTIG ?</span>
+<span class="lineNum">      98 </span><span class="lineCov">        306 :       td-&gt;td_samplesperpixel : 1);</span>
+<span class="lineNum">      99 </span>            :   /*
+<span class="lineNum">     100 </span>            :    * Calculate the scanline/tile-width size in bytes.
+<span class="lineNum">     101 </span>            :    */
+<span class="lineNum">     102 </span><span class="lineCov">        306 :   if (isTiled(tif))</span>
+<span class="lineNum">     103 </span><span class="lineCov">         17 :     sp-&gt;rowsize = TIFFTileRowSize(tif);</span>
+<span class="lineNum">     104 </span>            :   else
+<span class="lineNum">     105 </span><span class="lineCov">        289 :     sp-&gt;rowsize = TIFFScanlineSize(tif);</span>
+<span class="lineNum">     106 </span><span class="lineCov">        306 :   if (sp-&gt;rowsize == 0)</span>
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span><span class="lineCov">        306 :   return 1;</span>
+<span class="lineNum">     110 </span>            : }
+<a name="111"><span class="lineNum">     111 </span>            : </a>
+<span class="lineNum">     112 </span>            : static int
+<span class="lineNum">     113 </span><span class="lineCov">        460 : PredictorSetupDecode(TIFF* tif)</span>
+<span class="lineNum">     114 </span>            : {
+<span class="lineNum">     115 </span><span class="lineCov">        460 :   TIFFPredictorState* sp = PredictorState(tif);</span>
+<span class="lineNum">     116 </span><span class="lineCov">        460 :   TIFFDirectory* td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span>            :   /* Note: when PredictorSetup() fails, the effets of setupdecode() */
+<span class="lineNum">     119 </span>            :   /* will not be &quot;cancelled&quot; so setupdecode() might be robust to */
+<span class="lineNum">     120 </span>            :   /* be called several times. */
+<span class="lineNum">     121 </span><span class="lineCov">        460 :   if (!(*sp-&gt;setupdecode)(tif) || !PredictorSetup(tif))</span>
+<span class="lineNum">     122 </span><span class="lineCov">          1 :     return 0;</span>
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span><span class="lineCov">        459 :   if (sp-&gt;predictor == 2) {</span>
+<span class="lineNum">     125 </span><span class="lineCov">         25 :     switch (td-&gt;td_bitspersample) {</span>
+<span class="lineNum">     126 </span><span class="lineCov">          9 :       case 8:  sp-&gt;decodepfunc = horAcc8; break;</span>
+<span class="lineNum">     127 </span><span class="lineCov">         14 :       case 16: sp-&gt;decodepfunc = horAcc16; break;</span>
+<span class="lineNum">     128 </span><span class="lineCov">          2 :       case 32: sp-&gt;decodepfunc = horAcc32; break;</span>
+<span class="lineNum">     129 </span>            :     }
+<span class="lineNum">     130 </span>            :     /*
+<span class="lineNum">     131 </span>            :      * Override default decoding method with one that does the
+<span class="lineNum">     132 </span>            :      * predictor stuff.
+<span class="lineNum">     133 </span>            :      */
+<span class="lineNum">     134 </span><span class="lineCov">         25 :                 if( tif-&gt;tif_decoderow != PredictorDecodeRow )</span>
+<span class="lineNum">     135 </span>            :                 {
+<span class="lineNum">     136 </span><span class="lineCov">         25 :                     sp-&gt;decoderow = tif-&gt;tif_decoderow;</span>
+<span class="lineNum">     137 </span><span class="lineCov">         25 :                     tif-&gt;tif_decoderow = PredictorDecodeRow;</span>
+<span class="lineNum">     138 </span><span class="lineCov">         25 :                     sp-&gt;decodestrip = tif-&gt;tif_decodestrip;</span>
+<span class="lineNum">     139 </span><span class="lineCov">         25 :                     tif-&gt;tif_decodestrip = PredictorDecodeTile;</span>
+<span class="lineNum">     140 </span><span class="lineCov">         25 :                     sp-&gt;decodetile = tif-&gt;tif_decodetile;</span>
+<span class="lineNum">     141 </span><span class="lineCov">         25 :                     tif-&gt;tif_decodetile = PredictorDecodeTile;</span>
+<span class="lineNum">     142 </span>            :                 }
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            :     /*
+<span class="lineNum">     145 </span>            :      * If the data is horizontally differenced 16-bit data that
+<span class="lineNum">     146 </span>            :      * requires byte-swapping, then it must be byte swapped before
+<span class="lineNum">     147 </span>            :      * the accumulation step.  We do this with a special-purpose
+<span class="lineNum">     148 </span>            :      * routine and override the normal post decoding logic that
+<span class="lineNum">     149 </span>            :      * the library setup when the directory was read.
+<span class="lineNum">     150 </span>            :      */
+<span class="lineNum">     151 </span><span class="lineCov">         25 :     if (tif-&gt;tif_flags &amp; TIFF_SWAB) {</span>
+<span class="lineNum">     152 </span><span class="lineCov">          4 :       if (sp-&gt;decodepfunc == horAcc16) {</span>
+<span class="lineNum">     153 </span><span class="lineCov">          3 :         sp-&gt;decodepfunc = swabHorAcc16;</span>
+<span class="lineNum">     154 </span><span class="lineCov">          3 :         tif-&gt;tif_postdecode = _TIFFNoPostDecode;</span>
+<span class="lineNum">     155 </span><span class="lineCov">          1 :             } else if (sp-&gt;decodepfunc == horAcc32) {</span>
+<span class="lineNum">     156 </span><span class="lineCov">          1 :         sp-&gt;decodepfunc = swabHorAcc32;</span>
+<span class="lineNum">     157 </span><span class="lineCov">          1 :         tif-&gt;tif_postdecode = _TIFFNoPostDecode;</span>
+<span class="lineNum">     158 </span>            :             }
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span>            :   }
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span><span class="lineCov">        434 :   else if (sp-&gt;predictor == 3) {</span>
+<span class="lineNum">     163 </span><span class="lineCov">          1 :     sp-&gt;decodepfunc = fpAcc;</span>
+<span class="lineNum">     164 </span>            :     /*
+<span class="lineNum">     165 </span>            :      * Override default decoding method with one that does the
+<span class="lineNum">     166 </span>            :      * predictor stuff.
+<span class="lineNum">     167 </span>            :      */
+<span class="lineNum">     168 </span><span class="lineCov">          1 :                 if( tif-&gt;tif_decoderow != PredictorDecodeRow )</span>
+<span class="lineNum">     169 </span>            :                 {
+<span class="lineNum">     170 </span><span class="lineCov">          1 :                     sp-&gt;decoderow = tif-&gt;tif_decoderow;</span>
+<span class="lineNum">     171 </span><span class="lineCov">          1 :                     tif-&gt;tif_decoderow = PredictorDecodeRow;</span>
+<span class="lineNum">     172 </span><span class="lineCov">          1 :                     sp-&gt;decodestrip = tif-&gt;tif_decodestrip;</span>
+<span class="lineNum">     173 </span><span class="lineCov">          1 :                     tif-&gt;tif_decodestrip = PredictorDecodeTile;</span>
+<span class="lineNum">     174 </span><span class="lineCov">          1 :                     sp-&gt;decodetile = tif-&gt;tif_decodetile;</span>
+<span class="lineNum">     175 </span><span class="lineCov">          1 :                     tif-&gt;tif_decodetile = PredictorDecodeTile;</span>
+<span class="lineNum">     176 </span>            :                 }
+<span class="lineNum">     177 </span>            :     /*
+<span class="lineNum">     178 </span>            :      * The data should not be swapped outside of the floating
+<span class="lineNum">     179 </span>            :      * point predictor, the accumulation routine should return
+<span class="lineNum">     180 </span>            :      * byres in the native order.
+<span class="lineNum">     181 </span>            :      */
+<span class="lineNum">     182 </span><span class="lineCov">          1 :     if (tif-&gt;tif_flags &amp; TIFF_SWAB) {</span>
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :       tif-&gt;tif_postdecode = _TIFFNoPostDecode;</span>
+<span class="lineNum">     184 </span>            :     }
+<span class="lineNum">     185 </span>            :     /*
+<span class="lineNum">     186 </span>            :      * Allocate buffer to keep the decoded bytes before
+<span class="lineNum">     187 </span>            :      * rearranging in the right order
+<span class="lineNum">     188 </span>            :      */
+<span class="lineNum">     189 </span>            :   }
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineCov">        459 :   return 1;</span>
+<span class="lineNum">     192 </span>            : }
+<a name="193"><span class="lineNum">     193 </span>            : </a>
+<span class="lineNum">     194 </span>            : static int
+<span class="lineNum">     195 </span><span class="lineCov">      14358 : PredictorSetupEncode(TIFF* tif)</span>
+<span class="lineNum">     196 </span>            : {
+<span class="lineNum">     197 </span><span class="lineCov">      14358 :   TIFFPredictorState* sp = PredictorState(tif);</span>
+<span class="lineNum">     198 </span><span class="lineCov">      14358 :   TIFFDirectory* td = &amp;tif-&gt;tif_dir;</span>
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span><span class="lineCov">      14358 :   if (!(*sp-&gt;setupencode)(tif) || !PredictorSetup(tif))</span>
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span><span class="lineCov">      14358 :   if (sp-&gt;predictor == 2) {</span>
+<span class="lineNum">     204 </span><span class="lineCov">        279 :     switch (td-&gt;td_bitspersample) {</span>
+<span class="lineNum">     205 </span><span class="lineCov">        265 :       case 8:  sp-&gt;encodepfunc = horDiff8; break;</span>
+<span class="lineNum">     206 </span><span class="lineCov">         12 :       case 16: sp-&gt;encodepfunc = horDiff16; break;</span>
+<span class="lineNum">     207 </span><span class="lineCov">          2 :       case 32: sp-&gt;encodepfunc = horDiff32; break;</span>
+<span class="lineNum">     208 </span>            :     }
+<span class="lineNum">     209 </span>            :     /*
+<span class="lineNum">     210 </span>            :      * Override default encoding method with one that does the
+<span class="lineNum">     211 </span>            :      * predictor stuff.
+<span class="lineNum">     212 </span>            :      */
+<span class="lineNum">     213 </span><span class="lineCov">        279 :                 if( tif-&gt;tif_encoderow != PredictorEncodeRow )</span>
+<span class="lineNum">     214 </span>            :                 {
+<span class="lineNum">     215 </span><span class="lineCov">        278 :                     sp-&gt;encoderow = tif-&gt;tif_encoderow;</span>
+<span class="lineNum">     216 </span><span class="lineCov">        278 :                     tif-&gt;tif_encoderow = PredictorEncodeRow;</span>
+<span class="lineNum">     217 </span><span class="lineCov">        278 :                     sp-&gt;encodestrip = tif-&gt;tif_encodestrip;</span>
+<span class="lineNum">     218 </span><span class="lineCov">        278 :                     tif-&gt;tif_encodestrip = PredictorEncodeTile;</span>
+<span class="lineNum">     219 </span><span class="lineCov">        278 :                     sp-&gt;encodetile = tif-&gt;tif_encodetile;</span>
+<span class="lineNum">     220 </span><span class="lineCov">        278 :                     tif-&gt;tif_encodetile = PredictorEncodeTile;</span>
+<span class="lineNum">     221 </span>            :                 }
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span>            :                 /*
+<span class="lineNum">     224 </span>            :                  * If the data is horizontally differenced 16-bit data that
+<span class="lineNum">     225 </span>            :                  * requires byte-swapping, then it must be byte swapped after
+<span class="lineNum">     226 </span>            :                  * the differentiation step.  We do this with a special-purpose
+<span class="lineNum">     227 </span>            :                  * routine and override the normal post decoding logic that
+<span class="lineNum">     228 </span>            :                  * the library setup when the directory was read.
+<span class="lineNum">     229 </span>            :                  */
+<span class="lineNum">     230 </span><span class="lineCov">        279 :                 if (tif-&gt;tif_flags &amp; TIFF_SWAB) {</span>
+<span class="lineNum">     231 </span><span class="lineCov">          6 :                     if (sp-&gt;encodepfunc == horDiff16) {</span>
+<span class="lineNum">     232 </span><span class="lineCov">          5 :                             sp-&gt;encodepfunc = swabHorDiff16;</span>
+<span class="lineNum">     233 </span><span class="lineCov">          5 :                             tif-&gt;tif_postdecode = _TIFFNoPostDecode;</span>
+<span class="lineNum">     234 </span><span class="lineCov">          1 :                     } else if (sp-&gt;encodepfunc == horDiff32) {</span>
+<span class="lineNum">     235 </span><span class="lineCov">          1 :                             sp-&gt;encodepfunc = swabHorDiff32;</span>
+<span class="lineNum">     236 </span><span class="lineCov">          1 :                             tif-&gt;tif_postdecode = _TIFFNoPostDecode;</span>
+<span class="lineNum">     237 </span>            :                     }
+<span class="lineNum">     238 </span>            :                 }
+<span class="lineNum">     239 </span>            :         }
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span><span class="lineCov">      14079 :   else if (sp-&gt;predictor == 3) {</span>
+<span class="lineNum">     242 </span><span class="lineCov">          1 :     sp-&gt;encodepfunc = fpDiff;</span>
+<span class="lineNum">     243 </span>            :     /*
+<span class="lineNum">     244 </span>            :      * Override default encoding method with one that does the
+<span class="lineNum">     245 </span>            :      * predictor stuff.
+<span class="lineNum">     246 </span>            :      */
+<span class="lineNum">     247 </span><span class="lineCov">          1 :                 if( tif-&gt;tif_encoderow != PredictorEncodeRow )</span>
+<span class="lineNum">     248 </span>            :                 {
+<span class="lineNum">     249 </span><span class="lineCov">          1 :                     sp-&gt;encoderow = tif-&gt;tif_encoderow;</span>
+<span class="lineNum">     250 </span><span class="lineCov">          1 :                     tif-&gt;tif_encoderow = PredictorEncodeRow;</span>
+<span class="lineNum">     251 </span><span class="lineCov">          1 :                     sp-&gt;encodestrip = tif-&gt;tif_encodestrip;</span>
+<span class="lineNum">     252 </span><span class="lineCov">          1 :                     tif-&gt;tif_encodestrip = PredictorEncodeTile;</span>
+<span class="lineNum">     253 </span><span class="lineCov">          1 :                     sp-&gt;encodetile = tif-&gt;tif_encodetile;</span>
+<span class="lineNum">     254 </span><span class="lineCov">          1 :                     tif-&gt;tif_encodetile = PredictorEncodeTile;</span>
+<span class="lineNum">     255 </span>            :                 }
+<span class="lineNum">     256 </span>            :   }
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineCov">      14358 :   return 1;</span>
+<span class="lineNum">     259 </span>            : }
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span>            : #define REPEAT4(n, op)    \
+<span class="lineNum">     262 </span>            :     switch (n) {    \
+<span class="lineNum">     263 </span>            :     default: { \
+<span class="lineNum">     264 </span>            :         tmsize_t i; for (i = n-4; i &gt; 0; i--) { op; } }  /*-fallthrough*/  \
+<span class="lineNum">     265 </span>            :     case 4:  op; /*-fallthrough*/ \
+<span class="lineNum">     266 </span>            :     case 3:  op; /*-fallthrough*/ \
+<span class="lineNum">     267 </span>            :     case 2:  op; /*-fallthrough*/ \
+<span class="lineNum">     268 </span>            :     case 1:  op; /*-fallthrough*/ \
+<span class="lineNum">     269 </span>            :     case 0:  ;      \
+<span class="lineNum">     270 </span>            :     }
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span>            : /* Remarks related to C standard compliance in all below functions : */
+<span class="lineNum">     273 </span>            : /* - to avoid any undefined behaviour, we only operate on unsigned types */
+<span class="lineNum">     274 </span>            : /*   since the behaviour of &quot;overflows&quot; is defined (wrap over) */
+<span class="lineNum">     275 </span>            : /* - when storing into the byte stream, we explicitly mask with 0xff so */
+<span class="lineNum">     276 </span>            : /*   as to make icc -check=conversions happy (not necessary by the standard) */
+<span class="lineNum">     277 </span>            : 
+<a name="278"><span class="lineNum">     278 </span>            : TIFF_NOSANITIZE_UNSIGNED_INT_OVERFLOW</a>
+<span class="lineNum">     279 </span>            : static int
+<span class="lineNum">     280 </span><span class="lineCov">      64519 : horAcc8(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     281 </span>            : {
+<span class="lineNum">     282 </span><span class="lineCov">      64519 :   tmsize_t stride = PredictorState(tif)-&gt;stride;</span>
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineCov">      64519 :   unsigned char* cp = (unsigned char*) cp0;</span>
+<span class="lineNum">     285 </span><span class="lineCov">      64519 :     if((cc%stride)!=0)</span>
+<span class="lineNum">     286 </span>            :     {
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, &quot;horAcc8&quot;,</span>
+<span class="lineNum">     288 </span>            :                      &quot;%s&quot;, &quot;(cc%stride)!=0&quot;);
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     290 </span>            :     }
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span><span class="lineCov">      64519 :   if (cc &gt; stride) {</span>
+<span class="lineNum">     293 </span>            :     /*
+<span class="lineNum">     294 </span>            :      * Pipeline the most common cases.
+<span class="lineNum">     295 </span>            :      */
+<span class="lineNum">     296 </span><span class="lineCov">      64519 :     if (stride == 3)  {</span>
+<span class="lineNum">     297 </span><span class="lineCov">          1 :       unsigned int cr = cp[0];</span>
+<span class="lineNum">     298 </span><span class="lineCov">          1 :       unsigned int cg = cp[1];</span>
+<span class="lineNum">     299 </span><span class="lineCov">          1 :       unsigned int cb = cp[2];</span>
+<span class="lineNum">     300 </span><span class="lineCov">          1 :       cc -= 3;</span>
+<span class="lineNum">     301 </span><span class="lineCov">          1 :       cp += 3;</span>
+<span class="lineNum">     302 </span><span class="lineCov">          5 :       while (cc&gt;0) {</span>
+<span class="lineNum">     303 </span><span class="lineCov">          3 :         cp[0] = (unsigned char) ((cr += cp[0]) &amp; 0xff);</span>
+<span class="lineNum">     304 </span><span class="lineCov">          3 :         cp[1] = (unsigned char) ((cg += cp[1]) &amp; 0xff);</span>
+<span class="lineNum">     305 </span><span class="lineCov">          3 :         cp[2] = (unsigned char) ((cb += cp[2]) &amp; 0xff);</span>
+<span class="lineNum">     306 </span><span class="lineCov">          3 :         cc -= 3;</span>
+<span class="lineNum">     307 </span><span class="lineCov">          3 :         cp += 3;</span>
+<span class="lineNum">     308 </span>            :       }
+<span class="lineNum">     309 </span><span class="lineCov">      64518 :     } else if (stride == 4)  {</span>
+<span class="lineNum">     310 </span><span class="lineCov">         65 :       unsigned int cr = cp[0];</span>
+<span class="lineNum">     311 </span><span class="lineCov">         65 :       unsigned int cg = cp[1];</span>
+<span class="lineNum">     312 </span><span class="lineCov">         65 :       unsigned int cb = cp[2];</span>
+<span class="lineNum">     313 </span><span class="lineCov">         65 :       unsigned int ca = cp[3];</span>
+<span class="lineNum">     314 </span><span class="lineCov">         65 :       cc -= 4;</span>
+<span class="lineNum">     315 </span><span class="lineCov">         65 :       cp += 4;</span>
+<span class="lineNum">     316 </span><span class="lineCov">       2117 :       while (cc&gt;0) {</span>
+<span class="lineNum">     317 </span><span class="lineCov">       1987 :         cp[0] = (unsigned char) ((cr += cp[0]) &amp; 0xff);</span>
+<span class="lineNum">     318 </span><span class="lineCov">       1987 :         cp[1] = (unsigned char) ((cg += cp[1]) &amp; 0xff);</span>
+<span class="lineNum">     319 </span><span class="lineCov">       1987 :         cp[2] = (unsigned char) ((cb += cp[2]) &amp; 0xff);</span>
+<span class="lineNum">     320 </span><span class="lineCov">       1987 :         cp[3] = (unsigned char) ((ca += cp[3]) &amp; 0xff);</span>
+<span class="lineNum">     321 </span><span class="lineCov">       1987 :         cc -= 4;</span>
+<span class="lineNum">     322 </span><span class="lineCov">       1987 :         cp += 4;</span>
+<span class="lineNum">     323 </span>            :       }
+<span class="lineNum">     324 </span>            :     } else  {
+<span class="lineNum">     325 </span><span class="lineCov">      64453 :       cc -= stride;</span>
+<span class="lineNum">     326 </span>            :       do {
+<span class="lineNum">     327 </span><span class="lineCov">   16423375 :         REPEAT4(stride, cp[stride] =</span>
+<span class="lineNum">     328 </span>            :           (unsigned char) ((cp[stride] + *cp) &amp; 0xff); cp++)
+<span class="lineNum">     329 </span><span class="lineCov">   16423375 :         cc -= stride;</span>
+<span class="lineNum">     330 </span><span class="lineCov">   16423375 :       } while (cc&gt;0);</span>
+<span class="lineNum">     331 </span>            :     }
+<span class="lineNum">     332 </span>            :   }
+<span class="lineNum">     333 </span><span class="lineCov">      64519 :   return 1;</span>
+<span class="lineNum">     334 </span>            : }
+<a name="335"><span class="lineNum">     335 </span>            : </a>
+<span class="lineNum">     336 </span>            : static int
+<span class="lineNum">     337 </span><span class="lineCov">        124 : swabHorAcc16(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     338 </span>            : {
+<span class="lineNum">     339 </span><span class="lineCov">        124 :   uint16* wp = (uint16*) cp0;</span>
+<span class="lineNum">     340 </span><span class="lineCov">        124 :   tmsize_t wc = cc / 2;</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineCov">        124 :         TIFFSwabArrayOfShort(wp, wc);</span>
+<span class="lineNum">     343 </span><span class="lineCov">        124 :         return horAcc16(tif, cp0, cc);</span>
+<span class="lineNum">     344 </span>            : }
+<span class="lineNum">     345 </span>            : 
+<a name="346"><span class="lineNum">     346 </span>            : TIFF_NOSANITIZE_UNSIGNED_INT_OVERFLOW</a>
+<span class="lineNum">     347 </span>            : static int
+<span class="lineNum">     348 </span><span class="lineCov">        776 : horAcc16(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     349 </span>            : {
+<span class="lineNum">     350 </span><span class="lineCov">        776 :   tmsize_t stride = PredictorState(tif)-&gt;stride;</span>
+<span class="lineNum">     351 </span><span class="lineCov">        776 :   uint16* wp = (uint16*) cp0;</span>
+<span class="lineNum">     352 </span><span class="lineCov">        776 :   tmsize_t wc = cc / 2;</span>
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span><span class="lineCov">        776 :     if((cc%(2*stride))!=0)</span>
+<span class="lineNum">     355 </span>            :     {
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, &quot;horAcc16&quot;,</span>
+<span class="lineNum">     357 </span>            :                      &quot;%s&quot;, &quot;cc%(2*stride))!=0&quot;);
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     359 </span>            :     }
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span><span class="lineCov">        776 :   if (wc &gt; stride) {</span>
+<span class="lineNum">     362 </span><span class="lineCov">        776 :     wc -= stride;</span>
+<span class="lineNum">     363 </span>            :     do {
+<span class="lineNum">     364 </span><span class="lineCov">      92692 :       REPEAT4(stride, wp[stride] = (uint16)(((unsigned int)wp[stride] + (unsigned int)wp[0]) &amp; 0xffff); wp++)</span>
+<span class="lineNum">     365 </span><span class="lineCov">      92692 :       wc -= stride;</span>
+<span class="lineNum">     366 </span><span class="lineCov">      92692 :     } while (wc &gt; 0);</span>
+<span class="lineNum">     367 </span>            :   }
+<span class="lineNum">     368 </span><span class="lineCov">        776 :   return 1;</span>
+<span class="lineNum">     369 </span>            : }
+<a name="370"><span class="lineNum">     370 </span>            : </a>
+<span class="lineNum">     371 </span>            : static int
+<span class="lineNum">     372 </span><span class="lineCov">          1 : swabHorAcc32(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     373 </span>            : {
+<span class="lineNum">     374 </span><span class="lineCov">          1 :   uint32* wp = (uint32*) cp0;</span>
+<span class="lineNum">     375 </span><span class="lineCov">          1 :   tmsize_t wc = cc / 4;</span>
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineCov">          1 :         TIFFSwabArrayOfLong(wp, wc);</span>
+<span class="lineNum">     378 </span><span class="lineCov">          1 :   return horAcc32(tif, cp0, cc);</span>
+<span class="lineNum">     379 </span>            : }
+<span class="lineNum">     380 </span>            : 
+<a name="381"><span class="lineNum">     381 </span>            : TIFF_NOSANITIZE_UNSIGNED_INT_OVERFLOW</a>
+<span class="lineNum">     382 </span>            : static int
+<span class="lineNum">     383 </span><span class="lineCov">          2 : horAcc32(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     384 </span>            : {
+<span class="lineNum">     385 </span><span class="lineCov">          2 :   tmsize_t stride = PredictorState(tif)-&gt;stride;</span>
+<span class="lineNum">     386 </span><span class="lineCov">          2 :   uint32* wp = (uint32*) cp0;</span>
+<span class="lineNum">     387 </span><span class="lineCov">          2 :   tmsize_t wc = cc / 4;</span>
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span><span class="lineCov">          2 :     if((cc%(4*stride))!=0)</span>
+<span class="lineNum">     390 </span>            :     {
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, &quot;horAcc32&quot;,</span>
+<span class="lineNum">     392 </span>            :                      &quot;%s&quot;, &quot;cc%(4*stride))!=0&quot;);
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     394 </span>            :     }
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">          2 :   if (wc &gt; stride) {</span>
+<span class="lineNum">     397 </span><span class="lineCov">          2 :     wc -= stride;</span>
+<span class="lineNum">     398 </span>            :     do {
+<span class="lineNum">     399 </span><span class="lineCov">         10 :       REPEAT4(stride, wp[stride] += wp[0]; wp++)</span>
+<span class="lineNum">     400 </span><span class="lineCov">         10 :       wc -= stride;</span>
+<span class="lineNum">     401 </span><span class="lineCov">         10 :     } while (wc &gt; 0);</span>
+<span class="lineNum">     402 </span>            :   }
+<span class="lineNum">     403 </span><span class="lineCov">          2 :   return 1;</span>
+<span class="lineNum">     404 </span>            : }
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span>            : /*
+<span class="lineNum">     407 </span>            :  * Floating point predictor accumulation routine.
+<a name="408"><span class="lineNum">     408 </span>            :  */</a>
+<span class="lineNum">     409 </span>            : static int
+<span class="lineNum">     410 </span><span class="lineCov">          1 : fpAcc(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     411 </span>            : {
+<span class="lineNum">     412 </span><span class="lineCov">          1 :   tmsize_t stride = PredictorState(tif)-&gt;stride;</span>
+<span class="lineNum">     413 </span><span class="lineCov">          1 :   uint32 bps = tif-&gt;tif_dir.td_bitspersample / 8;</span>
+<span class="lineNum">     414 </span><span class="lineCov">          1 :   tmsize_t wc = cc / bps;</span>
+<span class="lineNum">     415 </span><span class="lineCov">          1 :   tmsize_t count = cc;</span>
+<span class="lineNum">     416 </span><span class="lineCov">          1 :   uint8 *cp = (uint8 *) cp0;</span>
+<span class="lineNum">     417 </span>            :   uint8 *tmp;
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineCov">          1 :     if(cc%(bps*stride)!=0)</span>
+<span class="lineNum">     420 </span>            :     {
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, &quot;fpAcc&quot;,</span>
+<span class="lineNum">     422 </span>            :                      &quot;%s&quot;, &quot;cc%(bps*stride))!=0&quot;);
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     424 </span>            :     }
+<span class="lineNum">     425 </span>            : 
+<span class="lineNum">     426 </span><span class="lineCov">          1 :     tmp = (uint8 *)_TIFFmalloc(cc);</span>
+<span class="lineNum">     427 </span><span class="lineCov">          1 :   if (!tmp)</span>
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span><span class="lineCov">         33 :   while (count &gt; stride) {</span>
+<span class="lineNum">     431 </span><span class="lineCov">         31 :     REPEAT4(stride, cp[stride] =</span>
+<span class="lineNum">     432 </span>            :                         (unsigned char) ((cp[stride] + cp[0]) &amp; 0xff); cp++)
+<span class="lineNum">     433 </span><span class="lineCov">         31 :     count -= stride;</span>
+<span class="lineNum">     434 </span>            :   }
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span><span class="lineCov">          1 :   _TIFFmemcpy(tmp, cp0, cc);</span>
+<span class="lineNum">     437 </span><span class="lineCov">          1 :   cp = (uint8 *) cp0;</span>
+<span class="lineNum">     438 </span><span class="lineCov">          5 :   for (count = 0; count &lt; wc; count++) {</span>
+<span class="lineNum">     439 </span>            :     uint32 byte;
+<span class="lineNum">     440 </span><span class="lineCov">         36 :     for (byte = 0; byte &lt; bps; byte++) {</span>
+<span class="lineNum">     441 </span>            :       #if WORDS_BIGENDIAN
+<span class="lineNum">     442 </span>            :       cp[bps * count + byte] = tmp[byte * wc + count];
+<span class="lineNum">     443 </span>            :       #else
+<span class="lineNum">     444 </span><span class="lineCov">         64 :       cp[bps * count + byte] =</span>
+<span class="lineNum">     445 </span><span class="lineCov">         32 :         tmp[(bps - byte - 1) * wc + count];</span>
+<span class="lineNum">     446 </span>            :       #endif
+<span class="lineNum">     447 </span>            :     }
+<span class="lineNum">     448 </span>            :   }
+<span class="lineNum">     449 </span><span class="lineCov">          1 :   _TIFFfree(tmp);</span>
+<span class="lineNum">     450 </span><span class="lineCov">          1 :     return 1;</span>
+<span class="lineNum">     451 </span>            : }
+<span class="lineNum">     452 </span>            : 
+<span class="lineNum">     453 </span>            : /*
+<span class="lineNum">     454 </span>            :  * Decode a scanline and apply the predictor routine.
+<a name="455"><span class="lineNum">     455 </span>            :  */</a>
+<span class="lineNum">     456 </span>            : static int
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 : PredictorDecodeRow(TIFF* tif, uint8* op0, tmsize_t occ0, uint16 s)</span>
+<span class="lineNum">     458 </span>            : {
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :   TIFFPredictorState *sp = PredictorState(tif);</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :   assert(sp != NULL);</span>
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :   assert(sp-&gt;decoderow != NULL);</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :   assert(sp-&gt;decodepfunc != NULL);  </span>
+<span class="lineNum">     464 </span>            : 
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :   if ((*sp-&gt;decoderow)(tif, op0, occ0, s)) {</span>
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :     return (*sp-&gt;decodepfunc)(tif, op0, occ0);</span>
+<span class="lineNum">     467 </span>            :   } else
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     469 </span>            : }
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span>            : /*
+<span class="lineNum">     472 </span>            :  * Decode a tile/strip and apply the predictor routine.
+<span class="lineNum">     473 </span>            :  * Note that horizontal differencing must be done on a
+<span class="lineNum">     474 </span>            :  * row-by-row basis.  The width of a &quot;row&quot; has already
+<span class="lineNum">     475 </span>            :  * been calculated at pre-decode time according to the
+<span class="lineNum">     476 </span>            :  * strip/tile dimensions.
+<a name="477"><span class="lineNum">     477 </span>            :  */</a>
+<span class="lineNum">     478 </span>            : static int
+<span class="lineNum">     479 </span><span class="lineCov">        285 : PredictorDecodeTile(TIFF* tif, uint8* op0, tmsize_t occ0, uint16 s)</span>
+<span class="lineNum">     480 </span>            : {
+<span class="lineNum">     481 </span><span class="lineCov">        285 :   TIFFPredictorState *sp = PredictorState(tif);</span>
+<span class="lineNum">     482 </span>            : 
+<span class="lineNum">     483 </span><span class="lineCov">        285 :   assert(sp != NULL);</span>
+<span class="lineNum">     484 </span><span class="lineCov">        285 :   assert(sp-&gt;decodetile != NULL);</span>
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span><span class="lineCov">        285 :   if ((*sp-&gt;decodetile)(tif, op0, occ0, s)) {</span>
+<span class="lineNum">     487 </span><span class="lineCov">        285 :     tmsize_t rowsize = sp-&gt;rowsize;</span>
+<span class="lineNum">     488 </span><span class="lineCov">        285 :     assert(rowsize &gt; 0);</span>
+<span class="lineNum">     489 </span><span class="lineCov">        285 :     if((occ0%rowsize) !=0)</span>
+<span class="lineNum">     490 </span>            :         {
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 :             TIFFErrorExt(tif-&gt;tif_clientdata, &quot;PredictorDecodeTile&quot;,</span>
+<span class="lineNum">     492 </span>            :                          &quot;%s&quot;, &quot;occ0%rowsize != 0&quot;);
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :             return 0;</span>
+<span class="lineNum">     494 </span>            :         }
+<span class="lineNum">     495 </span><span class="lineCov">        285 :     assert(sp-&gt;decodepfunc != NULL);</span>
+<span class="lineNum">     496 </span><span class="lineCov">      65868 :     while (occ0 &gt; 0) {</span>
+<span class="lineNum">     497 </span><span class="lineCov">      65298 :       if( !(*sp-&gt;decodepfunc)(tif, op0, rowsize) )</span>
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :                 return 0;</span>
+<span class="lineNum">     499 </span><span class="lineCov">      65298 :       occ0 -= rowsize;</span>
+<span class="lineNum">     500 </span><span class="lineCov">      65298 :       op0 += rowsize;</span>
+<span class="lineNum">     501 </span>            :     }
+<span class="lineNum">     502 </span><span class="lineCov">        285 :     return 1;</span>
+<span class="lineNum">     503 </span>            :   } else
+<span class="lineNum">     504 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     505 </span>            : }
+<span class="lineNum">     506 </span>            : 
+<a name="507"><span class="lineNum">     507 </span>            : TIFF_NOSANITIZE_UNSIGNED_INT_OVERFLOW</a>
+<span class="lineNum">     508 </span>            : static int
+<span class="lineNum">     509 </span><span class="lineCov">      66678 : horDiff8(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     510 </span>            : {
+<span class="lineNum">     511 </span><span class="lineCov">      66678 :   TIFFPredictorState* sp = PredictorState(tif);</span>
+<span class="lineNum">     512 </span><span class="lineCov">      66678 :   tmsize_t stride = sp-&gt;stride;</span>
+<span class="lineNum">     513 </span><span class="lineCov">      66678 :   unsigned char* cp = (unsigned char*) cp0;</span>
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span><span class="lineCov">      66678 :     if((cc%stride)!=0)</span>
+<span class="lineNum">     516 </span>            :     {
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, &quot;horDiff8&quot;,</span>
+<span class="lineNum">     518 </span>            :                      &quot;%s&quot;, &quot;(cc%stride)!=0&quot;);
+<span class="lineNum">     519 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     520 </span>            :     }
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span><span class="lineCov">      66678 :   if (cc &gt; stride) {</span>
+<span class="lineNum">     523 </span><span class="lineCov">      66704 :     cc -= stride;</span>
+<span class="lineNum">     524 </span>            :     /*
+<span class="lineNum">     525 </span>            :      * Pipeline the most common cases.
+<span class="lineNum">     526 </span>            :      */
+<span class="lineNum">     527 </span><span class="lineCov">      66704 :     if (stride == 3) {</span>
+<span class="lineNum">     528 </span>            :       unsigned int r1, g1, b1;
+<span class="lineNum">     529 </span><span class="lineCov">          1 :       unsigned int r2 = cp[0];</span>
+<span class="lineNum">     530 </span><span class="lineCov">          1 :       unsigned int g2 = cp[1];</span>
+<span class="lineNum">     531 </span><span class="lineCov">          1 :       unsigned  int b2 = cp[2];</span>
+<span class="lineNum">     532 </span>            :       do {
+<span class="lineNum">     533 </span><span class="lineCov">          3 :         r1 = cp[3]; cp[3] = (unsigned char)((r1-r2)&amp;0xff); r2 = r1;</span>
+<span class="lineNum">     534 </span><span class="lineCov">          3 :         g1 = cp[4]; cp[4] = (unsigned char)((g1-g2)&amp;0xff); g2 = g1;</span>
+<span class="lineNum">     535 </span><span class="lineCov">          3 :         b1 = cp[5]; cp[5] = (unsigned char)((b1-b2)&amp;0xff); b2 = b1;</span>
+<span class="lineNum">     536 </span><span class="lineCov">          3 :         cp += 3;</span>
+<span class="lineNum">     537 </span><span class="lineCov">          3 :       } while ((cc -= 3) &gt; 0);</span>
+<span class="lineNum">     538 </span><span class="lineCov">      66703 :     } else if (stride == 4) {</span>
+<span class="lineNum">     539 </span>            :       unsigned int r1, g1, b1, a1;
+<span class="lineNum">     540 </span><span class="lineCov">         33 :       unsigned int r2 = cp[0];</span>
+<span class="lineNum">     541 </span><span class="lineCov">         33 :       unsigned int g2 = cp[1];</span>
+<span class="lineNum">     542 </span><span class="lineCov">         33 :       unsigned int b2 = cp[2];</span>
+<span class="lineNum">     543 </span><span class="lineCov">         33 :       unsigned int a2 = cp[3];</span>
+<span class="lineNum">     544 </span>            :       do {
+<span class="lineNum">     545 </span><span class="lineCov">        995 :         r1 = cp[4]; cp[4] = (unsigned char)((r1-r2)&amp;0xff); r2 = r1;</span>
+<span class="lineNum">     546 </span><span class="lineCov">        995 :         g1 = cp[5]; cp[5] = (unsigned char)((g1-g2)&amp;0xff); g2 = g1;</span>
+<span class="lineNum">     547 </span><span class="lineCov">        995 :         b1 = cp[6]; cp[6] = (unsigned char)((b1-b2)&amp;0xff); b2 = b1;</span>
+<span class="lineNum">     548 </span><span class="lineCov">        995 :         a1 = cp[7]; cp[7] = (unsigned char)((a1-a2)&amp;0xff); a2 = a1;</span>
+<span class="lineNum">     549 </span><span class="lineCov">        995 :         cp += 4;</span>
+<span class="lineNum">     550 </span><span class="lineCov">        995 :       } while ((cc -= 4) &gt; 0);</span>
+<span class="lineNum">     551 </span>            :     } else {
+<span class="lineNum">     552 </span><span class="lineCov">      66670 :       cp += cc - 1;</span>
+<span class="lineNum">     553 </span>            :       do {
+<span class="lineNum">     554 </span><span class="lineCov">   14452105 :         REPEAT4(stride, cp[stride] = (unsigned char)((cp[stride] - cp[0])&amp;0xff); cp--)</span>
+<span class="lineNum">     555 </span><span class="lineCov">   14452105 :       } while ((cc -= stride) &gt; 0);</span>
+<span class="lineNum">     556 </span>            :     }
+<span class="lineNum">     557 </span>            :   }
+<span class="lineNum">     558 </span><span class="lineCov">      66678 :   return 1;</span>
+<span class="lineNum">     559 </span>            : }
+<span class="lineNum">     560 </span>            : 
+<a name="561"><span class="lineNum">     561 </span>            : TIFF_NOSANITIZE_UNSIGNED_INT_OVERFLOW</a>
+<span class="lineNum">     562 </span>            : static int
+<span class="lineNum">     563 </span><span class="lineCov">       1014 : horDiff16(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     564 </span>            : {
+<span class="lineNum">     565 </span><span class="lineCov">       1014 :   TIFFPredictorState* sp = PredictorState(tif);</span>
+<span class="lineNum">     566 </span><span class="lineCov">       1014 :   tmsize_t stride = sp-&gt;stride;</span>
+<span class="lineNum">     567 </span><span class="lineCov">       1014 :   uint16 *wp = (uint16*) cp0;</span>
+<span class="lineNum">     568 </span><span class="lineCov">       1014 :   tmsize_t wc = cc/2;</span>
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span><span class="lineCov">       1014 :     if((cc%(2*stride))!=0)</span>
+<span class="lineNum">     571 </span>            :     {
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, &quot;horDiff8&quot;,</span>
+<span class="lineNum">     573 </span>            :                      &quot;%s&quot;, &quot;(cc%(2*stride))!=0&quot;);
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     575 </span>            :     }
+<span class="lineNum">     576 </span>            : 
+<span class="lineNum">     577 </span><span class="lineCov">       1014 :   if (wc &gt; stride) {</span>
+<span class="lineNum">     578 </span><span class="lineCov">       1014 :     wc -= stride;</span>
+<span class="lineNum">     579 </span><span class="lineCov">       1014 :     wp += wc - 1;</span>
+<span class="lineNum">     580 </span>            :     do {
+<span class="lineNum">     581 </span><span class="lineCov">     126596 :       REPEAT4(stride, wp[stride] = (uint16)(((unsigned int)wp[stride] - (unsigned int)wp[0]) &amp; 0xffff); wp--)</span>
+<span class="lineNum">     582 </span><span class="lineCov">     126596 :       wc -= stride;</span>
+<span class="lineNum">     583 </span><span class="lineCov">     126596 :     } while (wc &gt; 0);</span>
+<span class="lineNum">     584 </span>            :   }
+<span class="lineNum">     585 </span><span class="lineCov">       1014 :   return 1;</span>
+<span class="lineNum">     586 </span>            : }
+<a name="587"><span class="lineNum">     587 </span>            : </a>
+<span class="lineNum">     588 </span>            : static int
+<span class="lineNum">     589 </span><span class="lineCov">        379 : swabHorDiff16(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     590 </span>            : {
+<span class="lineNum">     591 </span><span class="lineCov">        379 :     uint16* wp = (uint16*) cp0;</span>
+<span class="lineNum">     592 </span><span class="lineCov">        379 :     tmsize_t wc = cc / 2;</span>
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span><span class="lineCov">        379 :     if( !horDiff16(tif, cp0, cc) )</span>
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span><span class="lineCov">        379 :     TIFFSwabArrayOfShort(wp, wc);</span>
+<span class="lineNum">     598 </span><span class="lineCov">        379 :     return 1;</span>
+<span class="lineNum">     599 </span>            : }
+<span class="lineNum">     600 </span>            : 
+<a name="601"><span class="lineNum">     601 </span>            : TIFF_NOSANITIZE_UNSIGNED_INT_OVERFLOW</a>
+<span class="lineNum">     602 </span>            : static int
+<span class="lineNum">     603 </span><span class="lineCov">          2 : horDiff32(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     604 </span>            : {
+<span class="lineNum">     605 </span><span class="lineCov">          2 :   TIFFPredictorState* sp = PredictorState(tif);</span>
+<span class="lineNum">     606 </span><span class="lineCov">          2 :   tmsize_t stride = sp-&gt;stride;</span>
+<span class="lineNum">     607 </span><span class="lineCov">          2 :   uint32 *wp = (uint32*) cp0;</span>
+<span class="lineNum">     608 </span><span class="lineCov">          2 :   tmsize_t wc = cc/4;</span>
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineCov">          2 :     if((cc%(4*stride))!=0)</span>
+<span class="lineNum">     611 </span>            :     {
+<span class="lineNum">     612 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, &quot;horDiff32&quot;,</span>
+<span class="lineNum">     613 </span>            :                      &quot;%s&quot;, &quot;(cc%(4*stride))!=0&quot;);
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     615 </span>            :     }
+<span class="lineNum">     616 </span>            : 
+<span class="lineNum">     617 </span><span class="lineCov">          2 :   if (wc &gt; stride) {</span>
+<span class="lineNum">     618 </span><span class="lineCov">          2 :     wc -= stride;</span>
+<span class="lineNum">     619 </span><span class="lineCov">          2 :     wp += wc - 1;</span>
+<span class="lineNum">     620 </span>            :     do {
+<span class="lineNum">     621 </span><span class="lineCov">         10 :       REPEAT4(stride, wp[stride] -= wp[0]; wp--)</span>
+<span class="lineNum">     622 </span><span class="lineCov">         10 :       wc -= stride;</span>
+<span class="lineNum">     623 </span><span class="lineCov">         10 :     } while (wc &gt; 0);</span>
+<span class="lineNum">     624 </span>            :   }
+<span class="lineNum">     625 </span><span class="lineCov">          2 :   return 1;</span>
+<span class="lineNum">     626 </span>            : }
+<a name="627"><span class="lineNum">     627 </span>            : </a>
+<span class="lineNum">     628 </span>            : static int
+<span class="lineNum">     629 </span><span class="lineCov">          1 : swabHorDiff32(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     630 </span>            : {
+<span class="lineNum">     631 </span><span class="lineCov">          1 :     uint32* wp = (uint32*) cp0;</span>
+<span class="lineNum">     632 </span><span class="lineCov">          1 :     tmsize_t wc = cc / 4;</span>
+<span class="lineNum">     633 </span>            : 
+<span class="lineNum">     634 </span><span class="lineCov">          1 :     if( !horDiff32(tif, cp0, cc) )</span>
+<span class="lineNum">     635 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     636 </span>            : 
+<span class="lineNum">     637 </span><span class="lineCov">          1 :     TIFFSwabArrayOfLong(wp, wc);</span>
+<span class="lineNum">     638 </span><span class="lineCov">          1 :     return 1;</span>
+<span class="lineNum">     639 </span>            : }
+<span class="lineNum">     640 </span>            : 
+<span class="lineNum">     641 </span>            : /*
+<span class="lineNum">     642 </span>            :  * Floating point predictor differencing routine.
+<span class="lineNum">     643 </span>            :  */
+<a name="644"><span class="lineNum">     644 </span>            : TIFF_NOSANITIZE_UNSIGNED_INT_OVERFLOW</a>
+<span class="lineNum">     645 </span>            : static int
+<span class="lineNum">     646 </span><span class="lineCov">          1 : fpDiff(TIFF* tif, uint8* cp0, tmsize_t cc)</span>
+<span class="lineNum">     647 </span>            : {
+<span class="lineNum">     648 </span><span class="lineCov">          1 :   tmsize_t stride = PredictorState(tif)-&gt;stride;</span>
+<span class="lineNum">     649 </span><span class="lineCov">          1 :   uint32 bps = tif-&gt;tif_dir.td_bitspersample / 8;</span>
+<span class="lineNum">     650 </span><span class="lineCov">          1 :   tmsize_t wc = cc / bps;</span>
+<span class="lineNum">     651 </span>            :   tmsize_t count;
+<span class="lineNum">     652 </span><span class="lineCov">          1 :   uint8 *cp = (uint8 *) cp0;</span>
+<span class="lineNum">     653 </span>            :   uint8 *tmp;
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span><span class="lineCov">          1 :     if((cc%(bps*stride))!=0)</span>
+<span class="lineNum">     656 </span>            :     {
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, &quot;fpDiff&quot;,</span>
+<span class="lineNum">     658 </span>            :                      &quot;%s&quot;, &quot;(cc%(bps*stride))!=0&quot;);
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     660 </span>            :     }
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span><span class="lineCov">          1 :     tmp = (uint8 *)_TIFFmalloc(cc);</span>
+<span class="lineNum">     663 </span><span class="lineCov">          1 :   if (!tmp)</span>
+<span class="lineNum">     664 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     665 </span>            : 
+<span class="lineNum">     666 </span><span class="lineCov">          1 :   _TIFFmemcpy(tmp, cp0, cc);</span>
+<span class="lineNum">     667 </span><span class="lineCov">          5 :   for (count = 0; count &lt; wc; count++) {</span>
+<span class="lineNum">     668 </span>            :     uint32 byte;
+<span class="lineNum">     669 </span><span class="lineCov">         36 :     for (byte = 0; byte &lt; bps; byte++) {</span>
+<span class="lineNum">     670 </span>            :       #if WORDS_BIGENDIAN
+<span class="lineNum">     671 </span>            :       cp[byte * wc + count] = tmp[bps * count + byte];
+<span class="lineNum">     672 </span>            :       #else
+<span class="lineNum">     673 </span><span class="lineCov">         64 :       cp[(bps - byte - 1) * wc + count] =</span>
+<span class="lineNum">     674 </span><span class="lineCov">         32 :         tmp[bps * count + byte];</span>
+<span class="lineNum">     675 </span>            :       #endif
+<span class="lineNum">     676 </span>            :     }
+<span class="lineNum">     677 </span>            :   }
+<span class="lineNum">     678 </span><span class="lineCov">          1 :   _TIFFfree(tmp);</span>
+<span class="lineNum">     679 </span>            : 
+<span class="lineNum">     680 </span><span class="lineCov">          1 :   cp = (uint8 *) cp0;</span>
+<span class="lineNum">     681 </span><span class="lineCov">          1 :   cp += cc - stride - 1;</span>
+<span class="lineNum">     682 </span><span class="lineCov">         32 :   for (count = cc; count &gt; stride; count -= stride)</span>
+<span class="lineNum">     683 </span><span class="lineCov">         31 :     REPEAT4(stride, cp[stride] = (unsigned char)((cp[stride] - cp[0])&amp;0xff); cp--)</span>
+<span class="lineNum">     684 </span><span class="lineCov">          1 :     return 1;</span>
+<span class="lineNum">     685 </span>            : }
+<a name="686"><span class="lineNum">     686 </span>            : </a>
+<span class="lineNum">     687 </span>            : static int
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 : PredictorEncodeRow(TIFF* tif, uint8* bp, tmsize_t cc, uint16 s)</span>
+<span class="lineNum">     689 </span>            : {
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :   TIFFPredictorState *sp = PredictorState(tif);</span>
+<span class="lineNum">     691 </span>            : 
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :   assert(sp != NULL);</span>
+<span class="lineNum">     693 </span><span class="lineNoCov">          0 :   assert(sp-&gt;encodepfunc != NULL);</span>
+<span class="lineNum">     694 </span><span class="lineNoCov">          0 :   assert(sp-&gt;encoderow != NULL);</span>
+<span class="lineNum">     695 </span>            : 
+<span class="lineNum">     696 </span>            :   /* XXX horizontal differencing alters user's data XXX */
+<span class="lineNum">     697 </span><span class="lineNoCov">          0 :   if( !(*sp-&gt;encodepfunc)(tif, bp, cc) )</span>
+<span class="lineNum">     698 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     699 </span><span class="lineNoCov">          0 :   return (*sp-&gt;encoderow)(tif, bp, cc, s);</span>
+<span class="lineNum">     700 </span>            : }
+<a name="701"><span class="lineNum">     701 </span>            : </a>
+<span class="lineNum">     702 </span>            : static int
+<span class="lineNum">     703 </span><span class="lineCov">        288 : PredictorEncodeTile(TIFF* tif, uint8* bp0, tmsize_t cc0, uint16 s)</span>
+<span class="lineNum">     704 </span>            : {
+<span class="lineNum">     705 </span>            :   static const char module[] = &quot;PredictorEncodeTile&quot;;
+<span class="lineNum">     706 </span><span class="lineCov">        288 :   TIFFPredictorState *sp = PredictorState(tif);</span>
+<span class="lineNum">     707 </span>            :         uint8 *working_copy;
+<span class="lineNum">     708 </span><span class="lineCov">        288 :   tmsize_t cc = cc0, rowsize;</span>
+<span class="lineNum">     709 </span>            :   unsigned char* bp;
+<span class="lineNum">     710 </span>            :         int result_code;
+<span class="lineNum">     711 </span>            : 
+<span class="lineNum">     712 </span><span class="lineCov">        288 :   assert(sp != NULL);</span>
+<span class="lineNum">     713 </span><span class="lineCov">        288 :   assert(sp-&gt;encodepfunc != NULL);</span>
+<span class="lineNum">     714 </span><span class="lineCov">        288 :   assert(sp-&gt;encodetile != NULL);</span>
+<span class="lineNum">     715 </span>            : 
+<span class="lineNum">     716 </span>            :         /* 
+<span class="lineNum">     717 </span>            :          * Do predictor manipulation in a working buffer to avoid altering
+<span class="lineNum">     718 </span>            :          * the callers buffer. http://trac.osgeo.org/gdal/ticket/1965
+<span class="lineNum">     719 </span>            :          */
+<span class="lineNum">     720 </span><span class="lineCov">        288 :         working_copy = (uint8*) _TIFFmalloc(cc0);</span>
+<span class="lineNum">     721 </span><span class="lineCov">        307 :         if( working_copy == NULL )</span>
+<span class="lineNum">     722 </span>            :         {
+<span class="lineNum">     723 </span><span class="lineNoCov">          0 :             TIFFErrorExt(tif-&gt;tif_clientdata, module, </span>
+<span class="lineNum">     724 </span>            :                          &quot;Out of memory allocating &quot; TIFF_SSIZE_FORMAT &quot; byte temp buffer.&quot;,
+<span class="lineNum">     725 </span>            :                          cc0 );
+<span class="lineNum">     726 </span><span class="lineNoCov">          0 :             return 0;</span>
+<span class="lineNum">     727 </span>            :         }
+<span class="lineNum">     728 </span><span class="lineCov">        307 :         memcpy( working_copy, bp0, cc0 );</span>
+<span class="lineNum">     729 </span><span class="lineCov">        307 :         bp = working_copy;</span>
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span><span class="lineCov">        307 :   rowsize = sp-&gt;rowsize;</span>
+<span class="lineNum">     732 </span><span class="lineCov">        307 :   assert(rowsize &gt; 0);</span>
+<span class="lineNum">     733 </span><span class="lineCov">        307 :   if((cc0%rowsize)!=0)</span>
+<span class="lineNum">     734 </span>            :     {
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, &quot;PredictorEncodeTile&quot;,</span>
+<span class="lineNum">     736 </span>            :                      &quot;%s&quot;, &quot;(cc0%rowsize)!=0&quot;);
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :         _TIFFfree( working_copy );</span>
+<span class="lineNum">     738 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     739 </span>            :     }
+<span class="lineNum">     740 </span><span class="lineCov">      68315 :   while (cc &gt; 0) {</span>
+<span class="lineNum">     741 </span><span class="lineCov">      67720 :     (*sp-&gt;encodepfunc)(tif, bp, rowsize);</span>
+<span class="lineNum">     742 </span><span class="lineCov">      67701 :     cc -= rowsize;</span>
+<span class="lineNum">     743 </span><span class="lineCov">      67701 :     bp += rowsize;</span>
+<span class="lineNum">     744 </span>            :   }
+<span class="lineNum">     745 </span><span class="lineCov">        288 :   result_code = (*sp-&gt;encodetile)(tif, working_copy, cc0, s);</span>
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span><span class="lineCov">        288 :         _TIFFfree( working_copy );</span>
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span><span class="lineCov">        288 :         return result_code;</span>
+<span class="lineNum">     750 </span>            : }
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span>            : #define FIELD_PREDICTOR (FIELD_CODEC+0)   /* XXX */
+<span class="lineNum">     753 </span>            : 
+<span class="lineNum">     754 </span>            : static const TIFFField predictFields[] = {
+<span class="lineNum">     755 </span>            :     { TIFFTAG_PREDICTOR, 1, 1, TIFF_SHORT, 0, TIFF_SETGET_UINT16, TIFF_SETGET_UINT16, FIELD_PREDICTOR, FALSE, FALSE, &quot;Predictor&quot;, NULL },
+<span class="lineNum">     756 </span>            : };
+<a name="757"><span class="lineNum">     757 </span>            : </a>
+<span class="lineNum">     758 </span>            : static int
+<span class="lineNum">     759 </span><span class="lineCov">     158130 : PredictorVSetField(TIFF* tif, uint32 tag, va_list ap)</span>
+<span class="lineNum">     760 </span>            : {
+<span class="lineNum">     761 </span><span class="lineCov">     158130 :   TIFFPredictorState *sp = PredictorState(tif);</span>
+<span class="lineNum">     762 </span>            : 
+<span class="lineNum">     763 </span><span class="lineCov">     158130 :   assert(sp != NULL);</span>
+<span class="lineNum">     764 </span><span class="lineCov">     158130 :   assert(sp-&gt;vsetparent != NULL);</span>
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span><span class="lineCov">     158130 :   switch (tag) {</span>
+<span class="lineNum">     767 </span>            :   case TIFFTAG_PREDICTOR:
+<span class="lineNum">     768 </span><span class="lineCov">       1891 :     sp-&gt;predictor = (uint16) va_arg(ap, uint16_vap);</span>
+<span class="lineNum">     769 </span><span class="lineCov">       1891 :     TIFFSetFieldBit(tif, FIELD_PREDICTOR);</span>
+<span class="lineNum">     770 </span><span class="lineCov">       1891 :     break;</span>
+<span class="lineNum">     771 </span>            :   default:
+<span class="lineNum">     772 </span><span class="lineCov">     156239 :     return (*sp-&gt;vsetparent)(tif, tag, ap);</span>
+<span class="lineNum">     773 </span>            :   }
+<span class="lineNum">     774 </span><span class="lineCov">       1891 :   tif-&gt;tif_flags |= TIFF_DIRTYDIRECT;</span>
+<span class="lineNum">     775 </span><span class="lineCov">       1891 :   return 1;</span>
+<span class="lineNum">     776 </span>            : }
+<a name="777"><span class="lineNum">     777 </span>            : </a>
+<span class="lineNum">     778 </span>            : static int
+<span class="lineNum">     779 </span><span class="lineCov">     281647 : PredictorVGetField(TIFF* tif, uint32 tag, va_list ap)</span>
+<span class="lineNum">     780 </span>            : {
+<span class="lineNum">     781 </span><span class="lineCov">     281647 :   TIFFPredictorState *sp = PredictorState(tif);</span>
+<span class="lineNum">     782 </span>            : 
+<span class="lineNum">     783 </span><span class="lineCov">     281647 :   assert(sp != NULL);</span>
+<span class="lineNum">     784 </span><span class="lineCov">     281647 :   assert(sp-&gt;vgetparent != NULL);</span>
+<span class="lineNum">     785 </span>            : 
+<span class="lineNum">     786 </span><span class="lineCov">     281647 :   switch (tag) {</span>
+<span class="lineNum">     787 </span>            :   case TIFFTAG_PREDICTOR:
+<span class="lineNum">     788 </span><span class="lineCov">      15226 :     *va_arg(ap, uint16*) = (uint16)sp-&gt;predictor;</span>
+<span class="lineNum">     789 </span><span class="lineCov">      15226 :     break;</span>
+<span class="lineNum">     790 </span>            :   default:
+<span class="lineNum">     791 </span><span class="lineCov">     266421 :     return (*sp-&gt;vgetparent)(tif, tag, ap);</span>
+<span class="lineNum">     792 </span>            :   }
+<span class="lineNum">     793 </span><span class="lineCov">      15226 :   return 1;</span>
+<span class="lineNum">     794 </span>            : }
+<a name="795"><span class="lineNum">     795 </span>            : </a>
+<span class="lineNum">     796 </span>            : static void
+<span class="lineNum">     797 </span><span class="lineNoCov">          0 : PredictorPrintDir(TIFF* tif, FILE* fd, long flags)</span>
+<span class="lineNum">     798 </span>            : {
+<span class="lineNum">     799 </span><span class="lineNoCov">          0 :   TIFFPredictorState* sp = PredictorState(tif);</span>
+<span class="lineNum">     800 </span>            : 
+<span class="lineNum">     801 </span>            :   (void) flags;
+<span class="lineNum">     802 </span><span class="lineNoCov">          0 :   if (TIFFFieldSet(tif,FIELD_PREDICTOR)) {</span>
+<span class="lineNum">     803 </span><span class="lineNoCov">          0 :     fprintf(fd, &quot;  Predictor: &quot;);</span>
+<span class="lineNum">     804 </span><span class="lineNoCov">          0 :     switch (sp-&gt;predictor) {</span>
+<span class="lineNum">     805 </span><span class="lineNoCov">          0 :       case 1: fprintf(fd, &quot;none &quot;); break;</span>
+<span class="lineNum">     806 </span><span class="lineNoCov">          0 :       case 2: fprintf(fd, &quot;horizontal differencing &quot;); break;</span>
+<span class="lineNum">     807 </span><span class="lineNoCov">          0 :       case 3: fprintf(fd, &quot;floating point predictor &quot;); break;</span>
+<span class="lineNum">     808 </span>            :     }
+<span class="lineNum">     809 </span><span class="lineNoCov">          0 :     fprintf(fd, &quot;%d (0x%x)\n&quot;, sp-&gt;predictor, sp-&gt;predictor);</span>
+<span class="lineNum">     810 </span>            :   }
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :   if (sp-&gt;printdir)</span>
+<span class="lineNum">     812 </span><span class="lineNoCov">          0 :     (*sp-&gt;printdir)(tif, fd, flags);</span>
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 : }</span>
+<a name="814"><span class="lineNum">     814 </span>            : </a>
+<span class="lineNum">     815 </span>            : int
+<span class="lineNum">     816 </span><span class="lineCov">      15930 : TIFFPredictorInit(TIFF* tif)</span>
+<span class="lineNum">     817 </span>            : {
+<span class="lineNum">     818 </span><span class="lineCov">      15930 :   TIFFPredictorState* sp = PredictorState(tif);</span>
+<span class="lineNum">     819 </span>            : 
+<span class="lineNum">     820 </span><span class="lineCov">      15930 :   assert(sp != 0);</span>
+<span class="lineNum">     821 </span>            : 
+<span class="lineNum">     822 </span>            :   /*
+<span class="lineNum">     823 </span>            :    * Merge codec-specific tag information.
+<span class="lineNum">     824 </span>            :    */
+<span class="lineNum">     825 </span><span class="lineCov">      15930 :   if (!_TIFFMergeFields(tif, predictFields,</span>
+<span class="lineNum">     826 </span>            :             TIFFArrayCount(predictFields))) {
+<span class="lineNum">     827 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, &quot;TIFFPredictorInit&quot;,</span>
+<span class="lineNum">     828 </span>            :         &quot;Merging Predictor codec-specific tags failed&quot;);
+<span class="lineNum">     829 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     830 </span>            :   }
+<span class="lineNum">     831 </span>            : 
+<span class="lineNum">     832 </span>            :   /*
+<span class="lineNum">     833 </span>            :    * Override parent get/set field methods.
+<span class="lineNum">     834 </span>            :    */
+<span class="lineNum">     835 </span><span class="lineCov">      15930 :   sp-&gt;vgetparent = tif-&gt;tif_tagmethods.vgetfield;</span>
+<span class="lineNum">     836 </span><span class="lineCov">      15930 :   tif-&gt;tif_tagmethods.vgetfield =</span>
+<span class="lineNum">     837 </span>            :             PredictorVGetField;/* hook for predictor tag */
+<span class="lineNum">     838 </span><span class="lineCov">      15930 :   sp-&gt;vsetparent = tif-&gt;tif_tagmethods.vsetfield;</span>
+<span class="lineNum">     839 </span><span class="lineCov">      15930 :   tif-&gt;tif_tagmethods.vsetfield =</span>
+<span class="lineNum">     840 </span>            :       PredictorVSetField;/* hook for predictor tag */
+<span class="lineNum">     841 </span><span class="lineCov">      15930 :   sp-&gt;printdir = tif-&gt;tif_tagmethods.printdir;</span>
+<span class="lineNum">     842 </span><span class="lineCov">      15930 :   tif-&gt;tif_tagmethods.printdir =</span>
+<span class="lineNum">     843 </span>            :             PredictorPrintDir;  /* hook for predictor tag */
+<span class="lineNum">     844 </span>            : 
+<span class="lineNum">     845 </span><span class="lineCov">      15930 :   sp-&gt;setupdecode = tif-&gt;tif_setupdecode;</span>
+<span class="lineNum">     846 </span><span class="lineCov">      15930 :   tif-&gt;tif_setupdecode = PredictorSetupDecode;</span>
+<span class="lineNum">     847 </span><span class="lineCov">      15930 :   sp-&gt;setupencode = tif-&gt;tif_setupencode;</span>
+<span class="lineNum">     848 </span><span class="lineCov">      15930 :   tif-&gt;tif_setupencode = PredictorSetupEncode;</span>
+<span class="lineNum">     849 </span>            : 
+<span class="lineNum">     850 </span><span class="lineCov">      15930 :   sp-&gt;predictor = 1;     /* default value */</span>
+<span class="lineNum">     851 </span><span class="lineCov">      15930 :   sp-&gt;encodepfunc = NULL;      /* no predictor routine */</span>
+<span class="lineNum">     852 </span><span class="lineCov">      15930 :   sp-&gt;decodepfunc = NULL;      /* no predictor routine */</span>
+<span class="lineNum">     853 </span><span class="lineCov">      15930 :   return 1;</span>
+<span class="lineNum">     854 </span>            : }
+<a name="855"><span class="lineNum">     855 </span>            : </a>
+<span class="lineNum">     856 </span>            : int
+<span class="lineNum">     857 </span><span class="lineCov">      15930 : TIFFPredictorCleanup(TIFF* tif)</span>
+<span class="lineNum">     858 </span>            : {
+<span class="lineNum">     859 </span><span class="lineCov">      15930 :   TIFFPredictorState* sp = PredictorState(tif);</span>
+<span class="lineNum">     860 </span>            : 
+<span class="lineNum">     861 </span><span class="lineCov">      15930 :   assert(sp != 0);</span>
+<span class="lineNum">     862 </span>            : 
+<span class="lineNum">     863 </span><span class="lineCov">      15930 :   tif-&gt;tif_tagmethods.vgetfield = sp-&gt;vgetparent;</span>
+<span class="lineNum">     864 </span><span class="lineCov">      15930 :   tif-&gt;tif_tagmethods.vsetfield = sp-&gt;vsetparent;</span>
+<span class="lineNum">     865 </span><span class="lineCov">      15930 :   tif-&gt;tif_tagmethods.printdir = sp-&gt;printdir;</span>
+<span class="lineNum">     866 </span><span class="lineCov">      15930 :   tif-&gt;tif_setupdecode = sp-&gt;setupdecode;</span>
+<span class="lineNum">     867 </span><span class="lineCov">      15930 :   tif-&gt;tif_setupencode = sp-&gt;setupencode;</span>
+<span class="lineNum">     868 </span>            : 
+<span class="lineNum">     869 </span><span class="lineCov">      15930 :   return 1;</span>
+<span class="lineNum">     870 </span>            : }
+<span class="lineNum">     871 </span>            : 
+<span class="lineNum">     872 </span>            : /* vim: set ts=8 sts=8 sw=8 noet: */
+<span class="lineNum">     873 </span>            : /*
+<span class="lineNum">     874 </span>            :  * Local Variables:
+<span class="lineNum">     875 </span>            :  * mode: c
+<span class="lineNum">     876 </span>            :  * c-basic-offset: 8
+<span class="lineNum">     877 </span>            :  * fill-column: 78
+<span class="lineNum">     878 </span>            :  * End:
+<span class="lineNum">     879 </span>            :  */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

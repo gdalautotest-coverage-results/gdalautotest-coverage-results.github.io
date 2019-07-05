@@ -1,0 +1,960 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_google_cloud.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_google_cloud.cpp<span style="font-size: 80%;"> (source / <a href="cpl_google_cloud.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">322</td>
+            <td class="headerCovTableEntry">377</td>
+            <td class="headerCovTableEntryMed">85.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntryHi">93.8 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /**********************************************************************</a>
+<span class="lineNum">       2 </span>            :  * Project:  CPL - Common Portability Library
+<span class="lineNum">       3 </span>            :  * Purpose:  Google Cloud Storage routines
+<span class="lineNum">       4 </span>            :  * Author:   Even Rouault &lt;even.rouault at spatialys.com&gt;
+<span class="lineNum">       5 </span>            :  *
+<span class="lineNum">       6 </span>            :  **********************************************************************
+<span class="lineNum">       7 </span>            :  * Copyright (c) 2017, Even Rouault &lt;even.rouault at spatialys.com&gt;
+<span class="lineNum">       8 </span>            :  *
+<span class="lineNum">       9 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      10 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      11 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      12 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      13 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      14 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      15 </span>            :  *
+<span class="lineNum">      16 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      17 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      18 </span>            :  *
+<span class="lineNum">      19 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      20 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      21 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      22 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      23 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      24 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      25 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      26 </span>            :  ****************************************************************************/
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            : #include &quot;cpl_google_cloud.h&quot;
+<span class="lineNum">      29 </span>            : #include &quot;cpl_vsi_error.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;cpl_sha1.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;cpl_sha256.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;cpl_time.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;cpl_http.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;cpl_multiproc.h&quot;
+<span class="lineNum">      35 </span>            : #include &quot;cpl_aws.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;cpl_json.h&quot;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : #ifdef HAVE_CURL
+<span class="lineNum">      41 </span>            : 
+<a name="42"><span class="lineNum">      42 </span>            : static CPLMutex *hMutex = nullptr;</a>
+<span class="lineNum">      43 </span>            : static bool bFirstTimeForDebugMessage = true;
+<span class="lineNum">      44 </span><span class="lineCov">        992 : static GOA2Manager oStaticManager;</span>
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : /************************************************************************/
+<span class="lineNum">      47 </span>            : /*                    CPLIsMachineForSureGCEInstance()                  */
+<span class="lineNum">      48 </span>            : /************************************************************************/
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : /** Returns whether the current machine is surely a Google Compute Engine instance.
+<span class="lineNum">      51 </span>            :  *
+<span class="lineNum">      52 </span>            :  * This does a very quick check without network access.
+<span class="lineNum">      53 </span>            :  * Note: only works for Linux GCE instances.
+<span class="lineNum">      54 </span>            :  *
+<span class="lineNum">      55 </span>            :  * @return true if the current machine is surely a GCE instance.
+<a name="56"><span class="lineNum">      56 </span>            :  * @since GDAL 2.3</a>
+<span class="lineNum">      57 </span>            :  */
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 : bool CPLIsMachineForSureGCEInstance()</span>
+<span class="lineNum">      59 </span>            : {
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :     if( CPLTestBool(CPLGetConfigOption(</span>
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :                         &quot;CPL_MACHINE_IS_GCE&quot;, &quot;NO&quot;)) )</span>
+<span class="lineNum">      62 </span>            :     {
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :         return true;</span>
+<span class="lineNum">      64 </span>            :     }
+<span class="lineNum">      65 </span>            : #ifdef __linux
+<span class="lineNum">      66 </span>            :     // If /sys/class/dmi/id/product_name exists, it contains &quot;Google Compute Engine&quot;
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :     bool bIsGCEInstance = false;</span>
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :     if( CPLTestBool(CPLGetConfigOption(</span>
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :                         &quot;CPL_GCE_CHECK_LOCAL_FILES&quot;, &quot;YES&quot;)) )</span>
+<span class="lineNum">      70 </span>            :     {
+<span class="lineNum">      71 </span>            :         static bool bIsGCEInstanceStatic = false;
+<span class="lineNum">      72 </span>            :         static bool bDone = false;
+<span class="lineNum">      73 </span>            :         {
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :             CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :             if( !bDone )</span>
+<span class="lineNum">      76 </span>            :             {
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :                 bDone = true;</span>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :                 VSILFILE* fp = VSIFOpenL(&quot;/sys/class/dmi/id/product_name&quot;, &quot;rb&quot;);</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :                 if( fp )</span>
+<span class="lineNum">      81 </span>            :                 {
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :                     const char* pszLine = CPLReadLineL(fp);</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :                     bIsGCEInstanceStatic = pszLine &amp;&amp;</span>
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :                         STARTS_WITH_CI(pszLine, &quot;Google Compute Engine&quot;);</span>
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :                     VSIFCloseL(fp);</span>
+<span class="lineNum">      86 </span>            :                 }
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :             }</span>
+<span class="lineNum">      88 </span>            :         }
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :         bIsGCEInstance = bIsGCEInstanceStatic;</span>
+<span class="lineNum">      90 </span>            :     }
+<span class="lineNum">      91 </span><span class="lineNoCov">          0 :     return bIsGCEInstance;</span>
+<span class="lineNum">      92 </span>            : #else
+<span class="lineNum">      93 </span>            :     return false;
+<span class="lineNum">      94 </span>            : #endif
+<span class="lineNum">      95 </span>            : }
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            : /************************************************************************/
+<span class="lineNum">      98 </span>            : /*                 CPLIsMachinePotentiallyGCEInstance()                 */
+<span class="lineNum">      99 </span>            : /************************************************************************/
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span>            : /** Returns whether the current machine is potentially a Google Compute Engine instance.
+<span class="lineNum">     102 </span>            :  *
+<span class="lineNum">     103 </span>            :  * This does a very quick check without network access. To confirm if the
+<span class="lineNum">     104 </span>            :  * machine is effectively a GCE instance, metadata.google.internal must be
+<span class="lineNum">     105 </span>            :  * queried.
+<span class="lineNum">     106 </span>            :  *
+<span class="lineNum">     107 </span>            :  * @return true if the current machine is potentially a GCE instance.
+<a name="108"><span class="lineNum">     108 </span>            :  * @since GDAL 2.3</a>
+<span class="lineNum">     109 </span>            :  */
+<span class="lineNum">     110 </span><span class="lineCov">          3 : bool CPLIsMachinePotentiallyGCEInstance()</span>
+<span class="lineNum">     111 </span>            : {
+<span class="lineNum">     112 </span>            : #ifdef __linux
+<span class="lineNum">     113 </span><span class="lineCov">          3 :     bool bIsMachinePotentialGCEInstance = true;</span>
+<span class="lineNum">     114 </span><span class="lineCov">          3 :     if( CPLTestBool(CPLGetConfigOption(</span>
+<span class="lineNum">     115 </span><span class="lineCov">          3 :                         &quot;CPL_GCE_CHECK_LOCAL_FILES&quot;, &quot;YES&quot;)) )</span>
+<span class="lineNum">     116 </span>            :     {
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :         bIsMachinePotentialGCEInstance = CPLIsMachineForSureGCEInstance();</span>
+<span class="lineNum">     118 </span>            :     }
+<span class="lineNum">     119 </span><span class="lineCov">          3 :     return bIsMachinePotentialGCEInstance;</span>
+<span class="lineNum">     120 </span>            : #elif defined(WIN32)
+<span class="lineNum">     121 </span>            :     // We might add later a way of detecting if we run on GCE using WMI
+<span class="lineNum">     122 </span>            :     // See https://cloud.google.com/compute/docs/instances/managing-instances
+<span class="lineNum">     123 </span>            :     // For now, unconditionally try
+<span class="lineNum">     124 </span>            :     return true;
+<span class="lineNum">     125 </span>            : #else
+<span class="lineNum">     126 </span>            :     // At time of writing GCE instances can be only Linux or Windows
+<span class="lineNum">     127 </span>            :     return false;
+<span class="lineNum">     128 </span>            : #endif
+<span class="lineNum">     129 </span>            : }
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            : 
+<span class="lineNum">     135 </span>            : /************************************************************************/
+<span class="lineNum">     136 </span>            : /*                            GetGSHeaders()                            */
+<span class="lineNum">     137 </span>            : /************************************************************************/
+<a name="138"><span class="lineNum">     138 </span>            : </a>
+<span class="lineNum">     139 </span>            : static
+<span class="lineNum">     140 </span><span class="lineCov">         17 : struct curl_slist* GetGSHeaders( const CPLString&amp; osVerb,</span>
+<span class="lineNum">     141 </span>            :                                  const struct curl_slist* psExistingHeaders,
+<span class="lineNum">     142 </span>            :                                  const CPLString&amp; osCanonicalResource,
+<span class="lineNum">     143 </span>            :                                  const CPLString&amp; osSecretAccessKey,
+<span class="lineNum">     144 </span>            :                                  const CPLString&amp; osAccessKeyId )
+<span class="lineNum">     145 </span>            : {
+<span class="lineNum">     146 </span><span class="lineCov">         17 :     CPLString osDate = CPLGetConfigOption(&quot;CPL_GS_TIMESTAMP&quot;, &quot;&quot;);</span>
+<span class="lineNum">     147 </span><span class="lineCov">         17 :     if( osDate.empty() )</span>
+<span class="lineNum">     148 </span>            :     {
+<span class="lineNum">     149 </span><span class="lineCov">          4 :         osDate = IVSIS3LikeHandleHelper::GetRFC822DateTime();</span>
+<span class="lineNum">     150 </span>            :     }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">         34 :     std::map&lt;CPLString, CPLString&gt; oSortedMapHeaders;</span>
+<span class="lineNum">     153 </span>            :     CPLString osCanonicalizedHeaders(
+<span class="lineNum">     154 </span>            :         IVSIS3LikeHandleHelper::BuildCanonicalizedHeaders(
+<span class="lineNum">     155 </span>            :                             oSortedMapHeaders,
+<span class="lineNum">     156 </span>            :                             psExistingHeaders,
+<span class="lineNum">     157 </span><span class="lineCov">         34 :                             &quot;x-goog-&quot;));</span>
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :     // See https://cloud.google.com/storage/docs/migrating
+<span class="lineNum">     160 </span><span class="lineCov">         34 :     CPLString osStringToSign;</span>
+<span class="lineNum">     161 </span><span class="lineCov">         17 :     osStringToSign += osVerb + &quot;\n&quot;;</span>
+<span class="lineNum">     162 </span><span class="lineCov">         17 :     osStringToSign += CPLAWSGetHeaderVal(psExistingHeaders, &quot;Content-MD5&quot;) + &quot;\n&quot;;</span>
+<span class="lineNum">     163 </span><span class="lineCov">         17 :     osStringToSign += CPLAWSGetHeaderVal(psExistingHeaders, &quot;Content-Type&quot;) + &quot;\n&quot;;</span>
+<span class="lineNum">     164 </span><span class="lineCov">         17 :     osStringToSign += osDate + &quot;\n&quot;;</span>
+<span class="lineNum">     165 </span><span class="lineCov">         17 :     osStringToSign += osCanonicalizedHeaders;</span>
+<span class="lineNum">     166 </span><span class="lineCov">         17 :     osStringToSign += osCanonicalResource;</span>
+<span class="lineNum">     167 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     168 </span>            :     CPLDebug(&quot;GS&quot;, &quot;osStringToSign = %s&quot;, osStringToSign.c_str());
+<span class="lineNum">     169 </span>            : #endif
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span><span class="lineCov">         17 :     GByte abySignature[CPL_SHA1_HASH_SIZE] = {};</span>
+<span class="lineNum">     172 </span><span class="lineCov">         17 :     CPL_HMAC_SHA1( osSecretAccessKey.c_str(), osSecretAccessKey.size(),</span>
+<span class="lineNum">     173 </span>            :                    osStringToSign, osStringToSign.size(),
+<span class="lineNum">     174 </span><span class="lineCov">         34 :                    abySignature);</span>
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span><span class="lineCov">         17 :     char* pszBase64 = CPLBase64Encode( sizeof(abySignature), abySignature );</span>
+<span class="lineNum">     177 </span><span class="lineCov">         34 :     CPLString osAuthorization(&quot;GOOG1 &quot;);</span>
+<span class="lineNum">     178 </span><span class="lineCov">         17 :     osAuthorization += osAccessKeyId;</span>
+<span class="lineNum">     179 </span><span class="lineCov">         17 :     osAuthorization += &quot;:&quot;;</span>
+<span class="lineNum">     180 </span><span class="lineCov">         17 :     osAuthorization += pszBase64;</span>
+<span class="lineNum">     181 </span><span class="lineCov">         17 :     CPLFree(pszBase64);</span>
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span><span class="lineCov">         17 :     struct curl_slist *headers=nullptr;</span>
+<span class="lineNum">     184 </span>            :     headers = curl_slist_append(
+<span class="lineNum">     185 </span><span class="lineCov">         17 :         headers, CPLSPrintf(&quot;Date: %s&quot;, osDate.c_str()));</span>
+<span class="lineNum">     186 </span>            :     headers = curl_slist_append(
+<span class="lineNum">     187 </span><span class="lineCov">         17 :         headers, CPLSPrintf(&quot;Authorization: %s&quot;, osAuthorization.c_str()));</span>
+<span class="lineNum">     188 </span><span class="lineCov">         34 :     return headers;</span>
+<span class="lineNum">     189 </span>            : }
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            : /************************************************************************/
+<a name="192"><span class="lineNum">     192 </span>            : /*                         VSIGSHandleHelper()                          */</a>
+<span class="lineNum">     193 </span>            : /************************************************************************/
+<span class="lineNum">     194 </span><span class="lineCov">         36 : VSIGSHandleHelper::VSIGSHandleHelper( const CPLString&amp; osEndpoint,</span>
+<span class="lineNum">     195 </span>            :                                       const CPLString&amp; osBucketObjectKey,
+<span class="lineNum">     196 </span>            :                                       const CPLString&amp; osSecretAccessKey,
+<span class="lineNum">     197 </span>            :                                       const CPLString&amp; osAccessKeyId,
+<span class="lineNum">     198 </span>            :                                       bool bUseHeaderFile,
+<span class="lineNum">     199 </span>            :                                       const GOA2Manager&amp; oManager ) :
+<span class="lineNum">     200 </span><span class="lineCov">         72 :     m_osURL(osEndpoint + CPLAWSURLEncode(osBucketObjectKey, false)),</span>
+<span class="lineNum">     201 </span>            :     m_osEndpoint(osEndpoint),
+<span class="lineNum">     202 </span>            :     m_osBucketObjectKey(osBucketObjectKey),
+<span class="lineNum">     203 </span>            :     m_osSecretAccessKey(osSecretAccessKey),
+<span class="lineNum">     204 </span>            :     m_osAccessKeyId(osAccessKeyId),
+<span class="lineNum">     205 </span>            :     m_bUseHeaderFile(bUseHeaderFile),
+<span class="lineNum">     206 </span><span class="lineCov">        108 :     m_oManager(oManager)</span>
+<span class="lineNum">     207 </span>            : {
+<span class="lineNum">     208 </span><span class="lineCov">         36 :     if( m_osBucketObjectKey.find('/') == std::string::npos )</span>
+<span class="lineNum">     209 </span><span class="lineCov">          5 :         m_osURL += &quot;/&quot;;</span>
+<span class="lineNum">     210 </span><span class="lineCov">         36 : }</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            : /************************************************************************/
+<span class="lineNum">     213 </span>            : /*                        ~VSIGSHandleHelper()                          */
+<a name="214"><span class="lineNum">     214 </span>            : /************************************************************************/</a>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineCov">         72 : VSIGSHandleHelper::~VSIGSHandleHelper()</span>
+<span class="lineNum">     217 </span>            : {
+<span class="lineNum">     218 </span><span class="lineCov">         72 : }</span>
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span>            : /************************************************************************/
+<span class="lineNum">     222 </span>            : /*                GetConfigurationFromAWSConfigFiles()                  */
+<a name="223"><span class="lineNum">     223 </span>            : /************************************************************************/</a>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineCov">         11 : bool VSIGSHandleHelper::GetConfigurationFromConfigFile(</span>
+<span class="lineNum">     226 </span>            :                                                 CPLString&amp; osSecretAccessKey,
+<span class="lineNum">     227 </span>            :                                                 CPLString&amp; osAccessKeyId,
+<span class="lineNum">     228 </span>            :                                                 CPLString&amp; osOAuth2RefreshToken,
+<span class="lineNum">     229 </span>            :                                                 CPLString&amp; osOAuth2ClientId,
+<span class="lineNum">     230 </span>            :                                                 CPLString&amp; osOAuth2ClientSecret,
+<span class="lineNum">     231 </span>            :                                                 CPLString&amp; osCredentials)
+<span class="lineNum">     232 </span>            : {
+<span class="lineNum">     233 </span>            : #ifdef WIN32
+<span class="lineNum">     234 </span>            :     const char* pszHome = CPLGetConfigOption(&quot;USERPROFILE&quot;, nullptr);
+<span class="lineNum">     235 </span>            :     constexpr char SEP_STRING[] = &quot;\\&quot;;
+<span class="lineNum">     236 </span>            : #else
+<span class="lineNum">     237 </span><span class="lineCov">         11 :     const char* pszHome = CPLGetConfigOption(&quot;HOME&quot;, nullptr);</span>
+<span class="lineNum">     238 </span><span class="lineCov">         11 :     constexpr char SEP_STRING[] = &quot;/&quot;;</span>
+<span class="lineNum">     239 </span>            : #endif
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            :     // GDAL specific config option (mostly for testing purpose, but also
+<span class="lineNum">     242 </span>            :     // used in production in some cases)
+<span class="lineNum">     243 </span>            :     const char* pszCredentials =
+<span class="lineNum">     244 </span><span class="lineCov">         11 :                     CPLGetConfigOption( &quot;CPL_GS_CREDENTIALS_FILE&quot;, nullptr);</span>
+<span class="lineNum">     245 </span><span class="lineCov">         11 :     if( pszCredentials )</span>
+<span class="lineNum">     246 </span>            :     {
+<span class="lineNum">     247 </span><span class="lineCov">         11 :         osCredentials = pszCredentials;</span>
+<span class="lineNum">     248 </span>            :     }
+<span class="lineNum">     249 </span>            :     else
+<span class="lineNum">     250 </span>            :     {
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :         osCredentials = pszHome ? pszHome : &quot;&quot;;</span>
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :         osCredentials += SEP_STRING;</span>
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :         osCredentials += &quot;.boto&quot;;</span>
+<span class="lineNum">     254 </span>            :     }
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineCov">         11 :     VSILFILE* fp = VSIFOpenL( osCredentials, &quot;rb&quot; );</span>
+<span class="lineNum">     257 </span><span class="lineCov">         11 :     if( fp != nullptr )</span>
+<span class="lineNum">     258 </span>            :     {
+<span class="lineNum">     259 </span>            :         const char* pszLine;
+<span class="lineNum">     260 </span><span class="lineCov">          2 :         bool bInCredentials = false;</span>
+<span class="lineNum">     261 </span><span class="lineCov">          2 :         bool bInOAuth2 = false;</span>
+<span class="lineNum">     262 </span><span class="lineCov">         20 :         while( (pszLine = CPLReadLineL(fp)) != nullptr )</span>
+<span class="lineNum">     263 </span>            :         {
+<span class="lineNum">     264 </span><span class="lineCov">         16 :             if( pszLine[0] == '[' )</span>
+<span class="lineNum">     265 </span>            :             {
+<span class="lineNum">     266 </span><span class="lineCov">          5 :                 bInCredentials = false;</span>
+<span class="lineNum">     267 </span><span class="lineCov">          5 :                 bInOAuth2 = false;</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineCov">          5 :                 if( CPLString(pszLine) == &quot;[Credentials]&quot; )</span>
+<span class="lineNum">     270 </span><span class="lineCov">          2 :                     bInCredentials = true;</span>
+<span class="lineNum">     271 </span><span class="lineCov">          3 :                 else if( CPLString(pszLine) == &quot;[OAuth2]&quot; )</span>
+<span class="lineNum">     272 </span><span class="lineCov">          1 :                     bInOAuth2 = true;</span>
+<span class="lineNum">     273 </span>            :             }
+<span class="lineNum">     274 </span><span class="lineCov">         11 :             else if( bInCredentials )</span>
+<span class="lineNum">     275 </span>            :             {
+<span class="lineNum">     276 </span><span class="lineCov">          3 :                 char* pszKey = nullptr;</span>
+<span class="lineNum">     277 </span><span class="lineCov">          3 :                 const char* pszValue = CPLParseNameValue(pszLine, &amp;pszKey);</span>
+<span class="lineNum">     278 </span><span class="lineCov">          3 :                 if( pszKey &amp;&amp; pszValue )</span>
+<span class="lineNum">     279 </span>            :                 {
+<span class="lineNum">     280 </span><span class="lineCov">          3 :                     if( EQUAL(pszKey, &quot;gs_access_key_id&quot;) )</span>
+<span class="lineNum">     281 </span><span class="lineCov">          1 :                         osAccessKeyId = CPLString(pszValue).Trim();</span>
+<span class="lineNum">     282 </span><span class="lineCov">          2 :                     else if( EQUAL(pszKey, &quot;gs_secret_access_key&quot;) )</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :                         osSecretAccessKey = CPLString(pszValue).Trim();</span>
+<span class="lineNum">     284 </span><span class="lineCov">          1 :                     else if( EQUAL(pszKey, &quot;gs_oauth2_refresh_token&quot;) )</span>
+<span class="lineNum">     285 </span><span class="lineCov">          1 :                         osOAuth2RefreshToken = CPLString(pszValue).Trim();</span>
+<span class="lineNum">     286 </span>            :                 }
+<span class="lineNum">     287 </span><span class="lineCov">          3 :                 CPLFree(pszKey);</span>
+<span class="lineNum">     288 </span>            :             }
+<span class="lineNum">     289 </span><span class="lineCov">          8 :             else if( bInOAuth2 )</span>
+<span class="lineNum">     290 </span>            :             {
+<span class="lineNum">     291 </span><span class="lineCov">          2 :                 char* pszKey = nullptr;</span>
+<span class="lineNum">     292 </span><span class="lineCov">          2 :                 const char* pszValue = CPLParseNameValue(pszLine, &amp;pszKey);</span>
+<span class="lineNum">     293 </span><span class="lineCov">          2 :                 if( pszKey &amp;&amp; pszValue )</span>
+<span class="lineNum">     294 </span>            :                 {
+<span class="lineNum">     295 </span><span class="lineCov">          2 :                     if( EQUAL(pszKey, &quot;client_id&quot;) )</span>
+<span class="lineNum">     296 </span><span class="lineCov">          1 :                         osOAuth2ClientId = CPLString(pszValue).Trim();</span>
+<span class="lineNum">     297 </span><span class="lineCov">          1 :                     else if( EQUAL(pszKey, &quot;client_secret&quot;) )</span>
+<span class="lineNum">     298 </span><span class="lineCov">          1 :                         osOAuth2ClientSecret = CPLString(pszValue).Trim();</span>
+<span class="lineNum">     299 </span>            :                 }
+<span class="lineNum">     300 </span><span class="lineCov">          2 :                 CPLFree(pszKey);</span>
+<span class="lineNum">     301 </span>            :             }
+<span class="lineNum">     302 </span>            :         }
+<span class="lineNum">     303 </span><span class="lineCov">          2 :         VSIFCloseL(fp);</span>
+<span class="lineNum">     304 </span>            :     }
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span><span class="lineCov">         21 :     return (!osAccessKeyId.empty() &amp;&amp; !osSecretAccessKey.empty()) ||</span>
+<span class="lineNum">     307 </span><span class="lineCov">         21 :             !osOAuth2RefreshToken.empty();</span>
+<span class="lineNum">     308 </span>            : }
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span>            : /************************************************************************/
+<span class="lineNum">     311 </span>            : /*                        GetConfiguration()                            */
+<a name="312"><span class="lineNum">     312 </span>            : /************************************************************************/</a>
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span><span class="lineCov">         42 : bool VSIGSHandleHelper::GetConfiguration(CSLConstList papszOptions,</span>
+<span class="lineNum">     315 </span>            :                                          CPLString&amp; osSecretAccessKey,
+<span class="lineNum">     316 </span>            :                                          CPLString&amp; osAccessKeyId,
+<span class="lineNum">     317 </span>            :                                          CPLString&amp; osHeaderFile,
+<span class="lineNum">     318 </span>            :                                          GOA2Manager&amp; oManager)
+<span class="lineNum">     319 </span>            : {
+<span class="lineNum">     320 </span><span class="lineCov">         42 :     osSecretAccessKey.clear();</span>
+<span class="lineNum">     321 </span><span class="lineCov">         42 :     osAccessKeyId.clear();</span>
+<span class="lineNum">     322 </span><span class="lineCov">         42 :     osHeaderFile.clear();</span>
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span><span class="lineCov">         84 :     osSecretAccessKey =</span>
+<span class="lineNum">     325 </span><span class="lineCov">         42 :         CPLGetConfigOption(&quot;GS_SECRET_ACCESS_KEY&quot;, &quot;&quot;);</span>
+<span class="lineNum">     326 </span><span class="lineCov">         42 :     if( !osSecretAccessKey.empty() )</span>
+<span class="lineNum">     327 </span>            :     {
+<span class="lineNum">     328 </span><span class="lineCov">         48 :         osAccessKeyId =</span>
+<span class="lineNum">     329 </span><span class="lineCov">         24 :             CPLGetConfigOption(&quot;GS_ACCESS_KEY_ID&quot;, &quot;&quot;);</span>
+<span class="lineNum">     330 </span><span class="lineCov">         24 :         if( osAccessKeyId.empty() )</span>
+<span class="lineNum">     331 </span>            :         {
+<span class="lineNum">     332 </span>            :             VSIError(VSIE_AWSInvalidCredentials,
+<span class="lineNum">     333 </span><span class="lineCov">          1 :                     &quot;GS_ACCESS_KEY_ID configuration option not defined&quot;);</span>
+<span class="lineNum">     334 </span><span class="lineCov">          1 :             bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     335 </span><span class="lineCov">          1 :             return false;</span>
+<span class="lineNum">     336 </span>            :         }
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span><span class="lineCov">         23 :         if( bFirstTimeForDebugMessage )</span>
+<span class="lineNum">     339 </span>            :         {
+<span class="lineNum">     340 </span>            :             CPLDebug(&quot;GS&quot;,
+<span class="lineNum">     341 </span>            :                      &quot;Using GS_SECRET_ACCESS_KEY and &quot;
+<span class="lineNum">     342 </span><span class="lineCov">          2 :                      &quot;GS_ACCESS_KEY_ID configuration options&quot;);</span>
+<span class="lineNum">     343 </span>            :         }
+<span class="lineNum">     344 </span><span class="lineCov">         23 :         bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     345 </span><span class="lineCov">         23 :         return true;</span>
+<span class="lineNum">     346 </span>            :     }
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span><span class="lineCov">         36 :     osHeaderFile =</span>
+<span class="lineNum">     349 </span><span class="lineCov">         18 :         CPLGetConfigOption(&quot;GDAL_HTTP_HEADER_FILE&quot;, &quot;&quot;);</span>
+<span class="lineNum">     350 </span><span class="lineCov">         18 :     bool bMayWarnDidNotFindAuth = false;</span>
+<span class="lineNum">     351 </span><span class="lineCov">         18 :     if( !osHeaderFile.empty() )</span>
+<span class="lineNum">     352 </span>            :     {
+<span class="lineNum">     353 </span><span class="lineCov">          2 :         bool bFoundAuth = false;</span>
+<span class="lineNum">     354 </span><span class="lineCov">          2 :         VSILFILE *fp = nullptr;</span>
+<span class="lineNum">     355 </span>            :         // Do not allow /vsicurl/ access from /vsicurl because of GetCurlHandleFor()
+<span class="lineNum">     356 </span>            :         // e.g. &quot;/vsicurl/,HEADER_FILE=/vsicurl/,url= &quot; would cause use of
+<span class="lineNum">     357 </span>            :         // memory after free
+<span class="lineNum">     358 </span><span class="lineCov">          6 :         if( strstr(osHeaderFile, &quot;/vsicurl/&quot;) == nullptr &amp;&amp;</span>
+<span class="lineNum">     359 </span><span class="lineCov">          4 :             strstr(osHeaderFile, &quot;/vsicurl?&quot;) == nullptr &amp;&amp;</span>
+<span class="lineNum">     360 </span><span class="lineCov">          4 :             strstr(osHeaderFile, &quot;/vsis3/&quot;) == nullptr &amp;&amp;</span>
+<span class="lineNum">     361 </span><span class="lineCov">          4 :             strstr(osHeaderFile, &quot;/vsigs/&quot;) == nullptr &amp;&amp;</span>
+<span class="lineNum">     362 </span><span class="lineCov">          4 :             strstr(osHeaderFile, &quot;/vsiaz/&quot;) == nullptr &amp;&amp;</span>
+<span class="lineNum">     363 </span><span class="lineCov">          6 :             strstr(osHeaderFile, &quot;/vsioss/&quot;) == nullptr &amp;&amp;</span>
+<span class="lineNum">     364 </span><span class="lineCov">          2 :             strstr(osHeaderFile, &quot;/vsiswift/&quot;) == nullptr )</span>
+<span class="lineNum">     365 </span>            :         {
+<span class="lineNum">     366 </span><span class="lineCov">          2 :             fp = VSIFOpenL( osHeaderFile, &quot;rb&quot; );</span>
+<span class="lineNum">     367 </span>            :         }
+<span class="lineNum">     368 </span><span class="lineCov">          2 :         if( fp == nullptr )</span>
+<span class="lineNum">     369 </span>            :         {
+<span class="lineNum">     370 </span>            :             CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     371 </span><span class="lineCov">          1 :                      &quot;Cannot read %s&quot;, osHeaderFile.c_str());</span>
+<span class="lineNum">     372 </span>            :         }
+<span class="lineNum">     373 </span>            :         else
+<span class="lineNum">     374 </span>            :         {
+<span class="lineNum">     375 </span><span class="lineCov">          1 :             const char* pszLine = nullptr;</span>
+<span class="lineNum">     376 </span><span class="lineCov">       1236 :             while( (pszLine = CPLReadLineL(fp)) != nullptr )</span>
+<span class="lineNum">     377 </span>            :             {
+<span class="lineNum">     378 </span><span class="lineCov">       1234 :                 if( STARTS_WITH_CI(pszLine, &quot;Authorization:&quot;) )</span>
+<span class="lineNum">     379 </span>            :                 {
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :                     bFoundAuth = true;</span>
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :                     break;</span>
+<span class="lineNum">     382 </span>            :                 }
+<span class="lineNum">     383 </span>            :             }
+<span class="lineNum">     384 </span><span class="lineCov">          1 :             VSIFCloseL(fp);</span>
+<span class="lineNum">     385 </span><span class="lineCov">          1 :             if( !bFoundAuth )</span>
+<span class="lineNum">     386 </span><span class="lineCov">          1 :                 bMayWarnDidNotFindAuth = true;</span>
+<span class="lineNum">     387 </span>            :         }
+<span class="lineNum">     388 </span><span class="lineCov">          2 :         if( bFoundAuth )</span>
+<span class="lineNum">     389 </span>            :         {
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :             if( bFirstTimeForDebugMessage )</span>
+<span class="lineNum">     391 </span>            :             {
+<span class="lineNum">     392 </span>            :                 CPLDebug(&quot;GS&quot;, &quot;Using GDAL_HTTP_HEADER_FILE=%s&quot;,
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :                         osHeaderFile.c_str());</span>
+<span class="lineNum">     394 </span>            :             }
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :             bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :             return true;</span>
+<span class="lineNum">     397 </span>            :         }
+<span class="lineNum">     398 </span>            :         else
+<span class="lineNum">     399 </span>            :         {
+<span class="lineNum">     400 </span><span class="lineCov">          2 :             osHeaderFile.clear();</span>
+<span class="lineNum">     401 </span>            :         }
+<span class="lineNum">     402 </span>            :     }
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            :     CPLString osRefreshToken( CPLGetConfigOption(&quot;GS_OAUTH2_REFRESH_TOKEN&quot;,
+<span class="lineNum">     405 </span><span class="lineCov">         18 :                                                  &quot;&quot;) );</span>
+<span class="lineNum">     406 </span><span class="lineCov">         18 :     if( !osRefreshToken.empty() )</span>
+<span class="lineNum">     407 </span>            :     {
+<span class="lineNum">     408 </span><span class="lineCov">          3 :         if( oStaticManager.GetAuthMethod() ==</span>
+<span class="lineNum">     409 </span>            :                                 GOA2Manager::ACCESS_TOKEN_FROM_REFRESH )
+<span class="lineNum">     410 </span>            :         {
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :             CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :             oManager = oStaticManager;</span>
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :             return true;</span>
+<span class="lineNum">     414 </span>            :         }
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span>            :         CPLString osClientId =
+<span class="lineNum">     417 </span><span class="lineCov">          3 :             CPLGetConfigOption(&quot;GS_OAUTH2_CLIENT_ID&quot;, &quot;&quot;);</span>
+<span class="lineNum">     418 </span>            :         CPLString osClientSecret =
+<span class="lineNum">     419 </span><span class="lineCov">          6 :             CPLGetConfigOption(&quot;GS_OAUTH2_CLIENT_SECRET&quot;, &quot;&quot;);</span>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span><span class="lineCov">          6 :         int nCount = (!osClientId.empty() ? 1 : 0) +</span>
+<span class="lineNum">     422 </span><span class="lineCov">          6 :                      (!osClientSecret.empty() ? 1 : 0);</span>
+<span class="lineNum">     423 </span><span class="lineCov">          3 :         if( nCount == 1 )</span>
+<span class="lineNum">     424 </span>            :         {
+<span class="lineNum">     425 </span>            :             CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     426 </span>            :                      &quot;Either both or none of GS_OAUTH2_CLIENT_ID and &quot;
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :                      &quot;GS_OAUTH2_CLIENT_SECRET must be set&quot;);</span>
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     429 </span>            :         }
+<span class="lineNum">     430 </span>            : 
+<span class="lineNum">     431 </span><span class="lineCov">          3 :         if( bFirstTimeForDebugMessage )</span>
+<span class="lineNum">     432 </span>            :         {
+<span class="lineNum">     433 </span>            :             CPLString osMsg(
+<span class="lineNum">     434 </span><span class="lineCov">          2 :                         &quot;Using GS_OAUTH2_REFRESH_TOKEN configuration option&quot;);</span>
+<span class="lineNum">     435 </span><span class="lineCov">          2 :             if( osClientId.empty() )</span>
+<span class="lineNum">     436 </span><span class="lineCov">          1 :                 osMsg += &quot; and GDAL default client_id/client_secret&quot;;</span>
+<span class="lineNum">     437 </span>            :             else
+<span class="lineNum">     438 </span><span class="lineCov">          1 :                 osMsg += &quot; and GS_OAUTH2_CLIENT_ID and GS_OAUTH2_CLIENT_SECRET&quot;;</span>
+<span class="lineNum">     439 </span><span class="lineCov">          2 :             CPLDebug(&quot;GS&quot;, &quot;%s&quot;, osMsg.c_str());</span>
+<span class="lineNum">     440 </span>            :         }
+<span class="lineNum">     441 </span><span class="lineCov">          3 :         bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span>            :         return oManager.SetAuthFromRefreshToken(
+<span class="lineNum">     444 </span><span class="lineCov">          6 :             osRefreshToken, osClientId, osClientSecret, nullptr);</span>
+<span class="lineNum">     445 </span>            :     }
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            :     CPLString osServiceAccountJson( CSLFetchNameValueDef(papszOptions,
+<span class="lineNum">     448 </span>            :         &quot;GOOGLE_APPLICATION_CREDENTIALS&quot;,
+<span class="lineNum">     449 </span><span class="lineCov">         30 :         CPLGetConfigOption(&quot;GOOGLE_APPLICATION_CREDENTIALS&quot;, &quot;&quot;)));</span>
+<span class="lineNum">     450 </span><span class="lineCov">         15 :     if( !osServiceAccountJson.empty() )</span>
+<span class="lineNum">     451 </span>            :     {
+<span class="lineNum">     452 </span><span class="lineCov">          2 :         CPLJSONDocument oDoc;</span>
+<span class="lineNum">     453 </span><span class="lineCov">          2 :         if( !oDoc.Load(osServiceAccountJson) )</span>
+<span class="lineNum">     454 </span>            :         {
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     456 </span>            :         }
+<span class="lineNum">     457 </span><span class="lineCov">          4 :         CPLString osPrivateKey = oDoc.GetRoot().GetString(&quot;private_key&quot;);</span>
+<span class="lineNum">     458 </span><span class="lineCov">          2 :         osPrivateKey.replaceAll(&quot;\\n&quot;, &quot;\n&quot;);</span>
+<span class="lineNum">     459 </span><span class="lineCov">          4 :         CPLString osClientEmail = oDoc.GetRoot().GetString(&quot;client_email&quot;);</span>
+<span class="lineNum">     460 </span>            :         const char* pszScope =
+<span class="lineNum">     461 </span>            :             CSLFetchNameValueDef( papszOptions, &quot;GS_OAUTH2_SCOPE&quot;,
+<span class="lineNum">     462 </span>            :             CPLGetConfigOption(&quot;GS_OAUTH2_SCOPE&quot;,
+<span class="lineNum">     463 </span><span class="lineCov">          2 :                 &quot;https://www.googleapis.com/auth/devstorage.read_write&quot;));</span>
+<span class="lineNum">     464 </span>            : 
+<span class="lineNum">     465 </span>            :         return oManager.SetAuthFromServiceAccount(
+<span class="lineNum">     466 </span>            :                 osPrivateKey,
+<span class="lineNum">     467 </span>            :                 osClientEmail,
+<span class="lineNum">     468 </span>            :                 pszScope,
+<span class="lineNum">     469 </span>            :                 nullptr,
+<span class="lineNum">     470 </span><span class="lineCov">          4 :                 nullptr);</span>
+<span class="lineNum">     471 </span>            :     }
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span>            :     CPLString osPrivateKey = CSLFetchNameValueDef(papszOptions,
+<span class="lineNum">     474 </span>            :         &quot;GS_OAUTH2_PRIVATE_KEY&quot;,
+<span class="lineNum">     475 </span><span class="lineCov">         26 :         CPLGetConfigOption(&quot;GS_OAUTH2_PRIVATE_KEY&quot;, &quot;&quot;));</span>
+<span class="lineNum">     476 </span>            :     CPLString osPrivateKeyFile = CSLFetchNameValueDef(papszOptions,
+<span class="lineNum">     477 </span>            :         &quot;GS_OAUTH2_PRIVATE_KEY_FILE&quot;,
+<span class="lineNum">     478 </span><span class="lineCov">         26 :         CPLGetConfigOption(&quot;GS_OAUTH2_PRIVATE_KEY_FILE&quot;, &quot;&quot;));</span>
+<span class="lineNum">     479 </span><span class="lineCov">         13 :     if( !osPrivateKey.empty() || !osPrivateKeyFile.empty() )</span>
+<span class="lineNum">     480 </span>            :     {
+<span class="lineNum">     481 </span><span class="lineCov">          2 :         if( !osPrivateKeyFile.empty() )</span>
+<span class="lineNum">     482 </span>            :         {
+<span class="lineNum">     483 </span><span class="lineCov">          1 :             VSILFILE* fp = VSIFOpenL(osPrivateKeyFile, &quot;rb&quot;);</span>
+<span class="lineNum">     484 </span><span class="lineCov">          1 :             if( fp == nullptr )</span>
+<span class="lineNum">     485 </span>            :             {
+<span class="lineNum">     486 </span>            :                 CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :                         &quot;Cannot open %s&quot;, osPrivateKeyFile.c_str());</span>
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :                 bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     489 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     490 </span>            :             }
+<span class="lineNum">     491 </span>            :             else
+<span class="lineNum">     492 </span>            :             {
+<span class="lineNum">     493 </span><span class="lineCov">          1 :                 char* pabyBuffer = static_cast&lt;char*&gt;(CPLMalloc(32768));</span>
+<span class="lineNum">     494 </span><span class="lineCov">          1 :                 size_t nRead = VSIFReadL(pabyBuffer, 1, 32768, fp);</span>
+<span class="lineNum">     495 </span><span class="lineCov">          1 :                 osPrivateKey.assign(pabyBuffer, nRead);</span>
+<span class="lineNum">     496 </span><span class="lineCov">          1 :                 VSIFCloseL(fp);</span>
+<span class="lineNum">     497 </span><span class="lineCov">          1 :                 CPLFree(pabyBuffer);</span>
+<span class="lineNum">     498 </span>            :             }
+<span class="lineNum">     499 </span>            :         }
+<span class="lineNum">     500 </span><span class="lineCov">          2 :         osPrivateKey.replaceAll(&quot;\\n&quot;, &quot;\n&quot;);</span>
+<span class="lineNum">     501 </span>            : 
+<span class="lineNum">     502 </span>            :         CPLString osClientEmail = CSLFetchNameValueDef(papszOptions,
+<span class="lineNum">     503 </span>            :             &quot;GS_OAUTH2_CLIENT_EMAIL&quot;,
+<span class="lineNum">     504 </span><span class="lineCov">          2 :             CPLGetConfigOption(&quot;GS_OAUTH2_CLIENT_EMAIL&quot;, &quot;&quot;));</span>
+<span class="lineNum">     505 </span><span class="lineCov">          2 :         if( osClientEmail.empty() )</span>
+<span class="lineNum">     506 </span>            :         {
+<span class="lineNum">     507 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :                      &quot;GS_OAUTH2_CLIENT_EMAIL not defined&quot;);</span>
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :             bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     511 </span>            :         }
+<span class="lineNum">     512 </span>            :         const char* pszScope =
+<span class="lineNum">     513 </span>            :             CSLFetchNameValueDef( papszOptions, &quot;GS_OAUTH2_SCOPE&quot;,
+<span class="lineNum">     514 </span>            :             CPLGetConfigOption(&quot;GS_OAUTH2_SCOPE&quot;,
+<span class="lineNum">     515 </span><span class="lineCov">          2 :                 &quot;https://www.googleapis.com/auth/devstorage.read_write&quot;));</span>
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span><span class="lineCov">          2 :         if( bFirstTimeForDebugMessage )</span>
+<span class="lineNum">     518 </span>            :         {
+<span class="lineNum">     519 </span>            :             CPLDebug(&quot;GS&quot;,
+<span class="lineNum">     520 </span>            :                      &quot;Using %s, GS_OAUTH2_CLIENT_EMAIL and GS_OAUTH2_SCOPE=%s &quot;
+<span class="lineNum">     521 </span>            :                      &quot;configuration options&quot;,
+<span class="lineNum">     522 </span><span class="lineCov">          2 :                      !osPrivateKeyFile.empty() ?</span>
+<span class="lineNum">     523 </span>            :                         &quot;GS_OAUTH2_PRIVATE_KEY_FILE&quot; : &quot;GS_OAUTH2_PRIVATE_KEY&quot;,
+<span class="lineNum">     524 </span><span class="lineCov">          2 :                      pszScope);</span>
+<span class="lineNum">     525 </span>            :         }
+<span class="lineNum">     526 </span><span class="lineCov">          2 :         bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     527 </span>            : 
+<span class="lineNum">     528 </span>            :         return oManager.SetAuthFromServiceAccount(
+<span class="lineNum">     529 </span>            :                 osPrivateKey,
+<span class="lineNum">     530 </span>            :                 osClientEmail,
+<span class="lineNum">     531 </span>            :                 pszScope,
+<span class="lineNum">     532 </span>            :                 nullptr,
+<span class="lineNum">     533 </span><span class="lineCov">          2 :                 nullptr);</span>
+<span class="lineNum">     534 </span>            :     }
+<span class="lineNum">     535 </span>            : 
+<span class="lineNum">     536 </span>            :     // Next try reading from ~/.boto
+<span class="lineNum">     537 </span><span class="lineCov">         22 :     CPLString osCredentials;</span>
+<span class="lineNum">     538 </span><span class="lineCov">         22 :     CPLString osOAuth2RefreshToken;</span>
+<span class="lineNum">     539 </span><span class="lineCov">         22 :     CPLString osOAuth2ClientId;</span>
+<span class="lineNum">     540 </span><span class="lineCov">         22 :     CPLString osOAuth2ClientSecret;</span>
+<span class="lineNum">     541 </span><span class="lineCov">         11 :     if( GetConfigurationFromConfigFile(osSecretAccessKey,</span>
+<span class="lineNum">     542 </span>            :                                        osAccessKeyId,
+<span class="lineNum">     543 </span>            :                                        osOAuth2RefreshToken,
+<span class="lineNum">     544 </span>            :                                        osOAuth2ClientId,
+<span class="lineNum">     545 </span>            :                                        osOAuth2ClientSecret,
+<span class="lineNum">     546 </span>            :                                        osCredentials) )
+<span class="lineNum">     547 </span>            :     {
+<span class="lineNum">     548 </span><span class="lineCov">          2 :         if( !osOAuth2RefreshToken.empty() )</span>
+<span class="lineNum">     549 </span>            :         {
+<span class="lineNum">     550 </span><span class="lineCov">          1 :             if( oStaticManager.GetAuthMethod() ==</span>
+<span class="lineNum">     551 </span>            :                                     GOA2Manager::ACCESS_TOKEN_FROM_REFRESH )
+<span class="lineNum">     552 </span>            :             {
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :                 CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :                 oManager = oStaticManager;</span>
+<span class="lineNum">     555 </span><span class="lineNoCov">          0 :                 return true;</span>
+<span class="lineNum">     556 </span>            :             }
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span>            :             CPLString osClientId =
+<span class="lineNum">     559 </span><span class="lineCov">          1 :                 CPLGetConfigOption(&quot;GS_OAUTH2_CLIENT_ID&quot;, &quot;&quot;);</span>
+<span class="lineNum">     560 </span>            :             CPLString osClientSecret =
+<span class="lineNum">     561 </span><span class="lineCov">          2 :                 CPLGetConfigOption(&quot;GS_OAUTH2_CLIENT_SECRET&quot;, &quot;&quot;);</span>
+<span class="lineNum">     562 </span><span class="lineCov">          1 :             bool bClientInfoFromEnv = false;</span>
+<span class="lineNum">     563 </span><span class="lineCov">          1 :             bool bClientInfoFromFile = false;</span>
+<span class="lineNum">     564 </span>            : 
+<span class="lineNum">     565 </span><span class="lineCov">          2 :             int nCount = (!osClientId.empty() ? 1 : 0) +</span>
+<span class="lineNum">     566 </span><span class="lineCov">          2 :                          (!osClientSecret.empty() ? 1 : 0);</span>
+<span class="lineNum">     567 </span><span class="lineCov">          1 :             if( nCount == 1 )</span>
+<span class="lineNum">     568 </span>            :             {
+<span class="lineNum">     569 </span>            :                 CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     570 </span>            :                         &quot;Either both or none of GS_OAUTH2_CLIENT_ID and &quot;
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :                         &quot;GS_OAUTH2_CLIENT_SECRET must be set&quot;);</span>
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     573 </span>            :             }
+<span class="lineNum">     574 </span><span class="lineCov">          1 :             else if( nCount == 2)</span>
+<span class="lineNum">     575 </span>            :             {
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :                 bClientInfoFromEnv = true;</span>
+<span class="lineNum">     577 </span>            :             }
+<span class="lineNum">     578 </span><span class="lineCov">          1 :             else if( nCount == 0 )</span>
+<span class="lineNum">     579 </span>            :             {
+<span class="lineNum">     580 </span><span class="lineCov">          2 :                 nCount = (!osOAuth2ClientId.empty() ? 1 : 0) +</span>
+<span class="lineNum">     581 </span><span class="lineCov">          2 :                          (!osOAuth2ClientSecret.empty() ? 1 : 0);</span>
+<span class="lineNum">     582 </span><span class="lineCov">          1 :                 if( nCount == 1 )</span>
+<span class="lineNum">     583 </span>            :                 {
+<span class="lineNum">     584 </span>            :                     CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     585 </span>            :                             &quot;Either both or none of client_id and &quot;
+<span class="lineNum">     586 </span>            :                             &quot;client_secret from %s must be set&quot;,
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :                             osCredentials.c_str());</span>
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :                     return false;</span>
+<span class="lineNum">     589 </span>            :                 }
+<span class="lineNum">     590 </span><span class="lineCov">          1 :                 else if( nCount == 2)</span>
+<span class="lineNum">     591 </span>            :                 {
+<span class="lineNum">     592 </span><span class="lineCov">          1 :                     osClientId = osOAuth2ClientId;</span>
+<span class="lineNum">     593 </span><span class="lineCov">          1 :                     osClientSecret = osOAuth2ClientSecret;</span>
+<span class="lineNum">     594 </span><span class="lineCov">          1 :                     bClientInfoFromFile = true;</span>
+<span class="lineNum">     595 </span>            :                 }
+<span class="lineNum">     596 </span>            :             }
+<span class="lineNum">     597 </span>            : 
+<span class="lineNum">     598 </span><span class="lineCov">          1 :             if( bFirstTimeForDebugMessage )</span>
+<span class="lineNum">     599 </span>            :             {
+<span class="lineNum">     600 </span><span class="lineCov">          1 :                 CPLString osMsg;</span>
+<span class="lineNum">     601 </span>            :                 osMsg.Printf(&quot;Using gs_oauth2_refresh_token from %s&quot;,
+<span class="lineNum">     602 </span><span class="lineCov">          1 :                              osCredentials.c_str());</span>
+<span class="lineNum">     603 </span><span class="lineCov">          1 :                 if( bClientInfoFromEnv )</span>
+<span class="lineNum">     604 </span>            :                     osMsg += &quot; and GS_OAUTH2_CLIENT_ID and &quot;
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :                              &quot;GS_OAUTH2_CLIENT_SECRET configuration options&quot;;</span>
+<span class="lineNum">     606 </span><span class="lineCov">          1 :                 else if( bClientInfoFromFile )</span>
+<span class="lineNum">     607 </span><span class="lineCov">          1 :                     osMsg += CPLSPrintf(&quot; and client_id and client_secret from %s&quot;,</span>
+<span class="lineNum">     608 </span><span class="lineCov">          1 :                                         osCredentials.c_str());</span>
+<span class="lineNum">     609 </span>            :                 else
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :                     osMsg += &quot; and GDAL default client_id/client_secret&quot;;</span>
+<span class="lineNum">     611 </span><span class="lineCov">          1 :                 CPLDebug(&quot;GS&quot;, &quot;%s&quot;, osMsg.c_str());</span>
+<span class="lineNum">     612 </span>            :             }
+<span class="lineNum">     613 </span><span class="lineCov">          1 :             bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     614 </span>            :             return oManager.SetAuthFromRefreshToken(
+<span class="lineNum">     615 </span>            :                 osOAuth2RefreshToken.c_str(), osClientId, osClientSecret,
+<span class="lineNum">     616 </span><span class="lineCov">          2 :                 nullptr);</span>
+<span class="lineNum">     617 </span>            :         }
+<span class="lineNum">     618 </span>            :         else
+<span class="lineNum">     619 </span>            :         {
+<span class="lineNum">     620 </span><span class="lineCov">          1 :             if( bFirstTimeForDebugMessage )</span>
+<span class="lineNum">     621 </span>            :             {
+<span class="lineNum">     622 </span>            :                 CPLDebug(&quot;GS&quot;,
+<span class="lineNum">     623 </span>            :                         &quot;Using gs_access_key_id and gs_secret_access_key from %s&quot;,
+<span class="lineNum">     624 </span><span class="lineCov">          1 :                         osCredentials.c_str());</span>
+<span class="lineNum">     625 </span>            :             }
+<span class="lineNum">     626 </span><span class="lineCov">          1 :             bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     627 </span><span class="lineCov">          1 :             return true;</span>
+<span class="lineNum">     628 </span>            :         }
+<span class="lineNum">     629 </span>            :     }
+<span class="lineNum">     630 </span>            : 
+<span class="lineNum">     631 </span><span class="lineCov">          9 :     if( oStaticManager.GetAuthMethod() == GOA2Manager::GCE )</span>
+<span class="lineNum">     632 </span>            :     {
+<span class="lineNum">     633 </span><span class="lineCov">          2 :         CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     634 </span><span class="lineCov">          2 :         oManager = oStaticManager;</span>
+<span class="lineNum">     635 </span><span class="lineCov">          2 :         return true;</span>
+<span class="lineNum">     636 </span>            :     }
+<span class="lineNum">     637 </span>            :     // Some Travis-CI workers are GCE machines, and for some tests, we don't
+<span class="lineNum">     638 </span>            :     // want this code path to be taken. And on AppVeyor/Window, we would also
+<span class="lineNum">     639 </span>            :     // attempt a network access
+<span class="lineNum">     640 </span><span class="lineCov">          9 :     else if( !CPLTestBool(CPLGetConfigOption(&quot;CPL_GCE_SKIP&quot;, &quot;NO&quot;)) &amp;&amp;</span>
+<span class="lineNum">     641 </span><span class="lineCov">          2 :              CPLIsMachinePotentiallyGCEInstance() )</span>
+<span class="lineNum">     642 </span>            :     {
+<span class="lineNum">     643 </span><span class="lineCov">          2 :         oManager.SetAuthFromGCE(nullptr);</span>
+<span class="lineNum">     644 </span><span class="lineCov">          2 :         if( oManager.GetBearer() != nullptr )</span>
+<span class="lineNum">     645 </span>            :         {
+<span class="lineNum">     646 </span><span class="lineCov">          2 :             CPLDebug(&quot;GS&quot;, &quot;Using GCE inherited permissions&quot;);</span>
+<span class="lineNum">     647 </span>            : 
+<span class="lineNum">     648 </span>            :             {
+<span class="lineNum">     649 </span><span class="lineCov">          2 :                 CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     650 </span><span class="lineCov">          2 :                 oStaticManager = oManager;</span>
+<span class="lineNum">     651 </span>            :             }
+<span class="lineNum">     652 </span>            : 
+<span class="lineNum">     653 </span><span class="lineCov">          2 :             bFirstTimeForDebugMessage = false;</span>
+<span class="lineNum">     654 </span><span class="lineCov">          2 :             return true;</span>
+<span class="lineNum">     655 </span>            :         }
+<span class="lineNum">     656 </span>            :     }
+<span class="lineNum">     657 </span>            : 
+<span class="lineNum">     658 </span><span class="lineCov">          5 :     if( bMayWarnDidNotFindAuth )</span>
+<span class="lineNum">     659 </span>            :     {
+<span class="lineNum">     660 </span>            :         CPLDebug(&quot;GS&quot;, &quot;Cannot find Authorization header in %s&quot;,
+<span class="lineNum">     661 </span><span class="lineCov">          1 :                  CPLGetConfigOption(&quot;GDAL_HTTP_HEADER_FILE&quot;, &quot;&quot;));</span>
+<span class="lineNum">     662 </span>            :     }
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span><span class="lineCov">         10 :     CPLString osMsg;</span>
+<span class="lineNum">     665 </span>            :     osMsg.Printf(&quot;GS_SECRET_ACCESS_KEY+GS_ACCESS_KEY_ID, &quot;
+<span class="lineNum">     666 </span>            :                  &quot;GS_OAUTH2_REFRESH_TOKEN or &quot;
+<span class="lineNum">     667 </span>            :                  &quot;GOOGLE_APPLICATION_CREDENTIALS or &quot;
+<span class="lineNum">     668 </span>            :                  &quot;GS_OAUTH2_PRIVATE_KEY+GS_OAUTH2_CLIENT_EMAIL configuration &quot;
+<span class="lineNum">     669 </span>            :                  &quot;options and %s not defined&quot;,
+<span class="lineNum">     670 </span><span class="lineCov">          5 :                  osCredentials.c_str());</span>
+<span class="lineNum">     671 </span>            : 
+<span class="lineNum">     672 </span><span class="lineCov">          5 :     CPLDebug(&quot;GS&quot;, &quot;%s&quot;, osMsg.c_str());</span>
+<span class="lineNum">     673 </span><span class="lineCov">          5 :     VSIError(VSIE_AWSInvalidCredentials, &quot;%s&quot;, osMsg.c_str());</span>
+<span class="lineNum">     674 </span><span class="lineCov">         23 :     return false;</span>
+<span class="lineNum">     675 </span>            : }
+<span class="lineNum">     676 </span>            : 
+<span class="lineNum">     677 </span>            : 
+<span class="lineNum">     678 </span>            : /************************************************************************/
+<span class="lineNum">     679 </span>            : /*                          BuildFromURI()                              */
+<a name="680"><span class="lineNum">     680 </span>            : /************************************************************************/</a>
+<span class="lineNum">     681 </span>            : 
+<span class="lineNum">     682 </span><span class="lineCov">         42 : VSIGSHandleHelper* VSIGSHandleHelper::BuildFromURI( const char* pszURI,</span>
+<span class="lineNum">     683 </span>            :                                                     const char* /*pszFSPrefix*/,
+<span class="lineNum">     684 </span>            :                                                     CSLConstList papszOptions )
+<span class="lineNum">     685 </span>            : {
+<span class="lineNum">     686 </span>            :     // pszURI == bucket/object
+<span class="lineNum">     687 </span><span class="lineCov">         42 :     const CPLString osBucketObject( pszURI );</span>
+<span class="lineNum">     688 </span>            :     const CPLString osEndpoint( CPLGetConfigOption(&quot;CPL_GS_ENDPOINT&quot;,
+<span class="lineNum">     689 </span><span class="lineCov">         84 :                                     &quot;https://storage.googleapis.com/&quot;) );</span>
+<span class="lineNum">     690 </span>            : 
+<span class="lineNum">     691 </span><span class="lineCov">         84 :     CPLString osSecretAccessKey;</span>
+<span class="lineNum">     692 </span><span class="lineCov">         84 :     CPLString osAccessKeyId;</span>
+<span class="lineNum">     693 </span><span class="lineCov">         84 :     CPLString osHeaderFile;</span>
+<span class="lineNum">     694 </span><span class="lineCov">         84 :     GOA2Manager oManager;</span>
+<span class="lineNum">     695 </span>            : 
+<span class="lineNum">     696 </span><span class="lineCov">         42 :     if( !GetConfiguration(papszOptions,</span>
+<span class="lineNum">     697 </span>            :                           osSecretAccessKey, osAccessKeyId, osHeaderFile,
+<span class="lineNum">     698 </span><span class="lineCov">         42 :                           oManager) )</span>
+<span class="lineNum">     699 </span>            :     {
+<span class="lineNum">     700 </span><span class="lineCov">          6 :         return nullptr;</span>
+<span class="lineNum">     701 </span>            :     }
+<span class="lineNum">     702 </span>            : 
+<span class="lineNum">     703 </span>            :     return new VSIGSHandleHelper( osEndpoint,
+<span class="lineNum">     704 </span>            :                                   osBucketObject,
+<span class="lineNum">     705 </span>            :                                   osSecretAccessKey,
+<span class="lineNum">     706 </span>            :                                   osAccessKeyId,
+<span class="lineNum">     707 </span><span class="lineCov">         36 :                                   !osHeaderFile.empty(),</span>
+<span class="lineNum">     708 </span><span class="lineCov">         78 :                                   oManager );</span>
+<span class="lineNum">     709 </span>            : }
+<span class="lineNum">     710 </span>            : 
+<span class="lineNum">     711 </span>            : /************************************************************************/
+<span class="lineNum">     712 </span>            : /*                           RebuildURL()                               */
+<a name="713"><span class="lineNum">     713 </span>            : /************************************************************************/</a>
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span><span class="lineCov">         18 : void VSIGSHandleHelper::RebuildURL()</span>
+<span class="lineNum">     716 </span>            : {
+<span class="lineNum">     717 </span><span class="lineCov">         18 :     m_osURL = m_osEndpoint + CPLAWSURLEncode(m_osBucketObjectKey, false);</span>
+<span class="lineNum">     718 </span><span class="lineCov">         35 :     if( !m_osBucketObjectKey.empty() &amp;&amp;</span>
+<span class="lineNum">     719 </span><span class="lineCov">         17 :         m_osBucketObjectKey.find('/') == std::string::npos )</span>
+<span class="lineNum">     720 </span><span class="lineCov">          9 :         m_osURL += &quot;/&quot;;</span>
+<span class="lineNum">     721 </span><span class="lineCov">         18 :     m_osURL += GetQueryString(false);</span>
+<span class="lineNum">     722 </span><span class="lineCov">         18 : }</span>
+<span class="lineNum">     723 </span>            : 
+<span class="lineNum">     724 </span>            : /************************************************************************/
+<span class="lineNum">     725 </span>            : /*                           GetCurlHeaders()                           */
+<span class="lineNum">     726 </span>            : /************************************************************************/
+<a name="727"><span class="lineNum">     727 </span>            : </a>
+<span class="lineNum">     728 </span>            : struct curl_slist *
+<span class="lineNum">     729 </span><span class="lineCov">         26 : VSIGSHandleHelper::GetCurlHeaders( const CPLString&amp; osVerb,</span>
+<span class="lineNum">     730 </span>            :                                    const struct curl_slist* psExistingHeaders,
+<span class="lineNum">     731 </span>            :                                    const void *,
+<span class="lineNum">     732 </span>            :                                    size_t ) const
+<span class="lineNum">     733 </span>            : {
+<span class="lineNum">     734 </span><span class="lineCov">         26 :     if( m_bUseHeaderFile )</span>
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     736 </span>            : 
+<span class="lineNum">     737 </span><span class="lineCov">         26 :     if( m_oManager.GetAuthMethod() != GOA2Manager::NONE )</span>
+<span class="lineNum">     738 </span>            :     {
+<span class="lineNum">     739 </span><span class="lineCov">          9 :         const char* pszBearer = m_oManager.GetBearer();</span>
+<span class="lineNum">     740 </span><span class="lineCov">          9 :         if( pszBearer == nullptr )</span>
+<span class="lineNum">     741 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span>            :         {
+<span class="lineNum">     744 </span><span class="lineCov">          9 :             CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     745 </span><span class="lineCov">          9 :             oStaticManager = m_oManager;</span>
+<span class="lineNum">     746 </span>            :         }
+<span class="lineNum">     747 </span>            : 
+<span class="lineNum">     748 </span><span class="lineCov">          9 :         struct curl_slist *headers=nullptr;</span>
+<span class="lineNum">     749 </span>            :         headers = curl_slist_append(
+<span class="lineNum">     750 </span><span class="lineCov">          9 :             headers, CPLSPrintf(&quot;Authorization: Bearer %s&quot;, pszBearer));</span>
+<span class="lineNum">     751 </span><span class="lineCov">          9 :         return headers;</span>
+<span class="lineNum">     752 </span>            :     }
+<span class="lineNum">     753 </span>            : 
+<span class="lineNum">     754 </span><span class="lineCov">         17 :     CPLString osCanonicalResource(&quot;/&quot; + CPLAWSURLEncode(m_osBucketObjectKey, false));</span>
+<span class="lineNum">     755 </span><span class="lineCov">         33 :     if( !m_osBucketObjectKey.empty() &amp;&amp;</span>
+<span class="lineNum">     756 </span><span class="lineCov">         16 :         m_osBucketObjectKey.find('/') == std::string::npos )</span>
+<span class="lineNum">     757 </span><span class="lineCov">          3 :         osCanonicalResource += &quot;/&quot;;</span>
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span>            :     return GetGSHeaders( osVerb,
+<span class="lineNum">     760 </span>            :                          psExistingHeaders,
+<span class="lineNum">     761 </span>            :                          osCanonicalResource,
+<span class="lineNum">     762 </span>            :                          m_osSecretAccessKey,
+<span class="lineNum">     763 </span><span class="lineCov">         17 :                          m_osAccessKeyId );</span>
+<span class="lineNum">     764 </span>            : }
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span>            : /************************************************************************/
+<span class="lineNum">     767 </span>            : /*                          CleanMutex()                                */
+<a name="768"><span class="lineNum">     768 </span>            : /************************************************************************/</a>
+<span class="lineNum">     769 </span>            : 
+<span class="lineNum">     770 </span><span class="lineCov">        719 : void VSIGSHandleHelper::CleanMutex()</span>
+<span class="lineNum">     771 </span>            : {
+<span class="lineNum">     772 </span><span class="lineCov">        719 :     if( hMutex != nullptr )</span>
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :         CPLDestroyMutex( hMutex );</span>
+<span class="lineNum">     774 </span><span class="lineCov">        719 :     hMutex = nullptr;</span>
+<span class="lineNum">     775 </span><span class="lineCov">        719 : }</span>
+<span class="lineNum">     776 </span>            : /************************************************************************/
+<span class="lineNum">     777 </span>            : /*                          ClearCache()                                */
+<a name="778"><span class="lineNum">     778 </span>            : /************************************************************************/</a>
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span><span class="lineCov">         78 : void VSIGSHandleHelper::ClearCache()</span>
+<span class="lineNum">     781 </span>            : {
+<span class="lineNum">     782 </span><span class="lineCov">         78 :     CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     783 </span>            : 
+<span class="lineNum">     784 </span><span class="lineCov">         78 :     oStaticManager = GOA2Manager();</span>
+<span class="lineNum">     785 </span><span class="lineCov">         78 :     bFirstTimeForDebugMessage = true;</span>
+<span class="lineNum">     786 </span><span class="lineCov">         78 : }</span>
+<span class="lineNum">     787 </span>            : 
+<span class="lineNum">     788 </span>            : /************************************************************************/
+<span class="lineNum">     789 </span>            : /*                           GetSignedURL()                             */
+<a name="790"><span class="lineNum">     790 </span>            : /************************************************************************/</a>
+<span class="lineNum">     791 </span>            : 
+<span class="lineNum">     792 </span><span class="lineCov">          4 : CPLString VSIGSHandleHelper::GetSignedURL(CSLConstList papszOptions)</span>
+<span class="lineNum">     793 </span>            : {
+<span class="lineNum">     794 </span><span class="lineCov">          9 :     if( !((!m_osAccessKeyId.empty() &amp;&amp; !m_osSecretAccessKey.empty()) ||</span>
+<span class="lineNum">     795 </span><span class="lineCov">          7 :           m_oManager.GetAuthMethod() == GOA2Manager::SERVICE_ACCOUNT) )</span>
+<span class="lineNum">     796 </span>            :     {
+<span class="lineNum">     797 </span>            :         CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     798 </span>            :                  &quot;Signed URL for Google Cloud Storage is only available with &quot;
+<span class="lineNum">     799 </span>            :                  &quot;AWS style authentication with GS_ACCESS_KEY_ID+GS_SECRET_ACCESS_KEY, &quot;
+<span class="lineNum">     800 </span><span class="lineCov">          2 :                  &quot;or with service account authentication&quot;);</span>
+<span class="lineNum">     801 </span><span class="lineCov">          2 :         return CPLString();</span>
+<span class="lineNum">     802 </span>            :     }
+<span class="lineNum">     803 </span>            : 
+<span class="lineNum">     804 </span><span class="lineCov">          2 :     GIntBig nStartDate = static_cast&lt;GIntBig&gt;(time(nullptr));</span>
+<span class="lineNum">     805 </span><span class="lineCov">          2 :     const char* pszStartDate = CSLFetchNameValue(papszOptions, &quot;START_DATE&quot;);</span>
+<span class="lineNum">     806 </span><span class="lineCov">          2 :     if( pszStartDate )</span>
+<span class="lineNum">     807 </span>            :     {
+<span class="lineNum">     808 </span>            :         int nYear, nMonth, nDay, nHour, nMin, nSec;
+<span class="lineNum">     809 </span><span class="lineCov">          2 :         if( sscanf(pszStartDate, &quot;%04d%02d%02dT%02d%02d%02dZ&quot;,</span>
+<span class="lineNum">     810 </span><span class="lineCov">          2 :                    &amp;nYear, &amp;nMonth, &amp;nDay, &amp;nHour, &amp;nMin, &amp;nSec) == 6 )</span>
+<span class="lineNum">     811 </span>            :         {
+<span class="lineNum">     812 </span>            :             struct tm brokendowntime;
+<span class="lineNum">     813 </span><span class="lineCov">          2 :             brokendowntime.tm_year = nYear - 1900;</span>
+<span class="lineNum">     814 </span><span class="lineCov">          2 :             brokendowntime.tm_mon = nMonth - 1;</span>
+<span class="lineNum">     815 </span><span class="lineCov">          2 :             brokendowntime.tm_mday = nDay;</span>
+<span class="lineNum">     816 </span><span class="lineCov">          2 :             brokendowntime.tm_hour = nHour;</span>
+<span class="lineNum">     817 </span><span class="lineCov">          2 :             brokendowntime.tm_min = nMin;</span>
+<span class="lineNum">     818 </span><span class="lineCov">          2 :             brokendowntime.tm_sec = nSec;</span>
+<span class="lineNum">     819 </span><span class="lineCov">          2 :             nStartDate = CPLYMDHMSToUnixTime(&amp;brokendowntime);</span>
+<span class="lineNum">     820 </span>            :         }
+<span class="lineNum">     821 </span>            :     }
+<span class="lineNum">     822 </span><span class="lineCov">          2 :     GIntBig nExpiresIn = nStartDate + atoi(</span>
+<span class="lineNum">     823 </span><span class="lineCov">          4 :         CSLFetchNameValueDef(papszOptions, &quot;EXPIRATION_DELAY&quot;, &quot;3600&quot;));</span>
+<span class="lineNum">     824 </span>            :     CPLString osExpires(CSLFetchNameValueDef(papszOptions, &quot;EXPIRES&quot;,
+<span class="lineNum">     825 </span><span class="lineCov">          2 :                                     CPLSPrintf(CPL_FRMT_GIB, nExpiresIn)));</span>
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span><span class="lineCov">          4 :     CPLString osVerb(CSLFetchNameValueDef(papszOptions, &quot;VERB&quot;, &quot;GET&quot;));</span>
+<span class="lineNum">     828 </span>            : 
+<span class="lineNum">     829 </span><span class="lineCov">          4 :     CPLString osCanonicalizedResource(&quot;/&quot; + CPLAWSURLEncode(m_osBucketObjectKey, false));</span>
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span><span class="lineCov">          4 :     CPLString osStringToSign;</span>
+<span class="lineNum">     832 </span><span class="lineCov">          2 :     osStringToSign += osVerb + &quot;\n&quot;;</span>
+<span class="lineNum">     833 </span><span class="lineCov">          2 :     osStringToSign += &quot;\n&quot;; // Content_MD5</span>
+<span class="lineNum">     834 </span><span class="lineCov">          2 :     osStringToSign += &quot;\n&quot;; // Content_Type</span>
+<span class="lineNum">     835 </span><span class="lineCov">          2 :     osStringToSign += osExpires + &quot;\n&quot;;</span>
+<span class="lineNum">     836 </span>            :     // osStringToSign += // Canonicalized_Extension_Headers
+<span class="lineNum">     837 </span><span class="lineCov">          2 :     osStringToSign += osCanonicalizedResource;</span>
+<span class="lineNum">     838 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     839 </span>            :     CPLDebug(&quot;GS&quot;, &quot;osStringToSign = %s&quot;, osStringToSign.c_str());
+<span class="lineNum">     840 </span>            : #endif
+<span class="lineNum">     841 </span>            : 
+<span class="lineNum">     842 </span><span class="lineCov">          2 :     if( !m_osAccessKeyId.empty() )</span>
+<span class="lineNum">     843 </span>            :     {
+<span class="lineNum">     844 </span>            :         // No longer documented but actually works !
+<span class="lineNum">     845 </span><span class="lineCov">          1 :         GByte abySignature[CPL_SHA1_HASH_SIZE] = {};</span>
+<span class="lineNum">     846 </span><span class="lineCov">          1 :         CPL_HMAC_SHA1( m_osSecretAccessKey.c_str(), m_osSecretAccessKey.size(),</span>
+<span class="lineNum">     847 </span>            :                     osStringToSign, osStringToSign.size(),
+<span class="lineNum">     848 </span><span class="lineCov">          2 :                     abySignature);</span>
+<span class="lineNum">     849 </span>            : 
+<span class="lineNum">     850 </span><span class="lineCov">          1 :         char* pszBase64 = CPLBase64Encode( sizeof(abySignature), abySignature );</span>
+<span class="lineNum">     851 </span><span class="lineCov">          1 :         CPLString osSignature(pszBase64);</span>
+<span class="lineNum">     852 </span><span class="lineCov">          1 :         CPLFree(pszBase64);</span>
+<span class="lineNum">     853 </span>            : 
+<span class="lineNum">     854 </span><span class="lineCov">          1 :         ResetQueryParameters();</span>
+<span class="lineNum">     855 </span><span class="lineCov">          1 :         AddQueryParameter(&quot;GoogleAccessId&quot;, m_osAccessKeyId);</span>
+<span class="lineNum">     856 </span><span class="lineCov">          1 :         AddQueryParameter(&quot;Expires&quot;, osExpires);</span>
+<span class="lineNum">     857 </span><span class="lineCov">          1 :         AddQueryParameter(&quot;Signature&quot;, osSignature);</span>
+<span class="lineNum">     858 </span>            :     }
+<span class="lineNum">     859 </span>            :     else
+<span class="lineNum">     860 </span>            :     {
+<span class="lineNum">     861 </span><span class="lineCov">          1 :         unsigned nSignatureLen = 0;</span>
+<span class="lineNum">     862 </span>            :         GByte* pabySignature = CPL_RSA_SHA256_Sign(
+<span class="lineNum">     863 </span><span class="lineCov">          1 :             m_oManager.GetPrivateKey().c_str(),</span>
+<span class="lineNum">     864 </span><span class="lineCov">          1 :             osStringToSign.data(),</span>
+<span class="lineNum">     865 </span><span class="lineCov">          1 :             static_cast&lt;unsigned&gt;(osStringToSign.size()),</span>
+<span class="lineNum">     866 </span><span class="lineCov">          2 :             &amp;nSignatureLen);</span>
+<span class="lineNum">     867 </span><span class="lineCov">          1 :         if( pabySignature == nullptr )</span>
+<span class="lineNum">     868 </span><span class="lineNoCov">          0 :             return CPLString();</span>
+<span class="lineNum">     869 </span><span class="lineCov">          1 :         char* pszBase64 = CPLBase64Encode( nSignatureLen, pabySignature );</span>
+<span class="lineNum">     870 </span><span class="lineCov">          1 :         CPLFree(pabySignature);</span>
+<span class="lineNum">     871 </span><span class="lineCov">          1 :         CPLString osSignature(pszBase64);</span>
+<span class="lineNum">     872 </span><span class="lineCov">          1 :         CPLFree(pszBase64);</span>
+<span class="lineNum">     873 </span>            : 
+<span class="lineNum">     874 </span><span class="lineCov">          1 :         ResetQueryParameters();</span>
+<span class="lineNum">     875 </span><span class="lineCov">          1 :         AddQueryParameter(&quot;GoogleAccessId&quot;, m_oManager.GetClientEmail());</span>
+<span class="lineNum">     876 </span><span class="lineCov">          1 :         AddQueryParameter(&quot;Expires&quot;, osExpires);</span>
+<span class="lineNum">     877 </span><span class="lineCov">          1 :         AddQueryParameter(&quot;Signature&quot;, osSignature);</span>
+<a name="878"><span class="lineNum">     878 </span>            :     }</a>
+<span class="lineNum">     879 </span><span class="lineCov">          4 :     return m_osURL;</span>
+<span class="lineNum">     880 </span><span class="lineCov">       2976 : }</span>
+<span class="lineNum">     881 </span>            : 
+<span class="lineNum">     882 </span>            : #endif
+<span class="lineNum">     883 </span>            : 
+<span class="lineNum">     884 </span>            : //! @endcond
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

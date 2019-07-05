@@ -1,0 +1,532 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/gtiff/libtiff/tif_zip.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">frmts/gtiff/libtiff</a> - tif_zip.c<span style="font-size: 80%;"> (source / <a href="tif_zip.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">148</td>
+            <td class="headerCovTableEntry">176</td>
+            <td class="headerCovTableEntryMed">84.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright (c) 1995-1997 Sam Leffler
+<span class="lineNum">       3 </span>            :  * Copyright (c) 1995-1997 Silicon Graphics, Inc.
+<span class="lineNum">       4 </span>            :  *
+<span class="lineNum">       5 </span>            :  * Permission to use, copy, modify, distribute, and sell this software and 
+<span class="lineNum">       6 </span>            :  * its documentation for any purpose is hereby granted without fee, provided
+<span class="lineNum">       7 </span>            :  * that (i) the above copyright notices and this permission notice appear in
+<span class="lineNum">       8 </span>            :  * all copies of the software and related documentation, and (ii) the names of
+<span class="lineNum">       9 </span>            :  * Sam Leffler and Silicon Graphics may not be used in any advertising or
+<span class="lineNum">      10 </span>            :  * publicity relating to the software without the specific, prior written
+<span class="lineNum">      11 </span>            :  * permission of Sam Leffler and Silicon Graphics.
+<span class="lineNum">      12 </span>            :  * 
+<span class="lineNum">      13 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS-IS&quot; AND WITHOUT WARRANTY OF ANY KIND, 
+<span class="lineNum">      14 </span>            :  * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
+<span class="lineNum">      15 </span>            :  * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  
+<span class="lineNum">      16 </span>            :  * 
+<span class="lineNum">      17 </span>            :  * IN NO EVENT SHALL SAM LEFFLER OR SILICON GRAPHICS BE LIABLE FOR
+<span class="lineNum">      18 </span>            :  * ANY SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND,
+<span class="lineNum">      19 </span>            :  * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+<span class="lineNum">      20 </span>            :  * WHETHER OR NOT ADVISED OF THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF 
+<span class="lineNum">      21 </span>            :  * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE 
+<span class="lineNum">      22 </span>            :  * OF THIS SOFTWARE.
+<span class="lineNum">      23 </span>            :  */
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : #include &quot;tiffiop.h&quot;
+<span class="lineNum">      26 </span>            : #ifdef ZIP_SUPPORT
+<span class="lineNum">      27 </span>            : /*
+<span class="lineNum">      28 </span>            :  * TIFF Library.
+<span class="lineNum">      29 </span>            :  *
+<span class="lineNum">      30 </span>            :  * ZIP (aka Deflate) Compression Support
+<span class="lineNum">      31 </span>            :  *
+<span class="lineNum">      32 </span>            :  * This file is simply an interface to the zlib library written by
+<span class="lineNum">      33 </span>            :  * Jean-loup Gailly and Mark Adler.  You must use version 1.0 or later
+<span class="lineNum">      34 </span>            :  * of the library: this code assumes the 1.0 API and also depends on
+<span class="lineNum">      35 </span>            :  * the ability to write the zlib header multiple times (one per strip)
+<span class="lineNum">      36 </span>            :  * which was not possible with versions prior to 0.95.  Note also that
+<span class="lineNum">      37 </span>            :  * older versions of this codec avoided this bug by suppressing the header
+<span class="lineNum">      38 </span>            :  * entirely.  This means that files written with the old library cannot
+<span class="lineNum">      39 </span>            :  * be read; they should be converted to a different compression scheme
+<span class="lineNum">      40 </span>            :  * and then reconverted.
+<span class="lineNum">      41 </span>            :  *
+<span class="lineNum">      42 </span>            :  * The data format used by the zlib library is described in the files
+<span class="lineNum">      43 </span>            :  * zlib-3.1.doc, deflate-1.1.doc and gzip-4.1.doc, available in the
+<span class="lineNum">      44 </span>            :  * directory ftp://ftp.uu.net/pub/archiving/zip/doc.  The library was
+<span class="lineNum">      45 </span>            :  * last found at ftp://ftp.uu.net/pub/archiving/zip/zlib/zlib-0.99.tar.gz.
+<span class="lineNum">      46 </span>            :  */
+<span class="lineNum">      47 </span>            : #include &quot;tif_predict.h&quot;
+<span class="lineNum">      48 </span>            : #include &quot;zlib.h&quot;
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : /*
+<span class="lineNum">      53 </span>            :  * Sigh, ZLIB_VERSION is defined as a string so there's no
+<span class="lineNum">      54 </span>            :  * way to do a proper check here.  Instead we guess based
+<span class="lineNum">      55 </span>            :  * on the presence of #defines that were added between the
+<span class="lineNum">      56 </span>            :  * 0.95 and 1.0 distributions.
+<span class="lineNum">      57 </span>            :  */
+<span class="lineNum">      58 </span>            : #if !defined(Z_NO_COMPRESSION) || !defined(Z_DEFLATED)
+<span class="lineNum">      59 </span>            : #error &quot;Antiquated ZLIB software; you must use version 1.0 or later&quot;
+<span class="lineNum">      60 </span>            : #endif
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span>            : #define SAFE_MSG(sp)   ((sp)-&gt;stream.msg == NULL ? &quot;&quot; : (sp)-&gt;stream.msg)
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : /*
+<span class="lineNum">      65 </span>            :  * State block for each open TIFF
+<span class="lineNum">      66 </span>            :  * file using ZIP compression/decompression.
+<span class="lineNum">      67 </span>            :  */
+<span class="lineNum">      68 </span>            : typedef struct {
+<span class="lineNum">      69 </span>            :   TIFFPredictorState predict;
+<span class="lineNum">      70 </span>            :         z_stream        stream;
+<span class="lineNum">      71 </span>            :   int             zipquality;            /* compression level */
+<span class="lineNum">      72 </span>            :   int             state;                 /* state flags */
+<span class="lineNum">      73 </span>            : #define ZSTATE_INIT_DECODE 0x01
+<span class="lineNum">      74 </span>            : #define ZSTATE_INIT_ENCODE 0x02
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span>            :   TIFFVGetMethod  vgetparent;            /* super-class method */
+<span class="lineNum">      77 </span>            :   TIFFVSetMethod  vsetparent;            /* super-class method */
+<span class="lineNum">      78 </span>            : } ZIPState;
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            : #define ZState(tif)             ((ZIPState*) (tif)-&gt;tif_data)
+<span class="lineNum">      81 </span>            : #define DecoderState(tif)       ZState(tif)
+<span class="lineNum">      82 </span>            : #define EncoderState(tif)       ZState(tif)
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            : static int ZIPEncode(TIFF* tif, uint8* bp, tmsize_t cc, uint16 s);
+<span class="lineNum">      85 </span>            : static int ZIPDecode(TIFF* tif, uint8* op, tmsize_t occ, uint16 s);
+<a name="86"><span class="lineNum">      86 </span>            : </a>
+<span class="lineNum">      87 </span>            : static int
+<span class="lineNum">      88 </span><span class="lineCov">       1008 : ZIPFixupTags(TIFF* tif)</span>
+<span class="lineNum">      89 </span>            : {
+<span class="lineNum">      90 </span>            :   (void) tif;
+<span class="lineNum">      91 </span><span class="lineCov">       1008 :   return (1);</span>
+<span class="lineNum">      92 </span>            : }
+<a name="93"><span class="lineNum">      93 </span>            : </a>
+<span class="lineNum">      94 </span>            : static int
+<span class="lineNum">      95 </span><span class="lineCov">        355 : ZIPSetupDecode(TIFF* tif)</span>
+<span class="lineNum">      96 </span>            : {
+<span class="lineNum">      97 </span>            :   static const char module[] = &quot;ZIPSetupDecode&quot;;
+<span class="lineNum">      98 </span><span class="lineCov">        355 :   ZIPState* sp = DecoderState(tif);</span>
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span><span class="lineCov">        355 :   assert(sp != NULL);</span>
+<span class="lineNum">     101 </span>            :         
+<span class="lineNum">     102 </span>            :         /* if we were last encoding, terminate this mode */
+<span class="lineNum">     103 </span><span class="lineCov">        355 :   if (sp-&gt;state &amp; ZSTATE_INIT_ENCODE) {</span>
+<span class="lineNum">     104 </span><span class="lineCov">         18 :       deflateEnd(&amp;sp-&gt;stream);</span>
+<span class="lineNum">     105 </span><span class="lineCov">         18 :       sp-&gt;state = 0;</span>
+<span class="lineNum">     106 </span>            :   }
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            :   /* This function can possibly be called several times by */
+<span class="lineNum">     109 </span>            :   /* PredictorSetupDecode() if this function succeeds but */
+<span class="lineNum">     110 </span>            :   /* PredictorSetup() fails */
+<span class="lineNum">     111 </span><span class="lineCov">        652 :   if ((sp-&gt;state &amp; ZSTATE_INIT_DECODE) == 0 &amp;&amp;</span>
+<span class="lineNum">     112 </span><span class="lineCov">        297 :       inflateInit(&amp;sp-&gt;stream) != Z_OK) {</span>
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module, &quot;%s&quot;, SAFE_MSG(sp));</span>
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">     115 </span>            :   } else {
+<span class="lineNum">     116 </span><span class="lineCov">        355 :     sp-&gt;state |= ZSTATE_INIT_DECODE;</span>
+<span class="lineNum">     117 </span><span class="lineCov">        355 :     return (1);</span>
+<span class="lineNum">     118 </span>            :   }
+<span class="lineNum">     119 </span>            : }
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            : /*
+<span class="lineNum">     122 </span>            :  * Setup state for decoding a strip.
+<a name="123"><span class="lineNum">     123 </span>            :  */</a>
+<span class="lineNum">     124 </span>            : static int
+<span class="lineNum">     125 </span><span class="lineCov">       2538 : ZIPPreDecode(TIFF* tif, uint16 s)</span>
+<span class="lineNum">     126 </span>            : {
+<span class="lineNum">     127 </span><span class="lineCov">       2538 :   ZIPState* sp = DecoderState(tif);</span>
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span>            :   (void) s;
+<span class="lineNum">     130 </span><span class="lineCov">       2538 :   assert(sp != NULL);</span>
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span><span class="lineCov">       2538 :   if( (sp-&gt;state &amp; ZSTATE_INIT_DECODE) == 0 )</span>
+<span class="lineNum">     133 </span><span class="lineCov">         18 :             tif-&gt;tif_setupdecode( tif );</span>
+<span class="lineNum">     134 </span>            : 
+<span class="lineNum">     135 </span><span class="lineCov">       2538 :   sp-&gt;stream.next_in = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">     136 </span>            :   assert(sizeof(sp-&gt;stream.avail_in)==4);  /* if this assert gets raised,
+<span class="lineNum">     137 </span>            :       we need to simplify this code to reflect a ZLib that is likely updated
+<span class="lineNum">     138 </span>            :       to deal with 8byte memory sizes, though this code will respond
+<span class="lineNum">     139 </span>            :       appropriately even before we simplify it */
+<span class="lineNum">     140 </span><span class="lineCov">       2538 :   sp-&gt;stream.avail_in = (uint64)tif-&gt;tif_rawcc &lt; 0xFFFFFFFFU ? (uInt) tif-&gt;tif_rawcc : 0xFFFFFFFFU;</span>
+<span class="lineNum">     141 </span><span class="lineCov">       2538 :   return (inflateReset(&amp;sp-&gt;stream) == Z_OK);</span>
+<span class="lineNum">     142 </span>            : }
+<a name="143"><span class="lineNum">     143 </span>            : </a>
+<span class="lineNum">     144 </span>            : static int
+<span class="lineNum">     145 </span><span class="lineCov">       4538 : ZIPDecode(TIFF* tif, uint8* op, tmsize_t occ, uint16 s)</span>
+<span class="lineNum">     146 </span>            : {
+<span class="lineNum">     147 </span>            :   static const char module[] = &quot;ZIPDecode&quot;;
+<span class="lineNum">     148 </span><span class="lineCov">       4538 :   ZIPState* sp = DecoderState(tif);</span>
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span>            :   (void) s;
+<span class="lineNum">     151 </span><span class="lineCov">       4538 :   assert(sp != NULL);</span>
+<span class="lineNum">     152 </span><span class="lineCov">       4538 :   assert(sp-&gt;state == ZSTATE_INIT_DECODE);</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineCov">       4538 :         sp-&gt;stream.next_in = tif-&gt;tif_rawcp;</span>
+<span class="lineNum">     155 </span>            :         
+<span class="lineNum">     156 </span><span class="lineCov">       4538 :   sp-&gt;stream.next_out = op;</span>
+<span class="lineNum">     157 </span>            :   assert(sizeof(sp-&gt;stream.avail_out)==4);  /* if this assert gets raised,
+<span class="lineNum">     158 </span>            :       we need to simplify this code to reflect a ZLib that is likely updated
+<span class="lineNum">     159 </span>            :       to deal with 8byte memory sizes, though this code will respond
+<span class="lineNum">     160 </span>            :       appropriately even before we simplify it */
+<span class="lineNum">     161 </span>            :   do {
+<span class="lineNum">     162 </span>            :                 int state;
+<span class="lineNum">     163 </span><span class="lineCov">       4538 :                 uInt avail_in_before = (uint64)tif-&gt;tif_rawcc &lt;= 0xFFFFFFFFU ? (uInt)tif-&gt;tif_rawcc : 0xFFFFFFFFU;</span>
+<span class="lineNum">     164 </span><span class="lineCov">       4538 :                 uInt avail_out_before = (uint64)occ &lt; 0xFFFFFFFFU ? (uInt) occ : 0xFFFFFFFFU;</span>
+<span class="lineNum">     165 </span><span class="lineCov">       4538 :                 sp-&gt;stream.avail_in = avail_in_before;</span>
+<span class="lineNum">     166 </span><span class="lineCov">       4538 :                 sp-&gt;stream.avail_out = avail_out_before;</span>
+<span class="lineNum">     167 </span><span class="lineCov">       4538 :     state = inflate(&amp;sp-&gt;stream, Z_PARTIAL_FLUSH);</span>
+<span class="lineNum">     168 </span><span class="lineCov">       4538 :     tif-&gt;tif_rawcc -= (avail_in_before - sp-&gt;stream.avail_in);</span>
+<span class="lineNum">     169 </span><span class="lineCov">       4538 :                 occ -= (avail_out_before - sp-&gt;stream.avail_out);</span>
+<span class="lineNum">     170 </span><span class="lineCov">       4538 :     if (state == Z_STREAM_END)</span>
+<span class="lineNum">     171 </span><span class="lineCov">       2390 :       break;</span>
+<span class="lineNum">     172 </span><span class="lineCov">       2148 :     if (state == Z_DATA_ERROR) {</span>
+<span class="lineNum">     173 </span><span class="lineCov">          2 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     174 </span>            :           &quot;Decoding error at scanline %lu, %s&quot;,
+<span class="lineNum">     175 </span><span class="lineCov">          2 :            (unsigned long) tif-&gt;tif_row, SAFE_MSG(sp));</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :       return (0);</span>
+<span class="lineNum">     177 </span>            :     }
+<span class="lineNum">     178 </span><span class="lineCov">       2147 :     if (state != Z_OK) {</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module, </span>
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :              &quot;ZLib error: %s&quot;, SAFE_MSG(sp));</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     182 </span>            :     }
+<span class="lineNum">     183 </span><span class="lineCov">       2147 :   } while (occ &gt; 0);</span>
+<span class="lineNum">     184 </span><span class="lineCov">       4537 :   if (occ != 0) {</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     186 </span>            :         &quot;Not enough data at scanline %lu (short &quot; TIFF_UINT64_FORMAT &quot; bytes)&quot;,
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :         (unsigned long) tif-&gt;tif_row, (TIFF_UINT64_T) occ);</span>
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">     189 </span>            :   }
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineCov">       4537 :         tif-&gt;tif_rawcp = sp-&gt;stream.next_in;</span>
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span><span class="lineCov">       4537 :   return (1);</span>
+<span class="lineNum">     194 </span>            : }
+<a name="195"><span class="lineNum">     195 </span>            : </a>
+<span class="lineNum">     196 </span>            : static int
+<span class="lineNum">     197 </span><span class="lineCov">       5427 : ZIPSetupEncode(TIFF* tif)</span>
+<span class="lineNum">     198 </span>            : {
+<span class="lineNum">     199 </span>            :   static const char module[] = &quot;ZIPSetupEncode&quot;;
+<span class="lineNum">     200 </span><span class="lineCov">       5427 :   ZIPState* sp = EncoderState(tif);</span>
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span><span class="lineCov">       5427 :   assert(sp != NULL);</span>
+<span class="lineNum">     203 </span><span class="lineCov">       5427 :   if (sp-&gt;state &amp; ZSTATE_INIT_DECODE) {</span>
+<span class="lineNum">     204 </span><span class="lineCov">         18 :     inflateEnd(&amp;sp-&gt;stream);</span>
+<span class="lineNum">     205 </span><span class="lineCov">         18 :     sp-&gt;state = 0;</span>
+<span class="lineNum">     206 </span>            :   }
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineCov">       5427 :   if (deflateInit(&amp;sp-&gt;stream, sp-&gt;zipquality) != Z_OK) {</span>
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module, &quot;%s&quot;, SAFE_MSG(sp));</span>
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">     211 </span>            :   } else {
+<span class="lineNum">     212 </span><span class="lineCov">       5427 :     sp-&gt;state |= ZSTATE_INIT_ENCODE;</span>
+<span class="lineNum">     213 </span><span class="lineCov">       5427 :     return (1);</span>
+<span class="lineNum">     214 </span>            :   }
+<span class="lineNum">     215 </span>            : }
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            : /*
+<span class="lineNum">     218 </span>            :  * Reset encoding state at the start of a strip.
+<a name="219"><span class="lineNum">     219 </span>            :  */</a>
+<span class="lineNum">     220 </span>            : static int
+<span class="lineNum">     221 </span><span class="lineCov">       6151 : ZIPPreEncode(TIFF* tif, uint16 s)</span>
+<span class="lineNum">     222 </span>            : {
+<span class="lineNum">     223 </span><span class="lineCov">       6151 :   ZIPState *sp = EncoderState(tif);</span>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            :   (void) s;
+<span class="lineNum">     226 </span><span class="lineCov">       6151 :   assert(sp != NULL);</span>
+<span class="lineNum">     227 </span><span class="lineCov">       6151 :   if( sp-&gt;state != ZSTATE_INIT_ENCODE )</span>
+<span class="lineNum">     228 </span><span class="lineCov">         18 :             tif-&gt;tif_setupencode( tif );</span>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineCov">       6151 :   sp-&gt;stream.next_out = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">     231 </span>            :   assert(sizeof(sp-&gt;stream.avail_out)==4);  /* if this assert gets raised,
+<span class="lineNum">     232 </span>            :       we need to simplify this code to reflect a ZLib that is likely updated
+<span class="lineNum">     233 </span>            :       to deal with 8byte memory sizes, though this code will respond
+<span class="lineNum">     234 </span>            :       appropriately even before we simplify it */
+<span class="lineNum">     235 </span><span class="lineCov">       6151 :   sp-&gt;stream.avail_out = (uint64)tif-&gt;tif_rawdatasize &lt;= 0xFFFFFFFFU ? (uInt)tif-&gt;tif_rawdatasize : 0xFFFFFFFFU;</span>
+<span class="lineNum">     236 </span><span class="lineCov">       6151 :   return (deflateReset(&amp;sp-&gt;stream) == Z_OK);</span>
+<span class="lineNum">     237 </span>            : }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            : /*
+<span class="lineNum">     240 </span>            :  * Encode a chunk of pixels.
+<a name="241"><span class="lineNum">     241 </span>            :  */</a>
+<span class="lineNum">     242 </span>            : static int
+<span class="lineNum">     243 </span><span class="lineCov">       8151 : ZIPEncode(TIFF* tif, uint8* bp, tmsize_t cc, uint16 s)</span>
+<span class="lineNum">     244 </span>            : {
+<span class="lineNum">     245 </span>            :   static const char module[] = &quot;ZIPEncode&quot;;
+<span class="lineNum">     246 </span><span class="lineCov">       8151 :   ZIPState *sp = EncoderState(tif);</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineCov">       8151 :   assert(sp != NULL);</span>
+<span class="lineNum">     249 </span><span class="lineCov">       8151 :   assert(sp-&gt;state == ZSTATE_INIT_ENCODE);</span>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            :   (void) s;
+<span class="lineNum">     252 </span><span class="lineCov">       8151 :   sp-&gt;stream.next_in = bp;</span>
+<span class="lineNum">     253 </span>            :   assert(sizeof(sp-&gt;stream.avail_in)==4);  /* if this assert gets raised,
+<span class="lineNum">     254 </span>            :       we need to simplify this code to reflect a ZLib that is likely updated
+<span class="lineNum">     255 </span>            :       to deal with 8byte memory sizes, though this code will respond
+<span class="lineNum">     256 </span>            :       appropriately even before we simplify it */
+<span class="lineNum">     257 </span>            :   do {
+<span class="lineNum">     258 </span><span class="lineCov">       8167 :                 uInt avail_in_before = (uint64)cc &lt;= 0xFFFFFFFFU ? (uInt)cc : 0xFFFFFFFFU;</span>
+<span class="lineNum">     259 </span><span class="lineCov">       8167 :                 sp-&gt;stream.avail_in = avail_in_before;</span>
+<span class="lineNum">     260 </span><span class="lineCov">       8167 :     if (deflate(&amp;sp-&gt;stream, Z_NO_FLUSH) != Z_OK) {</span>
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module, </span>
+<span class="lineNum">     262 </span>            :              &quot;Encoder error: %s&quot;,
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :              SAFE_MSG(sp));</span>
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     265 </span>            :     }
+<span class="lineNum">     266 </span><span class="lineCov">       8167 :     if (sp-&gt;stream.avail_out == 0) {</span>
+<span class="lineNum">     267 </span><span class="lineCov">         17 :       tif-&gt;tif_rawcc = tif-&gt;tif_rawdatasize;</span>
+<span class="lineNum">     268 </span><span class="lineCov">         17 :       TIFFFlushData1(tif);</span>
+<span class="lineNum">     269 </span><span class="lineCov">         17 :       sp-&gt;stream.next_out = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">     270 </span><span class="lineCov">         17 :       sp-&gt;stream.avail_out = (uint64)tif-&gt;tif_rawdatasize &lt;= 0xFFFFFFFFU ? (uInt)tif-&gt;tif_rawdatasize : 0xFFFFFFFFU;</span>
+<span class="lineNum">     271 </span>            :     }
+<span class="lineNum">     272 </span><span class="lineCov">       8167 :     cc -= (avail_in_before - sp-&gt;stream.avail_in);</span>
+<span class="lineNum">     273 </span><span class="lineCov">       8167 :   } while (cc &gt; 0);</span>
+<span class="lineNum">     274 </span><span class="lineCov">       8151 :   return (1);</span>
+<span class="lineNum">     275 </span>            : }
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            : /*
+<span class="lineNum">     278 </span>            :  * Finish off an encoded strip by flushing the last
+<span class="lineNum">     279 </span>            :  * string and tacking on an End Of Information code.
+<a name="280"><span class="lineNum">     280 </span>            :  */</a>
+<span class="lineNum">     281 </span>            : static int
+<span class="lineNum">     282 </span><span class="lineCov">       6151 : ZIPPostEncode(TIFF* tif)</span>
+<span class="lineNum">     283 </span>            : {
+<span class="lineNum">     284 </span>            :   static const char module[] = &quot;ZIPPostEncode&quot;;
+<span class="lineNum">     285 </span><span class="lineCov">       6151 :   ZIPState *sp = EncoderState(tif);</span>
+<span class="lineNum">     286 </span>            :   int state;
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span><span class="lineCov">       6151 :   sp-&gt;stream.avail_in = 0;</span>
+<span class="lineNum">     289 </span>            :   do {
+<span class="lineNum">     290 </span><span class="lineCov">       6161 :     state = deflate(&amp;sp-&gt;stream, Z_FINISH);</span>
+<span class="lineNum">     291 </span><span class="lineCov">       6161 :     switch (state) {</span>
+<span class="lineNum">     292 </span>            :     case Z_STREAM_END:
+<span class="lineNum">     293 </span>            :     case Z_OK:
+<span class="lineNum">     294 </span><span class="lineCov">       6161 :       if ((tmsize_t)sp-&gt;stream.avail_out != tif-&gt;tif_rawdatasize)</span>
+<span class="lineNum">     295 </span>            :       {
+<span class="lineNum">     296 </span><span class="lineCov">       6161 :         tif-&gt;tif_rawcc =  tif-&gt;tif_rawdatasize - sp-&gt;stream.avail_out;</span>
+<span class="lineNum">     297 </span><span class="lineCov">       6161 :         TIFFFlushData1(tif);</span>
+<span class="lineNum">     298 </span><span class="lineCov">       6161 :         sp-&gt;stream.next_out = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">     299 </span><span class="lineCov">       6161 :         sp-&gt;stream.avail_out = (uint64)tif-&gt;tif_rawdatasize &lt;= 0xFFFFFFFFU ? (uInt)tif-&gt;tif_rawdatasize : 0xFFFFFFFFU;</span>
+<span class="lineNum">     300 </span>            :       }
+<span class="lineNum">     301 </span><span class="lineCov">       6161 :       break;</span>
+<span class="lineNum">     302 </span>            :     default:
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module, </span>
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 :              &quot;ZLib error: %s&quot;, SAFE_MSG(sp));</span>
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     306 </span>            :     }
+<span class="lineNum">     307 </span><span class="lineCov">       6161 :   } while (state != Z_STREAM_END);</span>
+<span class="lineNum">     308 </span><span class="lineCov">       6151 :   return (1);</span>
+<span class="lineNum">     309 </span>            : }
+<a name="310"><span class="lineNum">     310 </span>            : </a>
+<span class="lineNum">     311 </span>            : static void
+<span class="lineNum">     312 </span><span class="lineCov">       6456 : ZIPCleanup(TIFF* tif)</span>
+<span class="lineNum">     313 </span>            : {
+<span class="lineNum">     314 </span><span class="lineCov">       6456 :   ZIPState* sp = ZState(tif);</span>
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span><span class="lineCov">       6456 :   assert(sp != 0);</span>
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span><span class="lineCov">       6456 :   (void)TIFFPredictorCleanup(tif);</span>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span><span class="lineCov">       6456 :   tif-&gt;tif_tagmethods.vgetfield = sp-&gt;vgetparent;</span>
+<span class="lineNum">     321 </span><span class="lineCov">       6456 :   tif-&gt;tif_tagmethods.vsetfield = sp-&gt;vsetparent;</span>
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span><span class="lineCov">       6456 :   if (sp-&gt;state &amp; ZSTATE_INIT_ENCODE) {</span>
+<span class="lineNum">     324 </span><span class="lineCov">       5409 :     deflateEnd(&amp;sp-&gt;stream);</span>
+<span class="lineNum">     325 </span><span class="lineCov">       5409 :     sp-&gt;state = 0;</span>
+<span class="lineNum">     326 </span><span class="lineCov">       1047 :   } else if( sp-&gt;state &amp; ZSTATE_INIT_DECODE) {</span>
+<span class="lineNum">     327 </span><span class="lineCov">        279 :     inflateEnd(&amp;sp-&gt;stream);</span>
+<span class="lineNum">     328 </span><span class="lineCov">        279 :     sp-&gt;state = 0;</span>
+<span class="lineNum">     329 </span>            :   }
+<span class="lineNum">     330 </span><span class="lineCov">       6456 :   _TIFFfree(sp);</span>
+<span class="lineNum">     331 </span><span class="lineCov">       6456 :   tif-&gt;tif_data = NULL;</span>
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span><span class="lineCov">       6456 :   _TIFFSetDefaultCompressionState(tif);</span>
+<span class="lineNum">     334 </span><span class="lineCov">       6456 : }</span>
+<a name="335"><span class="lineNum">     335 </span>            : </a>
+<span class="lineNum">     336 </span>            : static int
+<span class="lineNum">     337 </span><span class="lineCov">      62882 : ZIPVSetField(TIFF* tif, uint32 tag, va_list ap)</span>
+<span class="lineNum">     338 </span>            : {
+<span class="lineNum">     339 </span>            :   static const char module[] = &quot;ZIPVSetField&quot;;
+<span class="lineNum">     340 </span><span class="lineCov">      62882 :   ZIPState* sp = ZState(tif);</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineCov">      62882 :   switch (tag) {</span>
+<span class="lineNum">     343 </span>            :   case TIFFTAG_ZIPQUALITY:
+<span class="lineNum">     344 </span><span class="lineCov">         46 :     sp-&gt;zipquality = (int) va_arg(ap, int);</span>
+<span class="lineNum">     345 </span><span class="lineCov">         46 :     if ( sp-&gt;state&amp;ZSTATE_INIT_ENCODE ) {</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :       if (deflateParams(&amp;sp-&gt;stream,</span>
+<span class="lineNum">     347 </span>            :           sp-&gt;zipquality, Z_DEFAULT_STRATEGY) != Z_OK) {
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, module, &quot;ZLib error: %s&quot;,</span>
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :                SAFE_MSG(sp));</span>
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :         return (0);</span>
+<span class="lineNum">     351 </span>            :       }
+<span class="lineNum">     352 </span>            :     }
+<span class="lineNum">     353 </span><span class="lineCov">         46 :     return (1);</span>
+<span class="lineNum">     354 </span>            :   default:
+<span class="lineNum">     355 </span><span class="lineCov">      62836 :     return (*sp-&gt;vsetparent)(tif, tag, ap);</span>
+<span class="lineNum">     356 </span>            :   }
+<span class="lineNum">     357 </span>            :   /*NOTREACHED*/
+<span class="lineNum">     358 </span>            : }
+<a name="359"><span class="lineNum">     359 </span>            : </a>
+<span class="lineNum">     360 </span>            : static int
+<span class="lineNum">     361 </span><span class="lineCov">      35275 : ZIPVGetField(TIFF* tif, uint32 tag, va_list ap)</span>
+<span class="lineNum">     362 </span>            : {
+<span class="lineNum">     363 </span><span class="lineCov">      35275 :   ZIPState* sp = ZState(tif);</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineCov">      35275 :   switch (tag) {</span>
+<span class="lineNum">     366 </span>            :   case TIFFTAG_ZIPQUALITY:
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :     *va_arg(ap, int*) = sp-&gt;zipquality;</span>
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :     break;</span>
+<span class="lineNum">     369 </span>            :   default:
+<span class="lineNum">     370 </span><span class="lineCov">      35275 :     return (*sp-&gt;vgetparent)(tif, tag, ap);</span>
+<span class="lineNum">     371 </span>            :   }
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :   return (1);</span>
+<span class="lineNum">     373 </span>            : }
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span>            : static const TIFFField zipFields[] = {
+<span class="lineNum">     376 </span>            :     { TIFFTAG_ZIPQUALITY, 0, 0, TIFF_ANY, 0, TIFF_SETGET_INT, TIFF_SETGET_UNDEFINED, FIELD_PSEUDO, TRUE, FALSE, &quot;&quot;, NULL },
+<span class="lineNum">     377 </span>            : };
+<a name="378"><span class="lineNum">     378 </span>            : </a>
+<span class="lineNum">     379 </span>            : int
+<span class="lineNum">     380 </span><span class="lineCov">       6455 : TIFFInitZIP(TIFF* tif, int scheme)</span>
+<span class="lineNum">     381 </span>            : {
+<span class="lineNum">     382 </span>            :   static const char module[] = &quot;TIFFInitZIP&quot;;
+<span class="lineNum">     383 </span>            :   ZIPState* sp;
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span><span class="lineCov">       6455 :   assert( (scheme == COMPRESSION_DEFLATE)</span>
+<span class="lineNum">     386 </span>            :     || (scheme == COMPRESSION_ADOBE_DEFLATE));
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span>            :   /*
+<span class="lineNum">     389 </span>            :    * Merge codec-specific tag information.
+<span class="lineNum">     390 </span>            :    */
+<span class="lineNum">     391 </span><span class="lineCov">       6455 :   if (!_TIFFMergeFields(tif, zipFields, TIFFArrayCount(zipFields))) {</span>
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     393 </span>            :            &quot;Merging Deflate codec-specific tags failed&quot;);
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     395 </span>            :   }
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            :   /*
+<span class="lineNum">     398 </span>            :    * Allocate state block so tag methods have storage to record values.
+<span class="lineNum">     399 </span>            :    */
+<span class="lineNum">     400 </span><span class="lineCov">       6455 :   tif-&gt;tif_data = (uint8*) _TIFFmalloc(sizeof (ZIPState));</span>
+<span class="lineNum">     401 </span><span class="lineCov">       6456 :   if (tif-&gt;tif_data == NULL)</span>
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :     goto bad;</span>
+<span class="lineNum">     403 </span><span class="lineCov">       6456 :   sp = ZState(tif);</span>
+<span class="lineNum">     404 </span><span class="lineCov">       6456 :   sp-&gt;stream.zalloc = NULL;</span>
+<span class="lineNum">     405 </span><span class="lineCov">       6456 :   sp-&gt;stream.zfree = NULL;</span>
+<span class="lineNum">     406 </span><span class="lineCov">       6456 :   sp-&gt;stream.opaque = NULL;</span>
+<span class="lineNum">     407 </span><span class="lineCov">       6456 :   sp-&gt;stream.data_type = Z_BINARY;</span>
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span>            :   /*
+<span class="lineNum">     410 </span>            :    * Override parent get/set field methods.
+<span class="lineNum">     411 </span>            :    */
+<span class="lineNum">     412 </span><span class="lineCov">       6456 :   sp-&gt;vgetparent = tif-&gt;tif_tagmethods.vgetfield;</span>
+<span class="lineNum">     413 </span><span class="lineCov">       6456 :   tif-&gt;tif_tagmethods.vgetfield = ZIPVGetField; /* hook for codec tags */</span>
+<span class="lineNum">     414 </span><span class="lineCov">       6456 :   sp-&gt;vsetparent = tif-&gt;tif_tagmethods.vsetfield;</span>
+<span class="lineNum">     415 </span><span class="lineCov">       6456 :   tif-&gt;tif_tagmethods.vsetfield = ZIPVSetField; /* hook for codec tags */</span>
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span>            :   /* Default values for codec-specific fields */
+<span class="lineNum">     418 </span><span class="lineCov">       6456 :   sp-&gt;zipquality = Z_DEFAULT_COMPRESSION;  /* default comp. level */</span>
+<span class="lineNum">     419 </span><span class="lineCov">       6456 :   sp-&gt;state = 0;</span>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span>            :   /*
+<span class="lineNum">     422 </span>            :    * Install codec methods.
+<span class="lineNum">     423 </span>            :    */
+<span class="lineNum">     424 </span><span class="lineCov">       6456 :   tif-&gt;tif_fixuptags = ZIPFixupTags; </span>
+<span class="lineNum">     425 </span><span class="lineCov">       6456 :   tif-&gt;tif_setupdecode = ZIPSetupDecode;</span>
+<span class="lineNum">     426 </span><span class="lineCov">       6456 :   tif-&gt;tif_predecode = ZIPPreDecode;</span>
+<span class="lineNum">     427 </span><span class="lineCov">       6456 :   tif-&gt;tif_decoderow = ZIPDecode;</span>
+<span class="lineNum">     428 </span><span class="lineCov">       6456 :   tif-&gt;tif_decodestrip = ZIPDecode;</span>
+<span class="lineNum">     429 </span><span class="lineCov">       6456 :   tif-&gt;tif_decodetile = ZIPDecode;  </span>
+<span class="lineNum">     430 </span><span class="lineCov">       6456 :   tif-&gt;tif_setupencode = ZIPSetupEncode;</span>
+<span class="lineNum">     431 </span><span class="lineCov">       6456 :   tif-&gt;tif_preencode = ZIPPreEncode;</span>
+<span class="lineNum">     432 </span><span class="lineCov">       6456 :   tif-&gt;tif_postencode = ZIPPostEncode;</span>
+<span class="lineNum">     433 </span><span class="lineCov">       6456 :   tif-&gt;tif_encoderow = ZIPEncode;</span>
+<span class="lineNum">     434 </span><span class="lineCov">       6456 :   tif-&gt;tif_encodestrip = ZIPEncode;</span>
+<span class="lineNum">     435 </span><span class="lineCov">       6456 :   tif-&gt;tif_encodetile = ZIPEncode;</span>
+<span class="lineNum">     436 </span><span class="lineCov">       6456 :   tif-&gt;tif_cleanup = ZIPCleanup;</span>
+<span class="lineNum">     437 </span>            :   /*
+<span class="lineNum">     438 </span>            :    * Setup predictor setup.
+<span class="lineNum">     439 </span>            :    */
+<span class="lineNum">     440 </span><span class="lineCov">       6456 :   (void) TIFFPredictorInit(tif);</span>
+<span class="lineNum">     441 </span><span class="lineCov">       6456 :   return (1);</span>
+<span class="lineNum">     442 </span>            : bad:
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :   TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     444 </span>            :          &quot;No space for ZIP state block&quot;);
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :   return (0);</span>
+<span class="lineNum">     446 </span>            : }
+<span class="lineNum">     447 </span>            : #endif /* ZIP_SUPPORT */
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span>            : /* vim: set ts=8 sts=8 sw=8 noet: */
+<span class="lineNum">     450 </span>            : /*
+<span class="lineNum">     451 </span>            :  * Local Variables:
+<span class="lineNum">     452 </span>            :  * mode: c
+<span class="lineNum">     453 </span>            :  * c-basic-offset: 8
+<span class="lineNum">     454 </span>            :  * fill-column: 78
+<span class="lineNum">     455 </span>            :  * End:
+<span class="lineNum">     456 </span>            :  */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

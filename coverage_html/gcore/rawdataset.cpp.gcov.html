@@ -1,0 +1,1315 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - gcore/rawdataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">gcore</a> - rawdataset.cpp<span style="font-size: 80%;"> (source / <a href="rawdataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">299</td>
+            <td class="headerCovTableEntry">436</td>
+            <td class="headerCovTableEntryLo">68.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">27</td>
+            <td class="headerCovTableEntry">30</td>
+            <td class="headerCovTableEntryHi">90.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  Generic Raw Binary Driver
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of RawDataset and RawRasterBand classes.
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerda@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 1999, Frank Warmerdam
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2007-2014, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;rawdataset.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;climits&gt;
+<span class="lineNum">      34 </span>            : #include &lt;cmath&gt;
+<span class="lineNum">      35 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      36 </span>            : #include &lt;cstdlib&gt;
+<span class="lineNum">      37 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      38 </span>            : #if HAVE_FCNTL_H
+<span class="lineNum">      39 </span>            : #  include &lt;fcntl.h&gt;
+<span class="lineNum">      40 </span>            : #endif
+<span class="lineNum">      41 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      42 </span>            : #include &lt;limits&gt;
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;cpl_progress.h&quot;
+<span class="lineNum">      47 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      48 </span>            : #include &quot;cpl_virtualmem.h&quot;
+<span class="lineNum">      49 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      50 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      51 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            : /************************************************************************/
+<span class="lineNum">      56 </span>            : /*                           RawRasterBand()                            */
+<a name="57"><span class="lineNum">      57 </span>            : /************************************************************************/</a>
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span><span class="lineCov">       2878 : RawRasterBand::RawRasterBand( GDALDataset *poDSIn, int nBandIn,</span>
+<span class="lineNum">      60 </span>            :                               VSILFILE *fpRawLIn, vsi_l_offset nImgOffsetIn,
+<span class="lineNum">      61 </span>            :                               int nPixelOffsetIn, int nLineOffsetIn,
+<span class="lineNum">      62 </span>            :                               GDALDataType eDataTypeIn, int bNativeOrderIn,
+<span class="lineNum">      63 </span>            :                               OwnFP bOwnsFPIn ) :
+<span class="lineNum">      64 </span>            :     fpRawL(fpRawLIn),
+<span class="lineNum">      65 </span>            :     nImgOffset(nImgOffsetIn),
+<span class="lineNum">      66 </span>            :     nPixelOffset(nPixelOffsetIn),
+<span class="lineNum">      67 </span>            :     nLineOffset(nLineOffsetIn),
+<span class="lineNum">      68 </span>            :     bNativeOrder(bNativeOrderIn),
+<span class="lineNum">      69 </span><span class="lineCov">       2878 :     bOwnsFP(bOwnsFPIn == OwnFP::YES)</span>
+<span class="lineNum">      70 </span>            : {
+<span class="lineNum">      71 </span><span class="lineCov">       2879 :     poDS = poDSIn;</span>
+<span class="lineNum">      72 </span><span class="lineCov">       2879 :     nBand = nBandIn;</span>
+<span class="lineNum">      73 </span><span class="lineCov">       2879 :     eDataType = eDataTypeIn;</span>
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            :     CPLDebug(&quot;GDALRaw&quot;,
+<span class="lineNum">      76 </span>            :              &quot;RawRasterBand(%p,%d,%p,\n&quot;
+<span class="lineNum">      77 </span>            :              &quot;              Off=%d,PixOff=%d,LineOff=%d,%s,%d)&quot;,
+<span class="lineNum">      78 </span>            :              poDS, nBand, fpRawL,
+<span class="lineNum">      79 </span>            :              static_cast&lt;unsigned int&gt;(nImgOffset), nPixelOffset, nLineOffset,
+<span class="lineNum">      80 </span><span class="lineCov">       2879 :              GDALGetDataTypeName(eDataType), bNativeOrder);</span>
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            :     // Treat one scanline as the block size.
+<span class="lineNum">      83 </span><span class="lineCov">       2879 :     nBlockXSize = poDS-&gt;GetRasterXSize();</span>
+<span class="lineNum">      84 </span><span class="lineCov">       2878 :     nBlockYSize = 1;</span>
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            :     // Initialize other fields, and setup the line buffer.
+<span class="lineNum">      87 </span><span class="lineCov">       2878 :     Initialize();</span>
+<span class="lineNum">      88 </span><span class="lineCov">       2879 : }</span>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            : /************************************************************************/
+<span class="lineNum">      91 </span>            : /*                           RawRasterBand()                            */
+<a name="92"><span class="lineNum">      92 </span>            : /************************************************************************/</a>
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span><span class="lineCov">         35 : RawRasterBand::RawRasterBand( VSILFILE *fpRawLIn, vsi_l_offset nImgOffsetIn,</span>
+<span class="lineNum">      95 </span>            :                               int nPixelOffsetIn, int nLineOffsetIn,
+<span class="lineNum">      96 </span>            :                               GDALDataType eDataTypeIn, int bNativeOrderIn,
+<span class="lineNum">      97 </span>            :                               int nXSize, int nYSize,
+<span class="lineNum">      98 </span>            :                               OwnFP bOwnsFPIn ) :
+<span class="lineNum">      99 </span>            :     fpRawL(fpRawLIn),
+<span class="lineNum">     100 </span>            :     nImgOffset(nImgOffsetIn),
+<span class="lineNum">     101 </span>            :     nPixelOffset(nPixelOffsetIn),
+<span class="lineNum">     102 </span>            :     nLineOffset(nLineOffsetIn),
+<span class="lineNum">     103 </span>            :     nLineSize(0),
+<span class="lineNum">     104 </span>            :     bNativeOrder(bNativeOrderIn),
+<span class="lineNum">     105 </span>            :     nLoadedScanline(0),
+<span class="lineNum">     106 </span>            :     pLineStart(nullptr),
+<span class="lineNum">     107 </span>            :     bDirty(FALSE),
+<span class="lineNum">     108 </span>            :     poCT(nullptr),
+<span class="lineNum">     109 </span>            :     eInterp(GCI_Undefined),
+<span class="lineNum">     110 </span>            :     papszCategoryNames(nullptr),
+<span class="lineNum">     111 </span><span class="lineCov">         35 :     bOwnsFP(bOwnsFPIn == OwnFP::YES)</span>
+<span class="lineNum">     112 </span>            : {
+<span class="lineNum">     113 </span><span class="lineCov">         35 :     poDS = nullptr;</span>
+<span class="lineNum">     114 </span><span class="lineCov">         35 :     nBand = 1;</span>
+<span class="lineNum">     115 </span><span class="lineCov">         35 :     eDataType = eDataTypeIn;</span>
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            :     CPLDebug(&quot;GDALRaw&quot;,
+<span class="lineNum">     118 </span>            :              &quot;RawRasterBand(floating,Off=%d,PixOff=%d,LineOff=%d,%s,%d)&quot;,
+<span class="lineNum">     119 </span>            :              static_cast&lt;unsigned int&gt;(nImgOffset),
+<span class="lineNum">     120 </span>            :              nPixelOffset, nLineOffset,
+<span class="lineNum">     121 </span><span class="lineCov">         35 :              GDALGetDataTypeName(eDataType), bNativeOrder);</span>
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            :     // Treat one scanline as the block size.
+<span class="lineNum">     124 </span><span class="lineCov">         35 :     nBlockXSize = nXSize;</span>
+<span class="lineNum">     125 </span><span class="lineCov">         35 :     nBlockYSize = 1;</span>
+<span class="lineNum">     126 </span><span class="lineCov">         35 :     nRasterXSize = nXSize;</span>
+<span class="lineNum">     127 </span><span class="lineCov">         35 :     nRasterYSize = nYSize;</span>
+<span class="lineNum">     128 </span><span class="lineCov">         35 :     if (!GDALCheckDatasetDimensions(nXSize, nYSize))</span>
+<span class="lineNum">     129 </span>            :     {
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :         pLineBuffer = nullptr;</span>
+<span class="lineNum">     131 </span><span class="lineCov">         35 :         return;</span>
+<span class="lineNum">     132 </span>            :     }
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            :     // Initialize other fields, and setup the line buffer.
+<span class="lineNum">     135 </span><span class="lineCov">         35 :     Initialize();</span>
+<span class="lineNum">     136 </span>            : }
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            : /************************************************************************/
+<span class="lineNum">     139 </span>            : /*                             Initialize()                             */
+<a name="140"><span class="lineNum">     140 </span>            : /************************************************************************/</a>
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span><span class="lineCov">       2913 : void RawRasterBand::Initialize()</span>
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            : {
+<span class="lineNum">     145 </span><span class="lineCov">       2913 :     poCT = nullptr;</span>
+<span class="lineNum">     146 </span><span class="lineCov">       2913 :     eInterp = GCI_Undefined;</span>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span><span class="lineCov">       2913 :     papszCategoryNames = nullptr;</span>
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span><span class="lineCov">       2913 :     bDirty = FALSE;</span>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            :     // Allocate working scanline.
+<span class="lineNum">     153 </span><span class="lineCov">       2913 :     nLoadedScanline = -1;</span>
+<span class="lineNum">     154 </span><span class="lineCov">       2913 :     const int nDTSize = GDALGetDataTypeSizeBytes(GetRasterDataType());</span>
+<span class="lineNum">     155 </span><span class="lineCov">       8739 :     if (nBlockXSize &lt;= 0 ||</span>
+<span class="lineNum">     156 </span><span class="lineCov">       7971 :         (nBlockXSize &gt; 1 &amp;&amp; std::abs(nPixelOffset) &gt;</span>
+<span class="lineNum">     157 </span><span class="lineCov">       8355 :             std::numeric_limits&lt;int&gt;::max() / (nBlockXSize - 1)) ||</span>
+<span class="lineNum">     158 </span><span class="lineCov">       2913 :         std::abs(nPixelOffset) * (nBlockXSize - 1) &gt;</span>
+<span class="lineNum">     159 </span><span class="lineCov">       2913 :             std::numeric_limits&lt;int&gt;::max() - nDTSize)</span>
+<span class="lineNum">     160 </span>            :     {
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :         nLineSize = 0;</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :         pLineBuffer = nullptr;</span>
+<span class="lineNum">     163 </span>            :     }
+<span class="lineNum">     164 </span>            :     else
+<span class="lineNum">     165 </span>            :     {
+<span class="lineNum">     166 </span><span class="lineCov">       2913 :         nLineSize = std::abs(nPixelOffset) * (nBlockXSize - 1) + nDTSize;</span>
+<span class="lineNum">     167 </span><span class="lineCov">       2913 :         pLineBuffer = VSIMalloc(nLineSize);</span>
+<span class="lineNum">     168 </span>            :     }
+<span class="lineNum">     169 </span><span class="lineCov">       2914 :     if (pLineBuffer == nullptr)</span>
+<span class="lineNum">     170 </span>            :     {
+<span class="lineNum">     171 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     172 </span>            :                  &quot;Could not allocate line buffer: &quot;
+<span class="lineNum">     173 </span>            :                  &quot;nPixelOffset=%d, nBlockXSize=%d&quot;,
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :                  nPixelOffset, nBlockXSize);</span>
+<span class="lineNum">     175 </span>            :     }
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span><span class="lineCov">       2914 :     if( nPixelOffset &gt;= 0 )</span>
+<span class="lineNum">     178 </span><span class="lineCov">       2822 :         pLineStart = pLineBuffer;</span>
+<span class="lineNum">     179 </span>            :     else
+<span class="lineNum">     180 </span><span class="lineCov">        184 :         pLineStart = static_cast&lt;char *&gt;(pLineBuffer) +</span>
+<span class="lineNum">     181 </span><span class="lineCov">        184 :                      static_cast&lt;std::ptrdiff_t&gt;(std::abs(nPixelOffset)) *</span>
+<span class="lineNum">     182 </span><span class="lineCov">        184 :                          (nBlockXSize - 1);</span>
+<span class="lineNum">     183 </span><span class="lineCov">       2914 : }</span>
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            : /************************************************************************/
+<span class="lineNum">     186 </span>            : /*                           ~RawRasterBand()                           */
+<a name="187"><span class="lineNum">     187 </span>            : /************************************************************************/</a>
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span><span class="lineCov">       7127 : RawRasterBand::~RawRasterBand()</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            : {
+<span class="lineNum">     192 </span><span class="lineCov">       2914 :     if( poCT )</span>
+<span class="lineNum">     193 </span><span class="lineCov">          4 :         delete poCT;</span>
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span><span class="lineCov">       2914 :     CSLDestroy(papszCategoryNames);</span>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">       2914 :     RawRasterBand::FlushCache();</span>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineCov">       2914 :     if (bOwnsFP)</span>
+<span class="lineNum">     200 </span>            :     {
+<span class="lineNum">     201 </span><span class="lineCov">         42 :         if( VSIFCloseL(fpRawL) != 0 )</span>
+<span class="lineNum">     202 </span>            :         {
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :             CPLError(CE_Failure, CPLE_FileIO, &quot;I/O error&quot;);</span>
+<span class="lineNum">     204 </span>            :         }
+<span class="lineNum">     205 </span>            :     }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span><span class="lineCov">       2914 :     CPLFree(pLineBuffer);</span>
+<span class="lineNum">     208 </span><span class="lineCov">       4213 : }</span>
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            : /************************************************************************/
+<span class="lineNum">     211 </span>            : /*                             SetAccess()                              */
+<a name="212"><span class="lineNum">     212 </span>            : /************************************************************************/</a>
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span><span class="lineCov">        364 : void RawRasterBand::SetAccess(GDALAccess eAccessIn) { eAccess = eAccessIn; }</span>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            : /************************************************************************/
+<span class="lineNum">     217 </span>            : /*                             FlushCache()                             */
+<span class="lineNum">     218 </span>            : /*                                                                      */
+<span class="lineNum">     219 </span>            : /*      We override this so we have the opportunity to call             */
+<span class="lineNum">     220 </span>            : /*      fflush().  We don't want to do this all the time in the         */
+<span class="lineNum">     221 </span>            : /*      write block function as it is kind of expensive.                */
+<a name="222"><span class="lineNum">     222 </span>            : /************************************************************************/</a>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span><span class="lineCov">       5964 : CPLErr RawRasterBand::FlushCache()</span>
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span>            : {
+<span class="lineNum">     227 </span><span class="lineCov">       5964 :     CPLErr eErr = GDALRasterBand::FlushCache();</span>
+<span class="lineNum">     228 </span><span class="lineCov">       5964 :     if( eErr != CE_None )</span>
+<span class="lineNum">     229 </span>            :     {
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :         bDirty = FALSE;</span>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :         return eErr;</span>
+<span class="lineNum">     232 </span>            :     }
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span>            :     // If we have unflushed raw, flush it to disk now.
+<span class="lineNum">     235 </span><span class="lineCov">       5964 :     if ( bDirty )</span>
+<span class="lineNum">     236 </span>            :     {
+<span class="lineNum">     237 </span><span class="lineCov">        200 :         int nRet = VSIFFlushL(fpRawL);</span>
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span><span class="lineCov">        200 :         bDirty = FALSE;</span>
+<span class="lineNum">     240 </span><span class="lineCov">        200 :         if( nRet &lt; 0 )</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :             return CE_Failure;</span>
+<span class="lineNum">     242 </span>            :     }
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span><span class="lineCov">       5964 :     return CE_None;</span>
+<span class="lineNum">     245 </span>            : }
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            : /************************************************************************/
+<span class="lineNum">     248 </span>            : /*                             AccessLine()                             */
+<a name="249"><span class="lineNum">     249 </span>            : /************************************************************************/</a>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineCov">      26554 : CPLErr RawRasterBand::AccessLine( int iLine )</span>
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span>            : {
+<span class="lineNum">     254 </span><span class="lineCov">      26554 :     if (pLineBuffer == nullptr)</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span><span class="lineCov">      26554 :     if( nLoadedScanline == iLine )</span>
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            :     // Figure out where to start reading.
+<span class="lineNum">     261 </span>            :     // Write formulas such that unsigned int overflow doesn't occur
+<span class="lineNum">     262 </span>            :     const GUIntBig nPixelOffsetToSubtract =
+<span class="lineNum">     263 </span><span class="lineCov">      26554 :         nPixelOffset &gt;= 0</span>
+<span class="lineNum">     264 </span><span class="lineCov">      26554 :         ? 0 : static_cast&lt;GUIntBig&gt;(-static_cast&lt;GIntBig&gt;(nPixelOffset)) * (nBlockXSize - 1);</span>
+<span class="lineNum">     265 </span>            :     const vsi_l_offset nReadStart = static_cast&lt;vsi_l_offset&gt;(
+<span class="lineNum">     266 </span><span class="lineCov">      26554 :         (nLineOffset &gt;= 0 ?</span>
+<span class="lineNum">     267 </span><span class="lineCov">      26354 :             nImgOffset + static_cast&lt;GUIntBig&gt;(nLineOffset) * iLine :</span>
+<span class="lineNum">     268 </span><span class="lineCov">        200 :             nImgOffset - static_cast&lt;GUIntBig&gt;(-static_cast&lt;GIntBig&gt;(nLineOffset)) * iLine )</span>
+<span class="lineNum">     269 </span><span class="lineCov">      53108 :         - nPixelOffsetToSubtract);</span>
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            :     // Seek to the correct line.
+<span class="lineNum">     272 </span><span class="lineCov">      26554 :     if( Seek(nReadStart, SEEK_SET) == -1 )</span>
+<span class="lineNum">     273 </span>            :     {
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :         if (poDS != nullptr &amp;&amp; poDS-&gt;GetAccess() == GA_ReadOnly)</span>
+<span class="lineNum">     275 </span>            :         {
+<span class="lineNum">     276 </span>            :             CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     277 </span>            :                      &quot;Failed to seek to scanline %d @ &quot; CPL_FRMT_GUIB &quot;.&quot;,
+<span class="lineNum">     278 </span><span class="lineNoCov">          0 :                      iLine, nReadStart);</span>
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :             return CE_Failure;</span>
+<span class="lineNum">     280 </span>            :         }
+<span class="lineNum">     281 </span>            :         else
+<span class="lineNum">     282 </span>            :         {
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :             memset(pLineBuffer, 0, nLineSize);</span>
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :             nLoadedScanline = iLine;</span>
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :             return CE_None;</span>
+<span class="lineNum">     286 </span>            :         }
+<span class="lineNum">     287 </span>            :     }
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span>            :     // Read the line.  Take care not to request any more bytes than
+<span class="lineNum">     290 </span>            :     // are needed, and not to lose a partially successful scanline read.
+<span class="lineNum">     291 </span><span class="lineCov">      26565 :     const size_t nBytesToRead = nLineSize;</span>
+<span class="lineNum">     292 </span><span class="lineCov">      26565 :     const size_t nBytesActuallyRead = Read(pLineBuffer, 1, nBytesToRead);</span>
+<span class="lineNum">     293 </span><span class="lineCov">      26563 :     if( nBytesActuallyRead &lt; nBytesToRead )</span>
+<span class="lineNum">     294 </span>            :     {
+<span class="lineNum">     295 </span><span class="lineCov">       5879 :         if (poDS != nullptr &amp;&amp; poDS-&gt;GetAccess() == GA_ReadOnly &amp;&amp;</span>
+<span class="lineNum">     296 </span>            :             // ENVI datasets might be sparse (see #915)
+<span class="lineNum">     297 </span><span class="lineCov">         11 :             poDS-&gt;GetMetadata(&quot;ENVI&quot;) == nullptr)</span>
+<span class="lineNum">     298 </span>            :         {
+<span class="lineNum">     299 </span>            :             CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     300 </span>            :                      &quot;Failed to read scanline %d.&quot;,
+<span class="lineNum">     301 </span><span class="lineCov">          1 :                      iLine);</span>
+<span class="lineNum">     302 </span><span class="lineCov">          1 :             return CE_Failure;</span>
+<span class="lineNum">     303 </span>            :         }
+<span class="lineNum">     304 </span>            :         else
+<span class="lineNum">     305 </span>            :         {
+<span class="lineNum">     306 </span>            :             memset(
+<span class="lineNum">     307 </span><span class="lineCov">       5864 :                 static_cast&lt;GByte *&gt;(pLineBuffer) + nBytesActuallyRead,</span>
+<span class="lineNum">     308 </span><span class="lineCov">      11728 :                 0, nBytesToRead - nBytesActuallyRead);</span>
+<span class="lineNum">     309 </span>            :         }
+<span class="lineNum">     310 </span>            :     }
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span>            :     // Byte swap the interesting data, if required.
+<span class="lineNum">     313 </span><span class="lineCov">      26559 :     if( !bNativeOrder &amp;&amp; eDataType != GDT_Byte )</span>
+<span class="lineNum">     314 </span>            :     {
+<span class="lineNum">     315 </span><span class="lineCov">        415 :         if( GDALDataTypeIsComplex(eDataType) )</span>
+<span class="lineNum">     316 </span>            :         {
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :             const int nWordSize = GDALGetDataTypeSize(eDataType) / 16;</span>
+<span class="lineNum">     318 </span>            :             GDALSwapWords(pLineBuffer, nWordSize, nBlockXSize,
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :                           std::abs(nPixelOffset));</span>
+<span class="lineNum">     320 </span>            :             GDALSwapWords(
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :                 static_cast&lt;GByte *&gt;(pLineBuffer) + nWordSize,</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :                 nWordSize, nBlockXSize, std::abs(nPixelOffset));</span>
+<span class="lineNum">     323 </span>            :         }
+<span class="lineNum">     324 </span>            :         else
+<span class="lineNum">     325 </span>            :         {
+<span class="lineNum">     326 </span>            :             GDALSwapWords(pLineBuffer, GDALGetDataTypeSizeBytes(eDataType),
+<span class="lineNum">     327 </span><span class="lineCov">        415 :                           nBlockXSize, std::abs(nPixelOffset));</span>
+<span class="lineNum">     328 </span>            :         }
+<span class="lineNum">     329 </span>            :     }
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineCov">      26559 :     nLoadedScanline = iLine;</span>
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span><span class="lineCov">      26559 :     return CE_None;</span>
+<span class="lineNum">     334 </span>            : }
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span>            : /************************************************************************/
+<span class="lineNum">     337 </span>            : /*                             IReadBlock()                             */
+<a name="338"><span class="lineNum">     338 </span>            : /************************************************************************/</a>
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span><span class="lineCov">      24651 : CPLErr RawRasterBand::IReadBlock(CPL_UNUSED int nBlockXOff,</span>
+<span class="lineNum">     341 </span>            :                                  int nBlockYOff,
+<span class="lineNum">     342 </span>            :                                  void *pImage)
+<span class="lineNum">     343 </span>            : {
+<span class="lineNum">     344 </span><span class="lineCov">      24651 :     CPLAssert(nBlockXOff == 0);</span>
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span><span class="lineCov">      24651 :     if (pLineBuffer == nullptr)</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span><span class="lineCov">      24651 :     const CPLErr eErr = AccessLine(nBlockYOff);</span>
+<span class="lineNum">     350 </span><span class="lineCov">      24655 :     if( eErr == CE_Failure )</span>
+<span class="lineNum">     351 </span><span class="lineCov">          1 :         return eErr;</span>
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            :     // Copy data from disk buffer to user block buffer.
+<span class="lineNum">     354 </span>            :     GDALCopyWords(pLineStart, eDataType, nPixelOffset,
+<span class="lineNum">     355 </span>            :                   pImage, eDataType, GDALGetDataTypeSizeBytes(eDataType),
+<span class="lineNum">     356 </span><span class="lineCov">      24654 :                   nBlockXSize);</span>
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span><span class="lineCov">      24658 :     return eErr;</span>
+<span class="lineNum">     359 </span>            : }
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span>            : /************************************************************************/
+<span class="lineNum">     362 </span>            : /*                            IWriteBlock()                             */
+<a name="363"><span class="lineNum">     363 </span>            : /************************************************************************/</a>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineCov">      14255 : CPLErr RawRasterBand::IWriteBlock( CPL_UNUSED int nBlockXOff,</span>
+<span class="lineNum">     366 </span>            :                                    int nBlockYOff,
+<span class="lineNum">     367 </span>            :                                    void *pImage )
+<span class="lineNum">     368 </span>            : {
+<span class="lineNum">     369 </span><span class="lineCov">      14255 :     CPLAssert(nBlockXOff == 0);</span>
+<span class="lineNum">     370 </span>            : 
+<span class="lineNum">     371 </span><span class="lineCov">      14255 :     if (pLineBuffer == nullptr)</span>
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     373 </span>            : 
+<span class="lineNum">     374 </span>            :     // If the data for this band is completely contiguous, we don't
+<span class="lineNum">     375 </span>            :     // have to worry about pre-reading from disk.
+<span class="lineNum">     376 </span><span class="lineCov">      14255 :     CPLErr eErr = CE_None;</span>
+<span class="lineNum">     377 </span><span class="lineCov">      14255 :     if( std::abs(nPixelOffset) &gt; GDALGetDataTypeSizeBytes(eDataType) )</span>
+<span class="lineNum">     378 </span><span class="lineCov">       1911 :         eErr = AccessLine(nBlockYOff);</span>
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            :     // Copy data from user buffer into disk buffer.
+<span class="lineNum">     381 </span>            :     GDALCopyWords(pImage, eDataType, GDALGetDataTypeSizeBytes(eDataType),
+<span class="lineNum">     382 </span><span class="lineCov">      14255 :                   pLineStart, eDataType, nPixelOffset, nBlockXSize);</span>
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span>            :     // Byte swap (if necessary) back into disk order before writing.
+<span class="lineNum">     386 </span><span class="lineCov">      14255 :     if( !bNativeOrder &amp;&amp; eDataType != GDT_Byte )</span>
+<span class="lineNum">     387 </span>            :     {
+<span class="lineNum">     388 </span><span class="lineCov">       1641 :         if( GDALDataTypeIsComplex(eDataType) )</span>
+<span class="lineNum">     389 </span>            :         {
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :             const int nWordSize = GDALGetDataTypeSize(eDataType) / 16;</span>
+<span class="lineNum">     391 </span>            :             GDALSwapWords(pLineBuffer, nWordSize, nBlockXSize,
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 :                           std::abs(nPixelOffset));</span>
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :             GDALSwapWords(static_cast&lt;GByte *&gt;(pLineBuffer) + nWordSize,</span>
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :                           nWordSize, nBlockXSize, std::abs(nPixelOffset));</span>
+<span class="lineNum">     395 </span>            :         }
+<span class="lineNum">     396 </span>            :         else
+<span class="lineNum">     397 </span>            :         {
+<span class="lineNum">     398 </span>            :             GDALSwapWords(pLineBuffer, GDALGetDataTypeSizeBytes(eDataType),
+<span class="lineNum">     399 </span><span class="lineCov">       1641 :                           nBlockXSize, std::abs(nPixelOffset));</span>
+<span class="lineNum">     400 </span>            :         }
+<span class="lineNum">     401 </span>            :     }
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            :     // Figure out where to start writing.
+<span class="lineNum">     404 </span>            :     // Write formulas such that unsigned int overflow doesn't occur
+<span class="lineNum">     405 </span>            :     const GUIntBig nPixelOffsetToSubtract =
+<span class="lineNum">     406 </span><span class="lineCov">      14255 :         nPixelOffset &gt;= 0</span>
+<span class="lineNum">     407 </span><span class="lineCov">      14255 :         ? 0 : static_cast&lt;GUIntBig&gt;(-static_cast&lt;GIntBig&gt;(nPixelOffset)) * (nBlockXSize - 1);</span>
+<span class="lineNum">     408 </span>            :     const vsi_l_offset nWriteStart = static_cast&lt;vsi_l_offset&gt;(
+<span class="lineNum">     409 </span><span class="lineCov">      14255 :         (nLineOffset &gt;= 0 ?</span>
+<span class="lineNum">     410 </span><span class="lineCov">      12771 :             nImgOffset + static_cast&lt;GUIntBig&gt;(nLineOffset) * nBlockYOff :</span>
+<span class="lineNum">     411 </span><span class="lineCov">       1484 :             nImgOffset - static_cast&lt;GUIntBig&gt;(-static_cast&lt;GIntBig&gt;(nLineOffset)) * nBlockYOff )</span>
+<span class="lineNum">     412 </span><span class="lineCov">      28510 :         - nPixelOffsetToSubtract);</span>
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span>            :     // Seek to correct location.
+<span class="lineNum">     415 </span><span class="lineCov">      14255 :     if( Seek(nWriteStart, SEEK_SET) == -1 )</span>
+<span class="lineNum">     416 </span>            :     {
+<span class="lineNum">     417 </span>            :         CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     418 </span>            :                  &quot;Failed to seek to scanline %d @ &quot; CPL_FRMT_GUIB
+<span class="lineNum">     419 </span>            :                  &quot; to write to file.&quot;,
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :                  nBlockYOff, nImgOffset + nBlockYOff * nLineOffset);</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :         eErr = CE_Failure;</span>
+<span class="lineNum">     423 </span>            :     }
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            :     // Write data buffer.
+<span class="lineNum">     426 </span><span class="lineCov">      14255 :     const int nBytesToWrite = nLineSize;</span>
+<span class="lineNum">     427 </span><span class="lineCov">      14256 :     if( eErr == CE_None</span>
+<span class="lineNum">     428 </span><span class="lineCov">      28512 :         &amp;&amp; Write(pLineBuffer, 1, nBytesToWrite)</span>
+<span class="lineNum">     429 </span><span class="lineCov">      14257 :         &lt; static_cast&lt;size_t&gt;(nBytesToWrite) )</span>
+<span class="lineNum">     430 </span>            :     {
+<span class="lineNum">     431 </span>            :         CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     432 </span>            :                  &quot;Failed to write scanline %d to file.&quot;,
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :                  nBlockYOff);</span>
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :         eErr = CE_Failure;</span>
+<span class="lineNum">     436 </span>            :     }
+<span class="lineNum">     437 </span>            : 
+<span class="lineNum">     438 </span>            :     // Byte swap (if necessary) back into machine order so the
+<span class="lineNum">     439 </span>            :     // buffer is still usable for reading purposes.
+<span class="lineNum">     440 </span><span class="lineCov">      14256 :     if( !bNativeOrder &amp;&amp; eDataType != GDT_Byte )</span>
+<span class="lineNum">     441 </span>            :     {
+<span class="lineNum">     442 </span><span class="lineCov">       1641 :         if( GDALDataTypeIsComplex(eDataType) )</span>
+<span class="lineNum">     443 </span>            :         {
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :             const int nWordSize = GDALGetDataTypeSize(eDataType) / 16;</span>
+<span class="lineNum">     445 </span>            :             GDALSwapWords(pLineBuffer, nWordSize, nBlockXSize,
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :                           std::abs(nPixelOffset));</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :             GDALSwapWords(static_cast&lt;GByte *&gt;(pLineBuffer) +</span>
+<span class="lineNum">     448 </span>            :                           nWordSize, nWordSize, nBlockXSize,
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :                           std::abs(nPixelOffset));</span>
+<span class="lineNum">     450 </span>            :         }
+<span class="lineNum">     451 </span>            :         else
+<span class="lineNum">     452 </span>            :         {
+<span class="lineNum">     453 </span>            :             GDALSwapWords(pLineBuffer, GDALGetDataTypeSizeBytes(eDataType),
+<span class="lineNum">     454 </span><span class="lineCov">       1641 :                           nBlockXSize, std::abs(nPixelOffset));</span>
+<span class="lineNum">     455 </span>            :         }
+<span class="lineNum">     456 </span>            :     }
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span><span class="lineCov">      14256 :     bDirty = TRUE;</span>
+<span class="lineNum">     459 </span><span class="lineCov">      14256 :     return eErr;</span>
+<span class="lineNum">     460 </span>            : }
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span>            : /************************************************************************/
+<span class="lineNum">     463 </span>            : /*                             AccessBlock()                            */
+<a name="464"><span class="lineNum">     464 </span>            : /************************************************************************/</a>
+<span class="lineNum">     465 </span>            : 
+<span class="lineNum">     466 </span><span class="lineCov">         72 : CPLErr RawRasterBand::AccessBlock(vsi_l_offset nBlockOff, size_t nBlockSize,</span>
+<span class="lineNum">     467 </span>            :                                   void *pData)
+<span class="lineNum">     468 </span>            : {
+<span class="lineNum">     469 </span>            :     // Seek to the correct block.
+<span class="lineNum">     470 </span><span class="lineCov">         72 :     if( Seek(nBlockOff, SEEK_SET) == -1 )</span>
+<span class="lineNum">     471 </span>            :     {
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :         memset(pData, 0, nBlockSize);</span>
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     474 </span>            :     }
+<span class="lineNum">     475 </span>            : 
+<span class="lineNum">     476 </span>            :     // Read the block.
+<span class="lineNum">     477 </span><span class="lineCov">         72 :     const size_t nBytesActuallyRead = Read(pData, 1, nBlockSize);</span>
+<span class="lineNum">     478 </span><span class="lineCov">         72 :     if( nBytesActuallyRead &lt; nBlockSize )</span>
+<span class="lineNum">     479 </span>            :     {
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span><span class="lineNoCov">          0 :         memset(static_cast&lt;GByte *&gt;(pData) + nBytesActuallyRead,</span>
+<span class="lineNum">     482 </span><span class="lineNoCov">          0 :                0, nBlockSize - nBytesActuallyRead);</span>
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     484 </span>            :     }
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span>            :     // Byte swap the interesting data, if required.
+<span class="lineNum">     487 </span><span class="lineCov">         72 :     if( !bNativeOrder &amp;&amp; eDataType != GDT_Byte )</span>
+<span class="lineNum">     488 </span>            :     {
+<span class="lineNum">     489 </span><span class="lineNoCov">          0 :         if( GDALDataTypeIsComplex(eDataType) )</span>
+<span class="lineNum">     490 </span>            :         {
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 :             const int nWordSize = GDALGetDataTypeSize(eDataType) / 16;</span>
+<span class="lineNum">     492 </span>            :             GDALSwapWordsEx(pData, nWordSize, nBlockSize / nPixelOffset,
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :                             nPixelOffset);</span>
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :             GDALSwapWordsEx(static_cast&lt;GByte *&gt;(pData) + nWordSize,</span>
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :                             nWordSize, nBlockSize / nPixelOffset, nPixelOffset);</span>
+<span class="lineNum">     496 </span>            :         }
+<span class="lineNum">     497 </span>            :         else
+<span class="lineNum">     498 </span>            :         {
+<span class="lineNum">     499 </span>            :             GDALSwapWordsEx(pData, GDALGetDataTypeSizeBytes(eDataType),
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :                             nBlockSize / nPixelOffset, nPixelOffset);</span>
+<span class="lineNum">     501 </span>            :         }
+<span class="lineNum">     502 </span>            :     }
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span><span class="lineCov">         72 :     return CE_None;</span>
+<span class="lineNum">     505 </span>            : }
+<span class="lineNum">     506 </span>            : 
+<span class="lineNum">     507 </span>            : /************************************************************************/
+<span class="lineNum">     508 </span>            : /*               IsSignificantNumberOfLinesLoaded()                     */
+<span class="lineNum">     509 </span>            : /*                                                                      */
+<span class="lineNum">     510 </span>            : /*  Check if there is a significant number of scanlines (&gt;20%) from the */
+<span class="lineNum">     511 </span>            : /*  specified block of lines already cached.                            */
+<a name="512"><span class="lineNum">     512 </span>            : /************************************************************************/</a>
+<span class="lineNum">     513 </span>            : 
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 : int RawRasterBand::IsSignificantNumberOfLinesLoaded( int nLineOff, int nLines )</span>
+<span class="lineNum">     515 </span>            : {
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :     int nCountLoaded = 0;</span>
+<span class="lineNum">     517 </span>            : 
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 :     for ( int iLine = nLineOff; iLine &lt; nLineOff + nLines; iLine++ )</span>
+<span class="lineNum">     519 </span>            :     {
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :         GDALRasterBlock *poBlock = TryGetLockedBlockRef(0, iLine);</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :         if( poBlock != nullptr )</span>
+<span class="lineNum">     522 </span>            :         {
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 :             poBlock-&gt;DropLock();</span>
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :             nCountLoaded++;</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :             if( nCountLoaded &gt; nLines / 20 )</span>
+<span class="lineNum">     526 </span>            :             {
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :                 return TRUE;</span>
+<span class="lineNum">     528 </span>            :             }
+<span class="lineNum">     529 </span>            :         }
+<span class="lineNum">     530 </span>            :     }
+<span class="lineNum">     531 </span>            : 
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :     return FALSE;</span>
+<span class="lineNum">     533 </span>            : }
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span>            : /************************************************************************/
+<span class="lineNum">     536 </span>            : /*                           CanUseDirectIO()                           */
+<a name="537"><span class="lineNum">     537 </span>            : /************************************************************************/</a>
+<span class="lineNum">     538 </span>            : 
+<span class="lineNum">     539 </span><span class="lineCov">      11306 : int RawRasterBand::CanUseDirectIO(int /* nXOff */,</span>
+<span class="lineNum">     540 </span>            :                                   int nYOff,
+<span class="lineNum">     541 </span>            :                                   int nXSize,
+<span class="lineNum">     542 </span>            :                                   int nYSize,
+<span class="lineNum">     543 </span>            :                                   GDALDataType /* eBufType*/,
+<span class="lineNum">     544 </span>            :                                   GDALRasterIOExtraArg* psExtraArg)
+<span class="lineNum">     545 </span>            : {
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span>            :     // Use direct IO without caching if:
+<span class="lineNum">     548 </span>            :     //
+<span class="lineNum">     549 </span>            :     // GDAL_ONE_BIG_READ is enabled
+<span class="lineNum">     550 </span>            :     //
+<span class="lineNum">     551 </span>            :     // or
+<span class="lineNum">     552 </span>            :     //
+<span class="lineNum">     553 </span>            :     // the length of a scanline on disk is more than 50000 bytes, and the
+<span class="lineNum">     554 </span>            :     // width of the requested chunk is less than 40% of the whole scanline and
+<span class="lineNum">     555 </span>            :     // no significant number of requested scanlines are already in the cache.
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span><span class="lineCov">      22558 :     if( nPixelOffset &lt; 0 ||</span>
+<span class="lineNum">     558 </span><span class="lineCov">      11252 :         psExtraArg-&gt;eResampleAlg != GRIORA_NearestNeighbour )</span>
+<span class="lineNum">     559 </span>            :     {
+<span class="lineNum">     560 </span><span class="lineCov">         54 :         return FALSE;</span>
+<span class="lineNum">     561 </span>            :     }
+<span class="lineNum">     562 </span>            : 
+<span class="lineNum">     563 </span>            :     const char *pszGDAL_ONE_BIG_READ =
+<span class="lineNum">     564 </span><span class="lineCov">      11252 :         CPLGetConfigOption(&quot;GDAL_ONE_BIG_READ&quot;, nullptr);</span>
+<span class="lineNum">     565 </span><span class="lineCov">      11252 :     if ( pszGDAL_ONE_BIG_READ == nullptr )</span>
+<span class="lineNum">     566 </span>            :     {
+<span class="lineNum">     567 </span><span class="lineCov">      22444 :         if ( nLineSize &lt; 50000</span>
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :              || nXSize &gt; nLineSize / nPixelOffset / 5 * 2</span>
+<span class="lineNum">     569 </span><span class="lineCov">      11222 :              || IsSignificantNumberOfLinesLoaded(nYOff, nYSize) )</span>
+<span class="lineNum">     570 </span>            :         {
+<span class="lineNum">     571 </span><span class="lineCov">      11222 :             return FALSE;</span>
+<span class="lineNum">     572 </span>            :         }
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :         return TRUE;</span>
+<span class="lineNum">     574 </span>            :     }
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineCov">         30 :     return CPLTestBool(pszGDAL_ONE_BIG_READ);</span>
+<span class="lineNum">     577 </span>            : }
+<span class="lineNum">     578 </span>            : 
+<span class="lineNum">     579 </span>            : /************************************************************************/
+<span class="lineNum">     580 </span>            : /*                             IRasterIO()                              */
+<a name="581"><span class="lineNum">     581 </span>            : /************************************************************************/</a>
+<span class="lineNum">     582 </span>            : 
+<span class="lineNum">     583 </span><span class="lineCov">      11305 : CPLErr RawRasterBand::IRasterIO( GDALRWFlag eRWFlag,</span>
+<span class="lineNum">     584 </span>            :                                  int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     585 </span>            :                                  void * pData, int nBufXSize, int nBufYSize,
+<span class="lineNum">     586 </span>            :                                  GDALDataType eBufType,
+<span class="lineNum">     587 </span>            :                                  GSpacing nPixelSpace, GSpacing nLineSpace,
+<span class="lineNum">     588 </span>            :                                  GDALRasterIOExtraArg* psExtraArg )
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span>            : {
+<span class="lineNum">     591 </span><span class="lineCov">      11305 :     const int nBandDataSize = GDALGetDataTypeSizeBytes(eDataType);</span>
+<span class="lineNum">     592 </span>            : #ifdef DEBUG
+<span class="lineNum">     593 </span>            :     // Otherwise Coverity thinks that a divide by zero is possible in
+<span class="lineNum">     594 </span>            :     // AccessBlock() in the complex data type wapping case.
+<span class="lineNum">     595 </span><span class="lineCov">      11305 :     if( nBandDataSize == 0 )</span>
+<span class="lineNum">     596 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     597 </span>            : #endif
+<span class="lineNum">     598 </span><span class="lineCov">      11305 :     const int nBufDataSize = GDALGetDataTypeSizeBytes(eBufType);</span>
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span><span class="lineCov">      11305 :     if( !CanUseDirectIO(nXOff, nYOff, nXSize, nYSize, eBufType, psExtraArg) )</span>
+<span class="lineNum">     601 </span>            :     {
+<span class="lineNum">     602 </span>            :         return GDALRasterBand::IRasterIO(eRWFlag, nXOff, nYOff,
+<span class="lineNum">     603 </span>            :                                          nXSize, nYSize,
+<span class="lineNum">     604 </span>            :                                          pData, nBufXSize, nBufYSize,
+<span class="lineNum">     605 </span>            :                                          eBufType,
+<span class="lineNum">     606 </span><span class="lineCov">      11275 :                                          nPixelSpace, nLineSpace, psExtraArg);</span>
+<span class="lineNum">     607 </span>            :     }
+<span class="lineNum">     608 </span>            : 
+<span class="lineNum">     609 </span><span class="lineCov">         30 :     CPLDebug(&quot;RAW&quot;, &quot;Using direct IO implementation&quot;);</span>
+<span class="lineNum">     610 </span>            : 
+<span class="lineNum">     611 </span>            :     // Read data.
+<span class="lineNum">     612 </span><span class="lineCov">         30 :     if ( eRWFlag == GF_Read )</span>
+<span class="lineNum">     613 </span>            :     {
+<span class="lineNum">     614 </span>            :         // Do we have overviews that are appropriate to satisfy this request?
+<span class="lineNum">     615 </span><span class="lineCov">         50 :         if( (nBufXSize &lt; nXSize || nBufYSize &lt; nYSize)</span>
+<span class="lineNum">     616 </span><span class="lineCov">         28 :             &amp;&amp; GetOverviewCount() &gt; 0 )</span>
+<span class="lineNum">     617 </span>            :         {
+<span class="lineNum">     618 </span><span class="lineNoCov">          0 :             if( OverviewRasterIO(eRWFlag, nXOff, nYOff, nXSize, nYSize,</span>
+<span class="lineNum">     619 </span>            :                                  pData, nBufXSize, nBufYSize,
+<span class="lineNum">     620 </span>            :                                  eBufType, nPixelSpace, nLineSpace,
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 :                                  psExtraArg) == CE_None)</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :                 return CE_None;</span>
+<span class="lineNum">     623 </span>            :         }
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span>            :         // 1. Simplest case when we should get contiguous block
+<span class="lineNum">     626 </span>            :         //    of uninterleaved pixels.
+<span class="lineNum">     627 </span><span class="lineCov">         52 :         if ( nXSize == GetXSize()</span>
+<span class="lineNum">     628 </span><span class="lineCov">         26 :              &amp;&amp; nXSize == nBufXSize</span>
+<span class="lineNum">     629 </span><span class="lineCov">         24 :              &amp;&amp; nYSize == nBufYSize</span>
+<span class="lineNum">     630 </span><span class="lineCov">         24 :              &amp;&amp; eBufType == eDataType</span>
+<span class="lineNum">     631 </span><span class="lineCov">          4 :              &amp;&amp; nPixelOffset == nBandDataSize</span>
+<span class="lineNum">     632 </span><span class="lineCov">          4 :              &amp;&amp; nPixelSpace == nBufDataSize</span>
+<span class="lineNum">     633 </span><span class="lineCov">         28 :              &amp;&amp; nLineSpace == nPixelSpace * nXSize )</span>
+<span class="lineNum">     634 </span>            :         {
+<span class="lineNum">     635 </span>            :             const vsi_l_offset nOffset =
+<span class="lineNum">     636 </span><span class="lineCov">          2 :                 nImgOffset + static_cast&lt;vsi_l_offset&gt;(nYOff) * nLineOffset +</span>
+<span class="lineNum">     637 </span><span class="lineCov">          2 :                 nXOff;</span>
+<span class="lineNum">     638 </span>            :             const size_t nBytesToRead =
+<span class="lineNum">     639 </span><span class="lineCov">          2 :                 static_cast&lt;size_t&gt;(nXSize) * nYSize * nBandDataSize;</span>
+<span class="lineNum">     640 </span><span class="lineCov">          2 :             if ( AccessBlock(nOffset, nBytesToRead, pData) != CE_None )</span>
+<span class="lineNum">     641 </span>            :             {
+<span class="lineNum">     642 </span>            :                 CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     643 </span>            :                          &quot;Failed to read &quot; CPL_FRMT_GUIB
+<span class="lineNum">     644 </span>            :                          &quot; bytes at &quot; CPL_FRMT_GUIB &quot;.&quot;,
+<span class="lineNum">     645 </span><span class="lineNoCov">          0 :                          static_cast&lt;GUIntBig&gt;(nBytesToRead), nOffset);</span>
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :                 return CE_Failure;</span>
+<span class="lineNum">     647 </span>            :             }
+<span class="lineNum">     648 </span>            :         }
+<span class="lineNum">     649 </span>            :         // 2. Case when we need deinterleave and/or subsample data.
+<span class="lineNum">     650 </span>            :         else
+<span class="lineNum">     651 </span>            :         {
+<span class="lineNum">     652 </span><span class="lineCov">         24 :             const double dfSrcXInc = static_cast&lt;double&gt;(nXSize) / nBufXSize;</span>
+<span class="lineNum">     653 </span><span class="lineCov">         24 :             const double dfSrcYInc = static_cast&lt;double&gt;(nYSize) / nBufYSize;</span>
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span>            :             const size_t nBytesToRW =
+<span class="lineNum">     656 </span><span class="lineCov">         24 :                 static_cast&lt;size_t&gt;(nPixelOffset) * nXSize;</span>
+<span class="lineNum">     657 </span>            :             GByte *pabyData =
+<span class="lineNum">     658 </span><span class="lineCov">         24 :                 static_cast&lt;GByte *&gt;(VSI_MALLOC_VERBOSE(nBytesToRW));</span>
+<span class="lineNum">     659 </span><span class="lineCov">         24 :             if( pabyData == nullptr )</span>
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 :                 return CE_Failure;</span>
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span><span class="lineCov">         94 :             for ( int iLine = 0; iLine &lt; nBufYSize; iLine++ )</span>
+<span class="lineNum">     663 </span>            :             {
+<span class="lineNum">     664 </span>            :                 const vsi_l_offset nOffset =
+<span class="lineNum">     665 </span><span class="lineCov">        140 :                     nImgOffset +</span>
+<span class="lineNum">     666 </span><span class="lineCov">        140 :                     ((static_cast&lt;vsi_l_offset&gt;(nYOff) +</span>
+<span class="lineNum">     667 </span><span class="lineCov">        140 :                       static_cast&lt;vsi_l_offset&gt;(iLine * dfSrcYInc)) *</span>
+<span class="lineNum">     668 </span><span class="lineCov">         70 :                      nLineOffset) +</span>
+<span class="lineNum">     669 </span><span class="lineCov">        140 :                     nXOff * nPixelOffset;</span>
+<span class="lineNum">     670 </span><span class="lineCov">         70 :                 if ( AccessBlock(nOffset,</span>
+<span class="lineNum">     671 </span><span class="lineCov">         70 :                                  nBytesToRW, pabyData) != CE_None )</span>
+<span class="lineNum">     672 </span>            :                 {
+<span class="lineNum">     673 </span>            :                     CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     674 </span>            :                              &quot;Failed to read &quot; CPL_FRMT_GUIB
+<span class="lineNum">     675 </span>            :                              &quot; bytes at &quot; CPL_FRMT_GUIB &quot;.&quot;,
+<span class="lineNum">     676 </span><span class="lineNoCov">          0 :                              static_cast&lt;GUIntBig&gt;(nBytesToRW), nOffset);</span>
+<span class="lineNum">     677 </span><span class="lineNoCov">          0 :                     CPLFree(pabyData);</span>
+<span class="lineNum">     678 </span><span class="lineNoCov">          0 :                     return CE_Failure;</span>
+<span class="lineNum">     679 </span>            :                 }
+<span class="lineNum">     680 </span>            :                 // Copy data from disk buffer to user block buffer and
+<span class="lineNum">     681 </span>            :                 // subsample, if needed.
+<span class="lineNum">     682 </span><span class="lineCov">         70 :                 if ( nXSize == nBufXSize &amp;&amp; nYSize == nBufYSize )</span>
+<span class="lineNum">     683 </span>            :                 {
+<span class="lineNum">     684 </span>            :                     GDALCopyWords(
+<span class="lineNum">     685 </span>            :                         pabyData, eDataType, nPixelOffset,
+<span class="lineNum">     686 </span><span class="lineCov">         50 :                         static_cast&lt;GByte *&gt;(pData) +</span>
+<span class="lineNum">     687 </span><span class="lineCov">         50 :                             static_cast&lt;vsi_l_offset&gt;(iLine) * nLineSpace,</span>
+<span class="lineNum">     688 </span><span class="lineCov">        100 :                         eBufType, static_cast&lt;int&gt;(nPixelSpace), nXSize);</span>
+<span class="lineNum">     689 </span>            :                 }
+<span class="lineNum">     690 </span>            :                 else
+<span class="lineNum">     691 </span>            :                 {
+<span class="lineNum">     692 </span><span class="lineCov">        220 :                     for ( int iPixel = 0; iPixel &lt; nBufXSize; iPixel++ )</span>
+<span class="lineNum">     693 </span>            :                     {
+<span class="lineNum">     694 </span>            :                         GDALCopyWords(
+<span class="lineNum">     695 </span>            :                             pabyData +
+<span class="lineNum">     696 </span><span class="lineCov">        400 :                                 static_cast&lt;vsi_l_offset&gt;(iPixel * dfSrcXInc) *</span>
+<span class="lineNum">     697 </span>            :                                     nPixelOffset,
+<span class="lineNum">     698 </span>            :                             eDataType, nPixelOffset,
+<span class="lineNum">     699 </span>            :                             static_cast&lt;GByte *&gt;(pData) +
+<span class="lineNum">     700 </span><span class="lineCov">        400 :                                 static_cast&lt;vsi_l_offset&gt;(iLine) * nLineSpace +</span>
+<span class="lineNum">     701 </span><span class="lineCov">        400 :                                 static_cast&lt;vsi_l_offset&gt;(iPixel) * nPixelSpace,</span>
+<span class="lineNum">     702 </span><span class="lineCov">        800 :                             eBufType, static_cast&lt;int&gt;(nPixelSpace), 1);</span>
+<span class="lineNum">     703 </span>            :                     }
+<span class="lineNum">     704 </span>            :                 }
+<span class="lineNum">     705 </span>            : 
+<span class="lineNum">     706 </span><span class="lineCov">         70 :                 if( psExtraArg-&gt;pfnProgress != nullptr &amp;&amp;</span>
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 :                     !psExtraArg-&gt;pfnProgress(1.0 * (iLine + 1) / nBufYSize, &quot;&quot;,</span>
+<span class="lineNum">     708 </span><span class="lineNoCov">          0 :                                             psExtraArg-&gt;pProgressData) )</span>
+<span class="lineNum">     709 </span>            :                 {
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :                     CPLFree(pabyData);</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :                     return CE_Failure;</span>
+<span class="lineNum">     712 </span>            :                 }
+<span class="lineNum">     713 </span>            :             }
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span><span class="lineCov">         24 :             CPLFree(pabyData);</span>
+<span class="lineNum">     716 </span>            :         }
+<span class="lineNum">     717 </span>            :     }
+<span class="lineNum">     718 </span>            :     // Write data.
+<span class="lineNum">     719 </span>            :     else
+<span class="lineNum">     720 </span>            :     {
+<span class="lineNum">     721 </span>            :         // 1. Simplest case when we should write contiguous block of
+<span class="lineNum">     722 </span>            :         //    uninterleaved pixels.
+<span class="lineNum">     723 </span><span class="lineCov">          8 :         if ( nXSize == GetXSize()</span>
+<span class="lineNum">     724 </span><span class="lineCov">          4 :              &amp;&amp; nXSize == nBufXSize</span>
+<span class="lineNum">     725 </span><span class="lineCov">          2 :              &amp;&amp; nYSize == nBufYSize</span>
+<span class="lineNum">     726 </span><span class="lineCov">          2 :              &amp;&amp; eBufType == eDataType</span>
+<span class="lineNum">     727 </span><span class="lineCov">          2 :              &amp;&amp; nPixelOffset == nBandDataSize</span>
+<span class="lineNum">     728 </span><span class="lineCov">          2 :              &amp;&amp; nPixelSpace == nBufDataSize</span>
+<span class="lineNum">     729 </span><span class="lineCov">          5 :              &amp;&amp; nLineSpace == nPixelSpace * nXSize )</span>
+<span class="lineNum">     730 </span>            :         {
+<span class="lineNum">     731 </span>            :             // Byte swap the data buffer, if required.
+<span class="lineNum">     732 </span><span class="lineCov">          1 :             if( !bNativeOrder &amp;&amp; eDataType != GDT_Byte )</span>
+<span class="lineNum">     733 </span>            :             {
+<span class="lineNum">     734 </span><span class="lineNoCov">          0 :                 if( GDALDataTypeIsComplex(eDataType) )</span>
+<span class="lineNum">     735 </span>            :                 {
+<span class="lineNum">     736 </span><span class="lineNoCov">          0 :                     const int nWordSize = GDALGetDataTypeSize(eDataType) / 16;</span>
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :                     GDALSwapWords(pData, nWordSize, nXSize, nPixelOffset);</span>
+<span class="lineNum">     738 </span><span class="lineNoCov">          0 :                     GDALSwapWords(static_cast&lt;GByte *&gt;(pData) + nWordSize,</span>
+<span class="lineNum">     739 </span><span class="lineNoCov">          0 :                                   nWordSize, nXSize, nPixelOffset);</span>
+<span class="lineNum">     740 </span>            :                 }
+<span class="lineNum">     741 </span>            :                 else
+<span class="lineNum">     742 </span>            :                 {
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :                     GDALSwapWords(pData, nBandDataSize, nXSize, nPixelOffset);</span>
+<span class="lineNum">     744 </span>            :                 }
+<span class="lineNum">     745 </span>            :             }
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span>            :             // Seek to the correct block.
+<span class="lineNum">     748 </span>            :             const vsi_l_offset nOffset =
+<span class="lineNum">     749 </span><span class="lineCov">          1 :                 nImgOffset + static_cast&lt;vsi_l_offset&gt;(nYOff) * nLineOffset +</span>
+<span class="lineNum">     750 </span><span class="lineCov">          1 :                 nXOff;</span>
+<span class="lineNum">     751 </span><span class="lineCov">          1 :             if( Seek(nOffset, SEEK_SET) == -1 )</span>
+<span class="lineNum">     752 </span>            :             {
+<span class="lineNum">     753 </span>            :                 CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     754 </span>            :                          &quot;Failed to seek to &quot; CPL_FRMT_GUIB &quot; to write data.&quot;,
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :                          nOffset);</span>
+<span class="lineNum">     756 </span>            : 
+<span class="lineNum">     757 </span><span class="lineNoCov">          0 :                 return CE_Failure;</span>
+<span class="lineNum">     758 </span>            :             }
+<span class="lineNum">     759 </span>            : 
+<span class="lineNum">     760 </span>            :             // Write the block.
+<span class="lineNum">     761 </span>            :             const size_t nBytesToRW =
+<span class="lineNum">     762 </span><span class="lineCov">          1 :                 static_cast&lt;size_t&gt;(nXSize) * nYSize * nBandDataSize;</span>
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span><span class="lineCov">          1 :             const size_t nBytesActuallyWritten = Write(pData, 1, nBytesToRW);</span>
+<span class="lineNum">     765 </span><span class="lineCov">          1 :             if( nBytesActuallyWritten &lt; nBytesToRW )</span>
+<span class="lineNum">     766 </span>            :             {
+<span class="lineNum">     767 </span>            :                 CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     768 </span>            :                          &quot;Failed to write &quot; CPL_FRMT_GUIB
+<span class="lineNum">     769 </span>            :                          &quot; bytes to file. &quot; CPL_FRMT_GUIB &quot; bytes written&quot;,
+<span class="lineNum">     770 </span>            :                          static_cast&lt;GUIntBig&gt;(nBytesToRW),
+<span class="lineNum">     771 </span><span class="lineNoCov">          0 :                          static_cast&lt;GUIntBig&gt;(nBytesActuallyWritten));</span>
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :                 return CE_Failure;</span>
+<span class="lineNum">     774 </span>            :             }
+<span class="lineNum">     775 </span>            : 
+<span class="lineNum">     776 </span>            :             // Byte swap (if necessary) back into machine order so the
+<span class="lineNum">     777 </span>            :             // buffer is still usable for reading purposes.
+<span class="lineNum">     778 </span><span class="lineCov">          1 :             if( !bNativeOrder  &amp;&amp; eDataType != GDT_Byte )</span>
+<span class="lineNum">     779 </span>            :             {
+<span class="lineNum">     780 </span><span class="lineNoCov">          0 :                 if( GDALDataTypeIsComplex(eDataType) )</span>
+<span class="lineNum">     781 </span>            :                 {
+<span class="lineNum">     782 </span><span class="lineNoCov">          0 :                     const int nWordSize = GDALGetDataTypeSize(eDataType) / 16;</span>
+<span class="lineNum">     783 </span><span class="lineNoCov">          0 :                     GDALSwapWords(pData, nWordSize, nXSize, nPixelOffset);</span>
+<span class="lineNum">     784 </span><span class="lineNoCov">          0 :                     GDALSwapWords(static_cast&lt;GByte *&gt;(pData) + nWordSize,</span>
+<span class="lineNum">     785 </span><span class="lineNoCov">          0 :                                   nWordSize, nXSize, nPixelOffset);</span>
+<span class="lineNum">     786 </span>            :                 }
+<span class="lineNum">     787 </span>            :                 else
+<span class="lineNum">     788 </span>            :                 {
+<span class="lineNum">     789 </span><span class="lineNoCov">          0 :                     GDALSwapWords(pData, nBandDataSize, nXSize, nPixelOffset);</span>
+<span class="lineNum">     790 </span>            :                 }
+<span class="lineNum">     791 </span>            :             }
+<span class="lineNum">     792 </span>            :         }
+<span class="lineNum">     793 </span>            :         // 2. Case when we need deinterleave and/or subsample data.
+<span class="lineNum">     794 </span>            :         else
+<span class="lineNum">     795 </span>            :         {
+<span class="lineNum">     796 </span><span class="lineCov">          3 :             const double dfSrcXInc = static_cast&lt;double&gt;(nXSize) / nBufXSize;</span>
+<span class="lineNum">     797 </span><span class="lineCov">          3 :             const double dfSrcYInc = static_cast&lt;double&gt;(nYSize) / nBufYSize;</span>
+<span class="lineNum">     798 </span>            : 
+<span class="lineNum">     799 </span>            :             const size_t nBytesToRW =
+<span class="lineNum">     800 </span><span class="lineCov">          3 :                 static_cast&lt;size_t&gt;(nPixelOffset) * nXSize;</span>
+<span class="lineNum">     801 </span>            :             GByte *pabyData =
+<span class="lineNum">     802 </span><span class="lineCov">          3 :                 static_cast&lt;GByte *&gt;(VSI_MALLOC_VERBOSE(nBytesToRW));</span>
+<span class="lineNum">     803 </span><span class="lineCov">          3 :             if( pabyData == nullptr )</span>
+<span class="lineNum">     804 </span><span class="lineNoCov">          0 :                 return CE_Failure;</span>
+<span class="lineNum">     805 </span>            : 
+<span class="lineNum">     806 </span><span class="lineCov">         53 :             for ( int iLine = 0; iLine &lt; nBufYSize; iLine++ )</span>
+<span class="lineNum">     807 </span>            :             {
+<span class="lineNum">     808 </span>            :                 const vsi_l_offset nBlockOff =
+<span class="lineNum">     809 </span>            :                     nImgOffset +
+<span class="lineNum">     810 </span><span class="lineCov">        100 :                     (static_cast&lt;vsi_l_offset&gt;(nYOff) +</span>
+<span class="lineNum">     811 </span><span class="lineCov">        100 :                      static_cast&lt;vsi_l_offset&gt;(iLine * dfSrcYInc)) *</span>
+<span class="lineNum">     812 </span><span class="lineCov">        100 :                         nLineOffset +</span>
+<span class="lineNum">     813 </span><span class="lineCov">        100 :                     static_cast&lt;vsi_l_offset&gt;(nXOff) * nPixelOffset;</span>
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span>            :                 // If the data for this band is completely contiguous we don't
+<span class="lineNum">     816 </span>            :                 // have to worry about pre-reading from disk.
+<span class="lineNum">     817 </span><span class="lineCov">         50 :                 if( nPixelOffset &gt; nBandDataSize )</span>
+<span class="lineNum">     818 </span><span class="lineNoCov">          0 :                     AccessBlock(nBlockOff, nBytesToRW, pabyData);</span>
+<span class="lineNum">     819 </span>            : 
+<span class="lineNum">     820 </span>            :                 // Copy data from user block buffer to disk buffer and
+<span class="lineNum">     821 </span>            :                 // subsample, if needed.
+<span class="lineNum">     822 </span><span class="lineCov">         50 :                 if ( nXSize == nBufXSize &amp;&amp; nYSize == nBufYSize )</span>
+<span class="lineNum">     823 </span>            :                 {
+<span class="lineNum">     824 </span>            :                     GDALCopyWords(static_cast&lt;GByte *&gt;(pData) +
+<span class="lineNum">     825 </span><span class="lineCov">         10 :                                       static_cast&lt;vsi_l_offset&gt;(iLine) *</span>
+<span class="lineNum">     826 </span>            :                                           nLineSpace,
+<span class="lineNum">     827 </span>            :                                   eBufType, static_cast&lt;int&gt;(nPixelSpace),
+<span class="lineNum">     828 </span><span class="lineCov">         20 :                                   pabyData, eDataType, nPixelOffset, nXSize);</span>
+<span class="lineNum">     829 </span>            :                 }
+<span class="lineNum">     830 </span>            :                 else
+<span class="lineNum">     831 </span>            :                 {
+<span class="lineNum">     832 </span><span class="lineCov">        840 :                     for ( int iPixel = 0; iPixel &lt; nBufXSize; iPixel++ )</span>
+<span class="lineNum">     833 </span>            :                     {
+<span class="lineNum">     834 </span>            :                         GDALCopyWords(
+<span class="lineNum">     835 </span>            :                             static_cast&lt;GByte *&gt;(pData) +
+<span class="lineNum">     836 </span><span class="lineCov">        800 :                                 static_cast&lt;vsi_l_offset&gt;(iLine) * nLineSpace +</span>
+<span class="lineNum">     837 </span><span class="lineCov">       1600 :                                 static_cast&lt;vsi_l_offset&gt;(iPixel) * nPixelSpace,</span>
+<span class="lineNum">     838 </span>            :                             eBufType, static_cast&lt;int&gt;(nPixelSpace),
+<span class="lineNum">     839 </span><span class="lineCov">        800 :                             pabyData +</span>
+<span class="lineNum">     840 </span><span class="lineCov">       1600 :                                 static_cast&lt;vsi_l_offset&gt;(iPixel * dfSrcXInc) *</span>
+<span class="lineNum">     841 </span>            :                                     nPixelOffset,
+<span class="lineNum">     842 </span><span class="lineCov">       3200 :                             eDataType, nPixelOffset, 1);</span>
+<span class="lineNum">     843 </span>            :                     }
+<span class="lineNum">     844 </span>            :                 }
+<span class="lineNum">     845 </span>            : 
+<span class="lineNum">     846 </span>            :                 // Byte swap the data buffer, if required.
+<span class="lineNum">     847 </span><span class="lineCov">         50 :                 if( !bNativeOrder &amp;&amp; eDataType != GDT_Byte )</span>
+<span class="lineNum">     848 </span>            :                 {
+<span class="lineNum">     849 </span><span class="lineNoCov">          0 :                     if( GDALDataTypeIsComplex(eDataType) )</span>
+<span class="lineNum">     850 </span>            :                     {
+<span class="lineNum">     851 </span>            :                         const int nWordSize =
+<span class="lineNum">     852 </span><span class="lineNoCov">          0 :                             GDALGetDataTypeSize(eDataType) / 16;</span>
+<span class="lineNum">     853 </span>            :                         GDALSwapWords(pabyData, nWordSize, nXSize,
+<span class="lineNum">     854 </span><span class="lineNoCov">          0 :                                       nPixelOffset);</span>
+<span class="lineNum">     855 </span><span class="lineNoCov">          0 :                         GDALSwapWords(static_cast&lt;GByte *&gt;(pabyData) +</span>
+<span class="lineNum">     856 </span>            :                                           nWordSize,
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 :                                       nWordSize, nXSize, nPixelOffset);</span>
+<span class="lineNum">     858 </span>            :                     }
+<span class="lineNum">     859 </span>            :                     else
+<span class="lineNum">     860 </span>            :                     {
+<span class="lineNum">     861 </span>            :                         GDALSwapWords(pabyData, nBandDataSize, nXSize,
+<span class="lineNum">     862 </span><span class="lineNoCov">          0 :                                       nPixelOffset);</span>
+<span class="lineNum">     863 </span>            :                     }
+<span class="lineNum">     864 </span>            :                 }
+<span class="lineNum">     865 </span>            : 
+<span class="lineNum">     866 </span>            :                 // Seek to the right line in block.
+<span class="lineNum">     867 </span><span class="lineCov">         50 :                 if( Seek(nBlockOff, SEEK_SET) == -1 )</span>
+<span class="lineNum">     868 </span>            :                 {
+<span class="lineNum">     869 </span>            :                     CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     870 </span>            :                              &quot;Failed to seek to &quot; CPL_FRMT_GUIB &quot; to read.&quot;,
+<span class="lineNum">     871 </span><span class="lineNoCov">          0 :                              nBlockOff);</span>
+<span class="lineNum">     872 </span><span class="lineNoCov">          0 :                     CPLFree(pabyData);</span>
+<span class="lineNum">     873 </span><span class="lineNoCov">          0 :                     return CE_Failure;</span>
+<span class="lineNum">     874 </span>            :                 }
+<span class="lineNum">     875 </span>            : 
+<span class="lineNum">     876 </span>            :                 // Write the line of block.
+<span class="lineNum">     877 </span>            :                 const size_t nBytesActuallyWritten =
+<span class="lineNum">     878 </span><span class="lineCov">         50 :                     Write(pabyData, 1, nBytesToRW);</span>
+<span class="lineNum">     879 </span><span class="lineCov">         50 :                 if( nBytesActuallyWritten &lt; nBytesToRW )</span>
+<span class="lineNum">     880 </span>            :                 {
+<span class="lineNum">     881 </span>            :                     CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">     882 </span>            :                              &quot;Failed to write &quot; CPL_FRMT_GUIB
+<span class="lineNum">     883 </span>            :                              &quot; bytes to file. &quot; CPL_FRMT_GUIB &quot; bytes written&quot;,
+<span class="lineNum">     884 </span>            :                              static_cast&lt;GUIntBig&gt;(nBytesToRW),
+<span class="lineNum">     885 </span><span class="lineNoCov">          0 :                              static_cast&lt;GUIntBig&gt;(nBytesActuallyWritten));</span>
+<span class="lineNum">     886 </span><span class="lineNoCov">          0 :                     CPLFree(pabyData);</span>
+<span class="lineNum">     887 </span><span class="lineNoCov">          0 :                     return CE_Failure;</span>
+<span class="lineNum">     888 </span>            :                 }
+<span class="lineNum">     889 </span>            : 
+<span class="lineNum">     890 </span>            : 
+<span class="lineNum">     891 </span>            :                 // Byte swap (if necessary) back into machine order so the
+<span class="lineNum">     892 </span>            :                 // buffer is still usable for reading purposes.
+<span class="lineNum">     893 </span><span class="lineCov">         50 :                 if( !bNativeOrder &amp;&amp; eDataType != GDT_Byte )</span>
+<span class="lineNum">     894 </span>            :                 {
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :                     if( GDALDataTypeIsComplex(eDataType) )</span>
+<span class="lineNum">     896 </span>            :                     {
+<span class="lineNum">     897 </span>            :                         const int nWordSize =
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 :                             GDALGetDataTypeSize(eDataType) / 16;</span>
+<span class="lineNum">     899 </span>            :                         GDALSwapWords(pabyData, nWordSize, nXSize,
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :                                       nPixelOffset);</span>
+<span class="lineNum">     901 </span><span class="lineNoCov">          0 :                         GDALSwapWords(static_cast&lt;GByte *&gt;(pabyData) +</span>
+<span class="lineNum">     902 </span>            :                                           nWordSize,
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :                                       nWordSize, nXSize, nPixelOffset);</span>
+<span class="lineNum">     904 </span>            :                     }
+<span class="lineNum">     905 </span>            :                     else
+<span class="lineNum">     906 </span>            :                     {
+<span class="lineNum">     907 </span>            :                         GDALSwapWords(pabyData, nBandDataSize, nXSize,
+<span class="lineNum">     908 </span><span class="lineNoCov">          0 :                                       nPixelOffset);</span>
+<span class="lineNum">     909 </span>            :                     }
+<span class="lineNum">     910 </span>            :                 }
+<span class="lineNum">     911 </span>            :             }
+<span class="lineNum">     912 </span>            : 
+<span class="lineNum">     913 </span><span class="lineCov">          3 :             bDirty = TRUE;</span>
+<span class="lineNum">     914 </span><span class="lineCov">          3 :             CPLFree(pabyData);</span>
+<span class="lineNum">     915 </span>            :         }
+<span class="lineNum">     916 </span>            :     }
+<span class="lineNum">     917 </span>            : 
+<span class="lineNum">     918 </span><span class="lineCov">         30 :     return CE_None;</span>
+<span class="lineNum">     919 </span>            : }
+<span class="lineNum">     920 </span>            : 
+<span class="lineNum">     921 </span>            : /************************************************************************/
+<span class="lineNum">     922 </span>            : /*                                Seek()                                */
+<a name="923"><span class="lineNum">     923 </span>            : /************************************************************************/</a>
+<span class="lineNum">     924 </span>            : 
+<span class="lineNum">     925 </span><span class="lineCov">      40926 : int RawRasterBand::Seek( vsi_l_offset nOffset, int nSeekMode )</span>
+<span class="lineNum">     926 </span>            : 
+<span class="lineNum">     927 </span>            : {
+<span class="lineNum">     928 </span><span class="lineCov">      40926 :     return VSIFSeekL(fpRawL, nOffset, nSeekMode);</span>
+<span class="lineNum">     929 </span>            : }
+<span class="lineNum">     930 </span>            : 
+<span class="lineNum">     931 </span>            : /************************************************************************/
+<span class="lineNum">     932 </span>            : /*                                Read()                                */
+<a name="933"><span class="lineNum">     933 </span>            : /************************************************************************/</a>
+<span class="lineNum">     934 </span>            : 
+<span class="lineNum">     935 </span><span class="lineCov">      26634 : size_t RawRasterBand::Read( void *pBuffer, size_t nSize, size_t nCount )</span>
+<span class="lineNum">     936 </span>            : 
+<span class="lineNum">     937 </span>            : {
+<span class="lineNum">     938 </span><span class="lineCov">      26634 :     return VSIFReadL(pBuffer, nSize, nCount, fpRawL);</span>
+<span class="lineNum">     939 </span>            : }
+<span class="lineNum">     940 </span>            : 
+<span class="lineNum">     941 </span>            : /************************************************************************/
+<span class="lineNum">     942 </span>            : /*                               Write()                                */
+<a name="943"><span class="lineNum">     943 </span>            : /************************************************************************/</a>
+<span class="lineNum">     944 </span>            : 
+<span class="lineNum">     945 </span><span class="lineCov">      14307 : size_t RawRasterBand::Write( void *pBuffer, size_t nSize, size_t nCount )</span>
+<span class="lineNum">     946 </span>            : 
+<span class="lineNum">     947 </span>            : {
+<span class="lineNum">     948 </span><span class="lineCov">      14307 :     return VSIFWriteL(pBuffer, nSize, nCount, fpRawL);</span>
+<span class="lineNum">     949 </span>            : }
+<span class="lineNum">     950 </span>            : 
+<span class="lineNum">     951 </span>            : /************************************************************************/
+<span class="lineNum">     952 </span>            : /*                          StoreNoDataValue()                          */
+<span class="lineNum">     953 </span>            : /*                                                                      */
+<span class="lineNum">     954 </span>            : /*      This is a helper function for datasets to associate a no        */
+<span class="lineNum">     955 </span>            : /*      data value with this band, it isn't intended to be called by    */
+<span class="lineNum">     956 </span>            : /*      applications.                                                   */
+<a name="957"><span class="lineNum">     957 </span>            : /************************************************************************/</a>
+<span class="lineNum">     958 </span>            : 
+<span class="lineNum">     959 </span><span class="lineNoCov">          0 : void RawRasterBand::StoreNoDataValue( double dfValue )</span>
+<span class="lineNum">     960 </span>            : 
+<span class="lineNum">     961 </span>            : {
+<span class="lineNum">     962 </span><span class="lineNoCov">          0 :     SetNoDataValue(dfValue);</span>
+<span class="lineNum">     963 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     964 </span>            : 
+<span class="lineNum">     965 </span>            : /************************************************************************/
+<span class="lineNum">     966 </span>            : /*                          GetCategoryNames()                          */
+<a name="967"><span class="lineNum">     967 </span>            : /************************************************************************/</a>
+<span class="lineNum">     968 </span>            : 
+<span class="lineNum">     969 </span><span class="lineCov">        189 : char **RawRasterBand::GetCategoryNames() { return papszCategoryNames; }</span>
+<span class="lineNum">     970 </span>            : 
+<span class="lineNum">     971 </span>            : /************************************************************************/
+<span class="lineNum">     972 </span>            : /*                          SetCategoryNames()                          */
+<a name="973"><span class="lineNum">     973 </span>            : /************************************************************************/</a>
+<span class="lineNum">     974 </span>            : 
+<span class="lineNum">     975 </span><span class="lineCov">          4 : CPLErr RawRasterBand::SetCategoryNames( char **papszNewNames )</span>
+<span class="lineNum">     976 </span>            : 
+<span class="lineNum">     977 </span>            : {
+<span class="lineNum">     978 </span><span class="lineCov">          4 :     CSLDestroy(papszCategoryNames);</span>
+<span class="lineNum">     979 </span><span class="lineCov">          4 :     papszCategoryNames = CSLDuplicate(papszNewNames);</span>
+<span class="lineNum">     980 </span>            : 
+<span class="lineNum">     981 </span><span class="lineCov">          4 :     return CE_None;</span>
+<span class="lineNum">     982 </span>            : }
+<span class="lineNum">     983 </span>            : 
+<span class="lineNum">     984 </span>            : /************************************************************************/
+<span class="lineNum">     985 </span>            : /*                           SetColorTable()                            */
+<a name="986"><span class="lineNum">     986 </span>            : /************************************************************************/</a>
+<span class="lineNum">     987 </span>            : 
+<span class="lineNum">     988 </span><span class="lineCov">          4 : CPLErr RawRasterBand::SetColorTable( GDALColorTable *poNewCT )</span>
+<span class="lineNum">     989 </span>            : 
+<span class="lineNum">     990 </span>            : {
+<span class="lineNum">     991 </span><span class="lineCov">          4 :     if( poCT )</span>
+<span class="lineNum">     992 </span><span class="lineNoCov">          0 :         delete poCT;</span>
+<span class="lineNum">     993 </span><span class="lineCov">          4 :     if( poNewCT == nullptr )</span>
+<span class="lineNum">     994 </span><span class="lineNoCov">          0 :         poCT = nullptr;</span>
+<span class="lineNum">     995 </span>            :     else
+<span class="lineNum">     996 </span><span class="lineCov">          4 :         poCT = poNewCT-&gt;Clone();</span>
+<span class="lineNum">     997 </span>            : 
+<span class="lineNum">     998 </span><span class="lineCov">          4 :     return CE_None;</span>
+<span class="lineNum">     999 </span>            : }
+<span class="lineNum">    1000 </span>            : 
+<span class="lineNum">    1001 </span>            : /************************************************************************/
+<span class="lineNum">    1002 </span>            : /*                           GetColorTable()                            */
+<a name="1003"><span class="lineNum">    1003 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1004 </span>            : 
+<span class="lineNum">    1005 </span><span class="lineCov">         75 : GDALColorTable *RawRasterBand::GetColorTable() { return poCT; }</span>
+<span class="lineNum">    1006 </span>            : 
+<span class="lineNum">    1007 </span>            : /************************************************************************/
+<span class="lineNum">    1008 </span>            : /*                       SetColorInterpretation()                       */
+<a name="1009"><span class="lineNum">    1009 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1010 </span>            : 
+<span class="lineNum">    1011 </span><span class="lineCov">        239 : CPLErr RawRasterBand::SetColorInterpretation( GDALColorInterp eNewInterp )</span>
+<span class="lineNum">    1012 </span>            : 
+<span class="lineNum">    1013 </span>            : {
+<span class="lineNum">    1014 </span><span class="lineCov">        239 :     eInterp = eNewInterp;</span>
+<span class="lineNum">    1015 </span>            : 
+<span class="lineNum">    1016 </span><span class="lineCov">        239 :     return CE_None;</span>
+<span class="lineNum">    1017 </span>            : }
+<span class="lineNum">    1018 </span>            : 
+<span class="lineNum">    1019 </span>            : /************************************************************************/
+<span class="lineNum">    1020 </span>            : /*                       GetColorInterpretation()                       */
+<a name="1021"><span class="lineNum">    1021 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1022 </span>            : 
+<span class="lineNum">    1023 </span><span class="lineCov">        344 : GDALColorInterp RawRasterBand::GetColorInterpretation() { return eInterp; }</span>
+<span class="lineNum">    1024 </span>            : 
+<span class="lineNum">    1025 </span>            : /************************************************************************/
+<span class="lineNum">    1026 </span>            : /*                           GetVirtualMemAuto()                        */
+<a name="1027"><span class="lineNum">    1027 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1028 </span>            : 
+<span class="lineNum">    1029 </span><span class="lineCov">         13 : CPLVirtualMem  *RawRasterBand::GetVirtualMemAuto( GDALRWFlag eRWFlag,</span>
+<span class="lineNum">    1030 </span>            :                                                   int *pnPixelSpace,
+<span class="lineNum">    1031 </span>            :                                                   GIntBig *pnLineSpace,
+<span class="lineNum">    1032 </span>            :                                                   char **papszOptions )
+<span class="lineNum">    1033 </span>            : {
+<span class="lineNum">    1034 </span><span class="lineCov">         13 :     CPLAssert(pnPixelSpace);</span>
+<span class="lineNum">    1035 </span><span class="lineCov">         13 :     CPLAssert(pnLineSpace);</span>
+<span class="lineNum">    1036 </span>            : 
+<span class="lineNum">    1037 </span>            :     const vsi_l_offset nSize =
+<span class="lineNum">    1038 </span><span class="lineCov">         26 :         static_cast&lt;vsi_l_offset&gt;(nRasterYSize - 1) * nLineOffset +</span>
+<span class="lineNum">    1039 </span><span class="lineCov">         26 :         (nRasterXSize - 1) * nPixelOffset + GDALGetDataTypeSizeBytes(eDataType);</span>
+<span class="lineNum">    1040 </span>            : 
+<span class="lineNum">    1041 </span>            :     const char *pszImpl = CSLFetchNameValueDef(
+<span class="lineNum">    1042 </span><span class="lineCov">         13 :             papszOptions, &quot;USE_DEFAULT_IMPLEMENTATION&quot;, &quot;AUTO&quot;);</span>
+<span class="lineNum">    1043 </span><span class="lineCov">         32 :     if( VSIFGetNativeFileDescriptorL(fpRawL) == nullptr ||</span>
+<span class="lineNum">    1044 </span><span class="lineCov">         12 :         !CPLIsVirtualMemFileMapAvailable() ||</span>
+<span class="lineNum">    1045 </span><span class="lineCov">          6 :         (eDataType != GDT_Byte &amp;&amp; !bNativeOrder) ||</span>
+<span class="lineNum">    1046 </span><span class="lineCov">          6 :         static_cast&lt;size_t&gt;(nSize) != nSize ||</span>
+<span class="lineNum">    1047 </span><span class="lineCov">         12 :         nPixelOffset &lt; 0 ||</span>
+<span class="lineNum">    1048 </span><span class="lineCov">         12 :         nLineOffset &lt; 0 ||</span>
+<span class="lineNum">    1049 </span><span class="lineCov">         18 :         EQUAL(pszImpl, &quot;YES&quot;) || EQUAL(pszImpl, &quot;ON&quot;) ||</span>
+<span class="lineNum">    1050 </span><span class="lineCov">         25 :         EQUAL(pszImpl, &quot;1&quot;) || EQUAL(pszImpl, &quot;TRUE&quot;) )</span>
+<span class="lineNum">    1051 </span>            :     {
+<span class="lineNum">    1052 </span>            :         return GDALRasterBand::GetVirtualMemAuto(eRWFlag, pnPixelSpace,
+<span class="lineNum">    1053 </span><span class="lineCov">          7 :                                                  pnLineSpace, papszOptions);</span>
+<span class="lineNum">    1054 </span>            :     }
+<span class="lineNum">    1055 </span>            : 
+<span class="lineNum">    1056 </span><span class="lineCov">          6 :     FlushCache();</span>
+<span class="lineNum">    1057 </span>            : 
+<span class="lineNum">    1058 </span>            :     CPLVirtualMem *pVMem = CPLVirtualMemFileMapNew(
+<span class="lineNum">    1059 </span>            :         fpRawL, nImgOffset, nSize,
+<span class="lineNum">    1060 </span>            :         (eRWFlag == GF_Write) ? VIRTUALMEM_READWRITE : VIRTUALMEM_READONLY,
+<span class="lineNum">    1061 </span><span class="lineCov">          6 :         nullptr, nullptr);</span>
+<span class="lineNum">    1062 </span><span class="lineCov">          6 :     if( pVMem == nullptr )</span>
+<span class="lineNum">    1063 </span>            :     {
+<span class="lineNum">    1064 </span><span class="lineNoCov">          0 :         if( EQUAL(pszImpl, &quot;NO&quot;) || EQUAL(pszImpl, &quot;OFF&quot;) ||</span>
+<span class="lineNum">    1065 </span><span class="lineNoCov">          0 :             EQUAL(pszImpl, &quot;0&quot;) || EQUAL(pszImpl, &quot;FALSE&quot;) )</span>
+<span class="lineNum">    1066 </span>            :         {
+<span class="lineNum">    1067 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1068 </span>            :         }
+<span class="lineNum">    1069 </span>            :         return GDALRasterBand::GetVirtualMemAuto(eRWFlag, pnPixelSpace,
+<span class="lineNum">    1070 </span><span class="lineNoCov">          0 :                                                  pnLineSpace, papszOptions);</span>
+<span class="lineNum">    1071 </span>            :     }
+<span class="lineNum">    1072 </span>            : 
+<span class="lineNum">    1073 </span><span class="lineCov">          6 :     *pnPixelSpace = nPixelOffset;</span>
+<span class="lineNum">    1074 </span><span class="lineCov">          6 :     *pnLineSpace = nLineOffset;</span>
+<span class="lineNum">    1075 </span><span class="lineCov">          6 :     return pVMem;</span>
+<span class="lineNum">    1076 </span>            : }
+<span class="lineNum">    1077 </span>            : 
+<span class="lineNum">    1078 </span>            : /************************************************************************/
+<span class="lineNum">    1079 </span>            : /* ==================================================================== */
+<span class="lineNum">    1080 </span>            : /*      RawDataset                                                      */
+<span class="lineNum">    1081 </span>            : /* ==================================================================== */
+<span class="lineNum">    1082 </span>            : /************************************************************************/
+<span class="lineNum">    1083 </span>            : 
+<span class="lineNum">    1084 </span>            : /************************************************************************/
+<span class="lineNum">    1085 </span>            : /*                            RawDataset()                              */
+<a name="1086"><span class="lineNum">    1086 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1087 </span>            : 
+<span class="lineNum">    1088 </span><span class="lineCov">       1630 : RawDataset::RawDataset() {}</span>
+<span class="lineNum">    1089 </span>            : 
+<span class="lineNum">    1090 </span>            : /************************************************************************/
+<span class="lineNum">    1091 </span>            : /*                           ~RawDataset()                              */
+<span class="lineNum">    1092 </span>            : /************************************************************************/
+<a name="1093"><span class="lineNum">    1093 </span>            : </a>
+<span class="lineNum">    1094 </span>            : // It's pure virtual function but must be defined, even if empty.
+<span class="lineNum">    1095 </span><span class="lineCov">       1630 : RawDataset::~RawDataset() {}</span>
+<span class="lineNum">    1096 </span>            : 
+<span class="lineNum">    1097 </span>            : /************************************************************************/
+<span class="lineNum">    1098 </span>            : /*                             IRasterIO()                              */
+<span class="lineNum">    1099 </span>            : /*                                                                      */
+<span class="lineNum">    1100 </span>            : /*      Multi-band raster io handler.                                   */
+<a name="1101"><span class="lineNum">    1101 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1102 </span>            : 
+<span class="lineNum">    1103 </span><span class="lineCov">        372 : CPLErr RawDataset::IRasterIO( GDALRWFlag eRWFlag,</span>
+<span class="lineNum">    1104 </span>            :                               int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">    1105 </span>            :                               void *pData, int nBufXSize, int nBufYSize,
+<span class="lineNum">    1106 </span>            :                               GDALDataType eBufType,
+<span class="lineNum">    1107 </span>            :                               int nBandCount, int *panBandMap,
+<span class="lineNum">    1108 </span>            :                               GSpacing nPixelSpace, GSpacing nLineSpace,
+<span class="lineNum">    1109 </span>            :                               GSpacing nBandSpace,
+<span class="lineNum">    1110 </span>            :                               GDALRasterIOExtraArg* psExtraArg )
+<span class="lineNum">    1111 </span>            : 
+<span class="lineNum">    1112 </span>            : {
+<span class="lineNum">    1113 </span><span class="lineCov">        372 :     const char* pszInterleave = nullptr;</span>
+<span class="lineNum">    1114 </span>            : 
+<span class="lineNum">    1115 </span>            :     // The default GDALDataset::IRasterIO() implementation would go to
+<span class="lineNum">    1116 </span>            :     // BlockBasedRasterIO if the dataset is interleaved. However if the
+<span class="lineNum">    1117 </span>            :     // access pattern is compatible with DirectIO() we don't want to go
+<span class="lineNum">    1118 </span>            :     // BlockBasedRasterIO, but rather used our optimized path in
+<span class="lineNum">    1119 </span>            :     // RawRasterBand::IRasterIO().
+<span class="lineNum">    1120 </span><span class="lineCov">        757 :     if (nXSize == nBufXSize &amp;&amp; nYSize == nBufYSize &amp;&amp; nBandCount &gt; 1 &amp;&amp;</span>
+<span class="lineNum">    1121 </span>            :         (pszInterleave = GetMetadataItem(&quot;INTERLEAVE&quot;,
+<span class="lineNum">    1122 </span><span class="lineCov">        387 :                                          &quot;IMAGE_STRUCTURE&quot;)) != nullptr &amp;&amp;</span>
+<span class="lineNum">    1123 </span><span class="lineCov">          2 :         EQUAL(pszInterleave, &quot;PIXEL&quot;))</span>
+<span class="lineNum">    1124 </span>            :     {
+<span class="lineNum">    1125 </span><span class="lineCov">          2 :         int iBandIndex = 0;</span>
+<span class="lineNum">    1126 </span><span class="lineCov">          2 :         for( ; iBandIndex &lt; nBandCount; iBandIndex++ )</span>
+<span class="lineNum">    1127 </span>            :         {
+<span class="lineNum">    1128 </span>            :             RawRasterBand *poBand = dynamic_cast&lt;RawRasterBand *&gt;(
+<span class="lineNum">    1129 </span><span class="lineCov">          2 :                 GetRasterBand(panBandMap[iBandIndex]));</span>
+<span class="lineNum">    1130 </span><span class="lineCov">          3 :             if( poBand == nullptr ||</span>
+<span class="lineNum">    1131 </span>            :                 !poBand-&gt;CanUseDirectIO(nXOff, nYOff,
+<span class="lineNum">    1132 </span><span class="lineCov">          1 :                                         nXSize, nYSize, eBufType, psExtraArg) )</span>
+<span class="lineNum">    1133 </span>            :             {
+<span class="lineNum">    1134 </span><span class="lineCov">          2 :                 break;</span>
+<span class="lineNum">    1135 </span>            :             }
+<span class="lineNum">    1136 </span>            :         }
+<span class="lineNum">    1137 </span><span class="lineCov">          2 :         if( iBandIndex == nBandCount )</span>
+<span class="lineNum">    1138 </span>            :         {
+<span class="lineNum">    1139 </span><span class="lineNoCov">          0 :             GDALProgressFunc pfnProgressGlobal = psExtraArg-&gt;pfnProgress;</span>
+<span class="lineNum">    1140 </span><span class="lineNoCov">          0 :             void *pProgressDataGlobal = psExtraArg-&gt;pProgressData;</span>
+<span class="lineNum">    1141 </span>            : 
+<span class="lineNum">    1142 </span><span class="lineNoCov">          0 :             CPLErr eErr = CE_None;</span>
+<span class="lineNum">    1143 </span><span class="lineNoCov">          0 :             for( iBandIndex = 0;</span>
+<span class="lineNum">    1144 </span><span class="lineNoCov">          0 :                  iBandIndex &lt; nBandCount &amp;&amp; eErr == CE_None;</span>
+<span class="lineNum">    1145 </span>            :                  iBandIndex++ )
+<span class="lineNum">    1146 </span>            :             {
+<span class="lineNum">    1147 </span><span class="lineNoCov">          0 :                 GDALRasterBand *poBand = GetRasterBand(panBandMap[iBandIndex]);</span>
+<span class="lineNum">    1148 </span>            : 
+<span class="lineNum">    1149 </span><span class="lineNoCov">          0 :                 if (poBand == nullptr)</span>
+<span class="lineNum">    1150 </span>            :                 {
+<span class="lineNum">    1151 </span><span class="lineNoCov">          0 :                     eErr = CE_Failure;</span>
+<span class="lineNum">    1152 </span><span class="lineNoCov">          0 :                     break;</span>
+<span class="lineNum">    1153 </span>            :                 }
+<span class="lineNum">    1154 </span>            : 
+<span class="lineNum">    1155 </span>            :                 GByte *pabyBandData =
+<span class="lineNum">    1156 </span><span class="lineNoCov">          0 :                     static_cast&lt;GByte *&gt;(pData) + iBandIndex * nBandSpace;</span>
+<span class="lineNum">    1157 </span>            : 
+<span class="lineNum">    1158 </span><span class="lineNoCov">          0 :                 psExtraArg-&gt;pfnProgress = GDALScaledProgress;</span>
+<span class="lineNum">    1159 </span>            :                 psExtraArg-&gt;pProgressData = GDALCreateScaledProgress(
+<span class="lineNum">    1160 </span><span class="lineNoCov">          0 :                     1.0 * iBandIndex / nBandCount,</span>
+<span class="lineNum">    1161 </span><span class="lineNoCov">          0 :                     1.0 * (iBandIndex + 1) / nBandCount, pfnProgressGlobal,</span>
+<span class="lineNum">    1162 </span><span class="lineNoCov">          0 :                     pProgressDataGlobal);</span>
+<span class="lineNum">    1163 </span>            : 
+<span class="lineNum">    1164 </span>            :                 eErr = poBand-&gt;RasterIO(eRWFlag, nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">    1165 </span>            :                                         static_cast&lt;void *&gt;(pabyBandData),
+<span class="lineNum">    1166 </span>            :                                         nBufXSize, nBufYSize, eBufType,
+<span class="lineNum">    1167 </span><span class="lineNoCov">          0 :                                         nPixelSpace, nLineSpace, psExtraArg);</span>
+<span class="lineNum">    1168 </span>            : 
+<span class="lineNum">    1169 </span><span class="lineNoCov">          0 :                 GDALDestroyScaledProgress(psExtraArg-&gt;pProgressData);</span>
+<span class="lineNum">    1170 </span>            :             }
+<span class="lineNum">    1171 </span>            : 
+<span class="lineNum">    1172 </span><span class="lineNoCov">          0 :             psExtraArg-&gt;pfnProgress = pfnProgressGlobal;</span>
+<span class="lineNum">    1173 </span><span class="lineNoCov">          0 :             psExtraArg-&gt;pProgressData = pProgressDataGlobal;</span>
+<span class="lineNum">    1174 </span>            : 
+<span class="lineNum">    1175 </span><span class="lineNoCov">          0 :             return eErr;</span>
+<span class="lineNum">    1176 </span>            :         }
+<span class="lineNum">    1177 </span>            :     }
+<span class="lineNum">    1178 </span>            : 
+<span class="lineNum">    1179 </span>            :     return GDALDataset::IRasterIO(eRWFlag, nXOff, nYOff, nXSize, nYSize, pData,
+<span class="lineNum">    1180 </span>            :                                   nBufXSize, nBufYSize, eBufType, nBandCount,
+<span class="lineNum">    1181 </span>            :                                   panBandMap, nPixelSpace, nLineSpace,
+<span class="lineNum">    1182 </span><span class="lineCov">        372 :                                   nBandSpace, psExtraArg);</span>
+<span class="lineNum">    1183 </span>            : }
+<span class="lineNum">    1184 </span>            : 
+<span class="lineNum">    1185 </span>            : 
+<span class="lineNum">    1186 </span>            : /************************************************************************/
+<span class="lineNum">    1187 </span>            : /*                  RAWDatasetCheckMemoryUsage()                        */
+<a name="1188"><span class="lineNum">    1188 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1189 </span>            : 
+<span class="lineNum">    1190 </span><span class="lineCov">        343 : bool RAWDatasetCheckMemoryUsage(int nXSize, int nYSize, int nBands,</span>
+<span class="lineNum">    1191 </span>            :                                 int nDTSize,
+<span class="lineNum">    1192 </span>            :                                 int nPixelOffset,
+<span class="lineNum">    1193 </span>            :                                 int nLineOffset,
+<span class="lineNum">    1194 </span>            :                                 vsi_l_offset nHeaderSize,
+<span class="lineNum">    1195 </span>            :                                 vsi_l_offset nBandOffset,
+<span class="lineNum">    1196 </span>            :                                 VSILFILE* fp)
+<span class="lineNum">    1197 </span>            : {
+<span class="lineNum">    1198 </span>            : 
+<span class="lineNum">    1199 </span>            :     // Currently each RawRasterBand allocates nPixelOffset * nRasterXSize bytes
+<span class="lineNum">    1200 </span>            :     // so for a pixel interleaved scheme, this will allocate lots of memory!
+<span class="lineNum">    1201 </span>            :     // Actually this is quadratic in the number of bands!
+<span class="lineNum">    1202 </span>            :     // Do a few sanity checks to avoid excessive memory allocation on
+<span class="lineNum">    1203 </span>            :     // small files.
+<span class="lineNum">    1204 </span>            :     // But ultimately we should fix RawRasterBand to have a shared buffer
+<span class="lineNum">    1205 </span>            :     // among bands.
+<span class="lineNum">    1206 </span><span class="lineCov">        343 :     const char* pszCheck = CPLGetConfigOption(&quot;RAW_CHECK_FILE_SIZE&quot;, nullptr);</span>
+<span class="lineNum">    1207 </span><span class="lineCov">        687 :     if( (nBands &gt; 10 ||</span>
+<span class="lineNum">    1208 </span><span class="lineCov">        686 :          static_cast&lt;vsi_l_offset&gt;(nPixelOffset) * nXSize &gt; 20000 ||</span>
+<span class="lineNum">    1209 </span><span class="lineCov">        347 :          (pszCheck &amp;&amp; CPLTestBool(pszCheck))) &amp;&amp;</span>
+<span class="lineNum">    1210 </span><span class="lineCov">          1 :         !(pszCheck &amp;&amp; !CPLTestBool(pszCheck)) )</span>
+<span class="lineNum">    1211 </span>            :     {
+<span class="lineNum">    1212 </span>            :         vsi_l_offset nExpectedFileSize =
+<span class="lineNum">    1213 </span><span class="lineCov">          6 :             nHeaderSize + nBandOffset * (nBands - 1) +</span>
+<span class="lineNum">    1214 </span><span class="lineCov">          3 :             (nYSize-1) * static_cast&lt;vsi_l_offset&gt;(nLineOffset) +</span>
+<span class="lineNum">    1215 </span><span class="lineCov">          3 :             (nXSize-1) * static_cast&lt;vsi_l_offset&gt;(nPixelOffset);</span>
+<span class="lineNum">    1216 </span><span class="lineCov">          3 :         CPL_IGNORE_RET_VAL( VSIFSeekL(fp, 0, SEEK_END) );</span>
+<span class="lineNum">    1217 </span><span class="lineCov">          3 :         vsi_l_offset nFileSize = VSIFTellL(fp);</span>
+<span class="lineNum">    1218 </span>            :         // Do not strictly compare against nExpectedFileSize, but use an arbitrary
+<span class="lineNum">    1219 </span>            :         // 50% margin, since some raw formats such as ENVI
+<span class="lineNum">    1220 </span>            :         // allow for sparse files (see https://github.com/OSGeo/gdal/issues/915)
+<span class="lineNum">    1221 </span><span class="lineCov">          3 :         if( nFileSize &lt; nExpectedFileSize / 2 )</span>
+<span class="lineNum">    1222 </span>            :         {
+<span class="lineNum">    1223 </span><span class="lineCov">          2 :             CPLError(CE_Failure, CPLE_AppDefined, &quot;Image file is too small&quot;);</span>
+<span class="lineNum">    1224 </span><span class="lineCov">          2 :             return false;</span>
+<span class="lineNum">    1225 </span>            :         }
+<span class="lineNum">    1226 </span>            :     }
+<span class="lineNum">    1227 </span>            : 
+<span class="lineNum">    1228 </span>            :     // Currently each RawRasterBand need to allocate nLineSize
+<span class="lineNum">    1229 </span>            :     GIntBig nLineSize =
+<span class="lineNum">    1230 </span><span class="lineCov">        341 :         static_cast&lt;GIntBig&gt;(std::abs(nPixelOffset)) * (nXSize - 1) + nDTSize;</span>
+<span class="lineNum">    1231 </span><span class="lineCov">        341 :     constexpr int knMAX_BUFFER_MEM = INT_MAX / 4;</span>
+<span class="lineNum">    1232 </span><span class="lineCov">        341 :     if( nBands &gt; 0 &amp;&amp; nLineSize &gt; knMAX_BUFFER_MEM / nBands )</span>
+<span class="lineNum">    1233 </span>            :     {
+<span class="lineNum">    1234 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_OutOfMemory, &quot;Too much memory needed&quot;);</span>
+<span class="lineNum">    1235 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">    1236 </span>            :     }
+<span class="lineNum">    1237 </span>            : 
+<span class="lineNum">    1238 </span><span class="lineCov">        341 :     return true;</span>
+<span class="lineNum">    1239 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

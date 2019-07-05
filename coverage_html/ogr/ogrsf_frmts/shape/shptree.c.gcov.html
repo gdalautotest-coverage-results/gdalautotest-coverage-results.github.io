@@ -1,0 +1,1280 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/shape/shptree.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/shape</a> - shptree.c<span style="font-size: 80%;"> (source / <a href="shptree.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">264</td>
+            <td class="headerCovTableEntry">359</td>
+            <td class="headerCovTableEntryLo">73.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntry">27</td>
+            <td class="headerCovTableEntryMed">77.8 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  * $Id$
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Project:  Shapelib
+<span class="lineNum">       5 </span>            :  * Purpose:  Implementation of quadtree building and searching functions.
+<span class="lineNum">       6 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  ******************************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 1999, Frank Warmerdam
+<span class="lineNum">      10 </span>            :  * Copyright (c) 2012, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      11 </span>            :  *
+<span class="lineNum">      12 </span>            :  * This software is available under the following &quot;MIT Style&quot; license,
+<span class="lineNum">      13 </span>            :  * or at the option of the licensee under the LGPL (see COPYING).  This
+<span class="lineNum">      14 </span>            :  * option is discussed in more detail in shapelib.html.
+<span class="lineNum">      15 </span>            :  *
+<span class="lineNum">      16 </span>            :  * --
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      19 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      20 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      21 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      22 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      23 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      24 </span>            :  *
+<span class="lineNum">      25 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      26 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      27 </span>            :  *
+<span class="lineNum">      28 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      29 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      30 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      31 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      32 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      33 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      34 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      35 </span>            :  *******************************************************************************/
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : #include &quot;shapefil.h&quot;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : #include &lt;math.h&gt;
+<span class="lineNum">      40 </span>            : #include &lt;assert.h&gt;
+<span class="lineNum">      41 </span>            : #include &lt;stdlib.h&gt;
+<span class="lineNum">      42 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      43 </span>            : #include &lt;limits.h&gt;
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : #ifdef USE_CPL
+<span class="lineNum">      46 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      47 </span>            : #endif
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            : SHP_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : #ifndef TRUE
+<span class="lineNum">      52 </span>            : #  define TRUE 1
+<span class="lineNum">      53 </span>            : #  define FALSE 0
+<span class="lineNum">      54 </span>            : #endif
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : static int bBigEndian = 0;
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      60 </span>            : /*      If the following is 0.5, nodes will be split in half.  If it    */
+<span class="lineNum">      61 </span>            : /*      is 0.6 then each subnode will contain 60% of the parent         */
+<span class="lineNum">      62 </span>            : /*      node, with 20% representing overlap.  This can be help to       */
+<span class="lineNum">      63 </span>            : /*      prevent small objects on a boundary from shifting too high      */
+<span class="lineNum">      64 </span>            : /*      up the tree.                                                    */
+<span class="lineNum">      65 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            : #define SHP_SPLIT_RATIO 0.55
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span>            : #ifdef __cplusplus
+<span class="lineNum">      70 </span>            : #define STATIC_CAST(type,x) static_cast&lt;type&gt;(x)
+<span class="lineNum">      71 </span>            : #define REINTERPRET_CAST(type,x) reinterpret_cast&lt;type&gt;(x)
+<span class="lineNum">      72 </span>            : #define CONST_CAST(type,x) const_cast&lt;type&gt;(x)
+<span class="lineNum">      73 </span>            : #define SHPLIB_NULLPTR nullptr
+<span class="lineNum">      74 </span>            : #else
+<span class="lineNum">      75 </span>            : #define STATIC_CAST(type,x) ((type)(x))
+<span class="lineNum">      76 </span>            : #define REINTERPRET_CAST(type,x) ((type)(x))
+<span class="lineNum">      77 </span>            : #define CONST_CAST(type,x) ((type)(x))
+<span class="lineNum">      78 </span>            : #define SHPLIB_NULLPTR NULL
+<span class="lineNum">      79 </span>            : #endif
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span>            : /************************************************************************/
+<span class="lineNum">      82 </span>            : /*                             SfRealloc()                              */
+<span class="lineNum">      83 </span>            : /*                                                                      */
+<span class="lineNum">      84 </span>            : /*      A realloc cover function that will access a NULL pointer as     */
+<span class="lineNum">      85 </span>            : /*      a valid input.                                                  */
+<a name="86"><span class="lineNum">      86 </span>            : /************************************************************************/</a>
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span><span class="lineCov">      54074 : static void * SfRealloc( void * pMem, int nNewSize )</span>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            : {
+<span class="lineNum">      91 </span><span class="lineCov">      54074 :     if( pMem == SHPLIB_NULLPTR )</span>
+<span class="lineNum">      92 </span><span class="lineCov">      52660 :         return malloc(nNewSize);</span>
+<span class="lineNum">      93 </span>            :     else
+<span class="lineNum">      94 </span><span class="lineCov">       1414 :         return realloc(pMem,nNewSize);</span>
+<span class="lineNum">      95 </span>            : }
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            : /************************************************************************/
+<span class="lineNum">      98 </span>            : /*                          SHPTreeNodeInit()                           */
+<span class="lineNum">      99 </span>            : /*                                                                      */
+<span class="lineNum">     100 </span>            : /*      Initialize a tree node.                                         */
+<a name="101"><span class="lineNum">     101 </span>            : /************************************************************************/</a>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span><span class="lineCov">     521632 : static SHPTreeNode *SHPTreeNodeCreate( double * padfBoundsMin,</span>
+<span class="lineNum">     104 </span>            :                                        double * padfBoundsMax )
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span>            : {
+<span class="lineNum">     107 </span>            :     SHPTreeNode *psTreeNode;
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span><span class="lineCov">     521632 :     psTreeNode = STATIC_CAST(SHPTreeNode *, malloc(sizeof(SHPTreeNode)));</span>
+<span class="lineNum">     110 </span><span class="lineCov">     521632 :     if( SHPLIB_NULLPTR == psTreeNode )</span>
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :         return SHPLIB_NULLPTR;</span>
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span><span class="lineCov">     521632 :     psTreeNode-&gt;nShapeCount = 0;</span>
+<span class="lineNum">     114 </span><span class="lineCov">     521632 :     psTreeNode-&gt;panShapeIds = SHPLIB_NULLPTR;</span>
+<span class="lineNum">     115 </span><span class="lineCov">     521632 :     psTreeNode-&gt;papsShapeObj = SHPLIB_NULLPTR;</span>
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span><span class="lineCov">     521632 :     psTreeNode-&gt;nSubNodes = 0;</span>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineCov">     521632 :     if( padfBoundsMin != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     120 </span><span class="lineCov">     521616 :         memcpy( psTreeNode-&gt;adfBoundsMin, padfBoundsMin, sizeof(double) * 4 );</span>
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span><span class="lineCov">     521632 :     if( padfBoundsMax != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     123 </span><span class="lineCov">     521616 :         memcpy( psTreeNode-&gt;adfBoundsMax, padfBoundsMax, sizeof(double) * 4 );</span>
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span><span class="lineCov">     521632 :     return psTreeNode;</span>
+<span class="lineNum">     126 </span>            : }
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span>            : /************************************************************************/
+<span class="lineNum">     130 </span>            : /*                           SHPCreateTree()                            */
+<span class="lineNum">     131 </span>            : /************************************************************************/
+<a name="132"><span class="lineNum">     132 </span>            : </a>
+<span class="lineNum">     133 </span>            : SHPTree SHPAPI_CALL1(*)
+<span class="lineNum">     134 </span><span class="lineCov">         16 :     SHPCreateTree( SHPHandle hSHP, int nDimension, int nMaxDepth,</span>
+<span class="lineNum">     135 </span>            :                    double *padfBoundsMin, double *padfBoundsMax )
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span>            : {
+<span class="lineNum">     138 </span>            :     SHPTree *psTree;
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span><span class="lineCov">         16 :     if( padfBoundsMin == SHPLIB_NULLPTR &amp;&amp; hSHP == SHPLIB_NULLPTR )</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :         return SHPLIB_NULLPTR;</span>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     144 </span>            : /*      Allocate the tree object                                        */
+<span class="lineNum">     145 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     146 </span><span class="lineCov">         16 :     psTree = STATIC_CAST(SHPTree *, malloc(sizeof(SHPTree)));</span>
+<span class="lineNum">     147 </span><span class="lineCov">         16 :     if( SHPLIB_NULLPTR == psTree )</span>
+<span class="lineNum">     148 </span>            :     {
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :         return SHPLIB_NULLPTR;</span>
+<span class="lineNum">     150 </span>            :     }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">         16 :     psTree-&gt;hSHP = hSHP;</span>
+<span class="lineNum">     153 </span><span class="lineCov">         16 :     psTree-&gt;nMaxDepth = nMaxDepth;</span>
+<span class="lineNum">     154 </span><span class="lineCov">         16 :     psTree-&gt;nDimension = nDimension;</span>
+<span class="lineNum">     155 </span><span class="lineCov">         16 :     psTree-&gt;nTotalCount = 0;</span>
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     158 </span>            : /*      If no max depth was defined, try to select a reasonable one     */
+<span class="lineNum">     159 </span>            : /*      that implies approximately 8 shapes per node.                   */
+<span class="lineNum">     160 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     161 </span><span class="lineCov">         16 :     if( psTree-&gt;nMaxDepth == 0 &amp;&amp; hSHP != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     162 </span>            :     {
+<span class="lineNum">     163 </span><span class="lineCov">         16 :         int nMaxNodeCount = 1;</span>
+<span class="lineNum">     164 </span>            :         int nShapeCount;
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineCov">         16 :         SHPGetInfo( hSHP, &amp;nShapeCount, SHPLIB_NULLPTR, SHPLIB_NULLPTR, SHPLIB_NULLPTR );</span>
+<span class="lineNum">     167 </span><span class="lineCov">         98 :         while( nMaxNodeCount*4 &lt; nShapeCount )</span>
+<span class="lineNum">     168 </span>            :         {
+<span class="lineNum">     169 </span><span class="lineCov">         66 :             psTree-&gt;nMaxDepth += 1;</span>
+<span class="lineNum">     170 </span><span class="lineCov">         66 :             nMaxNodeCount = nMaxNodeCount * 2;</span>
+<span class="lineNum">     171 </span>            :         }
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            : #ifdef USE_CPL
+<span class="lineNum">     174 </span><span class="lineCov">         16 :         CPLDebug( &quot;Shape&quot;,</span>
+<span class="lineNum">     175 </span>            :                   &quot;Estimated spatial index tree depth: %d&quot;,
+<span class="lineNum">     176 </span>            :                   psTree-&gt;nMaxDepth );
+<span class="lineNum">     177 </span>            : #endif
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            :         /* NOTE: Due to problems with memory allocation for deep trees,
+<span class="lineNum">     180 </span>            :          * automatically estimated depth is limited up to 12 levels.
+<span class="lineNum">     181 </span>            :          * See Ticket #1594 for detailed discussion.
+<span class="lineNum">     182 </span>            :          */
+<span class="lineNum">     183 </span><span class="lineCov">         16 :         if( psTree-&gt;nMaxDepth &gt; MAX_DEFAULT_TREE_DEPTH )</span>
+<span class="lineNum">     184 </span>            :         {
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :             psTree-&gt;nMaxDepth = MAX_DEFAULT_TREE_DEPTH;</span>
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            : #ifdef USE_CPL
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :             CPLDebug( &quot;Shape&quot;,</span>
+<span class="lineNum">     189 </span>            :                       &quot;Falling back to max number of allowed index tree levels (%d).&quot;,
+<span class="lineNum">     190 </span>            :                       MAX_DEFAULT_TREE_DEPTH );
+<span class="lineNum">     191 </span>            : #endif
+<span class="lineNum">     192 </span>            :         }
+<span class="lineNum">     193 </span>            :     }
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     196 </span>            : /*      Allocate the root node.                                         */
+<span class="lineNum">     197 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     198 </span><span class="lineCov">         16 :     psTree-&gt;psRoot = SHPTreeNodeCreate( padfBoundsMin, padfBoundsMax );</span>
+<span class="lineNum">     199 </span><span class="lineCov">         16 :     if( SHPLIB_NULLPTR == psTree-&gt;psRoot )</span>
+<span class="lineNum">     200 </span>            :     {
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :         free( psTree );</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :         return SHPLIB_NULLPTR;</span>
+<span class="lineNum">     203 </span>            :     }
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     206 </span>            : /*      Assign the bounds to the root node.  If none are passed in,     */
+<span class="lineNum">     207 </span>            : /*      use the bounds of the provided file otherwise the create        */
+<span class="lineNum">     208 </span>            : /*      function will have already set the bounds.                      */
+<span class="lineNum">     209 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     210 </span><span class="lineCov">         16 :     if( padfBoundsMin == SHPLIB_NULLPTR )</span>
+<span class="lineNum">     211 </span>            :     {
+<span class="lineNum">     212 </span><span class="lineCov">         16 :         SHPGetInfo( hSHP, SHPLIB_NULLPTR, SHPLIB_NULLPTR,</span>
+<span class="lineNum">     213 </span><span class="lineCov">         16 :                     psTree-&gt;psRoot-&gt;adfBoundsMin,</span>
+<span class="lineNum">     214 </span><span class="lineCov">         16 :                     psTree-&gt;psRoot-&gt;adfBoundsMax );</span>
+<span class="lineNum">     215 </span>            :     }
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     218 </span>            : /*      If we have a file, insert all its shapes into the tree.        */
+<span class="lineNum">     219 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     220 </span><span class="lineCov">         16 :     if( hSHP != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     221 </span>            :     {
+<span class="lineNum">     222 </span>            :         int iShape, nShapeCount;
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span><span class="lineCov">         16 :         SHPGetInfo( hSHP, &amp;nShapeCount, SHPLIB_NULLPTR, SHPLIB_NULLPTR, SHPLIB_NULLPTR );</span>
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineCov">      41682 :         for( iShape = 0; iShape &lt; nShapeCount; iShape++ )</span>
+<span class="lineNum">     227 </span>            :         {
+<span class="lineNum">     228 </span>            :             SHPObject *psShape;
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineCov">      41666 :             psShape = SHPReadObject( hSHP, iShape );</span>
+<span class="lineNum">     231 </span><span class="lineCov">      41666 :             if( psShape != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     232 </span>            :             {
+<span class="lineNum">     233 </span><span class="lineCov">      41666 :                 SHPTreeAddShapeId( psTree, psShape );</span>
+<span class="lineNum">     234 </span><span class="lineCov">      41666 :                 SHPDestroyObject( psShape );</span>
+<span class="lineNum">     235 </span>            :             }
+<span class="lineNum">     236 </span>            :         }
+<span class="lineNum">     237 </span>            :     }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span><span class="lineCov">         16 :     return psTree;</span>
+<span class="lineNum">     240 </span>            : }
+<span class="lineNum">     241 </span>            : 
+<span class="lineNum">     242 </span>            : /************************************************************************/
+<span class="lineNum">     243 </span>            : /*                         SHPDestroyTreeNode()                         */
+<a name="244"><span class="lineNum">     244 </span>            : /************************************************************************/</a>
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span><span class="lineCov">     413870 : static void SHPDestroyTreeNode( SHPTreeNode * psTreeNode )</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            : {
+<span class="lineNum">     249 </span>            :     int   i;
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineCov">     413870 :   assert( SHPLIB_NULLPTR != psTreeNode );</span>
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span><span class="lineCov">     476833 :     for( i = 0; i &lt; psTreeNode-&gt;nSubNodes; i++ )</span>
+<span class="lineNum">     254 </span>            :     {
+<span class="lineNum">     255 </span><span class="lineCov">      62963 :         if( psTreeNode-&gt;apsSubNode[i] != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     256 </span><span class="lineCov">      62963 :             SHPDestroyTreeNode( psTreeNode-&gt;apsSubNode[i] );</span>
+<span class="lineNum">     257 </span>            :     }
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span><span class="lineCov">     413870 :     if( psTreeNode-&gt;panShapeIds != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     260 </span><span class="lineCov">      40339 :         free( psTreeNode-&gt;panShapeIds );</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span><span class="lineCov">     413870 :     if( psTreeNode-&gt;papsShapeObj != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     263 </span>            :     {
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :         for( i = 0; i &lt; psTreeNode-&gt;nShapeCount; i++ )</span>
+<span class="lineNum">     265 </span>            :         {
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :             if( psTreeNode-&gt;papsShapeObj[i] != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :                 SHPDestroyObject( psTreeNode-&gt;papsShapeObj[i] );</span>
+<span class="lineNum">     268 </span>            :         }
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :         free( psTreeNode-&gt;papsShapeObj );</span>
+<span class="lineNum">     271 </span>            :     }
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span><span class="lineCov">     413870 :     free( psTreeNode );</span>
+<span class="lineNum">     274 </span><span class="lineCov">     413870 : }</span>
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span>            : /************************************************************************/
+<span class="lineNum">     277 </span>            : /*                           SHPDestroyTree()                           */
+<span class="lineNum">     278 </span>            : /************************************************************************/
+<a name="279"><span class="lineNum">     279 </span>            : </a>
+<span class="lineNum">     280 </span>            : void SHPAPI_CALL
+<span class="lineNum">     281 </span><span class="lineCov">         16 : SHPDestroyTree( SHPTree * psTree )</span>
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span>            : {
+<span class="lineNum">     284 </span><span class="lineCov">         16 :     SHPDestroyTreeNode( psTree-&gt;psRoot );</span>
+<span class="lineNum">     285 </span><span class="lineCov">         16 :     free( psTree );</span>
+<span class="lineNum">     286 </span><span class="lineCov">         16 : }</span>
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            : /************************************************************************/
+<span class="lineNum">     289 </span>            : /*                       SHPCheckBoundsOverlap()                        */
+<span class="lineNum">     290 </span>            : /*                                                                      */
+<span class="lineNum">     291 </span>            : /*      Do the given boxes overlap at all?                              */
+<span class="lineNum">     292 </span>            : /************************************************************************/
+<a name="293"><span class="lineNum">     293 </span>            : </a>
+<span class="lineNum">     294 </span>            : int SHPAPI_CALL
+<span class="lineNum">     295 </span><span class="lineCov">     522243 : SHPCheckBoundsOverlap( double * padfBox1Min, double * padfBox1Max,</span>
+<span class="lineNum">     296 </span>            :                        double * padfBox2Min, double * padfBox2Max,
+<span class="lineNum">     297 </span>            :                        int nDimension )
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span>            : {
+<span class="lineNum">     300 </span>            :     int   iDim;
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span><span class="lineCov">     981920 :     for( iDim = 0; iDim &lt; nDimension; iDim++ )</span>
+<span class="lineNum">     303 </span>            :     {
+<span class="lineNum">     304 </span><span class="lineCov">     811375 :         if( padfBox2Max[iDim] &lt; padfBox1Min[iDim] )</span>
+<span class="lineNum">     305 </span><span class="lineCov">     197758 :             return FALSE;</span>
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span><span class="lineCov">     613617 :         if( padfBox1Max[iDim] &lt; padfBox2Min[iDim] )</span>
+<span class="lineNum">     308 </span><span class="lineCov">     153940 :             return FALSE;</span>
+<span class="lineNum">     309 </span>            :     }
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span><span class="lineCov">     170545 :     return TRUE;</span>
+<span class="lineNum">     312 </span>            : }
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            : /************************************************************************/
+<span class="lineNum">     315 </span>            : /*                      SHPCheckObjectContained()                       */
+<span class="lineNum">     316 </span>            : /*                                                                      */
+<span class="lineNum">     317 </span>            : /*      Does the given shape fit within the indicated extents?          */
+<a name="318"><span class="lineNum">     318 </span>            : /************************************************************************/</a>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span><span class="lineCov">    1605328 : static int SHPCheckObjectContained( SHPObject * psObject, int nDimension,</span>
+<span class="lineNum">     321 </span>            :                            double * padfBoundsMin, double * padfBoundsMax )
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            : {
+<span class="lineNum">     324 </span><span class="lineCov">    1605328 :     if( psObject-&gt;dfXMin &lt; padfBoundsMin[0]</span>
+<span class="lineNum">     325 </span><span class="lineCov">    1499426 :         || psObject-&gt;dfXMax &gt; padfBoundsMax[0] )</span>
+<span class="lineNum">     326 </span><span class="lineCov">     668908 :         return FALSE;</span>
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span><span class="lineCov">     936420 :     if( psObject-&gt;dfYMin &lt; padfBoundsMin[1]</span>
+<span class="lineNum">     329 </span><span class="lineCov">     933277 :         || psObject-&gt;dfYMax &gt; padfBoundsMax[1] )</span>
+<span class="lineNum">     330 </span><span class="lineCov">     379943 :         return FALSE;</span>
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span><span class="lineCov">     556477 :     if( nDimension == 2 )</span>
+<span class="lineNum">     333 </span><span class="lineCov">     556477 :         return TRUE;</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :     if( psObject-&gt;dfZMin &lt; padfBoundsMin[2]</span>
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :         || psObject-&gt;dfZMax &gt; padfBoundsMax[2] )</span>
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :     if( nDimension == 3 )</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :         return TRUE;</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :     if( psObject-&gt;dfMMin &lt; padfBoundsMin[3]</span>
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :         || psObject-&gt;dfMMax &gt; padfBoundsMax[3] )</span>
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :     return TRUE;</span>
+<span class="lineNum">     347 </span>            : }
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span>            : /************************************************************************/
+<span class="lineNum">     350 </span>            : /*                         SHPTreeSplitBounds()                         */
+<span class="lineNum">     351 </span>            : /*                                                                      */
+<span class="lineNum">     352 </span>            : /*      Split a region into two subregion evenly, cutting along the     */
+<span class="lineNum">     353 </span>            : /*      longest dimension.                                              */
+<span class="lineNum">     354 </span>            : /************************************************************************/
+<a name="355"><span class="lineNum">     355 </span>            : </a>
+<span class="lineNum">     356 </span>            : static void
+<span class="lineNum">     357 </span><span class="lineCov">     421218 : SHPTreeSplitBounds( double *padfBoundsMinIn, double *padfBoundsMaxIn,</span>
+<span class="lineNum">     358 </span>            :                     double *padfBoundsMin1, double * padfBoundsMax1,
+<span class="lineNum">     359 </span>            :                     double *padfBoundsMin2, double * padfBoundsMax2 )
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span>            : {
+<span class="lineNum">     362 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     363 </span>            : /*      The output bounds will be very similar to the input bounds,     */
+<span class="lineNum">     364 </span>            : /*      so just copy over to start.                                     */
+<span class="lineNum">     365 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     366 </span><span class="lineCov">     421218 :     memcpy( padfBoundsMin1, padfBoundsMinIn, sizeof(double) * 4 );</span>
+<span class="lineNum">     367 </span><span class="lineCov">     421218 :     memcpy( padfBoundsMax1, padfBoundsMaxIn, sizeof(double) * 4 );</span>
+<span class="lineNum">     368 </span><span class="lineCov">     421218 :     memcpy( padfBoundsMin2, padfBoundsMinIn, sizeof(double) * 4 );</span>
+<span class="lineNum">     369 </span><span class="lineCov">     421218 :     memcpy( padfBoundsMax2, padfBoundsMaxIn, sizeof(double) * 4 );</span>
+<span class="lineNum">     370 </span>            : 
+<span class="lineNum">     371 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     372 </span>            : /*      Split in X direction.                                           */
+<span class="lineNum">     373 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     374 </span><span class="lineCov">     842436 :     if( (padfBoundsMaxIn[0] - padfBoundsMinIn[0])</span>
+<span class="lineNum">     375 </span><span class="lineCov">     421218 :               &gt; (padfBoundsMaxIn[1] - padfBoundsMinIn[1]) )</span>
+<span class="lineNum">     376 </span>            :     {
+<span class="lineNum">     377 </span><span class="lineCov">     276358 :         double  dfRange = padfBoundsMaxIn[0] - padfBoundsMinIn[0];</span>
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span><span class="lineCov">     276358 :         padfBoundsMax1[0] = padfBoundsMinIn[0] + dfRange * SHP_SPLIT_RATIO;</span>
+<span class="lineNum">     380 </span><span class="lineCov">     276358 :         padfBoundsMin2[0] = padfBoundsMaxIn[0] - dfRange * SHP_SPLIT_RATIO;</span>
+<span class="lineNum">     381 </span>            :     }
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     384 </span>            : /*      Otherwise split in Y direction.                                 */
+<span class="lineNum">     385 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     386 </span>            :     else
+<span class="lineNum">     387 </span>            :     {
+<span class="lineNum">     388 </span><span class="lineCov">     144860 :         double  dfRange = padfBoundsMaxIn[1] - padfBoundsMinIn[1];</span>
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span><span class="lineCov">     144860 :         padfBoundsMax1[1] = padfBoundsMinIn[1] + dfRange * SHP_SPLIT_RATIO;</span>
+<span class="lineNum">     391 </span><span class="lineCov">     144860 :         padfBoundsMin2[1] = padfBoundsMaxIn[1] - dfRange * SHP_SPLIT_RATIO;</span>
+<span class="lineNum">     392 </span>            :     }
+<span class="lineNum">     393 </span><span class="lineCov">     421218 : }</span>
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            : /************************************************************************/
+<span class="lineNum">     396 </span>            : /*                       SHPTreeNodeAddShapeId()                        */
+<span class="lineNum">     397 </span>            : /************************************************************************/
+<a name="398"><span class="lineNum">     398 </span>            : </a>
+<span class="lineNum">     399 </span>            : static int
+<span class="lineNum">     400 </span><span class="lineCov">     598143 : SHPTreeNodeAddShapeId( SHPTreeNode * psTreeNode, SHPObject * psObject,</span>
+<span class="lineNum">     401 </span>            :                        int nMaxDepth, int nDimension )
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            : {
+<span class="lineNum">     404 </span>            :     int   i;
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     407 </span>            : /*      If there are subnodes, then consider whether this object        */
+<span class="lineNum">     408 </span>            : /*      will fit in them.                                               */
+<span class="lineNum">     409 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     410 </span><span class="lineCov">     598149 :     if( nMaxDepth &gt; 1 &amp;&amp; psTreeNode-&gt;nSubNodes &gt; 0 )</span>
+<span class="lineNum">     411 </span>            :     {
+<span class="lineNum">     412 </span><span class="lineCov">    1174582 :         for( i = 0; i &lt; psTreeNode-&gt;nSubNodes; i++ )</span>
+<span class="lineNum">     413 </span>            :         {
+<span class="lineNum">     414 </span><span class="lineCov">    1174576 :             if( SHPCheckObjectContained(psObject, nDimension,</span>
+<span class="lineNum">     415 </span><span class="lineCov">    1174576 :                                       psTreeNode-&gt;apsSubNode[i]-&gt;adfBoundsMin,</span>
+<span class="lineNum">     416 </span><span class="lineCov">    1174576 :                                       psTreeNode-&gt;apsSubNode[i]-&gt;adfBoundsMax))</span>
+<span class="lineNum">     417 </span>            :             {
+<span class="lineNum">     418 </span><span class="lineCov">     426073 :                 return SHPTreeNodeAddShapeId( psTreeNode-&gt;apsSubNode[i],</span>
+<span class="lineNum">     419 </span>            :                                               psObject, nMaxDepth-1,
+<span class="lineNum">     420 </span>            :                                               nDimension );
+<span class="lineNum">     421 </span>            :             }
+<span class="lineNum">     422 </span>            :         }
+<span class="lineNum">     423 </span>            :     }
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     426 </span>            : /*      Otherwise, consider creating four subnodes if could fit into    */
+<span class="lineNum">     427 </span>            : /*      them, and adding to the appropriate subnode.                    */
+<span class="lineNum">     428 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     429 </span>            : #if MAX_SUBNODE == 4
+<span class="lineNum">     430 </span><span class="lineCov">     172064 :     else if( nMaxDepth &gt; 1 &amp;&amp; psTreeNode-&gt;nSubNodes == 0 )</span>
+<span class="lineNum">     431 </span>            :     {
+<span class="lineNum">     432 </span>            :         double  adfBoundsMinH1[4], adfBoundsMaxH1[4];
+<span class="lineNum">     433 </span>            :         double  adfBoundsMinH2[4], adfBoundsMaxH2[4];
+<span class="lineNum">     434 </span>            :         double  adfBoundsMin1[4], adfBoundsMax1[4];
+<span class="lineNum">     435 </span>            :         double  adfBoundsMin2[4], adfBoundsMax2[4];
+<span class="lineNum">     436 </span>            :         double  adfBoundsMin3[4], adfBoundsMax3[4];
+<span class="lineNum">     437 </span>            :         double  adfBoundsMin4[4], adfBoundsMax4[4];
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span><span class="lineCov">     140406 :         SHPTreeSplitBounds( psTreeNode-&gt;adfBoundsMin,</span>
+<span class="lineNum">     440 </span><span class="lineCov">     140406 :                             psTreeNode-&gt;adfBoundsMax,</span>
+<span class="lineNum">     441 </span>            :                             adfBoundsMinH1, adfBoundsMaxH1,
+<span class="lineNum">     442 </span>            :                             adfBoundsMinH2, adfBoundsMaxH2 );
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span><span class="lineCov">     140406 :         SHPTreeSplitBounds( adfBoundsMinH1, adfBoundsMaxH1,</span>
+<span class="lineNum">     445 </span>            :                             adfBoundsMin1, adfBoundsMax1,
+<span class="lineNum">     446 </span>            :                             adfBoundsMin2, adfBoundsMax2 );
+<span class="lineNum">     447 </span>            : 
+<span class="lineNum">     448 </span><span class="lineCov">     140406 :         SHPTreeSplitBounds( adfBoundsMinH2, adfBoundsMaxH2,</span>
+<span class="lineNum">     449 </span>            :                             adfBoundsMin3, adfBoundsMax3,
+<span class="lineNum">     450 </span>            :                             adfBoundsMin4, adfBoundsMax4 );
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span><span class="lineCov">     140406 :         if( SHPCheckObjectContained(psObject, nDimension,</span>
+<span class="lineNum">     453 </span>            :                                     adfBoundsMin1, adfBoundsMax1)
+<span class="lineNum">     454 </span><span class="lineCov">     125045 :             || SHPCheckObjectContained(psObject, nDimension,</span>
+<span class="lineNum">     455 </span>            :                                     adfBoundsMin2, adfBoundsMax2)
+<span class="lineNum">     456 </span><span class="lineCov">     100533 :             || SHPCheckObjectContained(psObject, nDimension,</span>
+<span class="lineNum">     457 </span>            :                                     adfBoundsMin3, adfBoundsMax3)
+<span class="lineNum">     458 </span><span class="lineCov">      64768 :             || SHPCheckObjectContained(psObject, nDimension,</span>
+<span class="lineNum">     459 </span>            :                                     adfBoundsMin4, adfBoundsMax4) )
+<span class="lineNum">     460 </span>            :         {
+<span class="lineNum">     461 </span><span class="lineCov">     130404 :             psTreeNode-&gt;nSubNodes = 4;</span>
+<span class="lineNum">     462 </span><span class="lineCov">     130404 :             psTreeNode-&gt;apsSubNode[0] = SHPTreeNodeCreate( adfBoundsMin1,</span>
+<span class="lineNum">     463 </span>            :                                                            adfBoundsMax1 );
+<span class="lineNum">     464 </span><span class="lineCov">     130404 :             psTreeNode-&gt;apsSubNode[1] = SHPTreeNodeCreate( adfBoundsMin2,</span>
+<span class="lineNum">     465 </span>            :                                                            adfBoundsMax2 );
+<span class="lineNum">     466 </span><span class="lineCov">     130404 :             psTreeNode-&gt;apsSubNode[2] = SHPTreeNodeCreate( adfBoundsMin3,</span>
+<span class="lineNum">     467 </span>            :                                                            adfBoundsMax3 );
+<span class="lineNum">     468 </span><span class="lineCov">     130404 :             psTreeNode-&gt;apsSubNode[3] = SHPTreeNodeCreate( adfBoundsMin4,</span>
+<span class="lineNum">     469 </span>            :                                                            adfBoundsMax4 );
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span>            :             /* recurse back on this node now that it has subnodes */
+<span class="lineNum">     472 </span><span class="lineCov">     130404 :             return( SHPTreeNodeAddShapeId( psTreeNode, psObject,</span>
+<span class="lineNum">     473 </span>            :                                            nMaxDepth, nDimension ) );
+<span class="lineNum">     474 </span>            :         }
+<span class="lineNum">     475 </span>            :     }
+<span class="lineNum">     476 </span>            : #endif /* MAX_SUBNODE == 4 */
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     479 </span>            : /*      Otherwise, consider creating two subnodes if could fit into     */
+<span class="lineNum">     480 </span>            : /*      them, and adding to the appropriate subnode.                    */
+<span class="lineNum">     481 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     482 </span>            : #if MAX_SUBNODE == 2
+<span class="lineNum">     483 </span>            :     else if( nMaxDepth &gt; 1 &amp;&amp; psTreeNode-&gt;nSubNodes == 0 )
+<span class="lineNum">     484 </span>            :     {
+<span class="lineNum">     485 </span>            :         double  adfBoundsMin1[4], adfBoundsMax1[4];
+<span class="lineNum">     486 </span>            :         double  adfBoundsMin2[4], adfBoundsMax2[4];
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span>            :         SHPTreeSplitBounds( psTreeNode-&gt;adfBoundsMin, psTreeNode-&gt;adfBoundsMax,
+<span class="lineNum">     489 </span>            :                             adfBoundsMin1, adfBoundsMax1,
+<span class="lineNum">     490 </span>            :                             adfBoundsMin2, adfBoundsMax2 );
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span>            :         if( SHPCheckObjectContained(psObject, nDimension,
+<span class="lineNum">     493 </span>            :                                  adfBoundsMin1, adfBoundsMax1))
+<span class="lineNum">     494 </span>            :         {
+<span class="lineNum">     495 </span>            :             psTreeNode-&gt;nSubNodes = 2;
+<span class="lineNum">     496 </span>            :             psTreeNode-&gt;apsSubNode[0] = SHPTreeNodeCreate( adfBoundsMin1,
+<span class="lineNum">     497 </span>            :                                                            adfBoundsMax1 );
+<span class="lineNum">     498 </span>            :             psTreeNode-&gt;apsSubNode[1] = SHPTreeNodeCreate( adfBoundsMin2,
+<span class="lineNum">     499 </span>            :                                                            adfBoundsMax2 );
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span>            :             return( SHPTreeNodeAddShapeId( psTreeNode-&gt;apsSubNode[0], psObject,
+<span class="lineNum">     502 </span>            :                                            nMaxDepth - 1, nDimension ) );
+<span class="lineNum">     503 </span>            :         }
+<span class="lineNum">     504 </span>            :         else if( SHPCheckObjectContained(psObject, nDimension,
+<span class="lineNum">     505 </span>            :                                          adfBoundsMin2, adfBoundsMax2) )
+<span class="lineNum">     506 </span>            :         {
+<span class="lineNum">     507 </span>            :             psTreeNode-&gt;nSubNodes = 2;
+<span class="lineNum">     508 </span>            :             psTreeNode-&gt;apsSubNode[0] = SHPTreeNodeCreate( adfBoundsMin1,
+<span class="lineNum">     509 </span>            :                                                            adfBoundsMax1 );
+<span class="lineNum">     510 </span>            :             psTreeNode-&gt;apsSubNode[1] = SHPTreeNodeCreate( adfBoundsMin2,
+<span class="lineNum">     511 </span>            :                                                            adfBoundsMax2 );
+<span class="lineNum">     512 </span>            : 
+<span class="lineNum">     513 </span>            :             return( SHPTreeNodeAddShapeId( psTreeNode-&gt;apsSubNode[1], psObject,
+<span class="lineNum">     514 </span>            :                                            nMaxDepth - 1, nDimension ) );
+<span class="lineNum">     515 </span>            :         }
+<span class="lineNum">     516 </span>            :     }
+<span class="lineNum">     517 </span>            : #endif /* MAX_SUBNODE == 2 */
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     520 </span>            : /*      If none of that worked, just add it to this nodes list.         */
+<span class="lineNum">     521 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     522 </span><span class="lineCov">      41666 :     psTreeNode-&gt;nShapeCount++;</span>
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span><span class="lineCov">      41666 :     psTreeNode-&gt;panShapeIds = STATIC_CAST(int *,</span>
+<span class="lineNum">     525 </span>            :         SfRealloc( psTreeNode-&gt;panShapeIds,
+<span class="lineNum">     526 </span>            :                    sizeof(int) * psTreeNode-&gt;nShapeCount ));
+<span class="lineNum">     527 </span><span class="lineCov">      41666 :     psTreeNode-&gt;panShapeIds[psTreeNode-&gt;nShapeCount-1] = psObject-&gt;nShapeId;</span>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineCov">      41666 :     if( psTreeNode-&gt;papsShapeObj != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     530 </span>            :     {
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :         psTreeNode-&gt;papsShapeObj = STATIC_CAST(SHPObject **,</span>
+<span class="lineNum">     532 </span>            :             SfRealloc( psTreeNode-&gt;papsShapeObj,
+<span class="lineNum">     533 </span>            :                        sizeof(void *) * psTreeNode-&gt;nShapeCount ));
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :         psTreeNode-&gt;papsShapeObj[psTreeNode-&gt;nShapeCount-1] = SHPLIB_NULLPTR;</span>
+<span class="lineNum">     535 </span>            :     }
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span><span class="lineCov">      41666 :     return TRUE;</span>
+<span class="lineNum">     538 </span>            : }
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span>            : /************************************************************************/
+<span class="lineNum">     541 </span>            : /*                         SHPTreeAddShapeId()                          */
+<span class="lineNum">     542 </span>            : /*                                                                      */
+<span class="lineNum">     543 </span>            : /*      Add a shape to the tree, but don't keep a pointer to the        */
+<span class="lineNum">     544 </span>            : /*      object data, just keep the shapeid.                             */
+<span class="lineNum">     545 </span>            : /************************************************************************/
+<a name="546"><span class="lineNum">     546 </span>            : </a>
+<span class="lineNum">     547 </span>            : int SHPAPI_CALL
+<span class="lineNum">     548 </span><span class="lineCov">      41666 : SHPTreeAddShapeId( SHPTree * psTree, SHPObject * psObject )</span>
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span>            : {
+<span class="lineNum">     551 </span><span class="lineCov">      41666 :     psTree-&gt;nTotalCount++;</span>
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span><span class="lineCov">      41666 :     return( SHPTreeNodeAddShapeId( psTree-&gt;psRoot, psObject,</span>
+<span class="lineNum">     554 </span>            :                                    psTree-&gt;nMaxDepth, psTree-&gt;nDimension ) );
+<span class="lineNum">     555 </span>            : }
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span>            : /************************************************************************/
+<span class="lineNum">     558 </span>            : /*                      SHPTreeCollectShapesIds()                       */
+<span class="lineNum">     559 </span>            : /*                                                                      */
+<span class="lineNum">     560 </span>            : /*      Work function implementing SHPTreeFindLikelyShapes() on a       */
+<span class="lineNum">     561 </span>            : /*      tree node by tree node basis.                                   */
+<span class="lineNum">     562 </span>            : /************************************************************************/
+<a name="563"><span class="lineNum">     563 </span>            : </a>
+<span class="lineNum">     564 </span>            : static void
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 : SHPTreeCollectShapeIds( SHPTree *hTree, SHPTreeNode * psTreeNode,</span>
+<span class="lineNum">     566 </span>            :                         double * padfBoundsMin, double * padfBoundsMax,
+<span class="lineNum">     567 </span>            :                         int * pnShapeCount, int * pnMaxShapes,
+<span class="lineNum">     568 </span>            :                         int ** ppanShapeList )
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span>            : {
+<span class="lineNum">     571 </span>            :     int   i;
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     574 </span>            : /*      Does this node overlap the area of interest at all?  If not,    */
+<span class="lineNum">     575 </span>            : /*      return without adding to the list at all.                       */
+<span class="lineNum">     576 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :     if( !SHPCheckBoundsOverlap( psTreeNode-&gt;adfBoundsMin,</span>
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :                                 psTreeNode-&gt;adfBoundsMax,</span>
+<span class="lineNum">     579 </span>            :                                 padfBoundsMin,
+<span class="lineNum">     580 </span>            :                                 padfBoundsMax,
+<span class="lineNum">     581 </span>            :                                 hTree-&gt;nDimension ) )
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     585 </span>            : /*      Grow the list to hold the shapes on this node.                  */
+<span class="lineNum">     586 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :     if( *pnShapeCount + psTreeNode-&gt;nShapeCount &gt; *pnMaxShapes )</span>
+<span class="lineNum">     588 </span>            :     {
+<span class="lineNum">     589 </span><span class="lineNoCov">          0 :         *pnMaxShapes = (*pnShapeCount + psTreeNode-&gt;nShapeCount) * 2 + 20;</span>
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :         *ppanShapeList = STATIC_CAST(int *,</span>
+<span class="lineNum">     591 </span>            :             SfRealloc(*ppanShapeList,sizeof(int) * *pnMaxShapes));
+<span class="lineNum">     592 </span>            :     }
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     595 </span>            : /*      Add the local nodes shapeids to the list.                       */
+<span class="lineNum">     596 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :     for( i = 0; i &lt; psTreeNode-&gt;nShapeCount; i++ )</span>
+<span class="lineNum">     598 </span>            :     {
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :         (*ppanShapeList)[(*pnShapeCount)++] = psTreeNode-&gt;panShapeIds[i];</span>
+<span class="lineNum">     600 </span>            :     }
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     603 </span>            : /*      Recurse to subnodes if they exist.                              */
+<span class="lineNum">     604 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :     for( i = 0; i &lt; psTreeNode-&gt;nSubNodes; i++ )</span>
+<span class="lineNum">     606 </span>            :     {
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :         if( psTreeNode-&gt;apsSubNode[i] != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :             SHPTreeCollectShapeIds( hTree, psTreeNode-&gt;apsSubNode[i],</span>
+<span class="lineNum">     609 </span>            :                                     padfBoundsMin, padfBoundsMax,
+<span class="lineNum">     610 </span>            :                                     pnShapeCount, pnMaxShapes,
+<span class="lineNum">     611 </span>            :                                     ppanShapeList );
+<span class="lineNum">     612 </span>            :     }
+<span class="lineNum">     613 </span>            : }
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span>            : /************************************************************************/
+<span class="lineNum">     616 </span>            : /*                      SHPTreeFindLikelyShapes()                       */
+<span class="lineNum">     617 </span>            : /*                                                                      */
+<span class="lineNum">     618 </span>            : /*      Find all shapes within tree nodes for which the tree node       */
+<span class="lineNum">     619 </span>            : /*      bounding box overlaps the search box.  The return value is      */
+<span class="lineNum">     620 </span>            : /*      an array of shapeids terminated by a -1.  The shapeids will     */
+<span class="lineNum">     621 </span>            : /*      be in order, as hopefully this will result in faster (more      */
+<span class="lineNum">     622 </span>            : /*      sequential) reading from the file.                              */
+<span class="lineNum">     623 </span>            : /************************************************************************/
+<span class="lineNum">     624 </span>            : 
+<a name="625"><span class="lineNum">     625 </span>            : /* helper for qsort */</a>
+<span class="lineNum">     626 </span>            : static int
+<span class="lineNum">     627 </span><span class="lineCov">     886211 : compare_ints( const void * a, const void * b)</span>
+<span class="lineNum">     628 </span>            : {
+<span class="lineNum">     629 </span><span class="lineCov">     886211 :     return *REINTERPRET_CAST(const int*, a) - *REINTERPRET_CAST(const int*, b);</span>
+<span class="lineNum">     630 </span>            : }
+<a name="631"><span class="lineNum">     631 </span>            : </a>
+<span class="lineNum">     632 </span>            : int SHPAPI_CALL1(*)
+<span class="lineNum">     633 </span><span class="lineNoCov">          0 : SHPTreeFindLikelyShapes( SHPTree * hTree,</span>
+<span class="lineNum">     634 </span>            :                          double * padfBoundsMin, double * padfBoundsMax,
+<span class="lineNum">     635 </span>            :                          int * pnShapeCount )
+<span class="lineNum">     636 </span>            : 
+<span class="lineNum">     637 </span>            : {
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :     int *panShapeList=SHPLIB_NULLPTR, nMaxShapes = 0;</span>
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     641 </span>            : /*      Perform the search by recursive descent.                        */
+<span class="lineNum">     642 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     643 </span><span class="lineNoCov">          0 :     *pnShapeCount = 0;</span>
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span><span class="lineNoCov">          0 :     SHPTreeCollectShapeIds( hTree, hTree-&gt;psRoot,</span>
+<span class="lineNum">     646 </span>            :                             padfBoundsMin, padfBoundsMax,
+<span class="lineNum">     647 </span>            :                             pnShapeCount, &amp;nMaxShapes,
+<span class="lineNum">     648 </span>            :                             &amp;panShapeList );
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     651 </span>            : /*      Sort the id array                                               */
+<span class="lineNum">     652 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     653 </span>            : 
+<span class="lineNum">     654 </span><span class="lineNoCov">          0 :     if( panShapeList != SHPLIB_NULLPTR )</span>
+<span class="lineNum">     655 </span><span class="lineNoCov">          0 :         qsort(panShapeList, *pnShapeCount, sizeof(int), compare_ints);</span>
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :     return panShapeList;</span>
+<span class="lineNum">     658 </span>            : }
+<span class="lineNum">     659 </span>            : 
+<span class="lineNum">     660 </span>            : /************************************************************************/
+<span class="lineNum">     661 </span>            : /*                          SHPTreeNodeTrim()                           */
+<span class="lineNum">     662 </span>            : /*                                                                      */
+<span class="lineNum">     663 </span>            : /*      This is the recursive version of SHPTreeTrimExtraNodes() that   */
+<span class="lineNum">     664 </span>            : /*      walks the tree cleaning it up.                                  */
+<a name="665"><span class="lineNum">     665 </span>            : /************************************************************************/</a>
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span><span class="lineCov">     521632 : static int SHPTreeNodeTrim( SHPTreeNode * psTreeNode )</span>
+<span class="lineNum">     668 </span>            : 
+<span class="lineNum">     669 </span>            : {
+<span class="lineNum">     670 </span>            :     int   i;
+<span class="lineNum">     671 </span>            : 
+<span class="lineNum">     672 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     673 </span>            : /*      Trim subtrees, and free subnodes that come back empty.          */
+<span class="lineNum">     674 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     675 </span><span class="lineCov">    1043248 :     for( i = 0; i &lt; psTreeNode-&gt;nSubNodes; i++ )</span>
+<span class="lineNum">     676 </span>            :     {
+<span class="lineNum">     677 </span><span class="lineCov">     521616 :         if( SHPTreeNodeTrim( psTreeNode-&gt;apsSubNode[i] ) )</span>
+<span class="lineNum">     678 </span>            :         {
+<span class="lineNum">     679 </span><span class="lineCov">     350891 :             SHPDestroyTreeNode( psTreeNode-&gt;apsSubNode[i] );</span>
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span><span class="lineCov">     350891 :             psTreeNode-&gt;apsSubNode[i] =</span>
+<span class="lineNum">     682 </span><span class="lineCov">     350891 :                 psTreeNode-&gt;apsSubNode[psTreeNode-&gt;nSubNodes-1];</span>
+<span class="lineNum">     683 </span>            : 
+<span class="lineNum">     684 </span><span class="lineCov">     350891 :             psTreeNode-&gt;nSubNodes--;</span>
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span><span class="lineCov">     350891 :             i--; /* process the new occupant of this subnode entry */</span>
+<span class="lineNum">     687 </span>            :         }
+<span class="lineNum">     688 </span>            :     }
+<span class="lineNum">     689 </span>            : 
+<span class="lineNum">     690 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     691 </span>            : /*      If the current node has 1 subnode and no shapes, promote that   */
+<span class="lineNum">     692 </span>            : /*      subnode to the current node position.                           */
+<span class="lineNum">     693 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     694 </span><span class="lineCov">     521632 :     if( psTreeNode-&gt;nSubNodes == 1 &amp;&amp; psTreeNode-&gt;nShapeCount == 0)</span>
+<span class="lineNum">     695 </span>            :     {
+<span class="lineNum">     696 </span><span class="lineCov">     107762 :         SHPTreeNode* psSubNode = psTreeNode-&gt;apsSubNode[0];</span>
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span><span class="lineCov">     107762 :         memcpy(psTreeNode-&gt;adfBoundsMin, psSubNode-&gt;adfBoundsMin,</span>
+<span class="lineNum">     699 </span>            :                sizeof(psSubNode-&gt;adfBoundsMin));
+<span class="lineNum">     700 </span><span class="lineCov">     107762 :         memcpy(psTreeNode-&gt;adfBoundsMax, psSubNode-&gt;adfBoundsMax,</span>
+<span class="lineNum">     701 </span>            :                sizeof(psSubNode-&gt;adfBoundsMax));
+<span class="lineNum">     702 </span><span class="lineCov">     107762 :         psTreeNode-&gt;nShapeCount = psSubNode-&gt;nShapeCount;</span>
+<span class="lineNum">     703 </span><span class="lineCov">     107762 :         assert(psTreeNode-&gt;panShapeIds == SHPLIB_NULLPTR);</span>
+<span class="lineNum">     704 </span><span class="lineCov">     107762 :         psTreeNode-&gt;panShapeIds = psSubNode-&gt;panShapeIds;</span>
+<span class="lineNum">     705 </span><span class="lineCov">     107762 :         assert(psTreeNode-&gt;papsShapeObj == SHPLIB_NULLPTR);</span>
+<span class="lineNum">     706 </span><span class="lineCov">     107762 :         psTreeNode-&gt;papsShapeObj = psSubNode-&gt;papsShapeObj;</span>
+<span class="lineNum">     707 </span><span class="lineCov">     107762 :         psTreeNode-&gt;nSubNodes = psSubNode-&gt;nSubNodes;</span>
+<span class="lineNum">     708 </span><span class="lineCov">     110363 :         for( i = 0; i &lt; psSubNode-&gt;nSubNodes; i++ )</span>
+<span class="lineNum">     709 </span><span class="lineCov">       2601 :             psTreeNode-&gt;apsSubNode[i] = psSubNode-&gt;apsSubNode[i];</span>
+<span class="lineNum">     710 </span><span class="lineCov">     107762 :         free(psSubNode);</span>
+<span class="lineNum">     711 </span>            :     }
+<span class="lineNum">     712 </span>            : 
+<span class="lineNum">     713 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     714 </span>            : /*      We should be trimmed if we have no subnodes, and no shapes.     */
+<span class="lineNum">     715 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     716 </span><span class="lineCov">     521632 :     return( psTreeNode-&gt;nSubNodes == 0 &amp;&amp; psTreeNode-&gt;nShapeCount == 0 );</span>
+<span class="lineNum">     717 </span>            : }
+<span class="lineNum">     718 </span>            : 
+<span class="lineNum">     719 </span>            : /************************************************************************/
+<span class="lineNum">     720 </span>            : /*                       SHPTreeTrimExtraNodes()                        */
+<span class="lineNum">     721 </span>            : /*                                                                      */
+<span class="lineNum">     722 </span>            : /*      Trim empty nodes from the tree.  Note that we never trim an     */
+<span class="lineNum">     723 </span>            : /*      empty root node.                                                */
+<span class="lineNum">     724 </span>            : /************************************************************************/
+<a name="725"><span class="lineNum">     725 </span>            : </a>
+<span class="lineNum">     726 </span>            : void SHPAPI_CALL
+<span class="lineNum">     727 </span><span class="lineCov">         16 : SHPTreeTrimExtraNodes( SHPTree * hTree )</span>
+<span class="lineNum">     728 </span>            : 
+<span class="lineNum">     729 </span>            : {
+<span class="lineNum">     730 </span><span class="lineCov">         16 :     SHPTreeNodeTrim( hTree-&gt;psRoot );</span>
+<span class="lineNum">     731 </span><span class="lineCov">         16 : }</span>
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span>            : /************************************************************************/
+<span class="lineNum">     734 </span>            : /*                              SwapWord()                              */
+<span class="lineNum">     735 </span>            : /*                                                                      */
+<span class="lineNum">     736 </span>            : /*      Swap a 2, 4 or 8 byte word.                                     */
+<a name="737"><span class="lineNum">     737 </span>            : /************************************************************************/</a>
+<span class="lineNum">     738 </span>            : 
+<span class="lineNum">     739 </span><span class="lineNoCov">          0 : static void SwapWord( int length, void * wordP )</span>
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span>            : {
+<span class="lineNum">     742 </span>            :     int   i;
+<span class="lineNum">     743 </span>            :     unsigned char temp;
+<span class="lineNum">     744 </span>            : 
+<span class="lineNum">     745 </span><span class="lineNoCov">          0 :     for( i=0; i &lt; length/2; i++ )</span>
+<span class="lineNum">     746 </span>            :     {
+<span class="lineNum">     747 </span><span class="lineNoCov">          0 :   temp = STATIC_CAST(unsigned char*, wordP)[i];</span>
+<span class="lineNum">     748 </span><span class="lineNoCov">          0 :   STATIC_CAST(unsigned char*, wordP)[i] = STATIC_CAST(unsigned char*, wordP)[length-i-1];</span>
+<span class="lineNum">     749 </span><span class="lineNoCov">          0 :   STATIC_CAST(unsigned char*, wordP)[length-i-1] = temp;</span>
+<span class="lineNum">     750 </span>            :     }
+<span class="lineNum">     751 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     752 </span>            : 
+<span class="lineNum">     753 </span>            : 
+<span class="lineNum">     754 </span>            : struct SHPDiskTreeInfo
+<span class="lineNum">     755 </span>            : {
+<span class="lineNum">     756 </span>            :     SAHooks sHooks;
+<span class="lineNum">     757 </span>            :     SAFile  fpQIX;
+<span class="lineNum">     758 </span>            : };
+<span class="lineNum">     759 </span>            : 
+<span class="lineNum">     760 </span>            : /************************************************************************/
+<span class="lineNum">     761 </span>            : /*                         SHPOpenDiskTree()                            */
+<a name="762"><span class="lineNum">     762 </span>            : /************************************************************************/</a>
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span><span class="lineCov">       1619 : SHPTreeDiskHandle SHPOpenDiskTree( const char* pszQIXFilename,</span>
+<span class="lineNum">     765 </span>            :                                    SAHooks *psHooks )
+<span class="lineNum">     766 </span>            : {
+<span class="lineNum">     767 </span>            :     SHPTreeDiskHandle hDiskTree;
+<span class="lineNum">     768 </span>            : 
+<span class="lineNum">     769 </span><span class="lineCov">       1619 :     hDiskTree = STATIC_CAST(SHPTreeDiskHandle, calloc(sizeof(struct SHPDiskTreeInfo),1));</span>
+<span class="lineNum">     770 </span>            : 
+<span class="lineNum">     771 </span><span class="lineCov">       1619 :     if (psHooks == SHPLIB_NULLPTR)</span>
+<span class="lineNum">     772 </span><span class="lineCov">       1619 :         SASetupDefaultHooks( &amp;(hDiskTree-&gt;sHooks) );</span>
+<span class="lineNum">     773 </span>            :     else
+<span class="lineNum">     774 </span><span class="lineNoCov">          0 :         memcpy( &amp;(hDiskTree-&gt;sHooks), psHooks, sizeof(SAHooks) );</span>
+<span class="lineNum">     775 </span>            : 
+<span class="lineNum">     776 </span><span class="lineCov">       1619 :     hDiskTree-&gt;fpQIX = hDiskTree-&gt;sHooks.FOpen(pszQIXFilename, &quot;rb&quot;);</span>
+<span class="lineNum">     777 </span><span class="lineCov">       1619 :     if (hDiskTree-&gt;fpQIX == SHPLIB_NULLPTR)</span>
+<span class="lineNum">     778 </span>            :     {
+<span class="lineNum">     779 </span><span class="lineCov">       1581 :         free(hDiskTree);</span>
+<span class="lineNum">     780 </span><span class="lineCov">       1581 :         return SHPLIB_NULLPTR;</span>
+<span class="lineNum">     781 </span>            :     }
+<span class="lineNum">     782 </span>            : 
+<span class="lineNum">     783 </span><span class="lineCov">         38 :     return hDiskTree;</span>
+<span class="lineNum">     784 </span>            : }
+<span class="lineNum">     785 </span>            : 
+<span class="lineNum">     786 </span>            : /***********************************************************************/
+<span class="lineNum">     787 </span>            : /*                         SHPCloseDiskTree()                           */
+<a name="788"><span class="lineNum">     788 </span>            : /************************************************************************/</a>
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span><span class="lineCov">         39 : void SHPCloseDiskTree( SHPTreeDiskHandle hDiskTree )</span>
+<span class="lineNum">     791 </span>            : {
+<span class="lineNum">     792 </span><span class="lineCov">         39 :     if (hDiskTree == SHPLIB_NULLPTR)</span>
+<span class="lineNum">     793 </span><span class="lineCov">         40 :         return;</span>
+<span class="lineNum">     794 </span>            : 
+<span class="lineNum">     795 </span><span class="lineCov">         38 :     hDiskTree-&gt;sHooks.FClose(hDiskTree-&gt;fpQIX);</span>
+<span class="lineNum">     796 </span><span class="lineCov">         38 :     free(hDiskTree);</span>
+<span class="lineNum">     797 </span>            : }
+<span class="lineNum">     798 </span>            : 
+<span class="lineNum">     799 </span>            : /************************************************************************/
+<span class="lineNum">     800 </span>            : /*                       SHPSearchDiskTreeNode()                        */
+<span class="lineNum">     801 </span>            : /************************************************************************/
+<a name="802"><span class="lineNum">     802 </span>            : </a>
+<span class="lineNum">     803 </span>            : static int
+<span class="lineNum">     804 </span><span class="lineCov">     522243 : SHPSearchDiskTreeNode( SHPTreeDiskHandle hDiskTree, double *padfBoundsMin, double *padfBoundsMax,</span>
+<span class="lineNum">     805 </span>            :                        int **ppanResultBuffer, int *pnBufferMax,
+<span class="lineNum">     806 </span>            :                        int *pnResultCount, int bNeedSwap, int nRecLevel )
+<span class="lineNum">     807 </span>            : 
+<span class="lineNum">     808 </span>            : {
+<span class="lineNum">     809 </span>            :     unsigned int i;
+<span class="lineNum">     810 </span>            :     unsigned int offset;
+<span class="lineNum">     811 </span>            :     unsigned int numshapes, numsubnodes;
+<span class="lineNum">     812 </span>            :     double adfNodeBoundsMin[2], adfNodeBoundsMax[2];
+<span class="lineNum">     813 </span>            :     int nFReadAcc;
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     816 </span>            : /*      Read and unswap first part of node info.                        */
+<span class="lineNum">     817 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     818 </span><span class="lineCov">     522243 :     nFReadAcc = STATIC_CAST(int, hDiskTree-&gt;sHooks.FRead( &amp;offset, 4, 1, hDiskTree-&gt;fpQIX ));</span>
+<span class="lineNum">     819 </span><span class="lineCov">     522243 :     if ( bNeedSwap ) SwapWord ( 4, &amp;offset );</span>
+<span class="lineNum">     820 </span>            : 
+<span class="lineNum">     821 </span><span class="lineCov">     522243 :     nFReadAcc += STATIC_CAST(int, hDiskTree-&gt;sHooks.FRead( adfNodeBoundsMin, sizeof(double), 2, hDiskTree-&gt;fpQIX ));</span>
+<span class="lineNum">     822 </span><span class="lineCov">     522243 :     nFReadAcc += STATIC_CAST(int, hDiskTree-&gt;sHooks.FRead( adfNodeBoundsMax, sizeof(double), 2, hDiskTree-&gt;fpQIX ));</span>
+<span class="lineNum">     823 </span><span class="lineCov">     522243 :     if ( bNeedSwap )</span>
+<span class="lineNum">     824 </span>            :     {
+<span class="lineNum">     825 </span><span class="lineNoCov">          0 :         SwapWord( 8, adfNodeBoundsMin + 0 );</span>
+<span class="lineNum">     826 </span><span class="lineNoCov">          0 :         SwapWord( 8, adfNodeBoundsMin + 1 );</span>
+<span class="lineNum">     827 </span><span class="lineNoCov">          0 :         SwapWord( 8, adfNodeBoundsMax + 0 );</span>
+<span class="lineNum">     828 </span><span class="lineNoCov">          0 :         SwapWord( 8, adfNodeBoundsMax + 1 );</span>
+<span class="lineNum">     829 </span>            :     }
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span><span class="lineCov">     522243 :     nFReadAcc += STATIC_CAST(int, hDiskTree-&gt;sHooks.FRead( &amp;numshapes, 4, 1, hDiskTree-&gt;fpQIX ));</span>
+<span class="lineNum">     832 </span><span class="lineCov">     522243 :     if ( bNeedSwap ) SwapWord ( 4, &amp;numshapes );</span>
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span>            :     /* Check that we could read all previous values */
+<span class="lineNum">     835 </span><span class="lineCov">     522243 :     if( nFReadAcc != 1 + 2 + 2 + 1 )</span>
+<span class="lineNum">     836 </span>            :     {
+<span class="lineNum">     837 </span><span class="lineNoCov">          0 :         hDiskTree-&gt;sHooks.Error(&quot;I/O error&quot;);</span>
+<span class="lineNum">     838 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     839 </span>            :     }
+<span class="lineNum">     840 </span>            : 
+<span class="lineNum">     841 </span>            :     /* Sanity checks to avoid int overflows in later computation */
+<span class="lineNum">     842 </span><span class="lineCov">     522243 :     if( offset &gt; INT_MAX - sizeof(int) )</span>
+<span class="lineNum">     843 </span>            :     {
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :         hDiskTree-&gt;sHooks.Error(&quot;Invalid value for offset&quot;);</span>
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     846 </span>            :     }
+<span class="lineNum">     847 </span>            : 
+<span class="lineNum">     848 </span><span class="lineCov">    1044486 :     if( numshapes &gt; (INT_MAX - offset - sizeof(int)) / sizeof(int) ||</span>
+<span class="lineNum">     849 </span><span class="lineCov">     522243 :         numshapes &gt; INT_MAX / sizeof(int) - *pnResultCount )</span>
+<span class="lineNum">     850 </span>            :     {
+<span class="lineNum">     851 </span><span class="lineNoCov">          0 :         hDiskTree-&gt;sHooks.Error(&quot;Invalid value for numshapes&quot;);</span>
+<span class="lineNum">     852 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     853 </span>            :     }
+<span class="lineNum">     854 </span>            : 
+<span class="lineNum">     855 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     856 </span>            : /*      If we don't overlap this node at all, we can just fseek()       */
+<span class="lineNum">     857 </span>            : /*      pass this node info and all subnodes.                           */
+<span class="lineNum">     858 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     859 </span><span class="lineCov">     522243 :     if( !SHPCheckBoundsOverlap( adfNodeBoundsMin, adfNodeBoundsMax,</span>
+<span class="lineNum">     860 </span>            :                                 padfBoundsMin, padfBoundsMax, 2 ) )
+<span class="lineNum">     861 </span>            :     {
+<span class="lineNum">     862 </span><span class="lineCov">     351698 :         offset += numshapes*sizeof(int) + sizeof(int);</span>
+<span class="lineNum">     863 </span><span class="lineCov">     351698 :         hDiskTree-&gt;sHooks.FSeek(hDiskTree-&gt;fpQIX, offset, SEEK_CUR);</span>
+<span class="lineNum">     864 </span><span class="lineCov">     351698 :         return TRUE;</span>
+<span class="lineNum">     865 </span>            :     }
+<span class="lineNum">     866 </span>            : 
+<span class="lineNum">     867 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     868 </span>            : /*      Add all the shapeids at this node to our list.                  */
+<span class="lineNum">     869 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     870 </span><span class="lineCov">     170545 :     if(numshapes &gt; 0)</span>
+<span class="lineNum">     871 </span>            :     {
+<span class="lineNum">     872 </span><span class="lineCov">      24546 :         if( *pnResultCount + numshapes &gt; STATIC_CAST(unsigned int, *pnBufferMax) )</span>
+<span class="lineNum">     873 </span>            :         {
+<span class="lineNum">     874 </span>            :             int* pNewBuffer;
+<span class="lineNum">     875 </span>            : 
+<span class="lineNum">     876 </span><span class="lineCov">      12408 :             *pnBufferMax = (*pnResultCount + numshapes + 100) * 5 / 4;</span>
+<span class="lineNum">     877 </span>            : 
+<span class="lineNum">     878 </span><span class="lineCov">      12408 :             if( STATIC_CAST(size_t, *pnBufferMax) &gt; INT_MAX / sizeof(int) )</span>
+<span class="lineNum">     879 </span><span class="lineNoCov">          0 :                 *pnBufferMax = *pnResultCount + numshapes;</span>
+<span class="lineNum">     880 </span>            : 
+<span class="lineNum">     881 </span><span class="lineCov">      12408 :             pNewBuffer = STATIC_CAST(int *,</span>
+<span class="lineNum">     882 </span>            :                 SfRealloc( *ppanResultBuffer, *pnBufferMax * sizeof(int) ));
+<span class="lineNum">     883 </span>            : 
+<span class="lineNum">     884 </span><span class="lineCov">      12408 :             if( pNewBuffer == SHPLIB_NULLPTR )</span>
+<span class="lineNum">     885 </span>            :             {
+<span class="lineNum">     886 </span><span class="lineNoCov">          0 :                 hDiskTree-&gt;sHooks.Error(&quot;Out of memory error&quot;);</span>
+<span class="lineNum">     887 </span><span class="lineNoCov">          0 :                 return FALSE;</span>
+<span class="lineNum">     888 </span>            :             }
+<span class="lineNum">     889 </span>            : 
+<span class="lineNum">     890 </span><span class="lineCov">      12408 :             *ppanResultBuffer = pNewBuffer;</span>
+<span class="lineNum">     891 </span>            :         }
+<span class="lineNum">     892 </span>            : 
+<span class="lineNum">     893 </span><span class="lineCov">      49092 :         if( hDiskTree-&gt;sHooks.FRead( *ppanResultBuffer + *pnResultCount,</span>
+<span class="lineNum">     894 </span><span class="lineCov">      24546 :                     sizeof(int), numshapes, hDiskTree-&gt;fpQIX ) != numshapes )</span>
+<span class="lineNum">     895 </span>            :         {
+<span class="lineNum">     896 </span><span class="lineNoCov">          0 :             hDiskTree-&gt;sHooks.Error(&quot;I/O error&quot;);</span>
+<span class="lineNum">     897 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     898 </span>            :         }
+<span class="lineNum">     899 </span>            : 
+<span class="lineNum">     900 </span><span class="lineCov">      24546 :         if (bNeedSwap )</span>
+<span class="lineNum">     901 </span>            :         {
+<span class="lineNum">     902 </span><span class="lineNoCov">          0 :             for( i=0; i&lt;numshapes; i++ )</span>
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :                 SwapWord( 4, *ppanResultBuffer + *pnResultCount + i );</span>
+<span class="lineNum">     904 </span>            :         }
+<span class="lineNum">     905 </span>            : 
+<span class="lineNum">     906 </span><span class="lineCov">      24546 :         *pnResultCount += numshapes;</span>
+<span class="lineNum">     907 </span>            :     }
+<span class="lineNum">     908 </span>            : 
+<span class="lineNum">     909 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     910 </span>            : /*      Process the subnodes.                                           */
+<span class="lineNum">     911 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     912 </span><span class="lineCov">     170545 :     if( hDiskTree-&gt;sHooks.FRead( &amp;numsubnodes, 4, 1, hDiskTree-&gt;fpQIX ) != 1 )</span>
+<span class="lineNum">     913 </span>            :     {
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :         hDiskTree-&gt;sHooks.Error(&quot;I/O error&quot;);</span>
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     916 </span>            :     }
+<span class="lineNum">     917 </span><span class="lineCov">     170545 :     if ( bNeedSwap  ) SwapWord ( 4, &amp;numsubnodes );</span>
+<span class="lineNum">     918 </span><span class="lineCov">     170545 :     if( numsubnodes &gt; 0 &amp;&amp; nRecLevel == 32 )</span>
+<span class="lineNum">     919 </span>            :     {
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 :         hDiskTree-&gt;sHooks.Error(&quot;Shape tree is too deep&quot;);</span>
+<span class="lineNum">     921 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     922 </span>            :     }
+<span class="lineNum">     923 </span>            : 
+<span class="lineNum">     924 </span><span class="lineCov">     680467 :     for(i=0; i&lt;numsubnodes; i++)</span>
+<span class="lineNum">     925 </span>            :     {
+<span class="lineNum">     926 </span><span class="lineCov">     509922 :         if( !SHPSearchDiskTreeNode( hDiskTree, padfBoundsMin, padfBoundsMax,</span>
+<span class="lineNum">     927 </span>            :                                     ppanResultBuffer, pnBufferMax,
+<span class="lineNum">     928 </span>            :                                     pnResultCount, bNeedSwap, nRecLevel + 1 ) )
+<span class="lineNum">     929 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     930 </span>            :     }
+<span class="lineNum">     931 </span>            : 
+<span class="lineNum">     932 </span><span class="lineCov">     170545 :     return TRUE;</span>
+<span class="lineNum">     933 </span>            : }
+<span class="lineNum">     934 </span>            : 
+<span class="lineNum">     935 </span>            : /************************************************************************/
+<span class="lineNum">     936 </span>            : /*                          SHPTreeReadLibc()                           */
+<span class="lineNum">     937 </span>            : /************************************************************************/
+<a name="938"><span class="lineNum">     938 </span>            : </a>
+<span class="lineNum">     939 </span>            : static
+<span class="lineNum">     940 </span><span class="lineNoCov">          0 : SAOffset SHPTreeReadLibc( void *p, SAOffset size, SAOffset nmemb, SAFile file )</span>
+<span class="lineNum">     941 </span>            : 
+<span class="lineNum">     942 </span>            : {
+<span class="lineNum">     943 </span><span class="lineNoCov">          0 :     return STATIC_CAST(SAOffset, fread( p, STATIC_CAST(size_t, size),</span>
+<span class="lineNum">     944 </span>            :                              STATIC_CAST(size_t, nmemb),
+<span class="lineNum">     945 </span>            :                              REINTERPRET_CAST(FILE*, file) ));
+<span class="lineNum">     946 </span>            : }
+<span class="lineNum">     947 </span>            : 
+<span class="lineNum">     948 </span>            : /************************************************************************/
+<span class="lineNum">     949 </span>            : /*                          SHPTreeSeekLibc()                           */
+<span class="lineNum">     950 </span>            : /************************************************************************/
+<a name="951"><span class="lineNum">     951 </span>            : </a>
+<span class="lineNum">     952 </span>            : static
+<span class="lineNum">     953 </span><span class="lineNoCov">          0 : SAOffset SHPTreeSeekLibc( SAFile file, SAOffset offset, int whence )</span>
+<span class="lineNum">     954 </span>            : 
+<span class="lineNum">     955 </span>            : {
+<span class="lineNum">     956 </span><span class="lineNoCov">          0 :     return STATIC_CAST(SAOffset, fseek( REINTERPRET_CAST(FILE*, file),</span>
+<span class="lineNum">     957 </span>            :                              STATIC_CAST(long, offset), whence ));
+<span class="lineNum">     958 </span>            : }
+<span class="lineNum">     959 </span>            : 
+<span class="lineNum">     960 </span>            : /************************************************************************/
+<span class="lineNum">     961 </span>            : /*                         SHPSearchDiskTree()                          */
+<span class="lineNum">     962 </span>            : /************************************************************************/
+<a name="963"><span class="lineNum">     963 </span>            : </a>
+<span class="lineNum">     964 </span>            : int SHPAPI_CALL1(*)
+<span class="lineNum">     965 </span><span class="lineNoCov">          0 : SHPSearchDiskTree( FILE *fp,</span>
+<span class="lineNum">     966 </span>            :                    double *padfBoundsMin, double *padfBoundsMax,
+<span class="lineNum">     967 </span>            :                    int *pnShapeCount )
+<span class="lineNum">     968 </span>            : {
+<span class="lineNum">     969 </span>            :     struct SHPDiskTreeInfo sDiskTree;
+<span class="lineNum">     970 </span><span class="lineNoCov">          0 :     memset(&amp;sDiskTree.sHooks, 0, sizeof(sDiskTree.sHooks));</span>
+<span class="lineNum">     971 </span>            : 
+<span class="lineNum">     972 </span>            :     /* We do not use SASetupDefaultHooks() because the FILE* */
+<span class="lineNum">     973 </span>            :     /* is a libc FILE* */
+<span class="lineNum">     974 </span><span class="lineNoCov">          0 :     sDiskTree.sHooks.FSeek = SHPTreeSeekLibc;</span>
+<span class="lineNum">     975 </span><span class="lineNoCov">          0 :     sDiskTree.sHooks.FRead = SHPTreeReadLibc;</span>
+<span class="lineNum">     976 </span>            : 
+<span class="lineNum">     977 </span><span class="lineNoCov">          0 :     sDiskTree.fpQIX = REINTERPRET_CAST(SAFile, fp);</span>
+<span class="lineNum">     978 </span>            : 
+<span class="lineNum">     979 </span><span class="lineNoCov">          0 :     return SHPSearchDiskTreeEx( &amp;sDiskTree, padfBoundsMin, padfBoundsMax,</span>
+<span class="lineNum">     980 </span>            :                                  pnShapeCount );
+<span class="lineNum">     981 </span>            : }
+<span class="lineNum">     982 </span>            : 
+<span class="lineNum">     983 </span>            : /***********************************************************************/
+<span class="lineNum">     984 </span>            : /*                       SHPSearchDiskTreeEx()                         */
+<a name="985"><span class="lineNum">     985 </span>            : /************************************************************************/</a>
+<span class="lineNum">     986 </span>            : 
+<span class="lineNum">     987 </span><span class="lineCov">      12321 : int* SHPSearchDiskTreeEx( SHPTreeDiskHandle hDiskTree,</span>
+<span class="lineNum">     988 </span>            :                           double *padfBoundsMin, double *padfBoundsMax,
+<span class="lineNum">     989 </span>            :                           int *pnShapeCount )
+<span class="lineNum">     990 </span>            : 
+<span class="lineNum">     991 </span>            : {
+<span class="lineNum">     992 </span><span class="lineCov">      12321 :     int i, bNeedSwap, nBufferMax = 0;</span>
+<span class="lineNum">     993 </span>            :     unsigned char abyBuf[16];
+<span class="lineNum">     994 </span><span class="lineCov">      12321 :     int *panResultBuffer = SHPLIB_NULLPTR;</span>
+<span class="lineNum">     995 </span>            : 
+<span class="lineNum">     996 </span><span class="lineCov">      12321 :     *pnShapeCount = 0;</span>
+<span class="lineNum">     997 </span>            : 
+<span class="lineNum">     998 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     999 </span>            : /*  Establish the byte order on this machine.             */
+<span class="lineNum">    1000 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1001 </span><span class="lineCov">      12321 :     i = 1;</span>
+<span class="lineNum">    1002 </span><span class="lineCov">      12321 :     if( *REINTERPRET_CAST(unsigned char *, &amp;i) == 1 )</span>
+<span class="lineNum">    1003 </span><span class="lineCov">      12321 :         bBigEndian = FALSE;</span>
+<span class="lineNum">    1004 </span>            :     else
+<span class="lineNum">    1005 </span><span class="lineNoCov">          0 :         bBigEndian = TRUE;</span>
+<span class="lineNum">    1006 </span>            : 
+<span class="lineNum">    1007 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1008 </span>            : /*      Read the header.                                                */
+<span class="lineNum">    1009 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1010 </span><span class="lineCov">      12321 :     hDiskTree-&gt;sHooks.FSeek( hDiskTree-&gt;fpQIX, 0, SEEK_SET );</span>
+<span class="lineNum">    1011 </span><span class="lineCov">      12321 :     hDiskTree-&gt;sHooks.FRead( abyBuf, 16, 1, hDiskTree-&gt;fpQIX );</span>
+<span class="lineNum">    1012 </span>            : 
+<span class="lineNum">    1013 </span><span class="lineCov">      12321 :     if( memcmp( abyBuf, &quot;SQT&quot;, 3 ) != 0 )</span>
+<span class="lineNum">    1014 </span><span class="lineNoCov">          0 :         return SHPLIB_NULLPTR;</span>
+<span class="lineNum">    1015 </span>            : 
+<span class="lineNum">    1016 </span><span class="lineCov">      12321 :     if( (abyBuf[3] == 2 &amp;&amp; bBigEndian)</span>
+<span class="lineNum">    1017 </span><span class="lineCov">      12321 :         || (abyBuf[3] == 1 &amp;&amp; !bBigEndian) )</span>
+<span class="lineNum">    1018 </span><span class="lineCov">      12321 :         bNeedSwap = FALSE;</span>
+<span class="lineNum">    1019 </span>            :     else
+<span class="lineNum">    1020 </span><span class="lineNoCov">          0 :         bNeedSwap = TRUE;</span>
+<span class="lineNum">    1021 </span>            : 
+<span class="lineNum">    1022 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1023 </span>            : /*      Search through root node and its descendants.                   */
+<span class="lineNum">    1024 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1025 </span><span class="lineCov">      12321 :     if( !SHPSearchDiskTreeNode( hDiskTree, padfBoundsMin, padfBoundsMax,</span>
+<span class="lineNum">    1026 </span>            :                                 &amp;panResultBuffer, &amp;nBufferMax,
+<span class="lineNum">    1027 </span>            :                                 pnShapeCount, bNeedSwap, 0 ) )
+<span class="lineNum">    1028 </span>            :     {
+<span class="lineNum">    1029 </span><span class="lineNoCov">          0 :         if( panResultBuffer != SHPLIB_NULLPTR )</span>
+<span class="lineNum">    1030 </span><span class="lineNoCov">          0 :             free( panResultBuffer );</span>
+<span class="lineNum">    1031 </span><span class="lineNoCov">          0 :         *pnShapeCount = 0;</span>
+<span class="lineNum">    1032 </span><span class="lineNoCov">          0 :         return SHPLIB_NULLPTR;</span>
+<span class="lineNum">    1033 </span>            :     }
+<span class="lineNum">    1034 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1035 </span>            : /*      Sort the id array                                               */
+<span class="lineNum">    1036 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1037 </span>            : 
+<span class="lineNum">    1038 </span>            :     /* To distinguish between empty intersection from error case */
+<span class="lineNum">    1039 </span><span class="lineCov">      12321 :     if( panResultBuffer == SHPLIB_NULLPTR )</span>
+<span class="lineNum">    1040 </span><span class="lineNoCov">          0 :         panResultBuffer = STATIC_CAST(int*, calloc(1, sizeof(int)));</span>
+<span class="lineNum">    1041 </span>            :     else
+<span class="lineNum">    1042 </span><span class="lineCov">      12321 :         qsort(panResultBuffer, *pnShapeCount, sizeof(int), compare_ints);</span>
+<span class="lineNum">    1043 </span>            : 
+<span class="lineNum">    1044 </span>            : 
+<span class="lineNum">    1045 </span><span class="lineCov">      12321 :     return panResultBuffer;</span>
+<span class="lineNum">    1046 </span>            : }
+<span class="lineNum">    1047 </span>            : 
+<span class="lineNum">    1048 </span>            : /************************************************************************/
+<span class="lineNum">    1049 </span>            : /*                        SHPGetSubNodeOffset()                         */
+<span class="lineNum">    1050 </span>            : /*                                                                      */
+<span class="lineNum">    1051 </span>            : /*      Determine how big all the subnodes of this node (and their      */
+<span class="lineNum">    1052 </span>            : /*      children) will be.  This will allow disk based searchers to     */
+<span class="lineNum">    1053 </span>            : /*      seek past them all efficiently.                                 */
+<a name="1054"><span class="lineNum">    1054 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1055 </span>            : 
+<span class="lineNum">    1056 </span><span class="lineCov">     510544 : static int SHPGetSubNodeOffset( SHPTreeNode *node)</span>
+<span class="lineNum">    1057 </span>            : {
+<span class="lineNum">    1058 </span>            :     int i;
+<span class="lineNum">    1059 </span><span class="lineCov">     510544 :     int offset=0;</span>
+<span class="lineNum">    1060 </span>            : 
+<span class="lineNum">    1061 </span><span class="lineCov">     958109 :     for(i=0; i&lt;node-&gt;nSubNodes; i++ )</span>
+<span class="lineNum">    1062 </span>            :     {
+<span class="lineNum">    1063 </span><span class="lineCov">     447565 :         if(node-&gt;apsSubNode[i])</span>
+<span class="lineNum">    1064 </span>            :         {
+<span class="lineNum">    1065 </span><span class="lineCov">     447565 :             offset += 4*sizeof(double)</span>
+<span class="lineNum">    1066 </span><span class="lineCov">     447565 :                 + (node-&gt;apsSubNode[i]-&gt;nShapeCount+3)*sizeof(int);</span>
+<span class="lineNum">    1067 </span><span class="lineCov">     447565 :             offset += SHPGetSubNodeOffset(node-&gt;apsSubNode[i]);</span>
+<span class="lineNum">    1068 </span>            :         }
+<span class="lineNum">    1069 </span>            :     }
+<span class="lineNum">    1070 </span>            : 
+<span class="lineNum">    1071 </span><span class="lineCov">     510544 :     return(offset);</span>
+<span class="lineNum">    1072 </span>            : }
+<span class="lineNum">    1073 </span>            : 
+<span class="lineNum">    1074 </span>            : /************************************************************************/
+<span class="lineNum">    1075 </span>            : /*                          SHPWriteTreeNode()                          */
+<a name="1076"><span class="lineNum">    1076 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1077 </span>            : 
+<span class="lineNum">    1078 </span><span class="lineCov">      62979 : static void SHPWriteTreeNode( SAFile fp, SHPTreeNode *node, SAHooks* psHooks)</span>
+<span class="lineNum">    1079 </span>            : {
+<span class="lineNum">    1080 </span>            :     int i,j;
+<span class="lineNum">    1081 </span>            :     int offset;
+<span class="lineNum">    1082 </span>            :     unsigned char *pabyRec;
+<span class="lineNum">    1083 </span><span class="lineCov">      62979 :     assert( SHPLIB_NULLPTR != node );</span>
+<span class="lineNum">    1084 </span>            : 
+<span class="lineNum">    1085 </span><span class="lineCov">      62979 :     offset = SHPGetSubNodeOffset(node);</span>
+<span class="lineNum">    1086 </span>            : 
+<span class="lineNum">    1087 </span><span class="lineCov">      62979 :     pabyRec = STATIC_CAST(unsigned char *,</span>
+<span class="lineNum">    1088 </span>            :         malloc(sizeof(double) * 4
+<span class="lineNum">    1089 </span>            :                + (3 * sizeof(int)) + (node-&gt;nShapeCount * sizeof(int)) ));
+<span class="lineNum">    1090 </span><span class="lineCov">      62979 :     if( SHPLIB_NULLPTR == pabyRec )</span>
+<span class="lineNum">    1091 </span>            :     {
+<span class="lineNum">    1092 </span>            : #ifdef USE_CPL
+<span class="lineNum">    1093 </span><span class="lineNoCov">          0 :         CPLError( CE_Fatal, CPLE_OutOfMemory, &quot;Memory allocation failure&quot;);</span>
+<span class="lineNum">    1094 </span>            : #endif
+<span class="lineNum">    1095 </span><span class="lineNoCov">          0 :         assert( 0 );</span>
+<span class="lineNum">    1096 </span>            :         return;
+<span class="lineNum">    1097 </span>            :     }
+<span class="lineNum">    1098 </span>            : 
+<span class="lineNum">    1099 </span><span class="lineCov">      62979 :     memcpy( pabyRec, &amp;offset, 4);</span>
+<span class="lineNum">    1100 </span>            : 
+<span class="lineNum">    1101 </span>            :     /* minx, miny, maxx, maxy */
+<span class="lineNum">    1102 </span><span class="lineCov">      62979 :     memcpy( pabyRec+ 4, node-&gt;adfBoundsMin+0, sizeof(double) );</span>
+<span class="lineNum">    1103 </span><span class="lineCov">      62979 :     memcpy( pabyRec+12, node-&gt;adfBoundsMin+1, sizeof(double) );</span>
+<span class="lineNum">    1104 </span><span class="lineCov">      62979 :     memcpy( pabyRec+20, node-&gt;adfBoundsMax+0, sizeof(double) );</span>
+<span class="lineNum">    1105 </span><span class="lineCov">      62979 :     memcpy( pabyRec+28, node-&gt;adfBoundsMax+1, sizeof(double) );</span>
+<span class="lineNum">    1106 </span>            : 
+<span class="lineNum">    1107 </span><span class="lineCov">      62979 :     memcpy( pabyRec+36, &amp;node-&gt;nShapeCount, 4);</span>
+<span class="lineNum">    1108 </span><span class="lineCov">      62979 :     j = node-&gt;nShapeCount * sizeof(int);</span>
+<span class="lineNum">    1109 </span><span class="lineCov">      62979 :     if( j )</span>
+<span class="lineNum">    1110 </span><span class="lineCov">      40339 :         memcpy( pabyRec+40, node-&gt;panShapeIds, j);</span>
+<span class="lineNum">    1111 </span><span class="lineCov">      62979 :     memcpy( pabyRec+j+40, &amp;node-&gt;nSubNodes, 4);</span>
+<span class="lineNum">    1112 </span>            : 
+<span class="lineNum">    1113 </span><span class="lineCov">      62979 :     psHooks-&gt;FWrite( pabyRec, 44+j, 1, fp );</span>
+<span class="lineNum">    1114 </span><span class="lineCov">      62979 :     free (pabyRec);</span>
+<span class="lineNum">    1115 </span>            : 
+<span class="lineNum">    1116 </span><span class="lineCov">     125942 :     for(i=0; i&lt;node-&gt;nSubNodes; i++ )</span>
+<span class="lineNum">    1117 </span>            :     {
+<span class="lineNum">    1118 </span><span class="lineCov">      62963 :         if(node-&gt;apsSubNode[i])</span>
+<span class="lineNum">    1119 </span><span class="lineCov">      62963 :             SHPWriteTreeNode( fp, node-&gt;apsSubNode[i], psHooks);</span>
+<span class="lineNum">    1120 </span>            :     }
+<span class="lineNum">    1121 </span><span class="lineCov">      62979 : }</span>
+<span class="lineNum">    1122 </span>            : 
+<span class="lineNum">    1123 </span>            : /************************************************************************/
+<span class="lineNum">    1124 </span>            : /*                            SHPWriteTree()                            */
+<a name="1125"><span class="lineNum">    1125 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1126 </span>            : 
+<span class="lineNum">    1127 </span><span class="lineCov">         16 : int SHPAPI_CALL SHPWriteTree(SHPTree *tree, const char *filename )</span>
+<span class="lineNum">    1128 </span>            : {
+<span class="lineNum">    1129 </span>            :     SAHooks sHooks;
+<span class="lineNum">    1130 </span>            : 
+<span class="lineNum">    1131 </span><span class="lineCov">         16 :     SASetupDefaultHooks( &amp;sHooks );</span>
+<span class="lineNum">    1132 </span>            : 
+<span class="lineNum">    1133 </span><span class="lineCov">         16 :     return SHPWriteTreeLL(tree, filename, &amp;sHooks);</span>
+<span class="lineNum">    1134 </span>            : }
+<span class="lineNum">    1135 </span>            : 
+<span class="lineNum">    1136 </span>            : /************************************************************************/
+<span class="lineNum">    1137 </span>            : /*                           SHPWriteTreeLL()                           */
+<a name="1138"><span class="lineNum">    1138 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1139 </span>            : 
+<span class="lineNum">    1140 </span><span class="lineCov">         16 : int SHPWriteTreeLL(SHPTree *tree, const char *filename, SAHooks* psHooks )</span>
+<span class="lineNum">    1141 </span>            : {
+<span class="lineNum">    1142 </span><span class="lineCov">         16 :     char    signature[4] = &quot;SQT&quot;;</span>
+<span class="lineNum">    1143 </span>            :     int           i;
+<span class="lineNum">    1144 </span>            :     char    abyBuf[32];
+<span class="lineNum">    1145 </span>            :     SAFile              fp;
+<span class="lineNum">    1146 </span>            : 
+<span class="lineNum">    1147 </span>            :     SAHooks sHooks;
+<span class="lineNum">    1148 </span><span class="lineCov">         16 :     if (psHooks == SHPLIB_NULLPTR)</span>
+<span class="lineNum">    1149 </span>            :     {
+<span class="lineNum">    1150 </span><span class="lineNoCov">          0 :         SASetupDefaultHooks( &amp;sHooks );</span>
+<span class="lineNum">    1151 </span><span class="lineNoCov">          0 :         psHooks = &amp;sHooks;</span>
+<span class="lineNum">    1152 </span>            :     }
+<span class="lineNum">    1153 </span>            : 
+<span class="lineNum">    1154 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1155 </span>            : /*      Open the output file.                                           */
+<span class="lineNum">    1156 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1157 </span><span class="lineCov">         16 :     fp = psHooks-&gt;FOpen(filename, &quot;wb&quot;);</span>
+<span class="lineNum">    1158 </span><span class="lineCov">         16 :     if( fp == SHPLIB_NULLPTR )</span>
+<span class="lineNum">    1159 </span>            :     {
+<span class="lineNum">    1160 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">    1161 </span>            :     }
+<span class="lineNum">    1162 </span>            : 
+<span class="lineNum">    1163 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1164 </span>            : /*  Establish the byte order on this machine.             */
+<span class="lineNum">    1165 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1166 </span><span class="lineCov">         16 :     i = 1;</span>
+<span class="lineNum">    1167 </span><span class="lineCov">         16 :     if( *REINTERPRET_CAST(unsigned char *, &amp;i) == 1 )</span>
+<span class="lineNum">    1168 </span><span class="lineCov">         16 :         bBigEndian = FALSE;</span>
+<span class="lineNum">    1169 </span>            :     else
+<span class="lineNum">    1170 </span><span class="lineNoCov">          0 :         bBigEndian = TRUE;</span>
+<span class="lineNum">    1171 </span>            : 
+<span class="lineNum">    1172 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1173 </span>            : /*      Write the header.                                               */
+<span class="lineNum">    1174 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1175 </span><span class="lineCov">         16 :     memcpy( abyBuf+0, signature, 3 );</span>
+<span class="lineNum">    1176 </span>            : 
+<span class="lineNum">    1177 </span><span class="lineCov">         16 :     if( bBigEndian )</span>
+<span class="lineNum">    1178 </span><span class="lineNoCov">          0 :         abyBuf[3] = 2; /* New MSB */</span>
+<span class="lineNum">    1179 </span>            :     else
+<span class="lineNum">    1180 </span><span class="lineCov">         16 :         abyBuf[3] = 1; /* New LSB */</span>
+<span class="lineNum">    1181 </span>            : 
+<span class="lineNum">    1182 </span><span class="lineCov">         16 :     abyBuf[4] = 1; /* version */</span>
+<span class="lineNum">    1183 </span><span class="lineCov">         16 :     abyBuf[5] = 0; /* next 3 reserved */</span>
+<span class="lineNum">    1184 </span><span class="lineCov">         16 :     abyBuf[6] = 0;</span>
+<span class="lineNum">    1185 </span><span class="lineCov">         16 :     abyBuf[7] = 0;</span>
+<span class="lineNum">    1186 </span>            : 
+<span class="lineNum">    1187 </span><span class="lineCov">         16 :     psHooks-&gt;FWrite( abyBuf, 8, 1, fp );</span>
+<span class="lineNum">    1188 </span>            : 
+<span class="lineNum">    1189 </span><span class="lineCov">         16 :     psHooks-&gt;FWrite( &amp;(tree-&gt;nTotalCount), 4, 1, fp );</span>
+<span class="lineNum">    1190 </span>            : 
+<span class="lineNum">    1191 </span>            :     /* write maxdepth */
+<span class="lineNum">    1192 </span>            : 
+<span class="lineNum">    1193 </span><span class="lineCov">         16 :     psHooks-&gt;FWrite( &amp;(tree-&gt;nMaxDepth), 4, 1, fp );</span>
+<span class="lineNum">    1194 </span>            : 
+<span class="lineNum">    1195 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1196 </span>            : /*      Write all the nodes &quot;in order&quot;.                                 */
+<span class="lineNum">    1197 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1198 </span>            : 
+<span class="lineNum">    1199 </span><span class="lineCov">         16 :     SHPWriteTreeNode( fp, tree-&gt;psRoot, psHooks );</span>
+<span class="lineNum">    1200 </span>            : 
+<span class="lineNum">    1201 </span><span class="lineCov">         16 :     psHooks-&gt;FClose( fp );</span>
+<span class="lineNum">    1202 </span>            : 
+<span class="lineNum">    1203 </span><span class="lineCov">         16 :     return TRUE;</span>
+<span class="lineNum">    1204 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

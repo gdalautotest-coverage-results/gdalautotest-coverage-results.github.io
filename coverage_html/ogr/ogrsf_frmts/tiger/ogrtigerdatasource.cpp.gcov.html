@@ -1,0 +1,1050 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/tiger/ogrtigerdatasource.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/tiger</a> - ogrtigerdatasource.cpp<span style="font-size: 80%;"> (source / <a href="ogrtigerdatasource.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">139</td>
+            <td class="headerCovTableEntry">350</td>
+            <td class="headerCovTableEntryLo">39.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntryLo">57.1 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  TIGER/Line Translator
+<span class="lineNum">       4 </span>            :  * Purpose:  Implements OGRTigerDataSource class
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 1999, Frank Warmerdam &lt;warmerdam@pobox.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;ogr_tiger.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cctype&gt;
+<span class="lineNum">      34 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #define DIGIT_ZERO '0'
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : /************************************************************************/
+<span class="lineNum">      41 </span>            : /*                        TigerClassifyVersion()                        */
+<a name="42"><span class="lineNum">      42 </span>            : /************************************************************************/</a>
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span><span class="lineCov">         16 : TigerVersion TigerClassifyVersion( int nVersionCode )</span>
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : {
+<span class="lineNum">      47 </span>            :     TigerVersion        nVersion;
+<span class="lineNum">      48 </span>            :     int                 nYear, nMonth;
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : /*
+<span class="lineNum">      51 </span>            : ** TIGER Versions
+<span class="lineNum">      52 </span>            : **
+<span class="lineNum">      53 </span>            : ** 0000           TIGER/Line Precensus Files, 1990
+<span class="lineNum">      54 </span>            : ** 0002           TIGER/Line Initial Voting District Codes Files, 1990
+<span class="lineNum">      55 </span>            : ** 0003           TIGER/Line Files, 1990
+<span class="lineNum">      56 </span>            : ** 0005           TIGER/Line Files, 1992
+<span class="lineNum">      57 </span>            : ** 0021           TIGER/Line Files, 1994
+<span class="lineNum">      58 </span>            : ** 0024           TIGER/Line Files, 1995
+<span class="lineNum">      59 </span>            : ** 9706 to 9810   TIGER/Line Files, 1997
+<span class="lineNum">      60 </span>            : ** 9812 to 9904   TIGER/Line Files, 1998
+<span class="lineNum">      61 </span>            : ** 0006 to 0008   TIGER/Line Files, 1999
+<span class="lineNum">      62 </span>            : ** 0010 to 0011   TIGER/Line Files, Redistricting Census 2000
+<span class="lineNum">      63 </span>            : ** 0103 to 0108   TIGER/Line Files, Census 2000
+<span class="lineNum">      64 </span>            : **
+<span class="lineNum">      65 </span>            : ** 0203 to 0205   TIGER/Line Files, UA 2000
+<span class="lineNum">      66 </span>            : ** ????    ????
+<span class="lineNum">      67 </span>            : **
+<span class="lineNum">      68 </span>            : ** 0206 to 0299   TIGER/Line Files, 2002
+<span class="lineNum">      69 </span>            : ** 0300 to 0399   TIGER/Line Files, 2003
+<span class="lineNum">      70 </span>            : ** 0400+          TIGER/Line Files, 2004 - one sample is 0405
+<span class="lineNum">      71 </span>            : ** ????
+<span class="lineNum">      72 </span>            : */
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span><span class="lineCov">         16 :     nVersion = TIGER_Unknown;</span>
+<span class="lineNum">      75 </span><span class="lineCov">         16 :     if( nVersionCode == 0 )</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :         nVersion = TIGER_1990_Precensus;</span>
+<span class="lineNum">      77 </span><span class="lineCov">         16 :     else if( nVersionCode == 2 )</span>
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :         nVersion = TIGER_1990;</span>
+<span class="lineNum">      79 </span><span class="lineCov">         16 :     else if( nVersionCode == 3 )</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :         nVersion = TIGER_1992;</span>
+<span class="lineNum">      81 </span><span class="lineCov">         16 :     else if( nVersionCode == 5 )</span>
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :         nVersion = TIGER_1994;</span>
+<span class="lineNum">      83 </span><span class="lineCov">         16 :     else if( nVersionCode == 21 )</span>
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :         nVersion = TIGER_1994;</span>
+<span class="lineNum">      85 </span><span class="lineCov">         16 :     else if( nVersionCode == 24 )</span>
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :         nVersion = TIGER_1995;</span>
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span><span class="lineCov">         16 :     else if( nVersionCode == 9999 )  /* special hack, fme bug 7625 */</span>
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :         nVersion = TIGER_UA2000;</span>
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span><span class="lineCov">         16 :     nYear = nVersionCode % 100;</span>
+<span class="lineNum">      92 </span><span class="lineCov">         16 :     nMonth = nVersionCode / 100;</span>
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span><span class="lineCov">         16 :     nVersionCode = nYear * 100 + nMonth;</span>
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span><span class="lineCov">         16 :     if( nVersion != TIGER_Unknown )</span>
+<span class="lineNum">      97 </span>            :         /* do nothing */;
+<span class="lineNum">      98 </span><span class="lineCov">         16 :     else if( nVersionCode &gt;= 9706 &amp;&amp; nVersionCode &lt;= 9810 )</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :         nVersion = TIGER_1997;</span>
+<span class="lineNum">     100 </span><span class="lineCov">         16 :     else if( nVersionCode &gt;= 9812 &amp;&amp; nVersionCode &lt;= 9904 )</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :         nVersion = TIGER_1998;</span>
+<span class="lineNum">     102 </span><span class="lineCov">         16 :     else if( nVersionCode &gt;=    6 /*0006*/ &amp;&amp; nVersionCode &lt;=    8 /*0008*/ )</span>
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :         nVersion = TIGER_1999;</span>
+<span class="lineNum">     104 </span><span class="lineCov">         16 :     else if( nVersionCode &gt;=   10 /*0010*/ &amp;&amp; nVersionCode &lt;=   11 /*0011*/ )</span>
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :         nVersion = TIGER_2000_Redistricting;</span>
+<span class="lineNum">     106 </span><span class="lineCov">         16 :     else if( nVersionCode &gt;=  103 /*0103*/ &amp;&amp; nVersionCode &lt;= 108 /*0108*/ )</span>
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :         nVersion = TIGER_2000_Census;</span>
+<span class="lineNum">     108 </span><span class="lineCov">         16 :     else if( nVersionCode &gt;=  203 /*0302*/ &amp;&amp; nVersionCode &lt;= 205 /*0502*/ )</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :         nVersion = TIGER_UA2000;</span>
+<span class="lineNum">     110 </span><span class="lineCov">         16 :     else if( nVersionCode &gt;=  210 /*1002*/ &amp;&amp; nVersionCode &lt;= 306 /*0603*/)</span>
+<span class="lineNum">     111 </span><span class="lineCov">         16 :         nVersion = TIGER_2002;</span>
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :     else if( nVersionCode &gt;=  312 /*1203*/ &amp;&amp; nVersionCode &lt;= 403 /*0304*/)</span>
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :         nVersion = TIGER_2003;</span>
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :     else if( nVersionCode &gt;=  404 )</span>
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :         nVersion = TIGER_2004;</span>
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span><span class="lineCov">         16 :     return nVersion;</span>
+<span class="lineNum">     118 </span>            : }
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span>            : /************************************************************************/
+<span class="lineNum">     121 </span>            : /*                         TigerVersionString()                         */
+<a name="122"><span class="lineNum">     122 </span>            : /************************************************************************/</a>
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 : const char * TigerVersionString( TigerVersion nVersion )</span>
+<span class="lineNum">     125 </span>            : {
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_1990_Precensus) { return &quot;TIGER_1990_Precensus&quot;; }</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_1990) { return &quot;TIGER_1990&quot;; }</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_1992) { return &quot;TIGER_1992&quot;; }</span>
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_1994) { return &quot;TIGER_1994&quot;; }</span>
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_1995) { return &quot;TIGER_1995&quot;; }</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_1997) { return &quot;TIGER_1997&quot;; }</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_1998) { return &quot;TIGER_1998&quot;; }</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_1999) { return &quot;TIGER_1999&quot;; }</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_2000_Redistricting) { return &quot;TIGER_2000_Redistricting&quot;; }</span>
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_UA2000) { return &quot;TIGER_UA2000&quot;; }</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_2002) { return &quot;TIGER_2002&quot;; }</span>
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_2003) { return &quot;TIGER_2003&quot;; }</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_2004) { return &quot;TIGER_2004&quot;; }</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :   if (nVersion == TIGER_Unknown) { return &quot;TIGER_Unknown&quot;; }</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :   return &quot;???&quot;;</span>
+<span class="lineNum">     142 </span>            : }
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            : /************************************************************************/
+<span class="lineNum">     145 </span>            : /*                         TigerCheckVersion()                          */
+<span class="lineNum">     146 </span>            : /*                                                                      */
+<span class="lineNum">     147 </span>            : /*      Some tiger products seem to be generated with version info      */
+<span class="lineNum">     148 </span>            : /*      that doesn't match the tiger specs.  We can sometimes           */
+<span class="lineNum">     149 </span>            : /*      recognise the wrongness by checking the record length of        */
+<span class="lineNum">     150 </span>            : /*      some well known changing files and adjusting the version        */
+<span class="lineNum">     151 </span>            : /*      based on this.                                                  */
+<a name="152"><span class="lineNum">     152 </span>            : /************************************************************************/</a>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 : TigerVersion OGRTigerDataSource::TigerCheckVersion( TigerVersion nOldVersion,</span>
+<span class="lineNum">     155 </span>            :                                                     const char *pszFilename )
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            : {
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :     if( nOldVersion != TIGER_2002 )</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :         return nOldVersion;</span>
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :     char *pszRTCFilename = BuildFilename( pszFilename, &quot;C&quot; );</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :     VSILFILE *fp = VSIFOpenL( pszRTCFilename, &quot;rb&quot; );</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :     CPLFree( pszRTCFilename );</span>
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :     if( fp == nullptr )</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :         return nOldVersion;</span>
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            :     char szHeader[115];
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :     if( VSIFReadL( szHeader, sizeof(szHeader)-1, 1, fp ) &lt; 1 )</span>
+<span class="lineNum">     171 </span>            :     {
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :         VSIFCloseL( fp );</span>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :         return nOldVersion;</span>
+<span class="lineNum">     174 </span>            :     }
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :     VSIFCloseL( fp );</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     179 </span>            : /*      Is the record length 112?  If so, it is an older version        */
+<span class="lineNum">     180 </span>            : /*      than 2002.                                                      */
+<span class="lineNum">     181 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :     if( szHeader[112] == 10 || szHeader[112] == 13 )</span>
+<span class="lineNum">     183 </span>            :     {
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :         CPLDebug( &quot;TIGER&quot;, &quot;Forcing version back to UA2000 since RTC records are short.&quot; );</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :         return TIGER_UA2000;</span>
+<span class="lineNum">     186 </span>            :     }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :     return nOldVersion;</span>
+<span class="lineNum">     189 </span>            : }
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            : /************************************************************************/
+<span class="lineNum">     192 </span>            : /*                         OGRTigerDataSource()                         */
+<a name="193"><span class="lineNum">     193 </span>            : /************************************************************************/</a>
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span><span class="lineCov">        124 : OGRTigerDataSource::OGRTigerDataSource() :</span>
+<span class="lineNum">     196 </span>            :     pszName(nullptr),
+<span class="lineNum">     197 </span>            :     nLayers(0),
+<span class="lineNum">     198 </span>            :     papoLayers(nullptr),
+<span class="lineNum">     199 </span>            :     poSpatialRef(new OGRSpatialReference()),
+<span class="lineNum">     200 </span>            :     papszOptions(nullptr),
+<span class="lineNum">     201 </span>            :     pszPath(nullptr),
+<span class="lineNum">     202 </span>            :     nModules(0),
+<span class="lineNum">     203 </span>            :     papszModules(nullptr),
+<span class="lineNum">     204 </span>            :     nVersionCode(0),
+<span class="lineNum">     205 </span>            :     nVersion(TIGER_Unknown),
+<span class="lineNum">     206 </span><span class="lineCov">        124 :     bWriteMode(false)</span>
+<span class="lineNum">     207 </span>            : {
+<span class="lineNum">     208 </span><span class="lineCov">        124 :     poSpatialRef-&gt;SetWellKnownGeogCS(&quot;NAD83&quot;);</span>
+<span class="lineNum">     209 </span><span class="lineCov">        124 :     poSpatialRef-&gt;SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">     210 </span><span class="lineCov">        124 : }</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            : /************************************************************************/
+<span class="lineNum">     213 </span>            : /*                        ~OGRTigerDataSource()                         */
+<a name="214"><span class="lineNum">     214 </span>            : /************************************************************************/</a>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineCov">        372 : OGRTigerDataSource::~OGRTigerDataSource()</span>
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            : {
+<span class="lineNum">     219 </span><span class="lineCov">        124 :     for( int i = 0; i &lt; nLayers; i++ )</span>
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :         delete papoLayers[i];</span>
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span><span class="lineCov">        124 :     CPLFree( papoLayers );</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span><span class="lineCov">        124 :     CPLFree( pszName );</span>
+<span class="lineNum">     225 </span><span class="lineCov">        124 :     CPLFree( pszPath );</span>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineCov">        124 :     CSLDestroy( papszOptions );</span>
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span><span class="lineCov">        124 :     CSLDestroy( papszModules );</span>
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span><span class="lineCov">        124 :     delete poSpatialRef;</span>
+<span class="lineNum">     232 </span><span class="lineCov">        248 : }</span>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span>            : /************************************************************************/
+<span class="lineNum">     235 </span>            : /*                              AddLayer()                              */
+<a name="236"><span class="lineNum">     236 </span>            : /************************************************************************/</a>
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 : void OGRTigerDataSource::AddLayer( OGRTigerLayer * poNewLayer )</span>
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            : {
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :     poNewLayer-&gt;SetDescription( poNewLayer-&gt;GetName() );</span>
+<span class="lineNum">     242 </span>            :     papoLayers = static_cast&lt;OGRTigerLayer **&gt;(
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :         CPLRealloc( papoLayers, sizeof(void*) * ++nLayers ) );</span>
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :     papoLayers[nLayers-1] = poNewLayer;</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            : /************************************************************************/
+<span class="lineNum">     249 </span>            : /*                              GetLayer()                              */
+<a name="250"><span class="lineNum">     250 </span>            : /************************************************************************/</a>
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 : OGRLayer *OGRTigerDataSource::GetLayer( int iLayer )</span>
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            : {
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :     if( iLayer &lt; 0 || iLayer &gt;= nLayers )</span>
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :     return papoLayers[iLayer];</span>
+<span class="lineNum">     259 </span>            : }
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span>            : /************************************************************************/
+<span class="lineNum">     262 </span>            : /*                              GetLayer()                              */
+<a name="263"><span class="lineNum">     263 </span>            : /************************************************************************/</a>
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span><span class="lineCov">         16 : OGRLayer *OGRTigerDataSource::GetLayer( const char *pszLayerName )</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span>            : {
+<span class="lineNum">     268 </span><span class="lineCov">         16 :     for( int iLayer = 0; iLayer &lt; nLayers; iLayer++ )</span>
+<span class="lineNum">     269 </span>            :     {
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :         if( EQUAL(papoLayers[iLayer]-&gt;GetLayerDefn()-&gt;GetName(),pszLayerName) )</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :             return papoLayers[iLayer];</span>
+<span class="lineNum">     272 </span>            :     }
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span><span class="lineCov">         16 :     return nullptr;</span>
+<span class="lineNum">     275 </span>            : }
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            : /************************************************************************/
+<span class="lineNum">     278 </span>            : /*                           GetLayerCount()                            */
+<a name="279"><span class="lineNum">     279 </span>            : /************************************************************************/</a>
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 : int OGRTigerDataSource::GetLayerCount()</span>
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span>            : {
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :     return nLayers;</span>
+<span class="lineNum">     285 </span>            : }
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            : /************************************************************************/
+<span class="lineNum">     288 </span>            : /*                                Open()                                */
+<a name="289"><span class="lineNum">     289 </span>            : /************************************************************************/</a>
+<span class="lineNum">     290 </span>            : 
+<span class="lineNum">     291 </span><span class="lineCov">        107 : int OGRTigerDataSource::Open( const char * pszFilename, int bTestOpen,</span>
+<span class="lineNum">     292 </span>            :                               char ** papszLimitedFileList )
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span>            : {
+<span class="lineNum">     295 </span><span class="lineCov">        107 :     pszName = CPLStrdup( pszFilename );</span>
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     298 </span>            : /*      Is the given path a directory or a regular file?                */
+<span class="lineNum">     299 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     300 </span>            :     VSIStatBufL stat;
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span><span class="lineCov">        107 :     if( VSIStatExL( pszFilename, &amp;stat,</span>
+<span class="lineNum">     303 </span><span class="lineCov">        107 :                     VSI_STAT_EXISTS_FLAG | VSI_STAT_NATURE_FLAG ) != 0</span>
+<span class="lineNum">     304 </span><span class="lineCov">        107 :         || (!VSI_ISDIR(stat.st_mode) &amp;&amp; !VSI_ISREG(stat.st_mode)) )</span>
+<span class="lineNum">     305 </span>            :     {
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :         if( !bTestOpen )</span>
+<span class="lineNum">     307 </span>            :             CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     308 </span>            :                    &quot;%s is neither a file or directory, Tiger access failed.\n&quot;,
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :                       pszFilename );</span>
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     312 </span>            :     }
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     315 </span>            : /*      Build a list of filenames we figure are Tiger files.            */
+<span class="lineNum">     316 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     317 </span><span class="lineCov">        107 :     char **papszFileList = nullptr;</span>
+<span class="lineNum">     318 </span><span class="lineCov">        107 :     if( VSI_ISREG(stat.st_mode) )</span>
+<span class="lineNum">     319 </span>            :     {
+<span class="lineNum">     320 </span>            :         char       szModule[128];
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span><span class="lineCov">         27 :         if( strlen(CPLGetFilename(pszFilename)) == 0 )</span>
+<span class="lineNum">     323 </span>            :         {
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     325 </span>            :         }
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineCov">         27 :         pszPath = CPLStrdup( CPLGetPath(pszFilename) );</span>
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span><span class="lineCov">         27 :         strncpy( szModule, CPLGetFilename(pszFilename), sizeof(szModule)-1 );</span>
+<span class="lineNum">     330 </span>            :         /* Make sure the buffer is 0 terminated */
+<span class="lineNum">     331 </span><span class="lineCov">         27 :         szModule[sizeof(szModule)-1] = '\0';</span>
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            :         /* And now remove last character of filename */
+<span class="lineNum">     334 </span><span class="lineCov">         27 :         szModule[strlen(szModule)-1] = '\0';</span>
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span><span class="lineCov">         27 :         papszFileList = CSLAddString( papszFileList, szModule );</span>
+<span class="lineNum">     337 </span>            :     }
+<span class="lineNum">     338 </span>            :     else
+<span class="lineNum">     339 </span>            :     {
+<span class="lineNum">     340 </span><span class="lineCov">         80 :         char **candidateFileList = VSIReadDir( pszFilename );</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineCov">         80 :         pszPath = CPLStrdup( pszFilename );</span>
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineCov">       1478 :         for( int i = 0;</span>
+<span class="lineNum">     345 </span><span class="lineCov">       1462 :              candidateFileList != nullptr &amp;&amp; candidateFileList[i] != nullptr;</span>
+<span class="lineNum">     346 </span>            :              i++ )
+<span class="lineNum">     347 </span>            :         {
+<span class="lineNum">     348 </span><span class="lineCov">       1398 :             size_t nCandidateLen = strlen(candidateFileList[i]);</span>
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span><span class="lineCov">       1398 :             if( papszLimitedFileList != nullptr</span>
+<span class="lineNum">     351 </span><span class="lineCov">       1398 :                 &amp;&amp; CSLFindString(papszLimitedFileList,</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :                                  CPLGetBasename(candidateFileList[i])) == -1 )</span>
+<span class="lineNum">     353 </span>            :             {
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     355 </span>            :             }
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span><span class="lineCov">       1398 :             if( nCandidateLen &gt; 4</span>
+<span class="lineNum">     358 </span><span class="lineCov">       1281 :                 &amp;&amp; candidateFileList[i][nCandidateLen-4] == '.'</span>
+<span class="lineNum">     359 </span><span class="lineCov">        716 :                 &amp;&amp; candidateFileList[i][nCandidateLen-1] == '1')</span>
+<span class="lineNum">     360 </span>            :             {
+<span class="lineNum">     361 </span>            :                 char       szModule[128];
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span>            :                 snprintf( szModule, sizeof(szModule), &quot;%s&quot;,
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :                           candidateFileList[i] );</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :                 const size_t nLen = strlen(szModule);</span>
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :                 if( nLen )</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :                     szModule[nLen-1] = '\0';</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :                 papszFileList = CSLAddString(papszFileList, szModule);</span>
+<span class="lineNum">     370 </span>            :             }
+<span class="lineNum">     371 </span>            :         }
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineCov">         80 :         CSLDestroy( candidateFileList );</span>
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span><span class="lineCov">         80 :         if( CSLCount(papszFileList) == 0 )</span>
+<span class="lineNum">     376 </span>            :         {
+<span class="lineNum">     377 </span><span class="lineCov">         80 :             if( !bTestOpen )</span>
+<span class="lineNum">     378 </span>            :                 CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">     379 </span>            :                           &quot;No candidate Tiger files (TGR*.RT1) found in\n&quot;
+<span class="lineNum">     380 </span>            :                           &quot;directory: %s&quot;,
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :                           pszFilename );</span>
+<span class="lineNum">     382 </span><span class="lineCov">         80 :             CSLDestroy(papszFileList);</span>
+<span class="lineNum">     383 </span><span class="lineCov">         80 :             return FALSE;</span>
+<span class="lineNum">     384 </span>            :         }
+<span class="lineNum">     385 </span>            :     }
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     388 </span>            : /*      Loop over all these files trying to open them.  In testopen     */
+<span class="lineNum">     389 </span>            : /*      mode we first read the first 80 characters, to verify that      */
+<span class="lineNum">     390 </span>            : /*      it looks like an Tiger file.  Note that we don't keep the file  */
+<span class="lineNum">     391 </span>            : /*      open ... we don't want to occupy a lot of file handles when      */
+<span class="lineNum">     392 </span>            : /*      handling a whole directory.                                     */
+<span class="lineNum">     393 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     394 </span><span class="lineCov">         27 :     papszModules = nullptr;</span>
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">         54 :     for( int i = 0; papszFileList &amp;&amp; papszFileList[i] != nullptr; i++ )</span>
+<span class="lineNum">     397 </span>            :     {
+<span class="lineNum">     398 </span><span class="lineCov">         27 :         if( bTestOpen || i == 0 )</span>
+<span class="lineNum">     399 </span>            :         {
+<span class="lineNum">     400 </span><span class="lineCov">         27 :             char *l_pszFilename = BuildFilename( papszFileList[i], &quot;1&quot; );</span>
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span><span class="lineCov">         27 :             VSILFILE *fp = VSIFOpenL( l_pszFilename, &quot;rb&quot; );</span>
+<span class="lineNum">     403 </span><span class="lineCov">         27 :             CPLFree( l_pszFilename );</span>
+<span class="lineNum">     404 </span>            : 
+<span class="lineNum">     405 </span><span class="lineCov">         27 :             if( fp == nullptr )</span>
+<span class="lineNum">     406 </span><span class="lineCov">         54 :                 continue;</span>
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :             char szHeader[500] = {};</span>
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :             if( VSIFReadL( szHeader, sizeof(szHeader)-1, 1, fp ) &lt; 1 )</span>
+<span class="lineNum">     410 </span>            :             {
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :                 VSIFCloseL( fp );</span>
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     413 </span>            :             }
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :             VSIFCloseL( fp );</span>
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :             char *pszRecStart = szHeader;</span>
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :             szHeader[sizeof(szHeader)-1] = '\0';</span>
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :             bool bIsGDT = false;</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :             if( STARTS_WITH_CI(pszRecStart, &quot;Copyright (C)&quot;)</span>
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :                 &amp;&amp; strstr(pszRecStart,&quot;Geographic Data Tech&quot;) != nullptr )</span>
+<span class="lineNum">     424 </span>            :             {
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :                 bIsGDT = true;</span>
+<span class="lineNum">     426 </span>            : 
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :                 while( *pszRecStart != '\0'</span>
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :                        &amp;&amp; *pszRecStart != 10</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :                        &amp;&amp; *pszRecStart != 13 )</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :                     pszRecStart++;</span>
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :                 while( *pszRecStart == 10 || *pszRecStart == 13 )</span>
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :                     pszRecStart++;</span>
+<span class="lineNum">     434 </span>            :             }
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :             if( pszRecStart[0] != '1' )</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :             if( !isdigit(pszRecStart[1]) || !isdigit(pszRecStart[2])</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :                 || !isdigit(pszRecStart[3]) || !isdigit(pszRecStart[4]) )</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :             nVersionCode = atoi(TigerFileBase::GetField( pszRecStart, 2, 5 ));</span>
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :             nVersion = TigerClassifyVersion( nVersionCode );</span>
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :             nVersion = TigerCheckVersion( nVersion, papszFileList[i] );</span>
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            :             CPLDebug( &quot;OGR&quot;, &quot;Tiger Version Code=%d, Classified as %s &quot;,
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :                       nVersionCode, TigerVersionString(nVersion) );</span>
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :             if(    nVersionCode !=  0</span>
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :                 &amp;&amp; nVersionCode !=  2</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :                 &amp;&amp; nVersionCode !=  3</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :                 &amp;&amp; nVersionCode !=  5</span>
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :                 &amp;&amp; nVersionCode != 21</span>
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :                 &amp;&amp; nVersionCode != 24</span>
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :                 &amp;&amp; pszRecStart[3]  != '9'</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :                 &amp;&amp; pszRecStart[3]  != DIGIT_ZERO</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :                 &amp;&amp; !bIsGDT )</span>
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span>            :             // we could (and should) add a bunch more validation here.
+<span class="lineNum">     462 </span>            :         }
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 :         papszModules = CSLAddString( papszModules, papszFileList[i] );</span>
+<span class="lineNum">     465 </span>            :     }
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span><span class="lineCov">         27 :     CSLDestroy( papszFileList );</span>
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span><span class="lineCov">         27 :     nModules = CSLCount( papszModules );</span>
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span><span class="lineCov">         27 :     if( nModules == 0 || papszModules == nullptr )</span>
+<span class="lineNum">     472 </span>            :     {
+<span class="lineNum">     473 </span><span class="lineCov">         27 :         if( !bTestOpen )</span>
+<span class="lineNum">     474 </span>            :         {
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :             if( VSI_ISREG(stat.st_mode) )</span>
+<span class="lineNum">     476 </span>            :                 CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">     477 </span>            :                           &quot;No TIGER/Line files (TGR*.RT1) found in\n&quot;
+<span class="lineNum">     478 </span>            :                           &quot;directory: %s&quot;,
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :                           pszFilename );</span>
+<span class="lineNum">     480 </span>            :             else
+<span class="lineNum">     481 </span>            :                 CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">     482 </span>            :                           &quot;File %s does not appear to be a TIGER/Line .RT1 file.&quot;,
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :                           pszFilename );</span>
+<span class="lineNum">     484 </span>            :         }
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span><span class="lineCov">         27 :         return FALSE;</span>
+<span class="lineNum">     487 </span>            :     }
+<span class="lineNum">     488 </span>            : 
+<span class="lineNum">     489 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     490 </span>            : /*      Do we have a user provided version override?                    */
+<span class="lineNum">     491 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     492 </span>            :     const char *pszRequestedVersion =
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :             CPLGetConfigOption( &quot;TIGER_VERSION&quot;, nullptr );</span>
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :     if( pszRequestedVersion != nullptr )</span>
+<span class="lineNum">     495 </span>            :     {
+<span class="lineNum">     496 </span>            : 
+<span class="lineNum">     497 </span><span class="lineNoCov">          0 :         if( STARTS_WITH_CI(pszRequestedVersion, &quot;TIGER_&quot;) )</span>
+<span class="lineNum">     498 </span>            :         {
+<span class="lineNum">     499 </span><span class="lineNoCov">          0 :             int iCode = 1;  // Used after for.</span>
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :             for( ; iCode &lt; TIGER_Unknown; iCode++ )</span>
+<span class="lineNum">     502 </span>            :             {
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :                 if( EQUAL(TigerVersionString((TigerVersion)iCode),</span>
+<span class="lineNum">     504 </span>            :                           pszRequestedVersion) )
+<span class="lineNum">     505 </span>            :                 {
+<span class="lineNum">     506 </span><span class="lineNoCov">          0 :                     nVersion = (TigerVersion) iCode;</span>
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :                     break;</span>
+<span class="lineNum">     508 </span>            :                 }
+<span class="lineNum">     509 </span>            :             }
+<span class="lineNum">     510 </span>            : 
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :             if( iCode == TIGER_Unknown )</span>
+<span class="lineNum">     512 </span>            :             {
+<span class="lineNum">     513 </span>            :                 CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     514 </span>            :                           &quot;Failed to recognise TIGER_VERSION setting: %s&quot;,
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :                           pszRequestedVersion );</span>
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :                 return FALSE;</span>
+<span class="lineNum">     517 </span>            :             }
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            :             CPLDebug( &quot;OGR&quot;, &quot;OVERRIDE Tiger Version %s &quot;,
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :                       TigerVersionString(nVersion) );</span>
+<span class="lineNum">     521 </span>            :         }
+<span class="lineNum">     522 </span>            :         else
+<span class="lineNum">     523 </span>            :         {
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :             nVersionCode = atoi(pszRequestedVersion);</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :             nVersion = TigerClassifyVersion( nVersionCode );</span>
+<span class="lineNum">     526 </span>            : 
+<span class="lineNum">     527 </span>            :             CPLDebug( &quot;OGR&quot;,
+<span class="lineNum">     528 </span>            :                       &quot;OVERRIDE Tiger Version Code=%d, Classified as %s &quot;,
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :                       nVersionCode, TigerVersionString(nVersion) );</span>
+<span class="lineNum">     530 </span>            :         }
+<span class="lineNum">     531 </span>            :     }
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     534 </span>            : /*      Create the layers which appear to exist.                        */
+<span class="lineNum">     535 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     536 </span>            :     // RT1, RT2, RT3
+<span class="lineNum">     537 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     538 </span>            :                                  new TigerCompleteChain( this,
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :                                                          papszModules[0]) ));</span>
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span>            :     /* should we have kept track of whether we encountered an RT4 file? */
+<span class="lineNum">     542 </span>            :     // RT4
+<span class="lineNum">     543 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     544 </span>            :                                  new TigerAltName( this,
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :                                                    papszModules[0]) ));</span>
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span>            :     // RT5
+<span class="lineNum">     548 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     549 </span>            :                                  new TigerFeatureIds( this,
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :                                                       papszModules[0]) ));</span>
+<span class="lineNum">     551 </span>            : 
+<span class="lineNum">     552 </span>            :     // RT6
+<span class="lineNum">     553 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     554 </span>            :                                  new TigerZipCodes( this,
+<span class="lineNum">     555 </span><span class="lineNoCov">          0 :                                                     papszModules[0]) ));</span>
+<span class="lineNum">     556 </span>            :     // RT7
+<span class="lineNum">     557 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     558 </span>            :                                  new TigerLandmarks( this,
+<span class="lineNum">     559 </span><span class="lineNoCov">          0 :                                                      papszModules[0]) ));</span>
+<span class="lineNum">     560 </span>            : 
+<span class="lineNum">     561 </span>            :     // RT8
+<span class="lineNum">     562 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     563 </span>            :                                  new TigerAreaLandmarks( this,
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :                                                      papszModules[0]) ));</span>
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span>            :     // RT9
+<span class="lineNum">     567 </span><span class="lineNoCov">          0 :     if (nVersion &lt; TIGER_2002) {</span>
+<span class="lineNum">     568 </span>            :       AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     569 </span>            :                                    new TigerKeyFeatures( this,
+<span class="lineNum">     570 </span><span class="lineNoCov">          0 :                                                          papszModules[0]) ));</span>
+<span class="lineNum">     571 </span>            :     }
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span>            :     // RTA, RTS
+<span class="lineNum">     574 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     575 </span>            :                                  new TigerPolygon( this,
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :                                                    papszModules[0]) ));</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span>            :     // RTB
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :     if (nVersion &gt;= TIGER_2002) {</span>
+<span class="lineNum">     580 </span>            :       AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     581 </span>            :                                    new TigerPolygonCorrections( this,
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :                                                                 papszModules[0]) ));</span>
+<span class="lineNum">     583 </span>            :     }
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span>            :     // RTC
+<span class="lineNum">     586 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     587 </span>            :                                  new TigerEntityNames( this,
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :                                                        papszModules[0]) ));</span>
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span>            :     // RTE
+<span class="lineNum">     591 </span><span class="lineNoCov">          0 :     if (nVersion &gt;= TIGER_2002) {</span>
+<span class="lineNum">     592 </span>            :       AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     593 </span>            :                                    new TigerPolygonEconomic( this,
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :                                                              papszModules[0]) ));</span>
+<span class="lineNum">     595 </span>            :     }
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span>            :     // RTH
+<span class="lineNum">     598 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     599 </span>            :                                  new TigerIDHistory( this,
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :                                                      papszModules[0]) ));</span>
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span>            :     // RTI
+<span class="lineNum">     603 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     604 </span>            :                                  new TigerPolyChainLink( this,
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :                                                        papszModules[0]) ));</span>
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span>            :     // RTM
+<span class="lineNum">     608 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     609 </span>            :                                  new TigerSpatialMetadata( this,
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :                                                            papszModules[0] ) ) );</span>
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span>            :     // RTP
+<span class="lineNum">     613 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     614 </span>            :                                  new TigerPIP( this,
+<span class="lineNum">     615 </span><span class="lineNoCov">          0 :                                                papszModules[0]) ));</span>
+<span class="lineNum">     616 </span>            : 
+<span class="lineNum">     617 </span>            :     // RTR
+<span class="lineNum">     618 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     619 </span>            :                                  new TigerTLIDRange( this,
+<span class="lineNum">     620 </span><span class="lineNoCov">          0 :                                                      papszModules[0]) ));</span>
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span>            :     // RTT
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :     if (nVersion &gt;= TIGER_2002) {</span>
+<span class="lineNum">     624 </span>            :       AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     625 </span>            :                                    new TigerZeroCellID( this,
+<span class="lineNum">     626 </span><span class="lineNoCov">          0 :                                                         papszModules[0]) ));</span>
+<span class="lineNum">     627 </span>            :     }
+<span class="lineNum">     628 </span>            : 
+<span class="lineNum">     629 </span>            :     // RTU
+<span class="lineNum">     630 </span><span class="lineNoCov">          0 :     if (nVersion &gt;= TIGER_2002) {</span>
+<span class="lineNum">     631 </span>            :       AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     632 </span>            :                                    new TigerOverUnder( this,
+<span class="lineNum">     633 </span><span class="lineNoCov">          0 :                                                        papszModules[0]) ));</span>
+<span class="lineNum">     634 </span>            :     }
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span>            :     // RTZ
+<span class="lineNum">     637 </span>            :     AddLayer( new OGRTigerLayer( this,
+<span class="lineNum">     638 </span>            :                                  new TigerZipPlus4( this,
+<span class="lineNum">     639 </span><span class="lineNoCov">          0 :                                                      papszModules[0]) ));</span>
+<span class="lineNum">     640 </span>            : 
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 :     return TRUE;</span>
+<span class="lineNum">     642 </span>            : }
+<span class="lineNum">     643 </span>            : 
+<span class="lineNum">     644 </span>            : /************************************************************************/
+<span class="lineNum">     645 </span>            : /*                             SetOptions()                             */
+<a name="646"><span class="lineNum">     646 </span>            : /************************************************************************/</a>
+<span class="lineNum">     647 </span>            : 
+<span class="lineNum">     648 </span><span class="lineCov">         16 : void OGRTigerDataSource::SetOptionList( char ** papszNewOptions )</span>
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span>            : {
+<span class="lineNum">     651 </span><span class="lineCov">         16 :     CSLDestroy( papszOptions );</span>
+<span class="lineNum">     652 </span><span class="lineCov">         16 :     papszOptions = CSLDuplicate( papszNewOptions );</span>
+<span class="lineNum">     653 </span><span class="lineCov">         16 : }</span>
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span>            : /************************************************************************/
+<span class="lineNum">     656 </span>            : /*                             GetOption()                              */
+<a name="657"><span class="lineNum">     657 </span>            : /************************************************************************/</a>
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span><span class="lineCov">         16 : const char *OGRTigerDataSource::GetOption( const char * pszOption )</span>
+<span class="lineNum">     660 </span>            : 
+<span class="lineNum">     661 </span>            : {
+<span class="lineNum">     662 </span><span class="lineCov">         16 :     return CSLFetchNameValue( papszOptions, pszOption );</span>
+<span class="lineNum">     663 </span>            : }
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span>            : /************************************************************************/
+<span class="lineNum">     666 </span>            : /*                             GetModule()                              */
+<a name="667"><span class="lineNum">     667 </span>            : /************************************************************************/</a>
+<span class="lineNum">     668 </span>            : 
+<span class="lineNum">     669 </span><span class="lineNoCov">          0 : const char *OGRTigerDataSource::GetModule( int iModule )</span>
+<span class="lineNum">     670 </span>            : 
+<span class="lineNum">     671 </span>            : {
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :     if( iModule &lt; 0 || iModule &gt;= nModules )</span>
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     674 </span>            :     else
+<span class="lineNum">     675 </span><span class="lineNoCov">          0 :         return papszModules[iModule];</span>
+<span class="lineNum">     676 </span>            : }
+<span class="lineNum">     677 </span>            : 
+<span class="lineNum">     678 </span>            : /************************************************************************/
+<span class="lineNum">     679 </span>            : /*                            CheckModule()                             */
+<span class="lineNum">     680 </span>            : /*                                                                      */
+<span class="lineNum">     681 </span>            : /*      This is used by the writer to check if this module has been     */
+<span class="lineNum">     682 </span>            : /*      written to before.                                              */
+<a name="683"><span class="lineNum">     683 </span>            : /************************************************************************/</a>
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span><span class="lineNoCov">          0 : bool OGRTigerDataSource::CheckModule( const char *pszModule )</span>
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span>            : {
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :     for( int i = 0; i &lt; nModules; i++ )</span>
+<span class="lineNum">     689 </span>            :     {
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :         if( EQUAL(pszModule, papszModules[i]) )</span>
+<span class="lineNum">     691 </span><span class="lineNoCov">          0 :             return true;</span>
+<span class="lineNum">     692 </span>            :     }
+<span class="lineNum">     693 </span><span class="lineNoCov">          0 :     return false;</span>
+<span class="lineNum">     694 </span>            : }
+<span class="lineNum">     695 </span>            : 
+<span class="lineNum">     696 </span>            : /************************************************************************/
+<span class="lineNum">     697 </span>            : /*                             AddModule()                              */
+<a name="698"><span class="lineNum">     698 </span>            : /************************************************************************/</a>
+<span class="lineNum">     699 </span>            : 
+<span class="lineNum">     700 </span><span class="lineNoCov">          0 : void OGRTigerDataSource::AddModule( const char *pszModule )</span>
+<span class="lineNum">     701 </span>            : 
+<span class="lineNum">     702 </span>            : {
+<span class="lineNum">     703 </span><span class="lineNoCov">          0 :     if( CheckModule( pszModule ) )</span>
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     705 </span>            : 
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :     papszModules = CSLAddString( papszModules, pszModule );</span>
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 :     nModules++;</span>
+<span class="lineNum">     708 </span>            : }
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span>            : /************************************************************************/
+<span class="lineNum">     711 </span>            : /*                           BuildFilename()                            */
+<a name="712"><span class="lineNum">     712 </span>            : /************************************************************************/</a>
+<span class="lineNum">     713 </span>            : 
+<span class="lineNum">     714 </span><span class="lineCov">         27 : char *OGRTigerDataSource::BuildFilename( const char *pszModuleName,</span>
+<span class="lineNum">     715 </span>            :                                          const char *pszExtension )
+<span class="lineNum">     716 </span>            : 
+<span class="lineNum">     717 </span>            : {
+<span class="lineNum">     718 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     719 </span>            : /*      Force the record type to lower case if the filename appears     */
+<span class="lineNum">     720 </span>            : /*      to be in lower case.                                            */
+<span class="lineNum">     721 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     722 </span><span class="lineCov">         27 :     char szLCExtension[3] = {};</span>
+<span class="lineNum">     723 </span><span class="lineCov">         27 :     if( *pszExtension &gt;= 'A' &amp;&amp; *pszExtension &lt;= 'Z' &amp;&amp; *pszModuleName == 't' )</span>
+<span class="lineNum">     724 </span>            :     {
+<span class="lineNum">     725 </span><span class="lineNoCov">          0 :         szLCExtension[0] = (*pszExtension) + 'a' - 'A';</span>
+<span class="lineNum">     726 </span><span class="lineNoCov">          0 :         szLCExtension[1] = '\0';</span>
+<span class="lineNum">     727 </span><span class="lineNoCov">          0 :         pszExtension = szLCExtension;</span>
+<span class="lineNum">     728 </span>            :     }
+<span class="lineNum">     729 </span>            : 
+<span class="lineNum">     730 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     731 </span>            : /*      Build the filename.                                             */
+<span class="lineNum">     732 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     733 </span>            :     const size_t nFilenameLen =
+<span class="lineNum">     734 </span><span class="lineCov">         27 :         strlen(GetDirPath())</span>
+<span class="lineNum">     735 </span><span class="lineCov">         27 :         + strlen(pszModuleName)</span>
+<span class="lineNum">     736 </span><span class="lineCov">         27 :         + strlen(pszExtension) + 10;</span>
+<span class="lineNum">     737 </span><span class="lineCov">         27 :     char *pszFilename = (char *) CPLMalloc(nFilenameLen);</span>
+<span class="lineNum">     738 </span>            : 
+<span class="lineNum">     739 </span><span class="lineCov">         27 :     if( strlen(GetDirPath()) == 0 )</span>
+<span class="lineNum">     740 </span>            :         snprintf( pszFilename, nFilenameLen, &quot;%s%s&quot;,
+<span class="lineNum">     741 </span><span class="lineNoCov">          0 :                  pszModuleName, pszExtension );</span>
+<span class="lineNum">     742 </span>            :     else
+<span class="lineNum">     743 </span>            :         snprintf( pszFilename, nFilenameLen, &quot;%s/%s%s&quot;,
+<span class="lineNum">     744 </span><span class="lineCov">         27 :                  GetDirPath(), pszModuleName, pszExtension );</span>
+<span class="lineNum">     745 </span>            : 
+<span class="lineNum">     746 </span><span class="lineCov">         27 :     return pszFilename;</span>
+<span class="lineNum">     747 </span>            : }
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span>            : /************************************************************************/
+<span class="lineNum">     750 </span>            : /*                           TestCapability()                           */
+<a name="751"><span class="lineNum">     751 </span>            : /************************************************************************/</a>
+<span class="lineNum">     752 </span>            : 
+<span class="lineNum">     753 </span><span class="lineCov">         16 : int OGRTigerDataSource::TestCapability( const char *pszCap )</span>
+<span class="lineNum">     754 </span>            : 
+<span class="lineNum">     755 </span>            : {
+<span class="lineNum">     756 </span><span class="lineCov">         16 :     if( EQUAL(pszCap,ODsCCreateLayer) )</span>
+<span class="lineNum">     757 </span><span class="lineCov">         16 :         return GetWriteMode();</span>
+<span class="lineNum">     758 </span>            :     else
+<span class="lineNum">     759 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     760 </span>            : }
+<span class="lineNum">     761 </span>            : 
+<span class="lineNum">     762 </span>            : /************************************************************************/
+<span class="lineNum">     763 </span>            : /*                               Create()                               */
+<a name="764"><span class="lineNum">     764 </span>            : /************************************************************************/</a>
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span><span class="lineCov">         17 : int OGRTigerDataSource::Create( const char *pszNameIn, char **papszOptionsIn )</span>
+<span class="lineNum">     767 </span>            : 
+<span class="lineNum">     768 </span>            : {
+<span class="lineNum">     769 </span>            :     VSIStatBufL      stat;
+<span class="lineNum">     770 </span>            : 
+<span class="lineNum">     771 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     772 </span>            : /*      Try to create directory if it doesn't already exist.            */
+<span class="lineNum">     773 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     774 </span><span class="lineCov">         17 :     if( VSIStatL( pszNameIn, &amp;stat ) != 0 )</span>
+<span class="lineNum">     775 </span>            :     {
+<span class="lineNum">     776 </span><span class="lineCov">         17 :         VSIMkdir( pszNameIn, 0755 );</span>
+<span class="lineNum">     777 </span>            :     }
+<span class="lineNum">     778 </span>            : 
+<span class="lineNum">     779 </span><span class="lineCov">         17 :     if( VSIStatL( pszNameIn, &amp;stat ) != 0 || !VSI_ISDIR(stat.st_mode) )</span>
+<span class="lineNum">     780 </span>            :     {
+<span class="lineNum">     781 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     782 </span>            :                   &quot;%s is not a directory, nor can be directly created as one.&quot;,
+<span class="lineNum">     783 </span><span class="lineCov">          1 :                   pszNameIn );</span>
+<span class="lineNum">     784 </span><span class="lineCov">          1 :         return FALSE;</span>
+<span class="lineNum">     785 </span>            :     }
+<span class="lineNum">     786 </span>            : 
+<span class="lineNum">     787 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     788 </span>            : /*      Store various information.                                      */
+<span class="lineNum">     789 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     790 </span><span class="lineCov">         16 :     pszPath = CPLStrdup( pszNameIn );</span>
+<span class="lineNum">     791 </span><span class="lineCov">         16 :     pszName = CPLStrdup( pszNameIn );</span>
+<span class="lineNum">     792 </span><span class="lineCov">         16 :     bWriteMode = true;</span>
+<span class="lineNum">     793 </span>            : 
+<span class="lineNum">     794 </span><span class="lineCov">         16 :     SetOptionList( papszOptionsIn );</span>
+<span class="lineNum">     795 </span>            : 
+<span class="lineNum">     796 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     797 </span>            : /*      Work out the version.                                           */
+<span class="lineNum">     798 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     799 </span>            : //    nVersionCode = 1000; /* census 2000 */
+<span class="lineNum">     800 </span>            : 
+<span class="lineNum">     801 </span><span class="lineCov">         16 :     nVersionCode = 1002; /* census 2002 */</span>
+<span class="lineNum">     802 </span><span class="lineCov">         16 :     if( GetOption(&quot;VERSION&quot;) != nullptr )</span>
+<span class="lineNum">     803 </span>            :     {
+<span class="lineNum">     804 </span><span class="lineNoCov">          0 :         nVersionCode = atoi(GetOption(&quot;VERSION&quot;));</span>
+<span class="lineNum">     805 </span><span class="lineNoCov">          0 :         nVersionCode = std::max(0, std::min(9999, nVersionCode));</span>
+<span class="lineNum">     806 </span>            :     }
+<span class="lineNum">     807 </span><span class="lineCov">         16 :     nVersion = TigerClassifyVersion(nVersionCode);</span>
+<span class="lineNum">     808 </span>            : 
+<span class="lineNum">     809 </span><span class="lineCov">         16 :     return TRUE;</span>
+<span class="lineNum">     810 </span>            : }
+<span class="lineNum">     811 </span>            : 
+<span class="lineNum">     812 </span>            : /************************************************************************/
+<span class="lineNum">     813 </span>            : /*                           ICreateLayer()                             */
+<a name="814"><span class="lineNum">     814 </span>            : /************************************************************************/</a>
+<span class="lineNum">     815 </span>            : 
+<span class="lineNum">     816 </span><span class="lineCov">         16 : OGRLayer *OGRTigerDataSource::ICreateLayer( const char *pszLayerName,</span>
+<span class="lineNum">     817 </span>            :                                             OGRSpatialReference *poSpatRef,
+<span class="lineNum">     818 </span>            :                                             CPL_UNUSED OGRwkbGeometryType eGType,
+<span class="lineNum">     819 </span>            :                                             char ** /* papszOptions */ )
+<span class="lineNum">     820 </span>            : {
+<span class="lineNum">     821 </span><span class="lineCov">         16 :     OGRTigerLayer       *poLayer = nullptr;</span>
+<span class="lineNum">     822 </span>            : 
+<span class="lineNum">     823 </span><span class="lineCov">         16 :     if( GetLayer( pszLayerName ) != nullptr )</span>
+<span class="lineNum">     824 </span><span class="lineNoCov">          0 :         return GetLayer( pszLayerName );</span>
+<span class="lineNum">     825 </span>            : 
+<span class="lineNum">     826 </span><span class="lineCov">         16 :     if( poSpatRef != nullptr &amp;&amp;</span>
+<span class="lineNum">     827 </span><span class="lineNoCov">          0 :         (!poSpatRef-&gt;IsGeographic()</span>
+<span class="lineNum">     828 </span><span class="lineNoCov">          0 :          || !EQUAL(poSpatRef-&gt;GetAttrValue(&quot;DATUM&quot;),</span>
+<span class="lineNum">     829 </span>            :                    &quot;North_American_Datum_1983&quot;)) )
+<span class="lineNum">     830 </span>            :     {
+<span class="lineNum">     831 </span>            :         CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     832 </span>            :                   &quot;Requested coordinate system wrong for Tiger, &quot;
+<span class="lineNum">     833 </span><span class="lineNoCov">          0 :                   &quot;forcing to GEOGCS NAD83.&quot; );</span>
+<span class="lineNum">     834 </span>            :     }
+<span class="lineNum">     835 </span>            : 
+<span class="lineNum">     836 </span><span class="lineCov">         16 :     if( EQUAL(pszLayerName,&quot;PIP&quot;) )</span>
+<span class="lineNum">     837 </span>            :     {
+<span class="lineNum">     838 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     839 </span><span class="lineNoCov">          0 :                                      new TigerPIP( this, nullptr ) );</span>
+<span class="lineNum">     840 </span>            :     }
+<span class="lineNum">     841 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;ZipPlus4&quot;) )</span>
+<span class="lineNum">     842 </span>            :     {
+<span class="lineNum">     843 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :                                      new TigerZipPlus4( this, nullptr ) );</span>
+<span class="lineNum">     845 </span>            :     }
+<span class="lineNum">     846 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;TLIDRange&quot;) )</span>
+<span class="lineNum">     847 </span>            :     {
+<span class="lineNum">     848 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     849 </span><span class="lineNoCov">          0 :                                      new TigerTLIDRange( this, nullptr ) );</span>
+<span class="lineNum">     850 </span>            :     }
+<span class="lineNum">     851 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;PolyChainLink&quot;) )</span>
+<span class="lineNum">     852 </span>            :     {
+<span class="lineNum">     853 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     854 </span><span class="lineNoCov">          0 :                                      new TigerPolyChainLink( this, nullptr ) );</span>
+<span class="lineNum">     855 </span>            :     }
+<span class="lineNum">     856 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;CompleteChain&quot;) )</span>
+<span class="lineNum">     857 </span>            :     {
+<span class="lineNum">     858 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     859 </span><span class="lineNoCov">          0 :                                      new TigerCompleteChain( this, nullptr ) );</span>
+<span class="lineNum">     860 </span>            :     }
+<span class="lineNum">     861 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;AltName&quot;) )</span>
+<span class="lineNum">     862 </span>            :     {
+<span class="lineNum">     863 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     864 </span><span class="lineNoCov">          0 :                                      new TigerAltName( this, nullptr ) );</span>
+<span class="lineNum">     865 </span>            :     }
+<span class="lineNum">     866 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;FeatureIds&quot;) )</span>
+<span class="lineNum">     867 </span>            :     {
+<span class="lineNum">     868 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     869 </span><span class="lineNoCov">          0 :                                      new TigerFeatureIds( this, nullptr ) );</span>
+<span class="lineNum">     870 </span>            :     }
+<span class="lineNum">     871 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;ZipCodes&quot;) )</span>
+<span class="lineNum">     872 </span>            :     {
+<span class="lineNum">     873 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     874 </span><span class="lineNoCov">          0 :                                      new TigerZipCodes( this, nullptr ) );</span>
+<span class="lineNum">     875 </span>            :     }
+<span class="lineNum">     876 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;Landmarks&quot;) )</span>
+<span class="lineNum">     877 </span>            :     {
+<span class="lineNum">     878 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     879 </span><span class="lineNoCov">          0 :                                      new TigerLandmarks( this, nullptr ) );</span>
+<span class="lineNum">     880 </span>            :     }
+<span class="lineNum">     881 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;AreaLandmarks&quot;) )</span>
+<span class="lineNum">     882 </span>            :     {
+<span class="lineNum">     883 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     884 </span><span class="lineNoCov">          0 :                                      new TigerAreaLandmarks( this, nullptr ) );</span>
+<span class="lineNum">     885 </span>            :     }
+<span class="lineNum">     886 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;KeyFeatures&quot;) )</span>
+<span class="lineNum">     887 </span>            :     {
+<span class="lineNum">     888 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     889 </span><span class="lineNoCov">          0 :                                      new TigerKeyFeatures( this, nullptr ) );</span>
+<span class="lineNum">     890 </span>            :     }
+<span class="lineNum">     891 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;EntityNames&quot;) )</span>
+<span class="lineNum">     892 </span>            :     {
+<span class="lineNum">     893 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     894 </span><span class="lineNoCov">          0 :                                      new TigerEntityNames( this, nullptr ) );</span>
+<span class="lineNum">     895 </span>            :     }
+<span class="lineNum">     896 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;IDHistory&quot;) )</span>
+<span class="lineNum">     897 </span>            :     {
+<span class="lineNum">     898 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     899 </span><span class="lineNoCov">          0 :                                      new TigerIDHistory( this, nullptr ) );</span>
+<span class="lineNum">     900 </span>            :     }
+<span class="lineNum">     901 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;Polygon&quot;) )</span>
+<span class="lineNum">     902 </span>            :     {
+<span class="lineNum">     903 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     904 </span><span class="lineNoCov">          0 :                                      new TigerPolygon( this, nullptr ) );</span>
+<span class="lineNum">     905 </span>            :     }
+<span class="lineNum">     906 </span>            : 
+<span class="lineNum">     907 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;PolygonCorrections&quot;) )</span>
+<span class="lineNum">     908 </span>            :     {
+<span class="lineNum">     909 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :                                      new TigerPolygonCorrections( this, nullptr ) );</span>
+<span class="lineNum">     911 </span>            :     }
+<span class="lineNum">     912 </span>            : 
+<span class="lineNum">     913 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;PolygonEconomic&quot;) )</span>
+<span class="lineNum">     914 </span>            :     {
+<span class="lineNum">     915 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :                                      new TigerPolygonEconomic( this, nullptr ) );</span>
+<span class="lineNum">     917 </span>            :     }
+<span class="lineNum">     918 </span>            : 
+<span class="lineNum">     919 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;SpatialMetadata&quot;) )</span>
+<span class="lineNum">     920 </span>            :     {
+<span class="lineNum">     921 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     922 </span><span class="lineNoCov">          0 :                                      new TigerSpatialMetadata( this, nullptr ) );</span>
+<span class="lineNum">     923 </span>            :     }
+<span class="lineNum">     924 </span>            : 
+<span class="lineNum">     925 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;ZeroCellID&quot;) )</span>
+<span class="lineNum">     926 </span>            :     {
+<span class="lineNum">     927 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     928 </span><span class="lineNoCov">          0 :                                      new TigerZeroCellID( this, nullptr ) );</span>
+<span class="lineNum">     929 </span>            :     }
+<span class="lineNum">     930 </span>            : 
+<span class="lineNum">     931 </span><span class="lineCov">         16 :     else if( EQUAL(pszLayerName,&quot;OverUnder&quot;) )</span>
+<span class="lineNum">     932 </span>            :     {
+<span class="lineNum">     933 </span>            :         poLayer = new OGRTigerLayer( this,
+<span class="lineNum">     934 </span><span class="lineNoCov">          0 :                                      new TigerOverUnder( this, nullptr ) );</span>
+<span class="lineNum">     935 </span>            :     }
+<span class="lineNum">     936 </span>            : 
+<span class="lineNum">     937 </span><span class="lineCov">         16 :     if( poLayer == nullptr )</span>
+<span class="lineNum">     938 </span>            :     {
+<span class="lineNum">     939 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     940 </span>            :                   &quot;Unable to create layer %s, not a known TIGER/Line layer.&quot;,
+<span class="lineNum">     941 </span><span class="lineCov">         16 :                   pszLayerName );</span>
+<span class="lineNum">     942 </span>            :     }
+<span class="lineNum">     943 </span>            :     else
+<span class="lineNum">     944 </span><span class="lineNoCov">          0 :         AddLayer( poLayer );</span>
+<span class="lineNum">     945 </span>            : 
+<span class="lineNum">     946 </span><span class="lineCov">         16 :     return poLayer;</span>
+<span class="lineNum">     947 </span>            : }
+<span class="lineNum">     948 </span>            : 
+<span class="lineNum">     949 </span>            : /************************************************************************/
+<span class="lineNum">     950 </span>            : /*                         DeleteModuleFiles()                          */
+<a name="951"><span class="lineNum">     951 </span>            : /************************************************************************/</a>
+<span class="lineNum">     952 </span>            : 
+<span class="lineNum">     953 </span><span class="lineNoCov">          0 : void OGRTigerDataSource::DeleteModuleFiles( const char *pszModule )</span>
+<span class="lineNum">     954 </span>            : 
+<span class="lineNum">     955 </span>            : {
+<span class="lineNum">     956 </span><span class="lineNoCov">          0 :     char **papszDirFiles = VSIReadDir( GetDirPath() );</span>
+<span class="lineNum">     957 </span><span class="lineNoCov">          0 :     const int nCount = CSLCount(papszDirFiles);</span>
+<span class="lineNum">     958 </span>            : 
+<span class="lineNum">     959 </span><span class="lineNoCov">          0 :     for( int i = 0; i &lt; nCount; i++ )</span>
+<span class="lineNum">     960 </span>            :     {
+<span class="lineNum">     961 </span><span class="lineNoCov">          0 :         if( EQUALN(pszModule,papszDirFiles[i],strlen(pszModule)) )</span>
+<span class="lineNum">     962 </span>            :         {
+<span class="lineNum">     963 </span>            :             const char *pszFilename = CPLFormFilename( GetDirPath(),
+<span class="lineNum">     964 </span><span class="lineNoCov">          0 :                                            papszDirFiles[i],</span>
+<span class="lineNum">     965 </span><span class="lineNoCov">          0 :                                            nullptr );</span>
+<span class="lineNum">     966 </span><span class="lineNoCov">          0 :             if( VSIUnlink( pszFilename ) != 0 )</span>
+<span class="lineNum">     967 </span>            :             {
+<span class="lineNum">     968 </span><span class="lineNoCov">          0 :                 CPLDebug( &quot;OGR_TIGER&quot;, &quot;Failed to unlink %s&quot;, pszFilename );</span>
+<span class="lineNum">     969 </span>            :             }
+<span class="lineNum">     970 </span>            :         }
+<span class="lineNum">     971 </span>            :     }
+<span class="lineNum">     972 </span>            : 
+<span class="lineNum">     973 </span><span class="lineNoCov">          0 :     CSLDestroy( papszDirFiles );</span>
+<span class="lineNum">     974 </span><span class="lineNoCov">          0 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

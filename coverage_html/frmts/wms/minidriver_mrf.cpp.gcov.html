@@ -1,0 +1,400 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/wms/minidriver_mrf.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/wms</a> - minidriver_mrf.cpp<span style="font-size: 80%;"> (source / <a href="minidriver_mrf.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">144</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            : * $Id$
+<span class="lineNum">       3 </span>            : *
+<span class="lineNum">       4 </span>            : * Project:  WMS Client Mini Driver
+<span class="lineNum">       5 </span>            : * Purpose:  Implementation of Dataset and RasterBand classes for WMS
+<span class="lineNum">       6 </span>            : *           and other similar services.
+<span class="lineNum">       7 </span>            : * Author:   Lucian Plesea
+<span class="lineNum">       8 </span>            : *
+<span class="lineNum">       9 </span>            : ******************************************************************************
+<span class="lineNum">      10 </span>            : * Copyright (c) 2016, Lucian Plesea
+<span class="lineNum">      11 </span>            : *
+<span class="lineNum">      12 </span>            : * Copyright 2016 Esri
+<span class="lineNum">      13 </span>            : *
+<span class="lineNum">      14 </span>            : * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineNum">      15 </span>            : * you may not use this file except in compliance with the License.
+<span class="lineNum">      16 </span>            : * You may obtain a copy of the License at
+<span class="lineNum">      17 </span>            : *
+<span class="lineNum">      18 </span>            : * http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineNum">      19 </span>            : *
+<span class="lineNum">      20 </span>            : * Unless required by applicable law or agreed to in writing, software
+<span class="lineNum">      21 </span>            : * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineNum">      22 </span>            : * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineNum">      23 </span>            : * See the License for the specific language governing permissions and
+<span class="lineNum">      24 </span>            : * limitations under the License.
+<span class="lineNum">      25 </span>            : ****************************************************************************/
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            : /*
+<span class="lineNum">      28 </span>            :  A WMS style minidriver that allows an MRF or an Esri bundle to be read from a URL, using one range request per tile
+<span class="lineNum">      29 </span>            :  All parameters have to be defined in the WMS file, especially for the MRF, so only simple MRF files work.
+<span class="lineNum">      30 </span>            :  For a bundle, the size is assumed to be 128 tiles of 256 pixels each, which is the standard size.
+<span class="lineNum">      31 </span>            :  */
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &quot;wmsdriver.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;minidriver_mrf.h&quot;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : using namespace WMSMiniDriver_MRF_ns;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : // Copied from frmts/mrf
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : // A tile index record, 16 bytes, big endian
+<span class="lineNum">      43 </span>            : typedef struct {
+<span class="lineNum">      44 </span>            :     GIntBig offset;
+<span class="lineNum">      45 </span>            :     GIntBig size;
+<span class="lineNum">      46 </span>            : } MRFIdx;
+<a name="47"><span class="lineNum">      47 </span>            : </a>
+<span class="lineNum">      48 </span>            : // Number of pages of size psz needed to hold n elements
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 : static inline int pcount(const int n, const int sz) {</span>
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :     return 1 + (n - 1) / sz;</span>
+<span class="lineNum">      51 </span>            : }
+<a name="52"><span class="lineNum">      52 </span>            : </a>
+<span class="lineNum">      53 </span>            : // Returns a pagecount per dimension, .l will have the total number
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 : static inline const ILSize pcount(const ILSize &amp;size, const ILSize &amp;psz) {</span>
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :     ILSize count;</span>
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :     count.x = pcount(size.x, psz.x);</span>
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :     count.y = pcount(size.y, psz.y);</span>
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :     count.z = pcount(size.z, psz.z);</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :     count.c = pcount(size.c, psz.c);</span>
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :     count.l = static_cast&lt;GIntBig&gt;(count.x) * count.y * count.z * count.c;</span>
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :     return count;</span>
+<span class="lineNum">      62 </span>            : }
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : // End copied from frmts/mrf
+<span class="lineNum">      65 </span>            : 
+<a name="66"><span class="lineNum">      66 </span>            : </a>
+<span class="lineNum">      67 </span>            : // pread_t adapter for VSIL
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 : static size_t pread_VSIL(void *user_data, void *buff, size_t count, off_t offset) {</span>
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :     VSILFILE *fp = reinterpret_cast&lt;VSILFILE *&gt;(user_data);</span>
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :     VSIFSeekL(fp, offset, SEEK_SET);</span>
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :     return VSIFReadL(buff, 1, count, fp);</span>
+<span class="lineNum">      72 </span>            : }
+<a name="73"><span class="lineNum">      73 </span>            : </a>
+<span class="lineNum">      74 </span>            : // pread_t adapter for curl.  We use the multi interface to get the same options
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 : static size_t pread_curl(void *user_data, void *buff, size_t count, off_t offset) {</span>
+<span class="lineNum">      76 </span>            :     // Use a copy of the provided request, which has the options and the URL preset
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :     WMSHTTPRequest request(*(reinterpret_cast&lt;WMSHTTPRequest *&gt;(user_data)));</span>
+<span class="lineNum">      78 </span>            :     request.Range.Printf(CPL_FRMT_GUIB &quot;-&quot; CPL_FRMT_GUIB,
+<span class="lineNum">      79 </span>            :                             static_cast&lt;GUIntBig&gt;(offset),
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :                             static_cast&lt;GUIntBig&gt;(offset + count - 1));</span>
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :     WMSHTTPInitializeRequest(&amp;request);</span>
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :     if (WMSHTTPFetchMulti(&amp;request) != CE_None) {</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_AppDefined, &quot;GDALWMS_MRF: failed to retrieve index data&quot;);</span>
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">      85 </span>            :     }
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :     int success = (request.nStatus == 200) ||</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :         (!request.Range.empty() &amp;&amp; request.nStatus == 206);</span>
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :     if (!success || request.pabyData == nullptr || request.nDataLen == 0) {</span>
+<span class="lineNum">      90 </span>            :         CPLError(CE_Failure, CPLE_HttpResponse,
+<span class="lineNum">      91 </span>            :             &quot;GDALWMS: Unable to download data from %s&quot;,
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :             request.URL.c_str());</span>
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :         return 0; // Error flag</span>
+<span class="lineNum">      94 </span>            :     }
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            :     // Might get less data than requested
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :     if (request.nDataLen &lt; count)</span>
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :         memset(buff, 0, count);</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :     memcpy(buff, request.pabyData, request.nDataLen);</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :     return request.nDataLen;</span>
+<a name="101"><span class="lineNum">     101 </span>            : }</a>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 : SectorCache::SectorCache(void *user_data,</span>
+<span class="lineNum">     104 </span>            :                          pread_t fn,
+<span class="lineNum">     105 </span>            :                          unsigned int size,
+<span class="lineNum">     106 </span>            :                          unsigned int count ) :
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :     n(count + 2), m(size), reader(fn ? fn : pread_VSIL),</span>
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :     reader_data(user_data), last_used(nullptr)</span>
+<span class="lineNum">     109 </span>            : {
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            : 
+<a name="113"><span class="lineNum">     113 </span>            : // Returns an in-memory offset to the byte at the given address, within a sector</a>
+<span class="lineNum">     114 </span>            : // Returns NULL if the sector can't be read
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 : void *SectorCache::data(size_t address) {</span>
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :     for (size_t i = 0; i &lt; store.size(); i++) {</span>
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :         if (store[i].uid == address / m) {</span>
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :             last_used = &amp;store[i];</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :             return &amp;(last_used-&gt;range[address % m]);</span>
+<span class="lineNum">     120 </span>            :         }
+<span class="lineNum">     121 </span>            :     }
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            :     // Not found, need a target sector to replace
+<span class="lineNum">     124 </span>            :     Sector *target;
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :     if (store.size() &lt; m) { // Create a new sector if there are slots available</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :         store.resize(store.size() + 1);</span>
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :         target = &amp;store.back();</span>
+<span class="lineNum">     128 </span>            :     }
+<span class="lineNum">     129 </span>            :     else { // Choose a random one to replace, but not the last used, to avoid thrashing
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :         do {</span>
+<span class="lineNum">     131 </span>            :             // coverity[dont_call]
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :             target = &amp;(store[rand() % n]);</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :         } while (target == last_used);</span>
+<span class="lineNum">     134 </span>            :     }
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :     target-&gt;range.resize(m);</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :     if (reader(reader_data, &amp;target-&gt;range[0], m, static_cast&lt;off_t&gt;((address / m ) * m))) { // Success</span>
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :         target-&gt;uid = address / m;</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :         last_used = target;</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :         return &amp;(last_used-&gt;range[address %m]);</span>
+<span class="lineNum">     141 </span>            :     }
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            :     // Failure
+<span class="lineNum">     144 </span>            :     // If this is the last sector, it could be a new sector with invalid data, so we remove it
+<span class="lineNum">     145 </span>            :     // Otherwise, the previous content is still good
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :     if (target == &amp;store.back())</span>
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :         store.resize(store.size() - 1);</span>
+<span class="lineNum">     148 </span>            :     // Signal invalid request
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     150 </span>            : }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            : // Keep in sync with the type enum
+<a name="153"><span class="lineNum">     153 </span>            : static const int ir_size[WMSMiniDriver_MRF::tEND] = { 16, 8 };</a>
+<span class="lineNum">     154 </span>            : 
+<a name="155"><span class="lineNum">     155 </span><span class="lineNoCov">          0 : WMSMiniDriver_MRF::WMSMiniDriver_MRF(): m_type(tMRF), fp(nullptr), m_request(nullptr),index_cache(nullptr) {}</span></a>
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 : WMSMiniDriver_MRF::~WMSMiniDriver_MRF() {</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :     if (index_cache)</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :         delete index_cache;</span>
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :     if (fp)</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :         VSIFCloseL(fp);</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :     delete m_request;</span>
+<a name="163"><span class="lineNum">     163 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 : CPLErr WMSMiniDriver_MRF::Initialize(CPLXMLNode *config, CPL_UNUSED char **papszOpenOptions) {</span>
+<span class="lineNum">     166 </span>            :     // This gets called before the rest of the WMS driver gets initialized
+<span class="lineNum">     167 </span>            :     // The MRF reader only works if all datawindow is defined within the WMS file
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :     m_base_url = CPLGetXMLValue(config, &quot;ServerURL&quot;, &quot;&quot;);</span>
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :     if (m_base_url.empty()) {</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_AppDefined, &quot;GDALWMS, MRF: ServerURL missing.&quot;);</span>
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     173 </span>            :     }
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span>            :     // Index file location, in case it is different from the normal file name
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :     m_idxname = CPLGetXMLValue(config, &quot;index&quot;, &quot;&quot;);</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     CPLString osType(CPLGetXMLValue(config, &quot;type&quot;, &quot;&quot;));</span>
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :     if (EQUAL(osType, &quot;bundle&quot;))</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :         m_type = tBundle;</span>
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :     if (m_type == tBundle) {</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :         m_parent_dataset-&gt;WMSSetDefaultOverviewCount(0);</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :         m_parent_dataset-&gt;WMSSetDefaultTileCount(128, 128);</span>
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :         m_parent_dataset-&gt;WMSSetDefaultBlockSize(256, 256);</span>
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :         m_parent_dataset-&gt;WMSSetDefaultTileLevel(0);</span>
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :         m_parent_dataset-&gt;WMSSetNeedsDataWindow(FALSE);</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :         offsets.push_back(64);</span>
+<span class="lineNum">     190 </span>            :     }
+<span class="lineNum">     191 </span>            :     else { // MRF
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :         offsets.push_back(0);</span>
+<span class="lineNum">     193 </span>            :     }
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :     return CE_None;</span>
+<span class="lineNum">     196 </span>            : }
+<span class="lineNum">     197 </span>            : 
+<a name="198"><span class="lineNum">     198 </span>            : // Test for URL, things that curl can deal with while doing a range request</a>
+<span class="lineNum">     199 </span>            : // http and https should work, not sure about ftp or file
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 : int inline static is_url(const CPLString &amp;value) {</span>
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :     return (value.ifind(&quot;http://&quot;) == 0</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :         || value.ifind(&quot;https://&quot;) == 0</span>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :         || value.ifind(&quot;ftp://&quot;) == 0</span>
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :         || value.ifind(&quot;file://&quot;) == 0</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :         );</span>
+<span class="lineNum">     206 </span>            : }
+<a name="207"><span class="lineNum">     207 </span>            : </a>
+<span class="lineNum">     208 </span>            : // Called after the dataset is initialized by the main WMS driver
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 : CPLErr WMSMiniDriver_MRF::EndInit() {</span>
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :     int index_is_url = 1;</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :     if (!m_idxname.empty() ) { // Provided, could be path or URL</span>
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :         if (!is_url(m_idxname)) {</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :             index_is_url = 0;</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :             fp = VSIFOpenL(m_idxname, &quot;rb&quot;);</span>
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :             if (fp == nullptr) {</span>
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :                 CPLError(CE_Failure, CPLE_FileIO, &quot;Can't open index file %s&quot;, m_idxname.c_str());</span>
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :                 return CE_Failure;</span>
+<span class="lineNum">     218 </span>            :             }
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :             index_cache = new SectorCache(fp);</span>
+<span class="lineNum">     220 </span>            :         }
+<span class="lineNum">     221 </span>            :     }
+<span class="lineNum">     222 </span>            :     else { // Not provided, change extension to .idx if we can, otherwise use the same file
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :         m_idxname = m_base_url;</span>
+<span class="lineNum">     224 </span>            :     }
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :     if (index_is_url) { // prepare a WMS request, the pread_curl will execute it repeatedly</span>
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :         m_request = new WMSHTTPRequest();</span>
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :         m_request-&gt;URL = m_idxname;</span>
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :         m_request-&gt;options = m_parent_dataset-&gt;GetHTTPRequestOpts();</span>
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :         index_cache = new SectorCache(m_request, pread_curl);</span>
+<span class="lineNum">     231 </span>            :     }
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span>            :     // Set the level index offsets, assume MRF order since esri bundles don't have overviews
+<span class="lineNum">     234 </span>            :     ILSize size(m_parent_dataset-&gt;GetRasterXSize(),
+<span class="lineNum">     235 </span>            :                 m_parent_dataset-&gt;GetRasterYSize(),
+<span class="lineNum">     236 </span>            :                 1, // Single slice for now
+<span class="lineNum">     237 </span>            :                 1, // Ignore the c, only single or interleved data supported by WMS
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :                 m_parent_dataset-&gt;GetRasterBand(1)-&gt;GetOverviewCount());</span>
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            :     int psx, psy;
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :     m_parent_dataset-&gt;GetRasterBand(1)-&gt;GetBlockSize(&amp;psx, &amp;psy);</span>
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :     ILSize pagesize(psx, psy, 1, 1, 1);</span>
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :     if (m_type == tBundle) { // A bundle contains 128x128 pages, regadless of the raster size</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :         size.x = psx * 128;</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :         size.y = psy * 128;</span>
+<span class="lineNum">     247 </span>            :     }
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :     for (GIntBig l = size.l; l &gt;= 0; l--) {</span>
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :         ILSize pagecount = pcount(size, pagesize);</span>
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :         pages.push_back(pagecount);</span>
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :         if (l &gt; 0) // Only for existing levels</span>
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :             offsets.push_back(offsets.back() + ir_size[m_type] * pagecount.l);</span>
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span>            :         // Sometimes this may be a 3
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :         size.x = pcount(size.x, 2);</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :         size.y = pcount(size.y, 2);</span>
+<span class="lineNum">     258 </span>            :     }
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :     return CE_None;</span>
+<span class="lineNum">     261 </span>            : }
+<a name="262"><span class="lineNum">     262 </span>            : </a>
+<span class="lineNum">     263 </span>            : // Return -1 if error occurs
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 : size_t WMSMiniDriver_MRF::GetIndexAddress(const GDALWMSTiledImageRequestInfo &amp;tiri) const {</span>
+<span class="lineNum">     265 </span>            :     // Bottom level is 0
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :     int l = - tiri.m_level;</span>
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :     if (l &lt; 0 || l &gt;= static_cast&lt;int&gt;(offsets.size()))</span>
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :         return ~static_cast&lt;size_t&gt;(0); // Indexing error</span>
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :     if (tiri.m_x &gt;= pages[l].x || tiri.m_y &gt;= pages[l].y)</span>
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :         return ~static_cast&lt;size_t&gt;(0);</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :     return static_cast&lt;size_t&gt;(offsets[l] + (pages[l].x * tiri.m_y + tiri.m_x) * ir_size[m_type]);</span>
+<span class="lineNum">     272 </span>            : }
+<a name="273"><span class="lineNum">     273 </span>            : </a>
+<span class="lineNum">     274 </span>            : // Signal errors and return error message
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 : CPLErr WMSMiniDriver_MRF::TiledImageRequest(WMSHTTPRequest &amp;request,</span>
+<span class="lineNum">     276 </span>            :     CPL_UNUSED const GDALWMSImageRequestInfo &amp;iri,
+<span class="lineNum">     277 </span>            :     const GDALWMSTiledImageRequestInfo &amp;tiri)
+<span class="lineNum">     278 </span>            : {
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :     CPLString &amp;url = request.URL;</span>
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :     url = m_base_url;</span>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :     size_t offset = GetIndexAddress(tiri);</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :     if (offset == static_cast&lt;size_t&gt;(-1)) {</span>
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :         request.Error = &quot;Invalid level requested&quot;;</span>
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     286 </span>            :     }
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :     void *raw_index = index_cache-&gt;data(offset);</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :     if (raw_index == nullptr) {</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :         request.Error = &quot;Invalid indexing&quot;;</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     292 </span>            :     };
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span>            :     // Store the tile size and offset in this structure
+<span class="lineNum">     295 </span>            :     MRFIdx idx;
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     if (m_type == tMRF) {</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :         memcpy(&amp;idx, raw_index, sizeof(idx));</span>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span>            : #if defined(CPL_LSB) // raw index is MSB
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :         idx.offset = CPL_SWAP64(idx.offset);</span>
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :         idx.size = CPL_SWAP64(idx.size);</span>
+<span class="lineNum">     303 </span>            : #endif
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span>            :     } else { // Bundle
+<span class="lineNum">     306 </span>            :         GIntBig bidx;
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :         memcpy(&amp;bidx, raw_index, sizeof(bidx));</span>
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span>            : #if defined(CPL_MSB) // bundle index is LSB
+<span class="lineNum">     310 </span>            :         bidx = CPL_SWAP64(bidx);
+<span class="lineNum">     311 </span>            : #endif
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 :         idx.offset = bidx &amp; ((1ULL &lt;&lt; 40) -1);</span>
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :         idx.size = bidx &gt;&gt; 40;</span>
+<span class="lineNum">     315 </span>            :     }
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            :     // Set the range or flag it as missing
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :     if (idx.size == 0)</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :         request.Range = &quot;none&quot;; // Signal that this block doesn't exist server-side</span>
+<span class="lineNum">     320 </span>            :     else
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :         request.Range.Printf(CPL_FRMT_GUIB &quot;-&quot; CPL_FRMT_GUIB, idx.offset, idx.offset + idx.size - 1);</span>
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :     return CE_None;</span>
+<span class="lineNum">     324 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

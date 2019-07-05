@@ -1,0 +1,1438 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/fit/fitdataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/fit</a> - fitdataset.cpp<span style="font-size: 80%;"> (source / <a href="fitdataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">283</td>
+            <td class="headerCovTableEntry">550</td>
+            <td class="headerCovTableEntryLo">51.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntry">20</td>
+            <td class="headerCovTableEntryHi">90.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  FIT Driver
+<span class="lineNum">       4 </span>            :  * Purpose:  Implement FIT Support - not using the SGI iflFIT library.
+<span class="lineNum">       5 </span>            :  * Author:   Philip Nemec, nemec@keyholecorp.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2001, Keyhole, Inc.
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2007-2011, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;fit.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;gdal_frmts.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;gdal_pam.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;gstEndian.h&quot;
+<span class="lineNum">      35 </span>            : #include &quot;cpl_safemaths.hpp&quot;
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : constexpr size_t FIT_PAGE_SIZE = 128;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : using namespace gstEndian;
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : /************************************************************************/
+<span class="lineNum">      46 </span>            : /* ==================================================================== */
+<span class="lineNum">      47 </span>            : /*                              FITDataset                              */
+<span class="lineNum">      48 </span>            : /* ==================================================================== */
+<span class="lineNum">      49 </span>            : /************************************************************************/
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : class FITRasterBand;
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : class FITDataset : public GDALPamDataset
+<span class="lineNum">      54 </span>            : {
+<span class="lineNum">      55 </span>            :     friend class FITRasterBand;
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            :     VSILFILE    *fp;
+<span class="lineNum">      58 </span>            :     FITinfo     *info;
+<span class="lineNum">      59 </span>            :     double      adfGeoTransform[6];
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            :   public:
+<span class="lineNum">      62 </span>            :     FITDataset();
+<span class="lineNum">      63 </span>            :     ~FITDataset();
+<span class="lineNum">      64 </span>            :     static GDALDataset *Open( GDALOpenInfo * );
+<span class="lineNum">      65 </span>            :     // virtual CPLErr GetGeoTransform( double * );
+<span class="lineNum">      66 </span>            : };
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            : static GDALDataset *FITCreateCopy(const char * pszFilename,
+<span class="lineNum">      69 </span>            :                                   GDALDataset *poSrcDS,
+<span class="lineNum">      70 </span>            :                                   int bStrict, char ** papszOptions,
+<span class="lineNum">      71 </span>            :                                   GDALProgressFunc pfnProgress,
+<span class="lineNum">      72 </span>            :                                   void * pProgressData );
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            : /************************************************************************/
+<span class="lineNum">      75 </span>            : /* ==================================================================== */
+<span class="lineNum">      76 </span>            : /*                            FITRasterBand                             */
+<span class="lineNum">      77 </span>            : /* ==================================================================== */
+<span class="lineNum">      78 </span>            : /************************************************************************/
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            : class FITRasterBand : public GDALPamRasterBand
+<span class="lineNum">      81 </span>            : {
+<span class="lineNum">      82 </span>            :     friend class FITDataset;
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            :     unsigned long recordSize; // number of bytes of a single page/block/record
+<span class="lineNum">      85 </span>            :     unsigned long numXBlocks; // number of pages in the X direction
+<span class="lineNum">      86 </span>            :     unsigned long numYBlocks; // number of pages in the Y direction
+<span class="lineNum">      87 </span>            :     unsigned long bytesPerComponent;
+<span class="lineNum">      88 </span>            :     unsigned long bytesPerPixel;
+<span class="lineNum">      89 </span>            :     char *tmpImage;
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span>            : public:
+<span class="lineNum">      92 </span>            :     FITRasterBand( FITDataset *, int nBandIn, int nBandsIn );
+<span class="lineNum">      93 </span>            :     ~FITRasterBand() override;
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            :     // should override RasterIO eventually.
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            :     CPLErr IReadBlock( int, int, void * ) override;
+<span class="lineNum">      98 </span>            :     // virtual CPLErr WriteBlock( int, int, void * );
+<span class="lineNum">      99 </span>            :     double GetMinimum( int *pbSuccess ) override;
+<span class="lineNum">     100 </span>            :     double GetMaximum( int *pbSuccess ) override;
+<span class="lineNum">     101 </span>            :     GDALColorInterp GetColorInterpretation() override;
+<span class="lineNum">     102 </span>            : };
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            : /************************************************************************/
+<span class="lineNum">     105 </span>            : /*                           FITRasterBand()                            */
+<a name="106"><span class="lineNum">     106 </span>            : /************************************************************************/</a>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span><span class="lineCov">         14 : FITRasterBand::FITRasterBand( FITDataset *poDSIn, int nBandIn, int nBandsIn ) :</span>
+<span class="lineNum">     109 </span>            :     recordSize(0),
+<span class="lineNum">     110 </span>            :     numXBlocks(0),
+<span class="lineNum">     111 </span>            :     numYBlocks(0),
+<span class="lineNum">     112 </span>            :     bytesPerComponent(0),
+<span class="lineNum">     113 </span>            :     bytesPerPixel(0),
+<span class="lineNum">     114 </span><span class="lineCov">         14 :     tmpImage( nullptr )</span>
+<span class="lineNum">     115 </span>            : {
+<span class="lineNum">     116 </span><span class="lineCov">         14 :     poDS = poDSIn;</span>
+<span class="lineNum">     117 </span><span class="lineCov">         14 :     nBand = nBandIn;</span>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     120 </span>            : /*      Get the GDAL data type.                                         */
+<span class="lineNum">     121 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     122 </span><span class="lineCov">         14 :     eDataType = fitDataType(poDSIn-&gt;info-&gt;dtype);</span>
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     125 </span>            : /*      Get the page sizes.                                             */
+<span class="lineNum">     126 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     127 </span><span class="lineCov">         14 :     nBlockXSize = poDSIn-&gt;info-&gt;xPageSize;</span>
+<span class="lineNum">     128 </span><span class="lineCov">         14 :     nBlockYSize = poDSIn-&gt;info-&gt;yPageSize;</span>
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     131 </span>            : /*      Calculate the values for record offset calculations.             */
+<span class="lineNum">     132 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     133 </span><span class="lineCov">         14 :     bytesPerComponent = GDALGetDataTypeSizeBytes(eDataType);</span>
+<span class="lineNum">     134 </span><span class="lineCov">         14 :     if( bytesPerComponent == 0 )</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     136 </span><span class="lineCov">         14 :     bytesPerPixel = nBandsIn * bytesPerComponent;</span>
+<span class="lineNum">     137 </span><span class="lineCov">         14 :     const auto knIntMax = std::numeric_limits&lt;int&gt;::max();</span>
+<span class="lineNum">     138 </span><span class="lineCov">         28 :     if( nBlockXSize &lt;= 0 || nBlockYSize &lt;= 0 ||</span>
+<span class="lineNum">     139 </span><span class="lineCov">         28 :         nBlockXSize &gt; knIntMax / static_cast&lt;int&gt;(bytesPerPixel) ||</span>
+<span class="lineNum">     140 </span><span class="lineCov">         28 :         nBlockYSize &gt; knIntMax /</span>
+<span class="lineNum">     141 </span><span class="lineCov">         14 :             (nBlockXSize * static_cast&lt;int&gt;(bytesPerPixel)) )</span>
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     143 </span><span class="lineCov">         14 :     recordSize = bytesPerPixel * nBlockXSize * nBlockYSize;</span>
+<span class="lineNum">     144 </span>            :     numXBlocks =
+<span class="lineNum">     145 </span><span class="lineCov">         14 :         (unsigned long) ceil((double) poDSIn-&gt;info-&gt;xSize / nBlockXSize);</span>
+<span class="lineNum">     146 </span>            :     numYBlocks =
+<span class="lineNum">     147 </span><span class="lineCov">         14 :         (unsigned long) ceil((double) poDSIn-&gt;info-&gt;ySize / nBlockYSize);</span>
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span><span class="lineCov">         14 :     tmpImage = (char *) VSI_MALLOC_VERBOSE(recordSize);</span>
+<span class="lineNum">     150 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     151 </span>            : /*      Set the access flag.  For now we set it the same as the         */
+<span class="lineNum">     152 </span>            : /*      whole dataset, but eventually this should take account of       */
+<span class="lineNum">     153 </span>            : /*      locked channels, or read-only secondary data files.             */
+<span class="lineNum">     154 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     155 </span>            :     /* ... */
+<a name="156"><span class="lineNum">     156 </span>            : }</a>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineCov">         42 : FITRasterBand::~FITRasterBand()</span>
+<span class="lineNum">     159 </span>            : {
+<span class="lineNum">     160 </span><span class="lineCov">         14 :     VSIFree ( tmpImage );</span>
+<span class="lineNum">     161 </span><span class="lineCov">         28 : }</span>
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            : /************************************************************************/
+<span class="lineNum">     164 </span>            : /*                            IReadBlock()                              */
+<span class="lineNum">     165 </span>            : /************************************************************************/
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span>            : #define COPY_XFIRST(t) { \
+<span class="lineNum">     168 </span>            :                 t *dstp = (t *) pImage; \
+<span class="lineNum">     169 </span>            :                 t *srcp = (t *) tmpImage; \
+<span class="lineNum">     170 </span>            :                 srcp += nBand-1; \
+<span class="lineNum">     171 </span>            :                 long imacro = 0; \
+<span class="lineNum">     172 </span>            :                 for(long y=ystart; y != ystop; y+= yinc) \
+<span class="lineNum">     173 </span>            :                     for(long x=xstart; x != xstop; x+= xinc, imacro++) { \
+<span class="lineNum">     174 </span>            :                         dstp[imacro] = srcp[(y * nBlockXSize + x) * \
+<span class="lineNum">     175 </span>            :                                        poFIT_DS-&gt;nBands]; \
+<span class="lineNum">     176 </span>            :                     } \
+<span class="lineNum">     177 </span>            :     }
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            : #define COPY_YFIRST(t) { \
+<span class="lineNum">     180 </span>            :                 t *dstp = (t *) pImage; \
+<span class="lineNum">     181 </span>            :                 t *srcp = (t *) tmpImage; \
+<span class="lineNum">     182 </span>            :                 srcp += nBand-1; \
+<span class="lineNum">     183 </span>            :                 long imacro = 0; \
+<span class="lineNum">     184 </span>            :                 for(long x=xstart; x != xstop; x+= xinc, imacro++) \
+<span class="lineNum">     185 </span>            :                     for(long y=ystart; y != ystop; y+= yinc) { \
+<span class="lineNum">     186 </span>            :                         dstp[imacro] = srcp[(x * nBlockYSize + y) * \
+<span class="lineNum">     187 </span>            :                                        poFIT_DS-&gt;nBands]; \
+<span class="lineNum">     188 </span>            :                     } \
+<a name="189"><span class="lineNum">     189 </span>            :     }</a>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineCov">        700 : CPLErr FITRasterBand::IReadBlock( int nBlockXOff, int nBlockYOff,</span>
+<span class="lineNum">     192 </span>            :                                   void * pImage )
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            : {
+<span class="lineNum">     195 </span><span class="lineCov">        700 :     FITDataset *poFIT_DS = (FITDataset *) poDS;</span>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">        700 :     uint64 tilenum = 0;</span>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineCov">        700 :     switch (poFIT_DS-&gt;info-&gt;space) {</span>
+<span class="lineNum">     200 </span>            :     case 1:
+<span class="lineNum">     201 </span>            :         // iflUpperLeftOrigin - from upper left corner
+<span class="lineNum">     202 </span>            :         // scan right then down
+<span class="lineNum">     203 </span><span class="lineCov">        700 :         tilenum = nBlockYOff * numXBlocks + nBlockXOff;</span>
+<span class="lineNum">     204 </span><span class="lineCov">        700 :         break;</span>
+<span class="lineNum">     205 </span>            :     case 2:
+<span class="lineNum">     206 </span>            :         // iflUpperRightOrigin - from upper right corner
+<span class="lineNum">     207 </span>            :         // scan left then down
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :         tilenum = numYBlocks * numXBlocks + (numXBlocks-1-nBlockXOff);</span>
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     210 </span>            :     case 3:
+<span class="lineNum">     211 </span>            :         // iflLowerRightOrigin - from lower right corner
+<span class="lineNum">     212 </span>            :         // scan left then up
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :         tilenum = (numYBlocks-1-nBlockYOff) * numXBlocks +</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :             (numXBlocks-1-nBlockXOff);</span>
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     216 </span>            :     case 4:
+<span class="lineNum">     217 </span>            :         // iflLowerLeftOrigin - from lower left corner
+<span class="lineNum">     218 </span>            :         // scan right then up
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :         tilenum = (numYBlocks-1-nBlockYOff) * numXBlocks + nBlockXOff;</span>
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     221 </span>            :     case 5:
+<span class="lineNum">     222 </span>            :         // iflLeftUpperOrigin -* from upper left corner
+<span class="lineNum">     223 </span>            :         // scan down then right
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :         tilenum = nBlockXOff * numYBlocks + nBlockYOff;</span>
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     226 </span>            :     case 6:
+<span class="lineNum">     227 </span>            :         // iflRightUpperOrigin - from upper right corner
+<span class="lineNum">     228 </span>            :         // scan down then left
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :         tilenum = (numXBlocks-1-nBlockXOff) * numYBlocks + nBlockYOff;</span>
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     231 </span>            :     case 7:
+<span class="lineNum">     232 </span>            :         // iflRightLowerOrigin - from lower right corner
+<span class="lineNum">     233 </span>            :         // scan up then left
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :         tilenum = nBlockXOff * numYBlocks + (numYBlocks-1-nBlockYOff);</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     236 </span>            :     case 8:
+<span class="lineNum">     237 </span>            :         // iflLeftLowerOrigin -* from lower left corner
+<span class="lineNum">     238 </span>            :         // scan up then right
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :         tilenum = (numXBlocks-1-nBlockXOff) * numYBlocks +</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :             (numYBlocks-1-nBlockYOff);</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     242 </span>            :     default:
+<span class="lineNum">     243 </span>            :         CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     244 </span>            :                  &quot;FIT - unrecognized image space %i&quot;,
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :                  poFIT_DS-&gt;info-&gt;space);</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     247 </span>            :     } // switch
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span><span class="lineCov">        700 :     uint64 offset = poFIT_DS-&gt;info-&gt;dataOffset + recordSize * tilenum;</span>
+<span class="lineNum">     250 </span>            : //     CPLDebug(&quot;FIT&quot;, &quot;%i RasterBand::IReadBlock %i %i (out of %i %i) -- %i&quot;,
+<span class="lineNum">     251 </span>            : //              poFIT_DS-&gt;info-&gt;space,
+<span class="lineNum">     252 </span>            : //              nBlockXOff, nBlockYOff, numXBlocks, numYBlocks, tilenum);
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span><span class="lineCov">        700 :     if ( VSIFSeekL( poFIT_DS-&gt;fp, offset, SEEK_SET ) == -1 ) {</span>
+<span class="lineNum">     255 </span>            :         CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :                  &quot;FIT - 64bit file seek failure, handle=%p&quot;, poFIT_DS-&gt;fp );</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :             return CE_Failure;</span>
+<span class="lineNum">     258 </span>            :     }
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            :     // XXX - should handle status
+<span class="lineNum">     261 </span>            :     // fast path is single component (ll?) - no copy needed
+<span class="lineNum">     262 </span><span class="lineCov">        700 :     int fastpath = FALSE;</span>
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span><span class="lineCov">        700 :     if ((poFIT_DS-&gt;nBands == 1) &amp;&amp; (poFIT_DS-&gt;info-&gt;space == 1)) // upper left</span>
+<span class="lineNum">     265 </span><span class="lineCov">        700 :         fastpath = TRUE;</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span><span class="lineCov">        700 :     size_t nRead = 0;</span>
+<span class="lineNum">     268 </span><span class="lineCov">        700 :     char *p = nullptr;</span>
+<span class="lineNum">     269 </span><span class="lineCov">        700 :     if (! fastpath) {</span>
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :         nRead = VSIFReadL( tmpImage, recordSize, 1, poFIT_DS-&gt;fp );</span>
+<span class="lineNum">     271 </span>            :         // offset to correct component to swap
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :         p = (char *) tmpImage + nBand-1;</span>
+<span class="lineNum">     273 </span>            :     }
+<span class="lineNum">     274 </span>            :     else {
+<span class="lineNum">     275 </span><span class="lineCov">        700 :         nRead = VSIFReadL( pImage, recordSize, 1, poFIT_DS-&gt;fp );</span>
+<span class="lineNum">     276 </span><span class="lineCov">        700 :         p = (char *) pImage;</span>
+<span class="lineNum">     277 </span>            :     }
+<span class="lineNum">     278 </span><span class="lineCov">        700 :     if( nRead != 1 )</span>
+<span class="lineNum">     279 </span>            :     {
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_FileIO, &quot;Cannot read record&quot;);</span>
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     282 </span>            :     }
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span>            : #ifdef swapping
+<span class="lineNum">     285 </span><span class="lineCov">        700 :     unsigned long i = 0;</span>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span><span class="lineCov">        700 :     switch(bytesPerComponent) {</span>
+<span class="lineNum">     288 </span>            :     case 1:
+<span class="lineNum">     289 </span>            :         // do nothing
+<span class="lineNum">     290 </span><span class="lineCov">        100 :         break;</span>
+<span class="lineNum">     291 </span>            :     case 2:
+<span class="lineNum">     292 </span><span class="lineCov">       1000 :         for(i=0; i &lt; recordSize; i+= bytesPerPixel)</span>
+<span class="lineNum">     293 </span><span class="lineCov">        800 :             gst_swap16(p + i);</span>
+<span class="lineNum">     294 </span><span class="lineCov">        200 :         break;</span>
+<span class="lineNum">     295 </span>            :     case 4:
+<span class="lineNum">     296 </span><span class="lineCov">       1500 :         for(i=0; i &lt; recordSize; i+= bytesPerPixel)</span>
+<span class="lineNum">     297 </span><span class="lineCov">       1200 :             gst_swap32(p + i);</span>
+<span class="lineNum">     298 </span><span class="lineCov">        300 :         break;</span>
+<span class="lineNum">     299 </span>            :     case 8:
+<span class="lineNum">     300 </span><span class="lineCov">        500 :         for(i=0; i &lt; recordSize; i+= bytesPerPixel)</span>
+<span class="lineNum">     301 </span><span class="lineCov">        400 :             gst_swap64(p + i);</span>
+<span class="lineNum">     302 </span><span class="lineCov">        100 :         break;</span>
+<span class="lineNum">     303 </span>            :     default:
+<span class="lineNum">     304 </span>            :         CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     305 </span>            :                  &quot;FITRasterBand::IReadBlock unsupported bytesPerPixel %lu&quot;,
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :                  bytesPerComponent);</span>
+<span class="lineNum">     307 </span>            :     } // switch
+<span class="lineNum">     308 </span>            : #else
+<span class="lineNum">     309 </span>            :     (void) p; // avoid warnings.
+<span class="lineNum">     310 </span>            : #endif // swapping
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span><span class="lineCov">        700 :     if (! fastpath) {</span>
+<span class="lineNum">     313 </span>            :         long xinc, yinc, xstart, ystart, xstop, ystop;
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :         if (poFIT_DS-&gt;info-&gt;space &lt;= 4) {</span>
+<span class="lineNum">     315 </span>            :             // scan left/right first
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :             switch (poFIT_DS-&gt;info-&gt;space) {</span>
+<span class="lineNum">     318 </span>            :             case 1:
+<span class="lineNum">     319 </span>            :                 // iflUpperLeftOrigin - from upper left corner
+<span class="lineNum">     320 </span>            :                 // scan right then down
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :                 xinc = 1;</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :                 yinc = 1;</span>
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     324 </span>            :             case 2:
+<span class="lineNum">     325 </span>            :                 // iflUpperRightOrigin - from upper right corner
+<span class="lineNum">     326 </span>            :                 // scan left then down
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :                 xinc = -1;</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :                 yinc = 1;</span>
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     330 </span>            :             case 3:
+<span class="lineNum">     331 </span>            :                 // iflLowerRightOrigin - from lower right corner
+<span class="lineNum">     332 </span>            :                 // scan left then up
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :                 xinc = -1;</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :                 yinc = -1;</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     336 </span>            :             case 4:
+<span class="lineNum">     337 </span>            :                 // iflLowerLeftOrigin - from lower left corner
+<span class="lineNum">     338 </span>            :                 // scan right then up
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :                 xinc = 1;</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :                 yinc = -1;</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :                break;</span>
+<span class="lineNum">     342 </span>            :             default:
+<span class="lineNum">     343 </span>            :                 CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     344 </span>            :                          &quot;FIT - unrecognized image space %i&quot;,
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :                          poFIT_DS-&gt;info-&gt;space);</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :                 xinc = 1;</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :                 yinc = 1;</span>
+<span class="lineNum">     348 </span>            :             } // switch
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :             if (xinc == 1) {</span>
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :                 xstart = 0;</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :                 xstop = nBlockXSize;</span>
+<span class="lineNum">     353 </span>            :             }
+<span class="lineNum">     354 </span>            :             else {
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :                 xstart = nBlockXSize-1;</span>
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :                 xstop = -1;</span>
+<span class="lineNum">     357 </span>            :             }
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :             if (yinc == 1) {</span>
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :                 ystart = 0;</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :                 ystop = nBlockYSize;</span>
+<span class="lineNum">     361 </span>            :             }
+<span class="lineNum">     362 </span>            :             else {
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :                 int localBlockYSize = nBlockYSize;</span>
+<span class="lineNum">     364 </span>            :                 long maxy_full =
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :                     (long) floor(poFIT_DS-&gt;info-&gt;ySize / (double) nBlockYSize);</span>
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :                 if (nBlockYOff &gt;= maxy_full)</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :                     localBlockYSize = poFIT_DS-&gt;info-&gt;ySize % nBlockYSize;</span>
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :                 ystart = localBlockYSize-1;</span>
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :                 ystop = -1;</span>
+<span class="lineNum">     370 </span>            :             }
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :             switch(bytesPerComponent) {</span>
+<span class="lineNum">     373 </span>            :             case 1:
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :                 COPY_XFIRST(char);</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     376 </span>            :             case 2:
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :                 COPY_XFIRST(uint16);</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     379 </span>            :             case 4:
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :                 COPY_XFIRST(uint32);</span>
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     382 </span>            :             case 8:
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :                 COPY_XFIRST(uint64);</span>
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     385 </span>            :             default:
+<span class="lineNum">     386 </span>            :                 CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     387 </span>            :                          &quot;FITRasterBand::IReadBlock unsupported &quot;
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :                          &quot;bytesPerComponent %lu&quot;, bytesPerComponent);</span>
+<span class="lineNum">     389 </span>            :             } // switch
+<span class="lineNum">     390 </span>            :         } // Scan left/right first.
+<span class="lineNum">     391 </span>            :         else
+<span class="lineNum">     392 </span>            :         {
+<span class="lineNum">     393 </span>            :             // Scan up/down first.
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :             switch (poFIT_DS-&gt;info-&gt;space)</span>
+<span class="lineNum">     395 </span>            :             {
+<span class="lineNum">     396 </span>            :             case 5:
+<span class="lineNum">     397 </span>            :                 // iflLeftUpperOrigin -* from upper left corner
+<span class="lineNum">     398 </span>            :                 // scan down then right
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :                 xinc = 1;</span>
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :                 yinc = 1;</span>
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     402 </span>            :             case 6:
+<span class="lineNum">     403 </span>            :                 // iflRightUpperOrigin - from upper right corner
+<span class="lineNum">     404 </span>            :                 // scan down then left
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :                 xinc = -1;</span>
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :                 yinc = 1;</span>
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     408 </span>            :             case 7:
+<span class="lineNum">     409 </span>            :                 // iflRightLowerOrigin - from lower right corner
+<span class="lineNum">     410 </span>            :                 // scan up then left
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :                 xinc = -1;</span>
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :                 yinc = -1;</span>
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     414 </span>            :             case 8:
+<span class="lineNum">     415 </span>            :                 // iflLeftLowerOrigin -* from lower left corner
+<span class="lineNum">     416 </span>            :                 // scan up then right
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :                 xinc = 1;</span>
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :                 yinc = -1;</span>
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     420 </span>            :             default:
+<span class="lineNum">     421 </span>            :                 CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     422 </span>            :                          &quot;FIT - unrecognized image space %i&quot;,
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :                          poFIT_DS-&gt;info-&gt;space);</span>
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :                 xinc = 1;</span>
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :                 yinc = 1;</span>
+<span class="lineNum">     426 </span>            :             } // switch
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :             if (xinc == 1) {</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :                 xstart = 0;</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :                 xstop = nBlockXSize;</span>
+<span class="lineNum">     431 </span>            :             }
+<span class="lineNum">     432 </span>            :             else {
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :                 int localBlockXSize = nBlockXSize;</span>
+<span class="lineNum">     434 </span>            :                 long maxx_full =
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :                     (long) floor(poFIT_DS-&gt;info-&gt;xSize / (double) nBlockXSize);</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :                 if (nBlockXOff &gt;= maxx_full)</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :                     localBlockXSize = poFIT_DS-&gt;info-&gt;xSize % nBlockXSize;</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :                 xstart = localBlockXSize-1;</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :                 xstop = -1;</span>
+<span class="lineNum">     440 </span>            :             }
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :             if (yinc == 1) {</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :                 ystart = 0;</span>
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :                 ystop = nBlockYSize;</span>
+<span class="lineNum">     444 </span>            :             }
+<span class="lineNum">     445 </span>            :             else {
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :                 ystart = nBlockYSize-1;</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :                 ystop = -1;</span>
+<span class="lineNum">     448 </span>            :             }
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :             switch(bytesPerComponent) {</span>
+<span class="lineNum">     451 </span>            :             case 1:
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :                 COPY_YFIRST(char);</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     454 </span>            :             case 2:
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :                 COPY_YFIRST(uint16);</span>
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     457 </span>            :             case 4:
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :                 COPY_YFIRST(uint32);</span>
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     460 </span>            :             case 8:
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :                 COPY_YFIRST(uint64);</span>
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     463 </span>            :             default:
+<span class="lineNum">     464 </span>            :                 CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     465 </span>            :                          &quot;FITRasterBand::IReadBlock unsupported &quot;
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :                          &quot;bytesPerComponent %lu&quot;, bytesPerComponent);</span>
+<span class="lineNum">     467 </span>            :             } // switch
+<span class="lineNum">     468 </span>            :         } // Scan up/down first.
+<span class="lineNum">     469 </span>            :     } // !fastpath
+<span class="lineNum">     470 </span><span class="lineCov">        700 :     return CE_None;</span>
+<span class="lineNum">     471 </span>            : }
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span>            : #if 0
+<span class="lineNum">     474 </span>            : /************************************************************************/
+<span class="lineNum">     475 </span>            : /*                             ReadBlock()                              */
+<span class="lineNum">     476 </span>            : /************************************************************************/
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span>            : CPLErr FITRasterBand::ReadBlock( int nBlockXOff, int nBlockYOff,
+<span class="lineNum">     479 </span>            :                                  void * pImage )
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span>            : {
+<span class="lineNum">     482 </span>            :     FITDataset *poFIT_DS = (FITDataset *) poDS;
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span>            :     return CE_None;
+<span class="lineNum">     485 </span>            : }
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span>            : /************************************************************************/
+<span class="lineNum">     488 </span>            : /*                             WriteBlock()                             */
+<span class="lineNum">     489 </span>            : /************************************************************************/
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span>            : CPLErr FITRasterBand::WriteBlock( int nBlockXOff, int nBlockYOff,
+<span class="lineNum">     492 </span>            :                                  void * pImage )
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span>            : {
+<span class="lineNum">     495 </span>            :     FITDataset *poFIT_DS = (FITDataset *) poDS;
+<span class="lineNum">     496 </span>            : 
+<span class="lineNum">     497 </span>            :     return CE_None;
+<span class="lineNum">     498 </span>            : }
+<span class="lineNum">     499 </span>            : #endif
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span>            : /************************************************************************/
+<span class="lineNum">     502 </span>            : /*                             GetMinimum()                             */
+<a name="503"><span class="lineNum">     503 </span>            : /************************************************************************/</a>
+<span class="lineNum">     504 </span>            : 
+<span class="lineNum">     505 </span><span class="lineNoCov">          0 : double FITRasterBand::GetMinimum( int *pbSuccess )</span>
+<span class="lineNum">     506 </span>            : {
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :     FITDataset *poFIT_DS = (FITDataset *) poDS;</span>
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :     if ((! poFIT_DS) || (! poFIT_DS-&gt;info))</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :         return GDALRasterBand::GetMinimum( pbSuccess );</span>
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :     if (pbSuccess)</span>
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :         *pbSuccess = TRUE;</span>
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :     if (poFIT_DS-&gt;info-&gt;version &amp;&amp;</span>
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :         STARTS_WITH_CI((const char *) &amp;(poFIT_DS-&gt;info-&gt;version), &quot;02&quot;)) {</span>
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :         return poFIT_DS-&gt;info-&gt;minValue;</span>
+<span class="lineNum">     518 </span>            :     }
+<span class="lineNum">     519 </span>            : 
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :     return GDALRasterBand::GetMinimum( pbSuccess );</span>
+<span class="lineNum">     521 </span>            : }
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span>            : /************************************************************************/
+<span class="lineNum">     524 </span>            : /*                             GetMaximum()                             */
+<a name="525"><span class="lineNum">     525 </span>            : /************************************************************************/</a>
+<span class="lineNum">     526 </span>            : 
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 : double FITRasterBand::GetMaximum( int *pbSuccess )</span>
+<span class="lineNum">     528 </span>            : {
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :     FITDataset *poFIT_DS = (FITDataset *) poDS;</span>
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :     if ((! poFIT_DS) || (! poFIT_DS-&gt;info))</span>
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :         return GDALRasterBand::GetMaximum( pbSuccess );</span>
+<span class="lineNum">     533 </span>            : 
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :     if (pbSuccess)</span>
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :         *pbSuccess = TRUE;</span>
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 :     if (STARTS_WITH_CI((const char *) &amp;poFIT_DS-&gt;info-&gt;version, &quot;02&quot;)) {</span>
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :         return poFIT_DS-&gt;info-&gt;maxValue;</span>
+<span class="lineNum">     539 </span>            :     }
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :     return GDALRasterBand::GetMaximum( pbSuccess );</span>
+<span class="lineNum">     542 </span>            : }
+<span class="lineNum">     543 </span>            : 
+<span class="lineNum">     544 </span>            : /************************************************************************/
+<span class="lineNum">     545 </span>            : /*                       GetColorInterpretation()                       */
+<a name="546"><span class="lineNum">     546 </span>            : /************************************************************************/</a>
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span><span class="lineCov">          7 : GDALColorInterp FITRasterBand::GetColorInterpretation()</span>
+<span class="lineNum">     549 </span>            : {
+<span class="lineNum">     550 </span><span class="lineCov">          7 :     FITDataset *poFIT_DS = (FITDataset *) poDS;</span>
+<span class="lineNum">     551 </span>            : 
+<span class="lineNum">     552 </span><span class="lineCov">          7 :     if ((! poFIT_DS) || (! poFIT_DS-&gt;info))</span>
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :         return GCI_Undefined;</span>
+<span class="lineNum">     554 </span>            : 
+<span class="lineNum">     555 </span><span class="lineCov">          7 :     switch(poFIT_DS-&gt;info-&gt;cm) {</span>
+<span class="lineNum">     556 </span>            :     case 1: // iflNegative - inverted luminance (min value is white)
+<span class="lineNum">     557 </span>            :         CPLError( CE_Warning, CPLE_NotSupported,
+<span class="lineNum">     558 </span><span class="lineNoCov">          0 :                   &quot;FIT - color model Negative not supported - ignoring model&quot;);</span>
+<span class="lineNum">     559 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     560 </span>            : 
+<span class="lineNum">     561 </span>            :     case 2: // iflLuminance - luminance
+<span class="lineNum">     562 </span><span class="lineCov">          7 :         if (poFIT_DS-&gt;nBands != 1) {</span>
+<span class="lineNum">     563 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     564 </span>            :                       &quot;FIT - color model Luminance mismatch with %i bands&quot;,
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 :                       poFIT_DS-&gt;nBands);</span>
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     567 </span>            :         }
+<span class="lineNum">     568 </span><span class="lineCov">          7 :         switch (nBand) {</span>
+<span class="lineNum">     569 </span>            :         case 1:
+<span class="lineNum">     570 </span><span class="lineCov">          7 :             return GCI_GrayIndex;</span>
+<span class="lineNum">     571 </span>            :         default:
+<span class="lineNum">     572 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :                       &quot;FIT - color model Luminance unknown band %i&quot;, nBand);</span>
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     575 </span>            :         } // switch nBand
+<span class="lineNum">     576 </span>            : 
+<span class="lineNum">     577 </span>            :     case 3: // iflRGB - full color (Red, Green, Blue triplets)
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :         if (poFIT_DS-&gt;nBands != 3) {</span>
+<span class="lineNum">     579 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     580 </span>            :                       &quot;FIT - color model RGB mismatch with %i bands&quot;,
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :                       poFIT_DS-&gt;nBands);</span>
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     583 </span>            :         }
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :         switch (nBand) {</span>
+<span class="lineNum">     585 </span>            :         case 1:
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :             return GCI_RedBand;</span>
+<span class="lineNum">     587 </span>            :         case 2:
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :             return GCI_GreenBand;</span>
+<span class="lineNum">     589 </span>            :         case 3:
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :             return GCI_BlueBand;</span>
+<span class="lineNum">     591 </span>            :         default:
+<span class="lineNum">     592 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     593 </span><span class="lineNoCov">          0 :                       &quot;FIT - color model RGB unknown band %i&quot;, nBand);</span>
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     595 </span>            :         } // switch nBand
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span>            :     case 4: // iflRGBPalette - color mapped values
+<span class="lineNum">     598 </span>            :         CPLError( CE_Warning, CPLE_NotSupported,
+<span class="lineNum">     599 </span>            :                   &quot;FIT - color model  RGBPalette not supported - &quot;
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :                   &quot;ignoring model&quot;);</span>
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     602 </span>            : 
+<span class="lineNum">     603 </span>            :     case 5: // iflRGBA - full color with transparency (alpha channel)
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 :         if (poFIT_DS-&gt;nBands != 4) {</span>
+<span class="lineNum">     605 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     606 </span>            :                       &quot;FIT - color model RGBA mismatch with %i bands&quot;,
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :                       poFIT_DS-&gt;nBands);</span>
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     609 </span>            :         }
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :         switch (nBand) {</span>
+<span class="lineNum">     611 </span>            :         case 1:
+<span class="lineNum">     612 </span><span class="lineNoCov">          0 :             return GCI_RedBand;</span>
+<span class="lineNum">     613 </span>            :         case 2:
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 :             return GCI_GreenBand;</span>
+<span class="lineNum">     615 </span>            :         case 3:
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :             return GCI_BlueBand;</span>
+<span class="lineNum">     617 </span>            :         case 4:
+<span class="lineNum">     618 </span><span class="lineNoCov">          0 :             return GCI_AlphaBand;</span>
+<span class="lineNum">     619 </span>            :         default:
+<span class="lineNum">     620 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 :                       &quot;FIT - color model RGBA unknown band %i&quot;, nBand);</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     623 </span>            :         } // switch nBand
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span>            :     case 6: // iflHSV - Hue, Saturation, Value
+<span class="lineNum">     626 </span><span class="lineNoCov">          0 :         if (poFIT_DS-&gt;nBands != 3) {</span>
+<span class="lineNum">     627 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     628 </span>            :                       &quot;FIT - color model HSV mismatch with %i bands&quot;,
+<span class="lineNum">     629 </span><span class="lineNoCov">          0 :                       poFIT_DS-&gt;nBands);</span>
+<span class="lineNum">     630 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     631 </span>            :         }
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :         switch (nBand) {</span>
+<span class="lineNum">     633 </span>            :         case 1:
+<span class="lineNum">     634 </span><span class="lineNoCov">          0 :             return GCI_HueBand;</span>
+<span class="lineNum">     635 </span>            :         case 2:
+<span class="lineNum">     636 </span><span class="lineNoCov">          0 :             return GCI_SaturationBand;</span>
+<span class="lineNum">     637 </span>            :         case 3:
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :             return GCI_LightnessBand;</span>
+<span class="lineNum">     639 </span>            :         default:
+<span class="lineNum">     640 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 :                       &quot;FIT - color model HSV unknown band %i&quot;, nBand);</span>
+<span class="lineNum">     642 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     643 </span>            :         } // switch nBand
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span>            :     case 7: // iflCMY - Cyan, Magenta, Yellow
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :         if (poFIT_DS-&gt;nBands != 3) {</span>
+<span class="lineNum">     647 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     648 </span>            :                       &quot;FIT - color model CMY mismatch with %i bands&quot;,
+<span class="lineNum">     649 </span><span class="lineNoCov">          0 :                       poFIT_DS-&gt;nBands);</span>
+<span class="lineNum">     650 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     651 </span>            :         }
+<span class="lineNum">     652 </span><span class="lineNoCov">          0 :         switch (nBand) {</span>
+<span class="lineNum">     653 </span>            :         case 1:
+<span class="lineNum">     654 </span><span class="lineNoCov">          0 :             return GCI_CyanBand;</span>
+<span class="lineNum">     655 </span>            :         case 2:
+<span class="lineNum">     656 </span><span class="lineNoCov">          0 :             return GCI_MagentaBand;</span>
+<span class="lineNum">     657 </span>            :         case 3:
+<span class="lineNum">     658 </span><span class="lineNoCov">          0 :             return GCI_YellowBand;</span>
+<span class="lineNum">     659 </span>            :         default:
+<span class="lineNum">     660 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     661 </span><span class="lineNoCov">          0 :                       &quot;FIT - color model CMY unknown band %i&quot;, nBand);</span>
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     663 </span>            :         } // switch nBand
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span>            :     case 8: // iflCMYK - Cyan, Magenta, Yellow, Black
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :         if (poFIT_DS-&gt;nBands != 4) {</span>
+<span class="lineNum">     667 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     668 </span>            :                       &quot;FIT - color model CMYK mismatch with %i bands&quot;,
+<span class="lineNum">     669 </span><span class="lineNoCov">          0 :                       poFIT_DS-&gt;nBands);</span>
+<span class="lineNum">     670 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     671 </span>            :         }
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :         switch (nBand) {</span>
+<span class="lineNum">     673 </span>            :         case 1:
+<span class="lineNum">     674 </span><span class="lineNoCov">          0 :             return GCI_CyanBand;</span>
+<span class="lineNum">     675 </span>            :         case 2:
+<span class="lineNum">     676 </span><span class="lineNoCov">          0 :             return GCI_MagentaBand;</span>
+<span class="lineNum">     677 </span>            :         case 3:
+<span class="lineNum">     678 </span><span class="lineNoCov">          0 :             return GCI_YellowBand;</span>
+<span class="lineNum">     679 </span>            :         case 4:
+<span class="lineNum">     680 </span><span class="lineNoCov">          0 :             return GCI_BlackBand;</span>
+<span class="lineNum">     681 </span>            :         default:
+<span class="lineNum">     682 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     683 </span><span class="lineNoCov">          0 :                       &quot;FIT - color model CMYK unknown band %i&quot;, nBand);</span>
+<span class="lineNum">     684 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     685 </span>            :         } // switch nBand
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span>            :     case 9: // iflBGR - full color (ordered Blue, Green, Red)
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :         if (poFIT_DS-&gt;nBands != 3) {</span>
+<span class="lineNum">     689 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     690 </span>            :                       &quot;FIT - color model BGR mismatch with %i bands&quot;,
+<span class="lineNum">     691 </span><span class="lineNoCov">          0 :                       poFIT_DS-&gt;nBands);</span>
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     693 </span>            :         }
+<span class="lineNum">     694 </span><span class="lineNoCov">          0 :         switch (nBand) {</span>
+<span class="lineNum">     695 </span>            :         case 1:
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :             return GCI_BlueBand;</span>
+<span class="lineNum">     697 </span>            :         case 2:
+<span class="lineNum">     698 </span><span class="lineNoCov">          0 :             return GCI_GreenBand;</span>
+<span class="lineNum">     699 </span>            :         case 3:
+<span class="lineNum">     700 </span><span class="lineNoCov">          0 :             return GCI_RedBand;</span>
+<span class="lineNum">     701 </span>            :         default:
+<span class="lineNum">     702 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     703 </span><span class="lineNoCov">          0 :                       &quot;FIT - color model BGR unknown band %i&quot;, nBand);</span>
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     705 </span>            :         } // switch nBand
+<span class="lineNum">     706 </span>            : 
+<span class="lineNum">     707 </span>            :     case 10: // iflABGR - Alpha, Blue, Green, Red (SGI frame buffers)
+<span class="lineNum">     708 </span><span class="lineNoCov">          0 :         if (poFIT_DS-&gt;nBands != 4) {</span>
+<span class="lineNum">     709 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     710 </span>            :                       &quot;FIT - color model ABGR mismatch with %i bands&quot;,
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :                       poFIT_DS-&gt;nBands);</span>
+<span class="lineNum">     712 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     713 </span>            :         }
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :         switch (nBand) {</span>
+<span class="lineNum">     715 </span>            :         case 1:
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :             return GCI_AlphaBand;</span>
+<span class="lineNum">     717 </span>            :         case 2:
+<span class="lineNum">     718 </span><span class="lineNoCov">          0 :             return GCI_BlueBand;</span>
+<span class="lineNum">     719 </span>            :         case 3:
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :             return GCI_GreenBand;</span>
+<span class="lineNum">     721 </span>            :         case 4:
+<span class="lineNum">     722 </span><span class="lineNoCov">          0 :             return GCI_RedBand;</span>
+<span class="lineNum">     723 </span>            :         default:
+<span class="lineNum">     724 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     725 </span><span class="lineNoCov">          0 :                       &quot;FIT - color model ABGR unknown band %i&quot;, nBand);</span>
+<span class="lineNum">     726 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     727 </span>            :         } // switch nBand
+<span class="lineNum">     728 </span>            : 
+<span class="lineNum">     729 </span>            :     case 11: // iflMultiSpectral - multi-spectral data, arbitrary number of
+<span class="lineNum">     730 </span>            :         // chans
+<span class="lineNum">     731 </span><span class="lineNoCov">          0 :         return GCI_Undefined;</span>
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span>            :     case 12: // iflYCC PhotoCD color model (Luminance, Chrominance)
+<span class="lineNum">     734 </span>            :         CPLError( CE_Warning, CPLE_NotSupported,
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 :                   &quot;FIT - color model YCC not supported - ignoring model&quot;);</span>
+<span class="lineNum">     736 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     737 </span>            : 
+<span class="lineNum">     738 </span>            :     case 13: // iflLuminanceAlpha - Luminance plus alpha
+<span class="lineNum">     739 </span><span class="lineNoCov">          0 :         if (poFIT_DS-&gt;nBands != 2) {</span>
+<span class="lineNum">     740 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     741 </span>            :                       &quot;FIT - color model LuminanceAlpha mismatch with &quot;
+<span class="lineNum">     742 </span>            :                       &quot;%i bands&quot;,
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :                       poFIT_DS-&gt;nBands);</span>
+<span class="lineNum">     744 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     745 </span>            :         }
+<span class="lineNum">     746 </span><span class="lineNoCov">          0 :         switch (nBand) {</span>
+<span class="lineNum">     747 </span>            :         case 1:
+<span class="lineNum">     748 </span><span class="lineNoCov">          0 :             return GCI_GrayIndex;</span>
+<span class="lineNum">     749 </span>            :         case 2:
+<span class="lineNum">     750 </span><span class="lineNoCov">          0 :             return GCI_AlphaBand;</span>
+<span class="lineNum">     751 </span>            :         default:
+<span class="lineNum">     752 </span>            :             CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     753 </span>            :                       &quot;FIT - color model LuminanceAlpha unknown band %i&quot;,
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :                       nBand);</span>
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :             return GCI_Undefined;</span>
+<span class="lineNum">     756 </span>            :         } // switch nBand
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span>            :     default:
+<span class="lineNum">     759 </span>            :         CPLError( CE_Warning, CPLE_NotSupported,
+<span class="lineNum">     760 </span>            :                   &quot;FIT - unrecognized color model %i - ignoring model&quot;,
+<span class="lineNum">     761 </span><span class="lineNoCov">          0 :                   poFIT_DS-&gt;info-&gt;cm);</span>
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 :         return GCI_Undefined;</span>
+<span class="lineNum">     763 </span>            :     } // switch
+<span class="lineNum">     764 </span>            : }
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span>            : /************************************************************************/
+<span class="lineNum">     767 </span>            : /*                             FITDataset()                             */
+<a name="768"><span class="lineNum">     768 </span>            : /************************************************************************/</a>
+<span class="lineNum">     769 </span>            : 
+<span class="lineNum">     770 </span><span class="lineCov">         14 : FITDataset::FITDataset() :</span>
+<span class="lineNum">     771 </span>            :     fp( nullptr ),
+<span class="lineNum">     772 </span><span class="lineCov">         14 :     info( nullptr )</span>
+<span class="lineNum">     773 </span>            : {
+<span class="lineNum">     774 </span><span class="lineCov">         14 :     adfGeoTransform[0] = 0.0; // x origin (top left corner)</span>
+<span class="lineNum">     775 </span><span class="lineCov">         14 :     adfGeoTransform[1] = 1.0; // x pixel size</span>
+<span class="lineNum">     776 </span><span class="lineCov">         14 :     adfGeoTransform[2] = 0.0;</span>
+<span class="lineNum">     777 </span><span class="lineCov">         14 :     adfGeoTransform[3] = 0.0; // y origin (top left corner)</span>
+<span class="lineNum">     778 </span><span class="lineCov">         14 :     adfGeoTransform[4] = 0.0;</span>
+<span class="lineNum">     779 </span><span class="lineCov">         14 :     adfGeoTransform[5] = 1.0; // y pixel size</span>
+<span class="lineNum">     780 </span><span class="lineCov">         14 : }</span>
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span>            : /************************************************************************/
+<span class="lineNum">     783 </span>            : /*                             ~FITDataset()                             */
+<a name="784"><span class="lineNum">     784 </span>            : /************************************************************************/</a>
+<span class="lineNum">     785 </span>            : 
+<span class="lineNum">     786 </span><span class="lineCov">         42 : FITDataset::~FITDataset()</span>
+<span class="lineNum">     787 </span>            : {
+<span class="lineNum">     788 </span><span class="lineCov">         14 :     FlushCache();</span>
+<span class="lineNum">     789 </span><span class="lineCov">         14 :     if( info )</span>
+<span class="lineNum">     790 </span><span class="lineCov">         14 :         delete(info);</span>
+<span class="lineNum">     791 </span><span class="lineCov">         14 :     if( fp )</span>
+<span class="lineNum">     792 </span>            :     {
+<span class="lineNum">     793 </span><span class="lineCov">         14 :         if( VSIFCloseL(fp) != 0 )</span>
+<span class="lineNum">     794 </span>            :         {
+<span class="lineNum">     795 </span><span class="lineNoCov">          0 :             CPLError(CE_Failure, CPLE_FileIO, &quot;I/O error&quot;);</span>
+<span class="lineNum">     796 </span>            :         }
+<span class="lineNum">     797 </span>            :     }
+<span class="lineNum">     798 </span><span class="lineCov">         28 : }</span>
+<span class="lineNum">     799 </span>            : 
+<span class="lineNum">     800 </span>            : // simple guard object to delete memory
+<span class="lineNum">     801 </span>            : // when the guard goes out of scope
+<span class="lineNum">     802 </span>            : template&lt; class T &gt;
+<span class="lineNum">     803 </span>            : class DeleteGuard
+<a name="804"><span class="lineNum">     804 </span>            : {</a>
+<a name="805"><span class="lineNum">     805 </span>            : public:</a>
+<span class="lineNum">     806 </span><span class="lineCov">         14 :     explicit DeleteGuard( T *p ) : _ptr( p ) { }</span>
+<span class="lineNum">     807 </span><span class="lineCov">         14 :     ~DeleteGuard()</span>
+<span class="lineNum">     808 </span>            :     {
+<span class="lineNum">     809 </span><span class="lineCov">         14 :         delete _ptr;</span>
+<a name="810"><span class="lineNum">     810 </span><span class="lineCov">         14 :     }</span></a>
+<span class="lineNum">     811 </span>            : 
+<span class="lineNum">     812 </span><span class="lineCov">         14 :     T *take()</span>
+<span class="lineNum">     813 </span>            :     {
+<span class="lineNum">     814 </span><span class="lineCov">         14 :         T *tmp = _ptr;</span>
+<span class="lineNum">     815 </span><span class="lineCov">         14 :         _ptr = nullptr;</span>
+<span class="lineNum">     816 </span><span class="lineCov">         14 :         return tmp;</span>
+<span class="lineNum">     817 </span>            :     }
+<span class="lineNum">     818 </span>            : 
+<span class="lineNum">     819 </span>            : private:
+<span class="lineNum">     820 </span>            :     T *_ptr;
+<span class="lineNum">     821 </span>            :     // prevent default copy constructor and assignment operator
+<span class="lineNum">     822 </span>            :     DeleteGuard( const DeleteGuard &amp; );
+<span class="lineNum">     823 </span>            :     DeleteGuard &amp;operator=( const DeleteGuard &amp; );
+<span class="lineNum">     824 </span>            : };
+<span class="lineNum">     825 </span>            : 
+<span class="lineNum">     826 </span>            : // simple guard object to free memory
+<span class="lineNum">     827 </span>            : // when the guard goes out of scope
+<span class="lineNum">     828 </span>            : template&lt; class T &gt;
+<span class="lineNum">     829 </span>            : class FreeGuard
+<a name="830"><span class="lineNum">     830 </span>            : {</a>
+<a name="831"><span class="lineNum">     831 </span>            : public:</a>
+<span class="lineNum">     832 </span><span class="lineCov">         14 :     explicit FreeGuard( T *p ) : _ptr( p ) { }</span>
+<span class="lineNum">     833 </span><span class="lineCov">         14 :     ~FreeGuard()</span>
+<span class="lineNum">     834 </span>            :     {
+<span class="lineNum">     835 </span><span class="lineCov">         14 :         if ( _ptr )</span>
+<span class="lineNum">     836 </span><span class="lineCov">         14 :             free( _ptr );</span>
+<span class="lineNum">     837 </span><span class="lineCov">         14 :     }</span>
+<span class="lineNum">     838 </span>            : 
+<span class="lineNum">     839 </span>            :     T *take()
+<span class="lineNum">     840 </span>            :     {
+<span class="lineNum">     841 </span>            :         T *tmp = _ptr;
+<span class="lineNum">     842 </span>            :         _ptr = NULL;
+<span class="lineNum">     843 </span>            :         return tmp;
+<span class="lineNum">     844 </span>            :     }
+<span class="lineNum">     845 </span>            : 
+<span class="lineNum">     846 </span>            : private:
+<span class="lineNum">     847 </span>            :     T *_ptr;
+<span class="lineNum">     848 </span>            :     // prevent default copy constructor and assignment operator
+<span class="lineNum">     849 </span>            :     FreeGuard( const FreeGuard &amp; );
+<span class="lineNum">     850 </span>            :     FreeGuard &amp;operator=( const FreeGuard &amp; );
+<span class="lineNum">     851 </span>            : };
+<span class="lineNum">     852 </span>            : 
+<span class="lineNum">     853 </span>            : /************************************************************************/
+<span class="lineNum">     854 </span>            : /*                                Open()                                */
+<a name="855"><span class="lineNum">     855 </span>            : /************************************************************************/</a>
+<span class="lineNum">     856 </span>            : 
+<span class="lineNum">     857 </span><span class="lineCov">      22123 : GDALDataset *FITDataset::Open( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     858 </span>            : {
+<span class="lineNum">     859 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     860 </span>            : /*      First we check to see if the file has the expected header       */
+<span class="lineNum">     861 </span>            : /*      bytes.                                                          */
+<span class="lineNum">     862 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     863 </span>            : 
+<span class="lineNum">     864 </span><span class="lineCov">      22123 :     if( poOpenInfo-&gt;nHeaderBytes &lt; 5 || poOpenInfo-&gt;fpL == nullptr)</span>
+<span class="lineNum">     865 </span><span class="lineCov">      18790 :         return nullptr;</span>
+<span class="lineNum">     866 </span>            : 
+<span class="lineNum">     867 </span><span class="lineCov">       6666 :     if( !STARTS_WITH_CI((const char *) poOpenInfo-&gt;pabyHeader, &quot;IT01&quot;) &amp;&amp;</span>
+<span class="lineNum">     868 </span><span class="lineCov">       3333 :         !STARTS_WITH_CI((const char *) poOpenInfo-&gt;pabyHeader, &quot;IT02&quot;) )</span>
+<span class="lineNum">     869 </span><span class="lineCov">       3319 :         return nullptr;</span>
+<span class="lineNum">     870 </span>            : 
+<span class="lineNum">     871 </span><span class="lineCov">         14 :     if( poOpenInfo-&gt;eAccess == GA_Update )</span>
+<span class="lineNum">     872 </span>            :     {
+<span class="lineNum">     873 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     874 </span>            :                   &quot;The FIT driver does not support update access to existing&quot;
+<span class="lineNum">     875 </span><span class="lineNoCov">          0 :                   &quot; files.\n&quot; );</span>
+<span class="lineNum">     876 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     877 </span>            :     }
+<span class="lineNum">     878 </span>            : 
+<span class="lineNum">     879 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     880 </span>            : /*      Create a corresponding GDALDataset.                             */
+<span class="lineNum">     881 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     882 </span><span class="lineCov">         14 :     FITDataset *poDS = new FITDataset();</span>
+<span class="lineNum">     883 </span><span class="lineCov">         14 :     DeleteGuard&lt;FITDataset&gt; guard( poDS );</span>
+<span class="lineNum">     884 </span><span class="lineCov">         14 :     poDS-&gt;eAccess = poOpenInfo-&gt;eAccess;</span>
+<span class="lineNum">     885 </span><span class="lineCov">         14 :     poDS-&gt;fp = poOpenInfo-&gt;fpL;</span>
+<span class="lineNum">     886 </span><span class="lineCov">         14 :     poOpenInfo-&gt;fpL = nullptr;</span>
+<span class="lineNum">     887 </span>            : 
+<span class="lineNum">     888 </span><span class="lineCov">         14 :     poDS-&gt;info = new FITinfo;</span>
+<span class="lineNum">     889 </span><span class="lineCov">         14 :     FITinfo *info = poDS-&gt;info;</span>
+<span class="lineNum">     890 </span>            : 
+<span class="lineNum">     891 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     892 </span>            : /*      Read other header values.                                       */
+<span class="lineNum">     893 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     894 </span><span class="lineCov">         14 :     FIThead02 *head = (FIThead02 *) poOpenInfo-&gt;pabyHeader;</span>
+<span class="lineNum">     895 </span>            : 
+<span class="lineNum">     896 </span>            :     // extract the image attributes from the file header
+<span class="lineNum">     897 </span><span class="lineCov">         14 :     if (STARTS_WITH_CI((const char *) &amp;head-&gt;version, &quot;02&quot;)) {</span>
+<span class="lineNum">     898 </span>            :         // incomplete header
+<span class="lineNum">     899 </span><span class="lineCov">         14 :         if( poOpenInfo-&gt;nHeaderBytes &lt; (signed) sizeof(FIThead02) )</span>
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     901 </span>            : 
+<span class="lineNum">     902 </span><span class="lineCov">         14 :         CPLDebug(&quot;FIT&quot;, &quot;Loading file with header version 02&quot;);</span>
+<span class="lineNum">     903 </span>            : 
+<span class="lineNum">     904 </span><span class="lineCov">         14 :         gst_swapb(head-&gt;minValue);</span>
+<span class="lineNum">     905 </span><span class="lineCov">         14 :         info-&gt;minValue = head-&gt;minValue;</span>
+<span class="lineNum">     906 </span><span class="lineCov">         14 :         gst_swapb(head-&gt;maxValue);</span>
+<span class="lineNum">     907 </span><span class="lineCov">         14 :         info-&gt;maxValue = head-&gt;maxValue;</span>
+<span class="lineNum">     908 </span><span class="lineCov">         14 :         gst_swapb(head-&gt;dataOffset);</span>
+<span class="lineNum">     909 </span><span class="lineCov">         14 :         info-&gt;dataOffset = head-&gt;dataOffset;</span>
+<span class="lineNum">     910 </span>            : 
+<span class="lineNum">     911 </span><span class="lineCov">         14 :         info-&gt;userOffset = sizeof(FIThead02);</span>
+<span class="lineNum">     912 </span>            :     }
+<span class="lineNum">     913 </span><span class="lineNoCov">          0 :     else if (STARTS_WITH_CI((const char *) &amp;head-&gt;version, &quot;01&quot;)) {</span>
+<span class="lineNum">     914 </span>            :         // incomplete header
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :         if( poOpenInfo-&gt;nHeaderBytes &lt; (signed) sizeof(FIThead01) )</span>
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     917 </span>            : 
+<span class="lineNum">     918 </span><span class="lineNoCov">          0 :         CPLDebug(&quot;FIT&quot;, &quot;Loading file with header version 01&quot;);</span>
+<span class="lineNum">     919 </span>            : 
+<span class="lineNum">     920 </span>            :         // map old style header into new header structure
+<span class="lineNum">     921 </span><span class="lineNoCov">          0 :         FIThead01* head01 = (FIThead01*)head;</span>
+<span class="lineNum">     922 </span><span class="lineNoCov">          0 :         gst_swapb(head-&gt;dataOffset);</span>
+<span class="lineNum">     923 </span><span class="lineNoCov">          0 :         info-&gt;dataOffset = head01-&gt;dataOffset;</span>
+<span class="lineNum">     924 </span>            : 
+<span class="lineNum">     925 </span><span class="lineNoCov">          0 :         info-&gt;userOffset = sizeof(FIThead01);</span>
+<span class="lineNum">     926 </span>            :     }
+<span class="lineNum">     927 </span>            :     else {
+<span class="lineNum">     928 </span>            :         // unrecognized header version
+<span class="lineNum">     929 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     930 </span>            :                   &quot;FIT - unsupported header version %.2s\n&quot;,
+<span class="lineNum">     931 </span><span class="lineNoCov">          0 :                   (const char*) &amp;head-&gt;version);</span>
+<span class="lineNum">     932 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     933 </span>            :     }
+<span class="lineNum">     934 </span>            : 
+<span class="lineNum">     935 </span>            :     CPLDebug(&quot;FIT&quot;, &quot;userOffset %i, dataOffset %i&quot;,
+<span class="lineNum">     936 </span><span class="lineCov">         14 :              info-&gt;userOffset, info-&gt;dataOffset);</span>
+<span class="lineNum">     937 </span>            : 
+<span class="lineNum">     938 </span><span class="lineCov">         14 :     info-&gt;magic = head-&gt;magic;</span>
+<span class="lineNum">     939 </span><span class="lineCov">         14 :     info-&gt;version = head-&gt;version;</span>
+<span class="lineNum">     940 </span>            : 
+<span class="lineNum">     941 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;xSize);</span>
+<span class="lineNum">     942 </span><span class="lineCov">         14 :     info-&gt;xSize = head-&gt;xSize;</span>
+<span class="lineNum">     943 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;ySize);</span>
+<span class="lineNum">     944 </span><span class="lineCov">         14 :     info-&gt;ySize = head-&gt;ySize;</span>
+<span class="lineNum">     945 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;zSize);</span>
+<span class="lineNum">     946 </span><span class="lineCov">         14 :     info-&gt;zSize = head-&gt;zSize;</span>
+<span class="lineNum">     947 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;cSize);</span>
+<span class="lineNum">     948 </span><span class="lineCov">         14 :     info-&gt;cSize = head-&gt;cSize;</span>
+<span class="lineNum">     949 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;dtype);</span>
+<span class="lineNum">     950 </span><span class="lineCov">         14 :     info-&gt;dtype = head-&gt;dtype;</span>
+<span class="lineNum">     951 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;order);</span>
+<span class="lineNum">     952 </span><span class="lineCov">         14 :     info-&gt;order = head-&gt;order;</span>
+<span class="lineNum">     953 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;space);</span>
+<span class="lineNum">     954 </span><span class="lineCov">         14 :     info-&gt;space = head-&gt;space;</span>
+<span class="lineNum">     955 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;cm);</span>
+<span class="lineNum">     956 </span><span class="lineCov">         14 :     info-&gt;cm = head-&gt;cm;</span>
+<span class="lineNum">     957 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;xPageSize);</span>
+<span class="lineNum">     958 </span><span class="lineCov">         14 :     info-&gt;xPageSize = head-&gt;xPageSize;</span>
+<span class="lineNum">     959 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;yPageSize);</span>
+<span class="lineNum">     960 </span><span class="lineCov">         14 :     info-&gt;yPageSize = head-&gt;yPageSize;</span>
+<span class="lineNum">     961 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;zPageSize);</span>
+<span class="lineNum">     962 </span><span class="lineCov">         14 :     info-&gt;zPageSize = head-&gt;zPageSize;</span>
+<span class="lineNum">     963 </span><span class="lineCov">         14 :     gst_swapb(head-&gt;cPageSize);</span>
+<span class="lineNum">     964 </span><span class="lineCov">         14 :     info-&gt;cPageSize = head-&gt;cPageSize;</span>
+<span class="lineNum">     965 </span>            : 
+<span class="lineNum">     966 </span>            :     CPLDebug(&quot;FIT&quot;, &quot;size %i %i %i %i, pageSize %i %i %i %i&quot;,
+<span class="lineNum">     967 </span>            :              info-&gt;xSize, info-&gt;ySize, info-&gt;zSize, info-&gt;cSize,
+<span class="lineNum">     968 </span>            :              info-&gt;xPageSize, info-&gt;yPageSize, info-&gt;zPageSize,
+<span class="lineNum">     969 </span><span class="lineCov">         14 :              info-&gt;cPageSize);</span>
+<span class="lineNum">     970 </span>            : 
+<span class="lineNum">     971 </span>            :     CPLDebug(&quot;FIT&quot;, &quot;dtype %i order %i space %i cm %i&quot;,
+<span class="lineNum">     972 </span><span class="lineCov">         14 :              info-&gt;dtype, info-&gt;order, info-&gt;space, info-&gt;cm);</span>
+<span class="lineNum">     973 </span>            : 
+<span class="lineNum">     974 </span>            :     /**************************/
+<span class="lineNum">     975 </span>            : 
+<span class="lineNum">     976 </span><span class="lineCov">         14 :     poDS-&gt;nRasterXSize = head-&gt;xSize;</span>
+<span class="lineNum">     977 </span><span class="lineCov">         14 :     poDS-&gt;nRasterYSize = head-&gt;ySize;</span>
+<span class="lineNum">     978 </span>            : 
+<span class="lineNum">     979 </span><span class="lineCov">         42 :     if (!GDALCheckDatasetDimensions(poDS-&gt;nRasterXSize, poDS-&gt;nRasterYSize) ||</span>
+<span class="lineNum">     980 </span><span class="lineCov">         28 :         !GDALCheckBandCount(head-&gt;cSize, FALSE) ||</span>
+<span class="lineNum">     981 </span><span class="lineCov">         42 :         head-&gt;xPageSize == 0 ||</span>
+<span class="lineNum">     982 </span><span class="lineCov">         14 :         head-&gt;yPageSize == 0)</span>
+<span class="lineNum">     983 </span>            :     {
+<span class="lineNum">     984 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     985 </span>            :     }
+<span class="lineNum">     986 </span>            : 
+<span class="lineNum">     987 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     988 </span>            : /*      Verify all &quot;unused&quot; header values.                              */
+<span class="lineNum">     989 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     990 </span>            : 
+<span class="lineNum">     991 </span><span class="lineCov">         14 :     if( info-&gt;zSize != 1 )</span>
+<span class="lineNum">     992 </span>            :     {
+<span class="lineNum">     993 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     994 </span><span class="lineNoCov">          0 :                   &quot;FIT driver - unsupported zSize %i\n&quot;, info-&gt;zSize);</span>
+<span class="lineNum">     995 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     996 </span>            :     }
+<span class="lineNum">     997 </span>            : 
+<span class="lineNum">     998 </span><span class="lineCov">         14 :     if( info-&gt;order != 1 ) // interleaved - RGBRGB</span>
+<span class="lineNum">     999 </span>            :     {
+<span class="lineNum">    1000 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1001 </span><span class="lineNoCov">          0 :                   &quot;FIT driver - unsupported order %i\n&quot;, info-&gt;order);</span>
+<span class="lineNum">    1002 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1003 </span>            :     }
+<span class="lineNum">    1004 </span>            : 
+<span class="lineNum">    1005 </span><span class="lineCov">         14 :     if( info-&gt;zPageSize != 1 )</span>
+<span class="lineNum">    1006 </span>            :     {
+<span class="lineNum">    1007 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1008 </span><span class="lineNoCov">          0 :                   &quot;FIT driver - unsupported zPageSize %i\n&quot;, info-&gt;zPageSize);</span>
+<span class="lineNum">    1009 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1010 </span>            :     }
+<span class="lineNum">    1011 </span>            : 
+<span class="lineNum">    1012 </span><span class="lineCov">         14 :     if( info-&gt;cPageSize != info-&gt;cSize )</span>
+<span class="lineNum">    1013 </span>            :     {
+<span class="lineNum">    1014 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1015 </span>            :                   &quot;FIT driver - unsupported cPageSize %i (!= %i)\n&quot;,
+<span class="lineNum">    1016 </span><span class="lineNoCov">          0 :                   info-&gt;cPageSize, info-&gt;cSize);</span>
+<span class="lineNum">    1017 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1018 </span>            :     }
+<span class="lineNum">    1019 </span>            : 
+<span class="lineNum">    1020 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1021 </span>            : /*      Create band information objects.                                */
+<span class="lineNum">    1022 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1023 </span><span class="lineCov">         28 :     for( int i = 0; i &lt; (int)head-&gt;cSize; i++ )</span>
+<span class="lineNum">    1024 </span>            :     {
+<span class="lineNum">    1025 </span><span class="lineCov">         14 :         FITRasterBand* poBand = new FITRasterBand( poDS, i+1, (int)head-&gt;cSize );</span>
+<span class="lineNum">    1026 </span><span class="lineCov">         14 :         poDS-&gt;SetBand( i+1,  poBand);</span>
+<span class="lineNum">    1027 </span><span class="lineCov">         14 :         if( poBand-&gt;tmpImage == nullptr )</span>
+<span class="lineNum">    1028 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1029 </span>            :     }
+<span class="lineNum">    1030 </span>            : 
+<span class="lineNum">    1031 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1032 </span>            : /*      Initialize any PAM information.                                 */
+<span class="lineNum">    1033 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1034 </span><span class="lineCov">         14 :     poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1035 </span><span class="lineCov">         14 :     poDS-&gt;TryLoadXML();</span>
+<span class="lineNum">    1036 </span>            : 
+<span class="lineNum">    1037 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1038 </span>            : /*      Check for external overviews.                                   */
+<span class="lineNum">    1039 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1040 </span><span class="lineCov">         14 :     poDS-&gt;oOvManager.Initialize( poDS, poOpenInfo-&gt;pszFilename, poOpenInfo-&gt;GetSiblingFiles() );</span>
+<span class="lineNum">    1041 </span>            : 
+<span class="lineNum">    1042 </span><span class="lineCov">         14 :     return guard.take();</span>
+<span class="lineNum">    1043 </span>            : }
+<span class="lineNum">    1044 </span>            : 
+<span class="lineNum">    1045 </span>            : /************************************************************************/
+<span class="lineNum">    1046 </span>            : /*                           FITCreateCopy()                            */
+<a name="1047"><span class="lineNum">    1047 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1048 </span>            : 
+<span class="lineNum">    1049 </span><span class="lineCov">         10 : static GDALDataset *FITCreateCopy(const char * pszFilename,</span>
+<span class="lineNum">    1050 </span>            :                                   GDALDataset *poSrcDS,
+<span class="lineNum">    1051 </span>            :                                   int bStrict, char ** papszOptions,
+<span class="lineNum">    1052 </span>            :                                   GDALProgressFunc pfnProgress,
+<span class="lineNum">    1053 </span>            :                                   void * pProgressData )
+<span class="lineNum">    1054 </span>            : {
+<span class="lineNum">    1055 </span><span class="lineCov">         10 :     CPLDebug(&quot;FIT&quot;, &quot;CreateCopy %s - %i&quot;, pszFilename, bStrict);</span>
+<span class="lineNum">    1056 </span>            : 
+<span class="lineNum">    1057 </span><span class="lineCov">         10 :     int nBands = poSrcDS-&gt;GetRasterCount();</span>
+<span class="lineNum">    1058 </span><span class="lineCov">         10 :     if (nBands == 0)</span>
+<span class="lineNum">    1059 </span>            :     {
+<span class="lineNum">    1060 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1061 </span><span class="lineCov">          1 :                   &quot;FIT driver does not support source dataset with zero band.\n&quot;);</span>
+<span class="lineNum">    1062 </span><span class="lineCov">          1 :         return nullptr;</span>
+<span class="lineNum">    1063 </span>            :     }
+<span class="lineNum">    1064 </span>            : 
+<span class="lineNum">    1065 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1066 </span>            : /*      Create the dataset.                                             */
+<span class="lineNum">    1067 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1068 </span><span class="lineCov">          9 :     if( !pfnProgress( 0.0, nullptr, pProgressData ) )</span>
+<span class="lineNum">    1069 </span>            :     {
+<span class="lineNum">    1070 </span><span class="lineNoCov">          0 :         CPLError( CE_Failure, CPLE_UserInterrupt, &quot;User terminated&quot; );</span>
+<span class="lineNum">    1071 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1072 </span>            :     }
+<span class="lineNum">    1073 </span>            : 
+<span class="lineNum">    1074 </span><span class="lineCov">          9 :     VSILFILE *fpImage = VSIFOpenL( pszFilename, &quot;wb&quot; );</span>
+<span class="lineNum">    1075 </span><span class="lineCov">          9 :     if( fpImage == nullptr )</span>
+<span class="lineNum">    1076 </span>            :     {
+<span class="lineNum">    1077 </span>            :         CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1078 </span>            :                   &quot;FIT - unable to create file %s.\n&quot;,
+<span class="lineNum">    1079 </span><span class="lineCov">          2 :                   pszFilename );</span>
+<span class="lineNum">    1080 </span><span class="lineCov">          2 :         return nullptr;</span>
+<span class="lineNum">    1081 </span>            :     }
+<span class="lineNum">    1082 </span>            : 
+<span class="lineNum">    1083 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1084 </span>            : /*      Generate header.                                                */
+<span class="lineNum">    1085 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1086 </span>            :     // XXX - should FIT_PAGE_SIZE be based on file page size ??
+<span class="lineNum">    1087 </span>            : 
+<span class="lineNum">    1088 </span><span class="lineCov">          7 :     const size_t size = std::max(sizeof(FIThead02), FIT_PAGE_SIZE);</span>
+<span class="lineNum">    1089 </span><span class="lineCov">          7 :     FIThead02 *head = (FIThead02 *) malloc(size);</span>
+<span class="lineNum">    1090 </span><span class="lineCov">          7 :     FreeGuard&lt;FIThead02&gt; guardHead( head );</span>
+<span class="lineNum">    1091 </span>            : 
+<span class="lineNum">    1092 </span>            :     // clean header so padding (past real header) is all zeros
+<span class="lineNum">    1093 </span><span class="lineCov">          7 :     memset( head, 0, size );</span>
+<span class="lineNum">    1094 </span>            : 
+<span class="lineNum">    1095 </span><span class="lineCov">          7 :     memcpy((char *) &amp;head-&gt;magic, &quot;IT&quot;, 2);</span>
+<span class="lineNum">    1096 </span><span class="lineCov">          7 :     memcpy((char *) &amp;head-&gt;version, &quot;02&quot;, 2);</span>
+<span class="lineNum">    1097 </span>            : 
+<span class="lineNum">    1098 </span><span class="lineCov">          7 :     head-&gt;xSize = poSrcDS-&gt;GetRasterXSize();</span>
+<span class="lineNum">    1099 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;xSize);</span>
+<span class="lineNum">    1100 </span><span class="lineCov">          7 :     head-&gt;ySize = poSrcDS-&gt;GetRasterYSize();</span>
+<span class="lineNum">    1101 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;ySize);</span>
+<span class="lineNum">    1102 </span><span class="lineCov">          7 :     head-&gt;zSize = 1;</span>
+<span class="lineNum">    1103 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;zSize);</span>
+<span class="lineNum">    1104 </span>            : 
+<span class="lineNum">    1105 </span><span class="lineCov">          7 :     head-&gt;cSize = nBands;</span>
+<span class="lineNum">    1106 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;cSize);</span>
+<span class="lineNum">    1107 </span>            : 
+<span class="lineNum">    1108 </span><span class="lineCov">          7 :     GDALRasterBand *firstBand = poSrcDS-&gt;GetRasterBand(1);</span>
+<span class="lineNum">    1109 </span><span class="lineCov">          7 :     if (! firstBand) {</span>
+<span class="lineNum">    1110 </span><span class="lineNoCov">          0 :         CPL_IGNORE_RET_VAL(VSIFCloseL(fpImage));</span>
+<span class="lineNum">    1111 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1112 </span>            :     }
+<span class="lineNum">    1113 </span>            : 
+<span class="lineNum">    1114 </span><span class="lineCov">          7 :     head-&gt;dtype = fitGetDataType(firstBand-&gt;GetRasterDataType());</span>
+<span class="lineNum">    1115 </span><span class="lineCov">          7 :     if (! head-&gt;dtype) {</span>
+<span class="lineNum">    1116 </span><span class="lineNoCov">          0 :         CPL_IGNORE_RET_VAL(VSIFCloseL(fpImage));</span>
+<span class="lineNum">    1117 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1118 </span>            :     }
+<span class="lineNum">    1119 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;dtype);</span>
+<span class="lineNum">    1120 </span><span class="lineCov">          7 :     head-&gt;order = 1; // interleaved - RGBRGB</span>
+<span class="lineNum">    1121 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;order);</span>
+<span class="lineNum">    1122 </span><span class="lineCov">          7 :     head-&gt;space = 1; // upper left</span>
+<span class="lineNum">    1123 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;space);</span>
+<span class="lineNum">    1124 </span>            : 
+<span class="lineNum">    1125 </span>            :     // XXX - need to check all bands
+<span class="lineNum">    1126 </span><span class="lineCov">          7 :     head-&gt;cm = fitGetColorModel(firstBand-&gt;GetColorInterpretation(), nBands);</span>
+<span class="lineNum">    1127 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;cm);</span>
+<span class="lineNum">    1128 </span>            : 
+<span class="lineNum">    1129 </span>            :     int blockX, blockY;
+<span class="lineNum">    1130 </span><span class="lineCov">          7 :     firstBand-&gt;GetBlockSize(&amp;blockX, &amp;blockY);</span>
+<span class="lineNum">    1131 </span><span class="lineCov">          7 :     blockX = std::min(blockX, poSrcDS-&gt;GetRasterXSize());</span>
+<span class="lineNum">    1132 </span><span class="lineCov">          7 :     blockY = std::min(blockY, poSrcDS-&gt;GetRasterYSize());</span>
+<span class="lineNum">    1133 </span><span class="lineCov">          7 :     int nDTSize = GDALGetDataTypeSizeBytes(firstBand-&gt;GetRasterDataType());</span>
+<span class="lineNum">    1134 </span>            :     try
+<span class="lineNum">    1135 </span>            :     {
+<span class="lineNum">    1136 </span>            :         CPL_IGNORE_RET_VAL(
+<span class="lineNum">    1137 </span><span class="lineCov">          7 :             CPLSM(blockX) * CPLSM(blockY) * CPLSM(nDTSize) * CPLSM(nBands));</span>
+<span class="lineNum">    1138 </span><span class="lineCov">          7 :         CPLDebug(&quot;FIT write&quot;, &quot;inherited block size %ix%i&quot;, blockX, blockY);</span>
+<span class="lineNum">    1139 </span>            :     }
+<span class="lineNum">    1140 </span>            :     catch( ... )
+<span class="lineNum">    1141 </span>            :     {
+<span class="lineNum">    1142 </span>            :         blockX = std::min(256, poSrcDS-&gt;GetRasterXSize());
+<span class="lineNum">    1143 </span>            :         blockY = std::min(256, poSrcDS-&gt;GetRasterYSize());
+<span class="lineNum">    1144 </span>            :     }
+<span class="lineNum">    1145 </span>            : 
+<span class="lineNum">    1146 </span><span class="lineCov">          7 :     if( CSLFetchNameValue(papszOptions,&quot;PAGESIZE&quot;) != nullptr )</span>
+<span class="lineNum">    1147 </span>            :     {
+<span class="lineNum">    1148 </span><span class="lineCov">          7 :         const char *str = CSLFetchNameValue(papszOptions,&quot;PAGESIZE&quot;);</span>
+<span class="lineNum">    1149 </span>            :         int newBlockX, newBlockY;
+<span class="lineNum">    1150 </span><span class="lineCov">          7 :         sscanf(str, &quot;%i,%i&quot;, &amp;newBlockX, &amp;newBlockY);</span>
+<span class="lineNum">    1151 </span><span class="lineCov">          7 :         if (newBlockX &amp;&amp; newBlockY) {</span>
+<span class="lineNum">    1152 </span><span class="lineCov">          7 :             blockX = newBlockX;</span>
+<span class="lineNum">    1153 </span><span class="lineCov">          7 :             blockY = newBlockY;</span>
+<span class="lineNum">    1154 </span>            :         }
+<span class="lineNum">    1155 </span>            :         else {
+<span class="lineNum">    1156 </span>            :             CPLError(CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1157 </span><span class="lineNoCov">          0 :                      &quot;FIT - Unable to parse option PAGESIZE values [%s]&quot;, str);</span>
+<span class="lineNum">    1158 </span>            :         }
+<span class="lineNum">    1159 </span>            :     }
+<span class="lineNum">    1160 </span>            : 
+<span class="lineNum">    1161 </span>            :     // XXX - need to do lots of checking of block size
+<span class="lineNum">    1162 </span>            :     // * provide ability to override block size with options
+<span class="lineNum">    1163 </span>            :     // * handle non-square block size (like scanline)
+<span class="lineNum">    1164 </span>            :     //   - probably default from non-tiled image - have default block size
+<span class="lineNum">    1165 </span>            :     // * handle block size bigger than image size
+<span class="lineNum">    1166 </span>            :     // * undesirable block size (non power of 2, others?)
+<span class="lineNum">    1167 </span>            :     // * mismatched block sizes for different bands
+<span class="lineNum">    1168 </span>            :     // * image that isn't even pages (i.e. partially empty pages at edge)
+<span class="lineNum">    1169 </span><span class="lineCov">          7 :     CPLDebug(&quot;FIT write&quot;, &quot;using block size %ix%i&quot;, blockX, blockY);</span>
+<span class="lineNum">    1170 </span>            : 
+<span class="lineNum">    1171 </span><span class="lineCov">          7 :     head-&gt;xPageSize = blockX;</span>
+<span class="lineNum">    1172 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;xPageSize);</span>
+<span class="lineNum">    1173 </span><span class="lineCov">          7 :     head-&gt;yPageSize = blockY;</span>
+<span class="lineNum">    1174 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;yPageSize);</span>
+<span class="lineNum">    1175 </span><span class="lineCov">          7 :     head-&gt;zPageSize = 1;</span>
+<span class="lineNum">    1176 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;zPageSize);</span>
+<span class="lineNum">    1177 </span><span class="lineCov">          7 :     head-&gt;cPageSize = nBands;</span>
+<span class="lineNum">    1178 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;cPageSize);</span>
+<span class="lineNum">    1179 </span>            : 
+<span class="lineNum">    1180 </span>            :     // XXX - need to check all bands
+<span class="lineNum">    1181 </span><span class="lineCov">          7 :     head-&gt;minValue = firstBand-&gt;GetMinimum();</span>
+<span class="lineNum">    1182 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;minValue);</span>
+<span class="lineNum">    1183 </span>            :     // XXX - need to check all bands
+<span class="lineNum">    1184 </span><span class="lineCov">          7 :     head-&gt;maxValue = firstBand-&gt;GetMaximum();</span>
+<span class="lineNum">    1185 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;maxValue);</span>
+<span class="lineNum">    1186 </span><span class="lineCov">          7 :     head-&gt;dataOffset = static_cast&lt;unsigned int&gt;(size);</span>
+<span class="lineNum">    1187 </span><span class="lineCov">          7 :     gst_swapb(head-&gt;dataOffset);</span>
+<span class="lineNum">    1188 </span>            : 
+<span class="lineNum">    1189 </span><span class="lineCov">          7 :     CPL_IGNORE_RET_VAL(VSIFWriteL(head, size, 1, fpImage));</span>
+<span class="lineNum">    1190 </span>            : 
+<span class="lineNum">    1191 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1192 </span>            : /*      Loop over image, copying image data.                            */
+<span class="lineNum">    1193 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1194 </span><span class="lineCov">          7 :     unsigned long bytesPerPixel = nBands * nDTSize;</span>
+<span class="lineNum">    1195 </span>            : 
+<span class="lineNum">    1196 </span><span class="lineCov">          7 :     size_t pageBytes = blockX * blockY * bytesPerPixel;</span>
+<span class="lineNum">    1197 </span><span class="lineCov">          7 :     char *output = (char *) malloc(pageBytes);</span>
+<span class="lineNum">    1198 </span><span class="lineCov">          7 :     if (! output)</span>
+<span class="lineNum">    1199 </span>            :     {
+<span class="lineNum">    1200 </span>            :         CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1201 </span>            :                  &quot;FITRasterBand couldn't allocate %lu bytes&quot;,
+<span class="lineNum">    1202 </span><span class="lineNoCov">          0 :                  static_cast&lt;unsigned long&gt;(pageBytes));</span>
+<span class="lineNum">    1203 </span><span class="lineNoCov">          0 :         CPL_IGNORE_RET_VAL(VSIFCloseL(fpImage));</span>
+<span class="lineNum">    1204 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1205 </span>            :     }
+<span class="lineNum">    1206 </span><span class="lineCov">         14 :     FreeGuard&lt;char&gt; guardOutput( output );</span>
+<span class="lineNum">    1207 </span>            : 
+<span class="lineNum">    1208 </span><span class="lineCov">          7 :     long maxx = (long) ceil(poSrcDS-&gt;GetRasterXSize() / (double) blockX);</span>
+<span class="lineNum">    1209 </span><span class="lineCov">          7 :     long maxy = (long) ceil(poSrcDS-&gt;GetRasterYSize() / (double) blockY);</span>
+<span class="lineNum">    1210 </span><span class="lineCov">          7 :     long maxx_full = (long) floor(poSrcDS-&gt;GetRasterXSize() / (double) blockX);</span>
+<span class="lineNum">    1211 </span><span class="lineCov">          7 :     long maxy_full = (long) floor(poSrcDS-&gt;GetRasterYSize() / (double) blockY);</span>
+<span class="lineNum">    1212 </span>            : 
+<span class="lineNum">    1213 </span><span class="lineCov">          7 :     CPLDebug(&quot;FIT&quot;, &quot;about to write %ld x %ld blocks&quot;, maxx, maxy);</span>
+<span class="lineNum">    1214 </span>            : 
+<span class="lineNum">    1215 </span><span class="lineCov">         77 :     for(long y=0; y &lt; maxy; y++)</span>
+<span class="lineNum">    1216 </span><span class="lineCov">        770 :         for(long x=0; x &lt; maxx; x++) {</span>
+<span class="lineNum">    1217 </span><span class="lineCov">        700 :             long readX = blockX;</span>
+<span class="lineNum">    1218 </span><span class="lineCov">        700 :             long readY = blockY;</span>
+<span class="lineNum">    1219 </span><span class="lineCov">        700 :             int do_clean = FALSE;</span>
+<span class="lineNum">    1220 </span>            : 
+<span class="lineNum">    1221 </span>            :             // handle cases where image size isn't an exact multiple
+<span class="lineNum">    1222 </span>            :             // of page size
+<span class="lineNum">    1223 </span><span class="lineCov">        700 :             if (x &gt;= maxx_full) {</span>
+<span class="lineNum">    1224 </span><span class="lineNoCov">          0 :                 readX = poSrcDS-&gt;GetRasterXSize() % blockX;</span>
+<span class="lineNum">    1225 </span><span class="lineNoCov">          0 :                 do_clean = TRUE;</span>
+<span class="lineNum">    1226 </span>            :             }
+<span class="lineNum">    1227 </span><span class="lineCov">        700 :             if (y &gt;= maxy_full) {</span>
+<span class="lineNum">    1228 </span><span class="lineNoCov">          0 :                 readY = poSrcDS-&gt;GetRasterYSize() % blockY;</span>
+<span class="lineNum">    1229 </span><span class="lineNoCov">          0 :                 do_clean = TRUE;</span>
+<span class="lineNum">    1230 </span>            :             }
+<span class="lineNum">    1231 </span>            : 
+<span class="lineNum">    1232 </span>            :             // clean out image if only doing partial reads
+<span class="lineNum">    1233 </span><span class="lineCov">        700 :             if (do_clean)</span>
+<span class="lineNum">    1234 </span><span class="lineNoCov">          0 :                 memset( output, 0, pageBytes );</span>
+<span class="lineNum">    1235 </span>            : 
+<span class="lineNum">    1236 </span><span class="lineCov">       1400 :             for( int iBand = 0; iBand &lt; nBands; iBand++ ) {</span>
+<span class="lineNum">    1237 </span><span class="lineCov">        700 :                 GDALRasterBand * poBand = poSrcDS-&gt;GetRasterBand( iBand+1 );</span>
+<span class="lineNum">    1238 </span>            :                 CPLErr eErr =
+<span class="lineNum">    1239 </span>            :                     poBand-&gt;RasterIO( GF_Read, // eRWFlag
+<span class="lineNum">    1240 </span>            :                                       static_cast&lt;int&gt;(x * blockX), // nXOff
+<span class="lineNum">    1241 </span>            :                                       static_cast&lt;int&gt;(y * blockY), // nYOff
+<span class="lineNum">    1242 </span>            :                                       static_cast&lt;int&gt;(readX), // nXSize
+<span class="lineNum">    1243 </span>            :                                       static_cast&lt;int&gt;(readY), // nYSize
+<span class="lineNum">    1244 </span><span class="lineCov">       1400 :                                       output + iBand * nDTSize,</span>
+<span class="lineNum">    1245 </span>            :                                       // pData
+<span class="lineNum">    1246 </span>            :                                       blockX, // nBufXSize
+<span class="lineNum">    1247 </span>            :                                       blockY, // nBufYSize
+<span class="lineNum">    1248 </span>            :                                       firstBand-&gt;GetRasterDataType(),
+<span class="lineNum">    1249 </span>            :                                       // eBufType
+<span class="lineNum">    1250 </span>            :                                       bytesPerPixel, // nPixelSpace
+<span class="lineNum">    1251 </span><span class="lineCov">       2100 :                                       bytesPerPixel * blockX, nullptr); // nLineSpace</span>
+<span class="lineNum">    1252 </span><span class="lineCov">        700 :                 if (eErr != CE_None)</span>
+<span class="lineNum">    1253 </span>            :                 {
+<span class="lineNum">    1254 </span>            :                     CPLError(CE_Failure, CPLE_FileIO,
+<span class="lineNum">    1255 </span><span class="lineNoCov">          0 :                              &quot;FIT write - CreateCopy got read error %i&quot;, eErr);</span>
+<span class="lineNum">    1256 </span><span class="lineNoCov">          0 :                     CPL_IGNORE_RET_VAL(VSIFCloseL( fpImage ));</span>
+<span class="lineNum">    1257 </span><span class="lineNoCov">          0 :                     VSIUnlink( pszFilename );</span>
+<span class="lineNum">    1258 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">    1259 </span>            :                 }
+<span class="lineNum">    1260 </span>            :             } // for iBand
+<span class="lineNum">    1261 </span>            : 
+<span class="lineNum">    1262 </span>            : #ifdef swapping
+<span class="lineNum">    1263 </span><span class="lineCov">        700 :             char *p = output;</span>
+<span class="lineNum">    1264 </span>            :             unsigned long i;
+<span class="lineNum">    1265 </span><span class="lineCov">        700 :             switch(nDTSize) {</span>
+<span class="lineNum">    1266 </span>            :             case 1:
+<span class="lineNum">    1267 </span>            :                 // do nothing
+<span class="lineNum">    1268 </span><span class="lineCov">        100 :                 break;</span>
+<span class="lineNum">    1269 </span>            :             case 2:
+<span class="lineNum">    1270 </span><span class="lineCov">       1000 :                 for(i=0; i &lt; pageBytes; i+= nDTSize)</span>
+<span class="lineNum">    1271 </span><span class="lineCov">        800 :                     gst_swap16(p + i);</span>
+<span class="lineNum">    1272 </span><span class="lineCov">        200 :                 break;</span>
+<span class="lineNum">    1273 </span>            :             case 4:
+<span class="lineNum">    1274 </span><span class="lineCov">       1500 :                 for(i=0; i &lt; pageBytes; i+= nDTSize)</span>
+<span class="lineNum">    1275 </span><span class="lineCov">       1200 :                     gst_swap32(p + i);</span>
+<span class="lineNum">    1276 </span><span class="lineCov">        300 :                 break;</span>
+<span class="lineNum">    1277 </span>            :             case 8:
+<span class="lineNum">    1278 </span><span class="lineCov">        500 :                 for(i=0; i &lt; pageBytes; i+= nDTSize)</span>
+<span class="lineNum">    1279 </span><span class="lineCov">        400 :                     gst_swap64(p + i);</span>
+<span class="lineNum">    1280 </span><span class="lineCov">        100 :                 break;</span>
+<span class="lineNum">    1281 </span>            :             default:
+<span class="lineNum">    1282 </span>            :                 CPLError(CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1283 </span>            :                          &quot;FIT write - unsupported bytesPerPixel %d&quot;,
+<span class="lineNum">    1284 </span><span class="lineNoCov">          0 :                          nDTSize);</span>
+<span class="lineNum">    1285 </span>            :             } // switch
+<span class="lineNum">    1286 </span>            : #endif // swapping
+<span class="lineNum">    1287 </span>            : 
+<span class="lineNum">    1288 </span><span class="lineCov">        700 :             if( VSIFWriteL(output, 1, pageBytes, fpImage) != pageBytes )</span>
+<span class="lineNum">    1289 </span>            :             {
+<span class="lineNum">    1290 </span><span class="lineNoCov">          0 :                 CPLError( CE_Failure, CPLE_FileIO, &quot;Write failed&quot; );</span>
+<span class="lineNum">    1291 </span><span class="lineNoCov">          0 :                 CPL_IGNORE_RET_VAL(VSIFCloseL( fpImage ));</span>
+<span class="lineNum">    1292 </span><span class="lineNoCov">          0 :                 VSIUnlink( pszFilename );</span>
+<span class="lineNum">    1293 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">    1294 </span>            :             }
+<span class="lineNum">    1295 </span>            : 
+<span class="lineNum">    1296 </span><span class="lineCov">        700 :             double perc = ((double) (y * maxx + x)) / (maxx * maxy);</span>
+<span class="lineNum">    1297 </span><span class="lineCov">        700 :             if( !pfnProgress( perc, nullptr, pProgressData ) )</span>
+<span class="lineNum">    1298 </span>            :             {
+<span class="lineNum">    1299 </span><span class="lineNoCov">          0 :                 CPLError( CE_Failure, CPLE_UserInterrupt, &quot;User terminated&quot; );</span>
+<span class="lineNum">    1300 </span>            :                 //free(output);
+<span class="lineNum">    1301 </span><span class="lineNoCov">          0 :                 CPL_IGNORE_RET_VAL(VSIFCloseL( fpImage ));</span>
+<span class="lineNum">    1302 </span><span class="lineNoCov">          0 :                 VSIUnlink( pszFilename );</span>
+<span class="lineNum">    1303 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">    1304 </span>            :             }
+<span class="lineNum">    1305 </span>            :         } // for x
+<span class="lineNum">    1306 </span>            : 
+<span class="lineNum">    1307 </span>            :     //free(output);
+<span class="lineNum">    1308 </span>            : 
+<span class="lineNum">    1309 </span><span class="lineCov">          7 :     CPL_IGNORE_RET_VAL(VSIFCloseL( fpImage ));</span>
+<span class="lineNum">    1310 </span>            : 
+<span class="lineNum">    1311 </span><span class="lineCov">          7 :     pfnProgress( 1.0, nullptr, pProgressData );</span>
+<span class="lineNum">    1312 </span>            : 
+<span class="lineNum">    1313 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1314 </span>            : /*      Re-open dataset, and copy any auxiliary pam information.         */
+<span class="lineNum">    1315 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1316 </span>            :     GDALPamDataset *poDS = (GDALPamDataset *)
+<span class="lineNum">    1317 </span><span class="lineCov">          7 :         GDALOpen( pszFilename, GA_ReadOnly );</span>
+<span class="lineNum">    1318 </span>            : 
+<span class="lineNum">    1319 </span><span class="lineCov">          7 :     if( poDS )</span>
+<span class="lineNum">    1320 </span><span class="lineCov">          7 :         poDS-&gt;CloneInfo( poSrcDS, GCIF_PAM_DEFAULT );</span>
+<span class="lineNum">    1321 </span>            : 
+<span class="lineNum">    1322 </span><span class="lineCov">         14 :     return poDS;</span>
+<span class="lineNum">    1323 </span>            : }
+<span class="lineNum">    1324 </span>            : 
+<span class="lineNum">    1325 </span>            : /************************************************************************/
+<span class="lineNum">    1326 </span>            : /*                           GetGeoTransform()                          */
+<span class="lineNum">    1327 </span>            : /************************************************************************/
+<span class="lineNum">    1328 </span>            : 
+<span class="lineNum">    1329 </span>            : // CPLErr FITDataset::GetGeoTransform( double * padfTransform )
+<span class="lineNum">    1330 </span>            : // {
+<span class="lineNum">    1331 </span>            : //     CPLDebug(&quot;FIT&quot;, &quot;FITDataset::GetGeoTransform&quot;);
+<span class="lineNum">    1332 </span>            : //     memcpy( padfTransform, adfGeoTransform, sizeof(double) * 6 );
+<span class="lineNum">    1333 </span>            : //     return CE_None;
+<span class="lineNum">    1334 </span>            : // }
+<span class="lineNum">    1335 </span>            : 
+<span class="lineNum">    1336 </span>            : /************************************************************************/
+<span class="lineNum">    1337 </span>            : /*                          GDALRegister_FIT()                          */
+<a name="1338"><span class="lineNum">    1338 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1339 </span>            : 
+<span class="lineNum">    1340 </span><span class="lineCov">       1109 : void GDALRegister_FIT()</span>
+<span class="lineNum">    1341 </span>            : 
+<span class="lineNum">    1342 </span>            : {
+<span class="lineNum">    1343 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( &quot;FIT&quot; ) != nullptr )</span>
+<span class="lineNum">    1344 </span><span class="lineCov">       1231 :         return;</span>
+<span class="lineNum">    1345 </span>            : 
+<span class="lineNum">    1346 </span><span class="lineCov">        987 :     GDALDriver *poDriver = new GDALDriver();</span>
+<span class="lineNum">    1347 </span>            : 
+<span class="lineNum">    1348 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( &quot;FIT&quot; );</span>
+<span class="lineNum">    1349 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">    1350 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME, &quot;FIT Image&quot; );</span>
+<span class="lineNum">    1351 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_HELPTOPIC, &quot;frmt_various.html#&quot; );</span>
+<span class="lineNum">    1352 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_EXTENSION, &quot;&quot; );</span>
+<span class="lineNum">    1353 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VIRTUALIO, &quot;YES&quot; );</span>
+<span class="lineNum">    1354 </span>            : 
+<span class="lineNum">    1355 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = FITDataset::Open;</span>
+<span class="lineNum">    1356 </span><span class="lineCov">        987 :     poDriver-&gt;pfnCreateCopy = FITCreateCopy;</span>
+<span class="lineNum">    1357 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_CREATIONDATATYPES,
+<span class="lineNum">    1358 </span>            :                                &quot;Byte UInt16 Int16 UInt32 Int32 &quot;
+<span class="lineNum">    1359 </span><span class="lineCov">        987 :                                &quot;Float32 Float64&quot; );</span>
+<span class="lineNum">    1360 </span>            : 
+<span class="lineNum">    1361 </span><span class="lineCov">        987 :     GetGDALDriverManager()-&gt;RegisterDriver( poDriver );</span>
+<span class="lineNum">    1362 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

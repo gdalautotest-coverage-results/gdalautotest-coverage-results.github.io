@@ -1,0 +1,1107 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/grib/degrib/degrib/myerror.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">frmts/grib/degrib/degrib</a> - myerror.c<span style="font-size: 80%;"> (source / <a href="myerror.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">95</td>
+            <td class="headerCovTableEntry">156</td>
+            <td class="headerCovTableEntryLo">60.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">5</td>
+            <td class="headerCovTableEntry">5</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*****************************************************************************</a>
+<span class="lineNum">       2 </span>            :  * myerror.c
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * DESCRIPTION
+<span class="lineNum">       5 </span>            :  *    This file contains the code to handle error messages.  Instead of simply
+<span class="lineNum">       6 </span>            :  * printing the error to stdio, it allocates some memory and stores the
+<span class="lineNum">       7 </span>            :  * message in it.  This is so that one can pass the error message back to
+<span class="lineNum">       8 </span>            :  * Tcl/Tk or another GUI program when there is no stdio.
+<span class="lineNum">       9 </span>            :  *    In addition a version of sprintf is provided which allocates memory for
+<span class="lineNum">      10 </span>            :  * the calling routine, so that one doesn't have to guess the maximum bounds
+<span class="lineNum">      11 </span>            :  * of the message.
+<span class="lineNum">      12 </span>            :  *
+<span class="lineNum">      13 </span>            :  * HISTORY
+<span class="lineNum">      14 </span>            :  *  9/2002 Arthur Taylor (MDL / RSIS): Created.
+<span class="lineNum">      15 </span>            :  * 12/2002 Rici Yu, Fangyu Chi, Mark Armstrong, &amp; Tim Boyer
+<span class="lineNum">      16 </span>            :  *         (RY,FC,MA,&amp;TB): Code Review 2.
+<span class="lineNum">      17 </span>            :  * 12/2005 AAT Added myWarn routines.
+<span class="lineNum">      18 </span>            :  *
+<span class="lineNum">      19 </span>            :  * NOTES
+<span class="lineNum">      20 </span>            :  *   See Kernighan &amp; Ritchie C book (2nd edition) page 156.
+<span class="lineNum">      21 </span>            :  *****************************************************************************
+<span class="lineNum">      22 </span>            :  */
+<span class="lineNum">      23 </span>            : #include &lt;stdarg.h&gt;
+<span class="lineNum">      24 </span>            : #include &lt;stdlib.h&gt;
+<span class="lineNum">      25 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      26 </span>            : #include &quot;myassert.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;myerror.h&quot;
+<span class="lineNum">      28 </span>            : #ifdef MEMWATCH
+<span class="lineNum">      29 </span>            : #include &quot;memwatch.h&quot;
+<span class="lineNum">      30 </span>            : #endif
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : /*****************************************************************************
+<span class="lineNum">      33 </span>            :  * AllocSprintf() -- Arthur Taylor / MDL (Review 12/2002)
+<span class="lineNum">      34 </span>            :  *
+<span class="lineNum">      35 </span>            :  * PURPOSE
+<span class="lineNum">      36 </span>            :  *   Based on minprintf (see K&amp;R C book (2nd edition) page 156.  This code
+<span class="lineNum">      37 </span>            :  * tries to provide some of the functionality of sprintf, while at the same
+<span class="lineNum">      38 </span>            :  * time it handles the memory allocation.
+<span class="lineNum">      39 </span>            :  *   In addition, it provides a %S option, which allows one to pass in an
+<span class="lineNum">      40 </span>            :  * array of strings, and get back a comma delimited string.
+<span class="lineNum">      41 </span>            :  *
+<span class="lineNum">      42 </span>            :  * ARGUMENTS
+<span class="lineNum">      43 </span>            :  *     Ptr = An array of data that is of size LenBuff. (Input/Output)
+<span class="lineNum">      44 </span>            :  * LenBuff = The allocated length of Ptr. (Input/Output)
+<span class="lineNum">      45 </span>            :  *     fmt = Format similar to the one used by sprintf to define how to
+<span class="lineNum">      46 </span>            :  *           print the message (Input)
+<span class="lineNum">      47 </span>            :  *      ap = argument list initialized by a call to va_start.  Contains the
+<span class="lineNum">      48 </span>            :  *           data needed by fmt. (Input)
+<span class="lineNum">      49 </span>            :  *
+<span class="lineNum">      50 </span>            :  * RETURNS: void
+<span class="lineNum">      51 </span>            :  *
+<span class="lineNum">      52 </span>            :  *  9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">      53 </span>            :  * 12/2002 (RY,FC,MA,&amp;TB): Code Review.
+<span class="lineNum">      54 </span>            :  * 12/2002 AAT: Fixed the mallocSprintf (&quot;&quot;) error.
+<span class="lineNum">      55 </span>            :  *  2/2003 AAT: increased bufpart[80] to bufpart[330] because the largest
+<span class="lineNum">      56 </span>            :  *         64 bit double is: +1.7E+308, and I want 20 &quot;slots&quot; for stuff
+<span class="lineNum">      57 </span>            :  *         after the decimal place. There is the possibility of &quot;Long
+<span class="lineNum">      58 </span>            :  *         doubles&quot; (80 bits) which would have a max of: +3.4E+4932, but
+<span class="lineNum">      59 </span>            :  *         that is excessive for now.
+<span class="lineNum">      60 </span>            :  *  2/2004 AAT: if lenBuff != 0, switch from ipos-- to strlen (buffer);
+<span class="lineNum">      61 </span>            :  *  3/2004 AAT: Added %c option.
+<span class="lineNum">      62 </span>            :  * 11/2005 AAT: Added %e option.
+<span class="lineNum">      63 </span>            :  *  1/2006 AAT: Found a bug with multiple errSprintf.  Doesn't seem to be
+<span class="lineNum">      64 </span>            :  *              able to handle lenBuff &gt; strlen(buffer) when procedure is
+<span class="lineNum">      65 </span>            :  *              first called.  Something like format = &quot;aaa%s&quot;, lenBuff = 3,
+<span class="lineNum">      66 </span>            :  *              buff = 'n' would result in 'naaa__&lt;string&gt;', instead of
+<span class="lineNum">      67 </span>            :  *              'naaa&lt;string&gt;'.  Simple solution set lenBuff = strlen (buff).
+<span class="lineNum">      68 </span>            :  *              better solution: Maybe calculate correct place for ipos
+<span class="lineNum">      69 </span>            :  *              before switch.
+<span class="lineNum">      70 </span>            :  *
+<span class="lineNum">      71 </span>            :  * NOTES
+<span class="lineNum">      72 </span>            :  * Supported formats:
+<span class="lineNum">      73 </span>            :  *  %0.4f =&gt; float, double
+<span class="lineNum">      74 </span>            :  *  %03d %ld %10ld =&gt; int, sInt4.
+<span class="lineNum">      75 </span>            :  *  %s =&gt; Null terminated char string. (no range specification)
+<span class="lineNum">      76 </span>            :  *  %S =&gt; take a char ** and turn it into a comma delimited string.
+<span class="lineNum">      77 </span>            :  *
+<span class="lineNum">      78 </span>            :  * Assumes that no individual float or int will be more than 80 characters
+<span class="lineNum">      79 </span>            :  * Assumes that no % option is more than 20 char.
+<a name="80"><span class="lineNum">      80 </span>            :  *****************************************************************************</a>
+<span class="lineNum">      81 </span>            :  */
+<span class="lineNum">      82 </span><span class="lineCov">       2276 : static void AllocSprintf (char **Ptr, size_t *LenBuff, const char *fmt,</span>
+<span class="lineNum">      83 </span>            :                           va_list ap)
+<span class="lineNum">      84 </span>            : {
+<span class="lineNum">      85 </span><span class="lineCov">       2276 :    char *buffer = *Ptr; /* Local copy of Ptr. */</span>
+<span class="lineNum">      86 </span><span class="lineCov">       2276 :    size_t lenBuff = *LenBuff; /* Local copy of LenBuff. */</span>
+<span class="lineNum">      87 </span>            :    const char *p;       /* Points to % char in % option. */
+<span class="lineNum">      88 </span>            :    const char *p1;      /* Points to end of % option. */
+<span class="lineNum">      89 </span>            :    char bufpart[330];   /* Used for formatting the int / float options. */
+<span class="lineNum">      90 </span>            :    char format[20];     /* Used to store the % option. */
+<span class="lineNum">      91 </span>            :    char *sval;          /* For pulling strings off va_list. */
+<span class="lineNum">      92 </span>            :    char **Sval;         /* For pulling lists of strings off va_list. */
+<span class="lineNum">      93 </span>            :    size_t slen;         /* Length of used part of temp. */
+<span class="lineNum">      94 </span>            :    char f_inLoop;       /* Flag to state whether we got into %S , loop. */
+<span class="lineNum">      95 </span>            :    char flag;           /* If they have a l,L,h in string. */
+<span class="lineNum">      96 </span>            :    /* size_t ipos = *LenBuff; *//* The current index to start storing data. */
+<span class="lineNum">      97 </span>            :    size_t ipos;         /* The current index to start storing data. */
+<span class="lineNum">      98 </span>            :    int c_type;          /* Used when handling %c option. */
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            :    myAssert (sizeof (char) == 1);
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span><span class="lineCov">       2276 :    if ((fmt == NULL) || (strlen (fmt) == 0)) {</span>
+<span class="lineNum">     103 </span><span class="lineCov">       2276 :       return;</span>
+<span class="lineNum">     104 </span>            :    }
+<span class="lineNum">     105 </span><span class="lineCov">       2276 :    p = fmt;</span>
+<span class="lineNum">     106 </span>            :    /* If lenBuff = 0, then make room for the '\0' character. */
+<span class="lineNum">     107 </span><span class="lineCov">       2276 :    if (lenBuff == 0) {</span>
+<span class="lineNum">     108 </span><span class="lineCov">       1780 :       lenBuff++;</span>
+<span class="lineNum">     109 </span><span class="lineCov">       1780 :       buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     110 </span>            :       /* Added following 1 line on 1/2006 */
+<span class="lineNum">     111 </span><span class="lineCov">       1780 :       ipos = 0;</span>
+<span class="lineNum">     112 </span>            :    } else {
+<span class="lineNum">     113 </span>            :       /* Added following 3 lines on 1/2006 */
+<span class="lineNum">     114 </span><span class="lineCov">        496 :       myAssert (lenBuff &gt;= strlen (buffer) + 1);</span>
+<span class="lineNum">     115 </span><span class="lineCov">        496 :       lenBuff = strlen (buffer) + 1;</span>
+<span class="lineNum">     116 </span><span class="lineCov">        496 :       ipos = lenBuff - 1;</span>
+<span class="lineNum">     117 </span>            : /*     ipos = strlen (buffer); */
+<span class="lineNum">     118 </span>            :    }
+<span class="lineNum">     119 </span><span class="lineCov">      10150 :    while (p &lt; fmt + strlen (fmt)) {</span>
+<span class="lineNum">     120 </span><span class="lineCov">       7246 :       p1 = p;</span>
+<span class="lineNum">     121 </span><span class="lineCov">       7246 :       p = strchr (p1, '%');</span>
+<span class="lineNum">     122 </span>            :       /* Handle simple case when no more % in format string. */
+<span class="lineNum">     123 </span><span class="lineCov">       7246 :       if (p == NULL) {</span>
+<span class="lineNum">     124 </span>            :          /* No more format strings; copy rest of format and return */
+<span class="lineNum">     125 </span><span class="lineCov">       1648 :          lenBuff += strlen (p1);</span>
+<span class="lineNum">     126 </span><span class="lineCov">       1648 :          buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     127 </span><span class="lineCov">       1648 :          strcpy (buffer + ipos, p1);</span>
+<span class="lineNum">     128 </span><span class="lineCov">       1648 :          goto done;</span>
+<span class="lineNum">     129 </span>            :       }
+<span class="lineNum">     130 </span>            :       /* Handle data up to the current % in format string. */
+<span class="lineNum">     131 </span><span class="lineCov">       5598 :       lenBuff += p - p1;</span>
+<span class="lineNum">     132 </span><span class="lineCov">       5598 :       buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     133 </span><span class="lineCov">       5598 :       strncpy (buffer + ipos, p1, p - p1);</span>
+<span class="lineNum">     134 </span><span class="lineCov">       5598 :       ipos = lenBuff - 1;</span>
+<span class="lineNum">     135 </span>            :       /* Start dealing with % of format. */
+<span class="lineNum">     136 </span><span class="lineCov">       5598 :       p1 = p + strspn (p + 1, &quot;0123456789.&quot;);</span>
+<span class="lineNum">     137 </span><span class="lineCov">       5598 :       p1++;</span>
+<span class="lineNum">     138 </span>            :       /* p1 points to first letter after %. */
+<span class="lineNum">     139 </span><span class="lineCov">       5598 :       switch (*p1) {</span>
+<span class="lineNum">     140 </span>            :          case 'h':
+<span class="lineNum">     141 </span>            :          case 'l':
+<span class="lineNum">     142 </span>            :          case 'L':
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :             flag = *p1;</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :             p1++;</span>
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     146 </span>            :          case '\0':
+<span class="lineNum">     147 </span>            :             /* Handle improper use of '%' for example: '%##' */
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :             lenBuff += p1 - p - 1;</span>
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :             buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :             strncpy (buffer + ipos, p + 1, p1 - p - 1);</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">     152 </span>            :          default:
+<span class="lineNum">     153 </span><span class="lineCov">       5598 :             flag = ' ';</span>
+<span class="lineNum">     154 </span>            :       }
+<span class="lineNum">     155 </span><span class="lineCov">       5598 :       if ((p1 - p + 1) &gt; (int) (sizeof (format)) - 1) {</span>
+<span class="lineNum">     156 </span>            :          /* Protect against overflow of format string. */
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :          lenBuff += p1 - p + 1;</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :          buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :          strncpy (buffer + ipos, p, p1 - p + 1);</span>
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :          ipos = lenBuff - 1;</span>
+<span class="lineNum">     161 </span>            :       } else {
+<span class="lineNum">     162 </span><span class="lineCov">       5598 :          strncpy (format, p, p1 - p + 1);</span>
+<span class="lineNum">     163 </span><span class="lineCov">       5598 :          format[p1 - p + 1] = '\0';</span>
+<span class="lineNum">     164 </span><span class="lineCov">       5598 :          switch (*p1) {</span>
+<span class="lineNum">     165 </span>            :             case 'd':
+<span class="lineNum">     166 </span><span class="lineCov">       1951 :                switch (flag) {</span>
+<span class="lineNum">     167 </span>            :                   case 'l':
+<span class="lineNum">     168 </span>            :                   case 'L':
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :                      sprintf (bufpart, format, va_arg (ap, sInt4));</span>
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :                      break;</span>
+<span class="lineNum">     171 </span>            :                      /*
+<span class="lineNum">     172 </span>            :                       * gcc warning for 'h': &quot;...&quot; promotes short int to
+<span class="lineNum">     173 </span>            :                       * int.  Could get rid of 'h' option but decided to
+<span class="lineNum">     174 </span>            :                       * leave it in since we might have a different
+<span class="lineNum">     175 </span>            :                       * compiler.
+<span class="lineNum">     176 </span>            :                       */
+<span class="lineNum">     177 </span>            : /*
+<span class="lineNum">     178 </span>            :               case 'h':
+<span class="lineNum">     179 </span>            :                 sprintf (bufpart, format, va_arg(ap, short int));
+<span class="lineNum">     180 </span>            :                 break;
+<span class="lineNum">     181 </span>            : */
+<span class="lineNum">     182 </span>            :                   default:
+<span class="lineNum">     183 </span><span class="lineCov">       1951 :                      sprintf (bufpart, format, va_arg (ap, int));</span>
+<span class="lineNum">     184 </span>            :                }
+<span class="lineNum">     185 </span><span class="lineCov">       1951 :                slen = strlen (bufpart);</span>
+<span class="lineNum">     186 </span><span class="lineCov">       1951 :                lenBuff += slen;</span>
+<span class="lineNum">     187 </span><span class="lineCov">       1951 :                buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     188 </span><span class="lineCov">       1951 :                memcpy (buffer + ipos, bufpart, slen);</span>
+<span class="lineNum">     189 </span><span class="lineCov">       1951 :                ipos = lenBuff - 1;</span>
+<span class="lineNum">     190 </span><span class="lineCov">       1951 :                break;</span>
+<span class="lineNum">     191 </span>            :             case 'f':
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :                sprintf (bufpart, format, va_arg (ap, double));</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :                slen = strlen (bufpart);</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :                lenBuff += slen;</span>
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :                buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :                memcpy (buffer + ipos, bufpart, slen);</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :                ipos = lenBuff - 1;</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :                break;</span>
+<span class="lineNum">     199 </span>            :             case 'e':
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :                sprintf (bufpart, format, va_arg (ap, double));</span>
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :                slen = strlen (bufpart);</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :                lenBuff += slen;</span>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :                buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :                memcpy (buffer + ipos, bufpart, slen);</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :                ipos = lenBuff - 1;</span>
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :                break;</span>
+<span class="lineNum">     207 </span>            :             case 'g':
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :                sprintf (bufpart, format, va_arg (ap, double));</span>
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :                slen = strlen (bufpart);</span>
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :                lenBuff += slen;</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :                buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :                memcpy (buffer + ipos, bufpart, slen);</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :                ipos = lenBuff - 1;</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :                break;</span>
+<span class="lineNum">     215 </span>            :             case 'c':
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :                c_type = va_arg (ap, int);</span>
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :                lenBuff += 1;</span>
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :                buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :                buffer[ipos] = (char) c_type;</span>
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :                buffer[ipos + 1] = '\0';</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :                ipos = lenBuff - 1;</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :                break;</span>
+<span class="lineNum">     223 </span>            :             case 's':
+<span class="lineNum">     224 </span><span class="lineCov">       3647 :                if ((p1 - p) == 1) {</span>
+<span class="lineNum">     225 </span><span class="lineCov">       3647 :                   sval = va_arg (ap, char *);</span>
+<span class="lineNum">     226 </span>            : /*    printf (&quot;:: sval :: '%s'\n&quot;, sval);*/
+<span class="lineNum">     227 </span><span class="lineCov">       3647 :                   slen = strlen (sval);</span>
+<span class="lineNum">     228 </span><span class="lineCov">       3647 :                   lenBuff += slen;</span>
+<span class="lineNum">     229 </span><span class="lineCov">       3647 :                   buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     230 </span><span class="lineCov">       3647 :                   memcpy (buffer + ipos, sval, slen);</span>
+<span class="lineNum">     231 </span><span class="lineCov">       3647 :                   ipos = lenBuff - 1;</span>
+<span class="lineNum">     232 </span><span class="lineCov">       3647 :                   break;</span>
+<span class="lineNum">     233 </span>            :                }
+<span class="lineNum">     234 </span>            :                /* Intentionally fall through. */
+<span class="lineNum">     235 </span>            :             case 'S':
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :                if ((p1 - p) == 1) {</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :                   f_inLoop = 0;</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :                   for (Sval = va_arg (ap, char **); *Sval; Sval++) {</span>
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :                      slen = strlen (*Sval);</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :                      lenBuff += slen + 1;</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :                      buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :                      strcpy (buffer + ipos, *Sval);</span>
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :                      strcat (buffer + ipos + slen, &quot;,&quot;);</span>
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :                      ipos = lenBuff - 1;</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :                      f_inLoop = 1;</span>
+<span class="lineNum">     246 </span>            :                   }
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :                   if (f_inLoop) {</span>
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 :                      lenBuff--;</span>
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :                      buffer[lenBuff] = '\0';</span>
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :                      ipos = lenBuff - 1;</span>
+<span class="lineNum">     251 </span>            :                   }
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :                   break;</span>
+<span class="lineNum">     253 </span>            :                }
+<span class="lineNum">     254 </span>            :                /* Intentionally fall through. */
+<span class="lineNum">     255 </span>            :             default:
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :                lenBuff += p1 - p;</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :                buffer = (char *) realloc ((void *) buffer, lenBuff);</span>
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :                strncpy (buffer + ipos, p + 1, p1 - p);</span>
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :                ipos = lenBuff - 1;</span>
+<span class="lineNum">     260 </span>            :          }
+<span class="lineNum">     261 </span>            :       }
+<span class="lineNum">     262 </span><span class="lineCov">       5598 :       p = p1 + 1;</span>
+<span class="lineNum">     263 </span>            :    }
+<span class="lineNum">     264 </span>            :  done:
+<span class="lineNum">     265 </span><span class="lineCov">       2276 :    buffer[lenBuff - 1] = '\0';</span>
+<span class="lineNum">     266 </span><span class="lineCov">       2276 :    *Ptr = buffer;</span>
+<span class="lineNum">     267 </span><span class="lineCov">       2276 :    *LenBuff = lenBuff;</span>
+<span class="lineNum">     268 </span>            : }
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            : /*****************************************************************************
+<span class="lineNum">     271 </span>            :  * mallocSprintf() -- Arthur Taylor / MDL (Review 12/2002)
+<span class="lineNum">     272 </span>            :  *
+<span class="lineNum">     273 </span>            :  * PURPOSE
+<span class="lineNum">     274 </span>            :  *   This is a front end for AllocSprintf, when you want to malloc memory.
+<span class="lineNum">     275 </span>            :  * In other words when the pointer is not pointing to anything in particular.
+<span class="lineNum">     276 </span>            :  * It allocates the memory, prints the message, and then sets Ptr to point to
+<span class="lineNum">     277 </span>            :  * it.
+<span class="lineNum">     278 </span>            :  *
+<span class="lineNum">     279 </span>            :  * ARGUMENTS
+<span class="lineNum">     280 </span>            :  * Ptr = Place to point to new memory which contains the message (Output)
+<span class="lineNum">     281 </span>            :  * fmt = Format similar to the one used by sprintf to define how to print the
+<span class="lineNum">     282 </span>            :  *       message (Input)
+<span class="lineNum">     283 </span>            :  *
+<span class="lineNum">     284 </span>            :  * RETURNS: void
+<span class="lineNum">     285 </span>            :  *
+<span class="lineNum">     286 </span>            :  *  9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     287 </span>            :  * 12/2002 (RY,FC,MA,&amp;TB): Code Review.
+<span class="lineNum">     288 </span>            :  *
+<span class="lineNum">     289 </span>            :  * NOTES
+<span class="lineNum">     290 </span>            :  * Supported formats:  See AllocSprintf
+<a name="291"><span class="lineNum">     291 </span>            :  *****************************************************************************</a>
+<span class="lineNum">     292 </span>            :  */
+<span class="lineNum">     293 </span><span class="lineCov">        486 : void mallocSprintf (char **Ptr, const char *fmt, ...)</span>
+<span class="lineNum">     294 </span>            : {
+<span class="lineNum">     295 </span>            :    va_list ap;          /* Contains the data needed by fmt. */
+<span class="lineNum">     296 </span><span class="lineCov">        486 :    size_t buff_len = 0; /* Allocated length of buffer. */</span>
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span><span class="lineCov">        486 :    *Ptr = NULL;</span>
+<span class="lineNum">     299 </span><span class="lineCov">        486 :    if (fmt != NULL) {</span>
+<span class="lineNum">     300 </span><span class="lineCov">        486 :       va_start (ap, fmt); /* make ap point to 1st unnamed arg. */</span>
+<span class="lineNum">     301 </span><span class="lineCov">        486 :       AllocSprintf (Ptr, &amp;buff_len, fmt, ap);</span>
+<span class="lineNum">     302 </span><span class="lineCov">        486 :       va_end (ap);      /* clean up when done. */</span>
+<span class="lineNum">     303 </span>            :    }
+<span class="lineNum">     304 </span><span class="lineCov">        486 : }</span>
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            : /*****************************************************************************
+<span class="lineNum">     307 </span>            :  * reallocSprintf() -- Arthur Taylor / MDL (Review 12/2002)
+<span class="lineNum">     308 </span>            :  *
+<span class="lineNum">     309 </span>            :  * PURPOSE
+<span class="lineNum">     310 </span>            :  *   This is a front end for AllocSprintf, when you want to realloc memory.
+<span class="lineNum">     311 </span>            :  * In other words, the pointer is pointing to NULL, or to some memory that
+<span class="lineNum">     312 </span>            :  * you want to tack a message onto the end of.  It allocates extra memory,
+<span class="lineNum">     313 </span>            :  * and prints the message.
+<span class="lineNum">     314 </span>            :  *
+<span class="lineNum">     315 </span>            :  *   KEY WORDS: &quot;Tack a message onto the end of&quot;
+<span class="lineNum">     316 </span>            :  *
+<span class="lineNum">     317 </span>            :  * ARGUMENTS
+<span class="lineNum">     318 </span>            :  * Ptr = Pointer to memory to add the message to. (Input/Output)
+<span class="lineNum">     319 </span>            :  * fmt = Format similar to the one used by sprintf to define how to print the
+<span class="lineNum">     320 </span>            :  *       message (Input)
+<span class="lineNum">     321 </span>            :  *
+<span class="lineNum">     322 </span>            :  * RETURNS: void
+<span class="lineNum">     323 </span>            :  *
+<span class="lineNum">     324 </span>            :  *  9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     325 </span>            :  * 12/2002 (RY,FC,MA,&amp;TB): Code Review.
+<span class="lineNum">     326 </span>            :  *
+<span class="lineNum">     327 </span>            :  * NOTES
+<span class="lineNum">     328 </span>            :  * Supported formats:  See AllocSprintf
+<a name="329"><span class="lineNum">     329 </span>            :  *****************************************************************************</a>
+<span class="lineNum">     330 </span>            :  */
+<span class="lineNum">     331 </span><span class="lineCov">       1563 : void reallocSprintf (char **Ptr, const char *fmt, ...)</span>
+<span class="lineNum">     332 </span>            : {
+<span class="lineNum">     333 </span>            :    va_list ap;          /* Contains the data needed by fmt. */
+<span class="lineNum">     334 </span>            :    size_t buff_len;     /* Allocated length of buffer. */
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span><span class="lineCov">       1563 :    if (fmt != NULL) {</span>
+<span class="lineNum">     337 </span><span class="lineCov">       1563 :       va_start (ap, fmt); /* make ap point to 1st unnamed arg. */</span>
+<span class="lineNum">     338 </span><span class="lineCov">       1563 :       if (*Ptr == NULL) {</span>
+<span class="lineNum">     339 </span><span class="lineCov">       1077 :          buff_len = 0;</span>
+<span class="lineNum">     340 </span>            :       } else {
+<span class="lineNum">     341 </span><span class="lineCov">        486 :          buff_len = strlen (*Ptr) + 1;</span>
+<span class="lineNum">     342 </span>            :       }
+<span class="lineNum">     343 </span><span class="lineCov">       1563 :       AllocSprintf (Ptr, &amp;buff_len, fmt, ap);</span>
+<span class="lineNum">     344 </span><span class="lineCov">       1563 :       va_end (ap);      /* clean up when done. */</span>
+<span class="lineNum">     345 </span>            :    }
+<span class="lineNum">     346 </span><span class="lineCov">       1563 : }</span>
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span>            : /*****************************************************************************
+<span class="lineNum">     349 </span>            :  * errSprintf() -- Arthur Taylor / MDL (Review 12/2002)
+<span class="lineNum">     350 </span>            :  *
+<span class="lineNum">     351 </span>            :  * PURPOSE
+<span class="lineNum">     352 </span>            :  *   This uses AllocSprintf to generate a message, which it stores in a static
+<span class="lineNum">     353 </span>            :  * variable.  If it is called with a (NULL), it returns the built up message,
+<span class="lineNum">     354 </span>            :  * and resets its pointer to NULL.  The idea being that errors can be stacked
+<span class="lineNum">     355 </span>            :  * up, and you pop them off when you need to report them.  The reporting could
+<span class="lineNum">     356 </span>            :  * be done by printing them to stdio, or by passing them back to Tcl/Tk.
+<span class="lineNum">     357 </span>            :  *   Note: It is the caller's responsibility to free the memory, and it is
+<span class="lineNum">     358 </span>            :  * the caller's responsibility to make sure the last call to this is with
+<span class="lineNum">     359 </span>            :  * (NULL), or else the memory won't get freed.
+<span class="lineNum">     360 </span>            :  *
+<span class="lineNum">     361 </span>            :  * ARGUMENTS
+<span class="lineNum">     362 </span>            :  * fmt = Format similar to the one used by sprintf to define how to print the
+<span class="lineNum">     363 </span>            :  *       message (Input)
+<span class="lineNum">     364 </span>            :  *
+<span class="lineNum">     365 </span>            :  * RETURNS: char *
+<span class="lineNum">     366 </span>            :  *   if (fmt == NULL) returns built up string
+<span class="lineNum">     367 </span>            :  *   else             returns NULL.
+<span class="lineNum">     368 </span>            :  *
+<span class="lineNum">     369 </span>            :  *  9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     370 </span>            :  * 12/2002 (RY,FC,MA,&amp;TB): Code Review.
+<span class="lineNum">     371 </span>            :  *
+<span class="lineNum">     372 </span>            :  * NOTES
+<span class="lineNum">     373 </span>            :  * Supported formats:  See AllocSprintf
+<span class="lineNum">     374 </span>            :  *****************************************************************************
+<span class="lineNum">     375 </span>            :  */
+<span class="lineNum">     376 </span>            : /* Following 2 variables used in both errSprintf and preErrSprintf */
+<span class="lineNum">     377 </span>            : static char *errBuffer = NULL; /* Stores the current built up message. */
+<a name="378"><span class="lineNum">     378 </span>            : static size_t errBuff_len = 0; /* Allocated length of errBuffer. */</a>
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span><span class="lineCov">        466 : char *errSprintf (const char *fmt, ...)</span>
+<span class="lineNum">     381 </span>            : {
+<span class="lineNum">     382 </span>            :    va_list ap;          /* Contains the data needed by fmt. */
+<span class="lineNum">     383 </span>            :    char *ans;           /* Pointer to the final message while we reset
+<span class="lineNum">     384 </span>            :                          * buffer. */
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span><span class="lineCov">        466 :    if (fmt == NULL) {</span>
+<span class="lineNum">     387 </span><span class="lineCov">        244 :       ans = errBuffer;</span>
+<span class="lineNum">     388 </span><span class="lineCov">        244 :       errBuffer = NULL;</span>
+<span class="lineNum">     389 </span><span class="lineCov">        244 :       errBuff_len = 0;</span>
+<span class="lineNum">     390 </span><span class="lineCov">        244 :       return ans;</span>
+<span class="lineNum">     391 </span>            :    }
+<span class="lineNum">     392 </span><span class="lineCov">        222 :    va_start (ap, fmt);  /* make ap point to 1st unnamed arg. */</span>
+<span class="lineNum">     393 </span><span class="lineCov">        222 :    AllocSprintf (&amp;errBuffer, &amp;errBuff_len, fmt, ap);</span>
+<span class="lineNum">     394 </span><span class="lineCov">        222 :    va_end (ap);         /* clean up when done. */</span>
+<span class="lineNum">     395 </span><span class="lineCov">        222 :    return NULL;</span>
+<span class="lineNum">     396 </span>            : }
+<span class="lineNum">     397 </span>            : 
+<span class="lineNum">     398 </span>            : /*****************************************************************************
+<span class="lineNum">     399 </span>            :  * preErrSprintf() -- Arthur Taylor / MDL
+<span class="lineNum">     400 </span>            :  *
+<span class="lineNum">     401 </span>            :  * PURPOSE
+<span class="lineNum">     402 </span>            :  *   This uses AllocSprintf to generate a message, which it prepends to the
+<span class="lineNum">     403 </span>            :  * static variable used by errSprinf.  If it is called with a (NULL), it
+<span class="lineNum">     404 </span>            :  * does nothing... Use errSprintf (NULL) to get the message, and reset the
+<span class="lineNum">     405 </span>            :  * pointer to NULL.
+<span class="lineNum">     406 </span>            :  *   The idea here is that we want to prepend calling info when there was an
+<span class="lineNum">     407 </span>            :  * error.
+<span class="lineNum">     408 </span>            :  *   Note: It is the caller's responsibility to free the memory, by
+<span class="lineNum">     409 </span>            :  * eventually making one last call to errSprintf (NULL) and freeing the
+<span class="lineNum">     410 </span>            :  * returned memory.
+<span class="lineNum">     411 </span>            :  *
+<span class="lineNum">     412 </span>            :  * ARGUMENTS
+<span class="lineNum">     413 </span>            :  * fmt = Format similar to the one used by sprintf to define how to print the
+<span class="lineNum">     414 </span>            :  *       message (Input)
+<span class="lineNum">     415 </span>            :  *
+<span class="lineNum">     416 </span>            :  * RETURNS: void
+<span class="lineNum">     417 </span>            :  *
+<span class="lineNum">     418 </span>            :  * 12/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     419 </span>            :  *
+<span class="lineNum">     420 </span>            :  * NOTES
+<span class="lineNum">     421 </span>            :  * Supported formats:  See AllocSprintf
+<a name="422"><span class="lineNum">     422 </span>            :  *****************************************************************************</a>
+<span class="lineNum">     423 </span>            :  */
+<span class="lineNum">     424 </span><span class="lineCov">          5 : void preErrSprintf (const char *fmt, ...)</span>
+<span class="lineNum">     425 </span>            : {
+<span class="lineNum">     426 </span><span class="lineCov">          5 :    char *preBuffer = NULL; /* Stores the prepended message. */</span>
+<span class="lineNum">     427 </span><span class="lineCov">          5 :    size_t preBuff_len = 0; /* Allocated length of preBuffer. */</span>
+<span class="lineNum">     428 </span>            :    va_list ap;          /* Contains the data needed by fmt. */
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span>            :    myAssert (sizeof (char) == 1);
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span><span class="lineCov">          5 :    if (fmt == NULL) {</span>
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">     434 </span>            :    }
+<span class="lineNum">     435 </span><span class="lineCov">          5 :    va_start (ap, fmt);  /* make ap point to 1st unnamed arg. */</span>
+<span class="lineNum">     436 </span><span class="lineCov">          5 :    AllocSprintf (&amp;preBuffer, &amp;preBuff_len, fmt, ap);</span>
+<span class="lineNum">     437 </span><span class="lineCov">          5 :    va_end (ap);         /* clean up when done. */</span>
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span><span class="lineCov">          5 :    if (errBuff_len != 0) {</span>
+<span class="lineNum">     440 </span>            :       /* Increase preBuffer to have enough room for errBuffer */
+<span class="lineNum">     441 </span><span class="lineCov">          5 :       preBuff_len += errBuff_len;</span>
+<span class="lineNum">     442 </span><span class="lineCov">          5 :       preBuffer = (char *) realloc ((void *) preBuffer, preBuff_len);</span>
+<span class="lineNum">     443 </span>            :       /* concat errBuffer to end of preBuffer, and free errBuffer */
+<span class="lineNum">     444 </span><span class="lineCov">          5 :       strcat (preBuffer, errBuffer);</span>
+<span class="lineNum">     445 </span><span class="lineCov">          5 :       free (errBuffer);</span>
+<span class="lineNum">     446 </span>            :    }
+<span class="lineNum">     447 </span>            :    /* Finally point errBuffer to preBuffer, and update errBuff_len. */
+<span class="lineNum">     448 </span><span class="lineCov">          5 :    errBuffer = preBuffer;</span>
+<span class="lineNum">     449 </span><span class="lineCov">          5 :    errBuff_len = preBuff_len;</span>
+<span class="lineNum">     450 </span><span class="lineCov">          5 :    return;</span>
+<span class="lineNum">     451 </span>            : }
+<span class="lineNum">     452 </span>            : 
+<span class="lineNum">     453 </span>            : #ifdef unused_by_GDAL
+<span class="lineNum">     454 </span>            : /*****************************************************************************
+<span class="lineNum">     455 </span>            :  * _myWarn() -- Arthur Taylor / MDL
+<span class="lineNum">     456 </span>            :  *
+<span class="lineNum">     457 </span>            :  * PURPOSE
+<span class="lineNum">     458 </span>            :  *   This is an update to my errSprintf routines.  This procedure uses
+<span class="lineNum">     459 </span>            :  * AllocSprintf to generate a message, which it stores in a static variable.
+<span class="lineNum">     460 </span>            :  * It allows for prepending or appending error messages, and allows one to
+<span class="lineNum">     461 </span>            :  * set the error level of a message.
+<span class="lineNum">     462 </span>            :  *
+<span class="lineNum">     463 </span>            :  * ARGUMENTS
+<span class="lineNum">     464 </span>            :  * f_errCode = 0 =&gt; append notation msg, 1 =&gt; append warning msg
+<span class="lineNum">     465 </span>            :  *             2 =&gt; append error msg, 3 =&gt; prepend notation msg
+<span class="lineNum">     466 </span>            :  *             4 =&gt; prepend warning msg, 5 =&gt; prepend error msg (Input)
+<span class="lineNum">     467 </span>            :  *       fmt = Format to define how to print the msg (Input)
+<span class="lineNum">     468 </span>            :  *        ap = The arguments for the message. (Input)
+<span class="lineNum">     469 </span>            :  *
+<span class="lineNum">     470 </span>            :  * RETURNS: void
+<span class="lineNum">     471 </span>            :  *
+<span class="lineNum">     472 </span>            :  * 12/2005 Arthur Taylor (MDL): Created.
+<span class="lineNum">     473 </span>            :  *
+<span class="lineNum">     474 </span>            :  * NOTES:
+<span class="lineNum">     475 </span>            :  *****************************************************************************
+<span class="lineNum">     476 </span>            :  */
+<span class="lineNum">     477 </span>            : /* Following variables used in the myWarn routines */
+<span class="lineNum">     478 </span>            : static char *warnBuff = NULL; /* Stores the current built up message. */
+<span class="lineNum">     479 </span>            : static size_t warnBuffLen = 0; /* Allocated length of warnBuff. */
+<span class="lineNum">     480 </span>            : static sChar warnLevel = -1; /* Current warning level. */
+<span class="lineNum">     481 </span>            : static uChar warnOutType = 0; /* Output type as set in myWarnSet. */
+<span class="lineNum">     482 </span>            : static uChar warnDetail = 0; /* Detail level as set in myWarnSet. */
+<span class="lineNum">     483 </span>            : static uChar warnFileDetail = 0; /* Detail level as set in myWarnSet. */
+<span class="lineNum">     484 </span>            : static FILE *warnFP = NULL; /* Warn File as set in myWarnSet. */
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span>            : static void _myWarn (uChar f_errCode, const char *fmt, va_list ap)
+<span class="lineNum">     487 </span>            : {
+<span class="lineNum">     488 </span>            :    char *buff = NULL;   /* Stores the message. */
+<span class="lineNum">     489 </span>            :    size_t buffLen = 0;  /* Allocated length of buff. */
+<span class="lineNum">     490 </span>            :    uChar f_prepend = 0; /* Flag to prepend (or not) the message. */
+<span class="lineNum">     491 </span>            :    uChar f_filePrt = 1; /* Flag to print to file. */
+<span class="lineNum">     492 </span>            :    uChar f_memPrt = 1;  /* Flag to print to memory. */
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span>            :    if (fmt == NULL) {
+<span class="lineNum">     495 </span>            :       return;
+<span class="lineNum">     496 </span>            :    }
+<span class="lineNum">     497 </span>            :    if (f_errCode &gt; 5) {
+<span class="lineNum">     498 </span>            :       f_errCode = 0;
+<span class="lineNum">     499 </span>            :    }
+<span class="lineNum">     500 </span>            :    if (f_errCode &gt; 2) {
+<span class="lineNum">     501 </span>            :       f_errCode -= (uChar) 3;
+<span class="lineNum">     502 </span>            :       f_prepend = 1;
+<span class="lineNum">     503 </span>            :    }
+<span class="lineNum">     504 </span>            :    /* Update the warning level */
+<span class="lineNum">     505 </span>            :    if (f_errCode &gt; warnLevel) {
+<span class="lineNum">     506 </span>            :       warnLevel = f_errCode;
+<span class="lineNum">     507 </span>            :    }
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span>            :    /* Check if the warnDetail level allows this message. */
+<span class="lineNum">     510 </span>            :    if ((warnOutType &gt;= 4) ||
+<span class="lineNum">     511 </span>            :        (warnDetail == 2) || ((warnDetail == 1) &amp;&amp; (f_errCode &lt; 2))) {
+<span class="lineNum">     512 </span>            :       f_memPrt = 0;
+<span class="lineNum">     513 </span>            :    }
+<span class="lineNum">     514 </span>            :    if ((warnOutType == 0) ||
+<span class="lineNum">     515 </span>            :        (warnFileDetail == 2) || ((warnFileDetail == 1) &amp;&amp; (f_errCode &lt; 2))) {
+<span class="lineNum">     516 </span>            :       if (!f_memPrt) {
+<span class="lineNum">     517 </span>            :          return;
+<span class="lineNum">     518 </span>            :       }
+<span class="lineNum">     519 </span>            :       f_filePrt = 0;
+<span class="lineNum">     520 </span>            :    }
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span>            :    AllocSprintf (&amp;buff, &amp;buffLen, fmt, ap);
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span>            :    /* Handle the file writing. */
+<span class="lineNum">     525 </span>            :    if (f_filePrt) {
+<span class="lineNum">     526 </span>            :       fprintf (warnFP, &quot;%s&quot;, buff);
+<span class="lineNum">     527 </span>            :    }
+<span class="lineNum">     528 </span>            :    /* Handle the memory writing.  */
+<span class="lineNum">     529 </span>            :    if (f_memPrt) {
+<span class="lineNum">     530 </span>            :       if (f_prepend) {
+<span class="lineNum">     531 </span>            :          if (warnBuffLen != 0) {
+<span class="lineNum">     532 </span>            :             /* Add warnBuff to end of buff, and free warnBuff. */
+<span class="lineNum">     533 </span>            :             buffLen += warnBuffLen;
+<span class="lineNum">     534 </span>            :             myAssert (sizeof (char) == 1);
+<span class="lineNum">     535 </span>            :             buff = (char *) realloc (buff, buffLen);
+<span class="lineNum">     536 </span>            :             strcat (buff, warnBuff);
+<span class="lineNum">     537 </span>            :             free (warnBuff);
+<span class="lineNum">     538 </span>            :          }
+<span class="lineNum">     539 </span>            :          /* Point warnBuff to buff. */
+<span class="lineNum">     540 </span>            :          warnBuff = buff;
+<span class="lineNum">     541 </span>            :          warnBuffLen = buffLen;
+<span class="lineNum">     542 </span>            :       } else {
+<span class="lineNum">     543 </span>            :          if (warnBuffLen == 0) {
+<span class="lineNum">     544 </span>            :             warnBuff = buff;
+<span class="lineNum">     545 </span>            :             warnBuffLen = buffLen;
+<span class="lineNum">     546 </span>            :          } else {
+<span class="lineNum">     547 </span>            :             warnBuffLen += buffLen;
+<span class="lineNum">     548 </span>            :             myAssert (sizeof (char) == 1);
+<span class="lineNum">     549 </span>            :             warnBuff = (char *) realloc (warnBuff, warnBuffLen);
+<span class="lineNum">     550 </span>            :             strcat (warnBuff, buff);
+<span class="lineNum">     551 </span>            :             free (buff);
+<span class="lineNum">     552 </span>            :          }
+<span class="lineNum">     553 </span>            :       }
+<span class="lineNum">     554 </span>            :    }
+<span class="lineNum">     555 </span>            : }
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span>            : /*****************************************************************************
+<span class="lineNum">     558 </span>            :  * myWarn() -- Arthur Taylor / MDL
+<span class="lineNum">     559 </span>            :  *
+<span class="lineNum">     560 </span>            :  * PURPOSE
+<span class="lineNum">     561 </span>            :  *   This does the transformation of the &quot;...&quot; parameters, and calls _myWarn.
+<span class="lineNum">     562 </span>            :  * This was broken out when we started to implement myWarnRet, so we had two
+<span class="lineNum">     563 </span>            :  * ways to call _myWarn.  A complicated way (myWarnRet), and a simpler way
+<span class="lineNum">     564 </span>            :  * (myWarn).  After creating the myWarnW# #defines, thought to deprecate use
+<span class="lineNum">     565 </span>            :  * of myWarn by making it static.  Still need it, because myWarnRet uses it.
+<span class="lineNum">     566 </span>            :  *
+<span class="lineNum">     567 </span>            :  * ARGUMENTS
+<span class="lineNum">     568 </span>            :  * f_errCode = 0 =&gt; append notation msg, 1 =&gt; append warning msg
+<span class="lineNum">     569 </span>            :  *             2 =&gt; append error msg, 3 =&gt; prepend notation msg
+<span class="lineNum">     570 </span>            :  *             4 =&gt; prepend warning msg, 5 =&gt; prepend error msg (Input)
+<span class="lineNum">     571 </span>            :  *       fmt = Format to define how to print the msg (Input)
+<span class="lineNum">     572 </span>            :  *       ... = The actual message arguments. (Input)
+<span class="lineNum">     573 </span>            :  *
+<span class="lineNum">     574 </span>            :  * RETURNS: void
+<span class="lineNum">     575 </span>            :  *
+<span class="lineNum">     576 </span>            :  * 12/2005 Arthur Taylor (MDL): Created.
+<span class="lineNum">     577 </span>            :  *
+<span class="lineNum">     578 </span>            :  * NOTES:
+<span class="lineNum">     579 </span>            :  *****************************************************************************
+<span class="lineNum">     580 </span>            :  */
+<span class="lineNum">     581 </span>            : static void myWarn (uChar f_errCode, const char *fmt, ...)
+<span class="lineNum">     582 </span>            : {
+<span class="lineNum">     583 </span>            :    va_list ap;          /* Contains the data needed by fmt. */
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span>            :    /* Create the message in buff. */
+<span class="lineNum">     586 </span>            :    va_start (ap, fmt);  /* make ap point to 1st unnamed arg. */
+<span class="lineNum">     587 </span>            :    _myWarn (f_errCode, fmt, ap);
+<span class="lineNum">     588 </span>            :    va_end (ap);         /* clean up when done. */
+<span class="lineNum">     589 </span>            : }
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span>            : /*****************************************************************************
+<span class="lineNum">     592 </span>            :  * myWarnRet() -- Arthur Taylor / MDL
+<span class="lineNum">     593 </span>            :  *
+<span class="lineNum">     594 </span>            :  * PURPOSE
+<span class="lineNum">     595 </span>            :  *   This does the transformation of the &quot;...&quot; parameters, and calls _myWarn.
+<span class="lineNum">     596 </span>            :  * This was created, so that the user could pass in where (file and line
+<span class="lineNum">     597 </span>            :  * number) the error took place, and get a uniform handling of the file and
+<span class="lineNum">     598 </span>            :  * line numbers.  In addition the user could pass in a value for the procedure
+<span class="lineNum">     599 </span>            :  * to return, which allows the user to have something like:
+<span class="lineNum">     600 </span>            :  *   &quot;return myWarnW2 (-1, &quot;foobar\n&quot;);&quot;
+<span class="lineNum">     601 </span>            :  * Which after the #define is evaluated becomes:
+<span class="lineNum">     602 </span>            :  *   &quot;return myWarnRet (1, -1, __FILE__, __LINE__, &quot;foobar\n&quot;);
+<span class="lineNum">     603 </span>            :  *
+<span class="lineNum">     604 </span>            :  * Without myWarnRet, one would need something like:
+<span class="lineNum">     605 </span>            :  *   &quot;myWarn (1, &quot;(%s line %d) foobar\n&quot;, __FILE__, __LINE__);&quot;
+<span class="lineNum">     606 </span>            :  *   &quot;return (-1);
+<span class="lineNum">     607 </span>            :  * Trying to come up with a #define to make that easier on the user was
+<span class="lineNum">     608 </span>            :  * difficult.  The first attempt was:
+<span class="lineNum">     609 </span>            :  *   #define myWarnLine myWarn(1, &quot;(%s, line %d) &quot; __FILE__, __LINE__); myWarn
+<span class="lineNum">     610 </span>            :  * but this had difficulties with &quot;if () myWarnLine&quot; since it became two
+<span class="lineNum">     611 </span>            :  * statements, which could confuse the use of {}.  A better solition was:
+<span class="lineNum">     612 </span>            :  *   #define myWarnLineW1(f) myWarnLine (1, __FILE__, __LINE__, f)
+<span class="lineNum">     613 </span>            :  * Particularly since the user didn't have to remember that Warn is flag of 1,
+<span class="lineNum">     614 </span>            :  * and error is flag of 2.  Since I already had to create myWarnW# #defines,
+<span class="lineNum">     615 </span>            :  * it was easy to add the user specified return values.
+<span class="lineNum">     616 </span>            :  *
+<span class="lineNum">     617 </span>            :  * ARGUMENTS
+<span class="lineNum">     618 </span>            :  *  f_errCode = 0 =&gt; append notation msg, 1 =&gt; append warning msg
+<span class="lineNum">     619 </span>            :  *              2 =&gt; append error msg, 3 =&gt; prepend notation msg
+<span class="lineNum">     620 </span>            :  *              4 =&gt; prepend warning msg, 5 =&gt; prepend error msg (Input)
+<span class="lineNum">     621 </span>            :  * appErrCode = User defined error code for myWarnRet to return.
+<span class="lineNum">     622 </span>            :  *       file = Filename that the call to myWarnRet was in. (Input)
+<span class="lineNum">     623 </span>            :  *              If NULL, then it skips the __FILE__, __LINE__ print routine.
+<span class="lineNum">     624 </span>            :  *    lineNum = Line number of call to myWarnRet. (Input)
+<span class="lineNum">     625 </span>            :  *        fmt = Format to define how to print the msg (Input)
+<span class="lineNum">     626 </span>            :  *        ... = The actual message arguments. (Input)
+<span class="lineNum">     627 </span>            :  *
+<span class="lineNum">     628 </span>            :  * RETURNS: int
+<span class="lineNum">     629 </span>            :  *   The value of appErrCode.
+<span class="lineNum">     630 </span>            :  *
+<span class="lineNum">     631 </span>            :  * 12/2005 Arthur Taylor (MDL): Created.
+<span class="lineNum">     632 </span>            :  *
+<span class="lineNum">     633 </span>            :  * NOTES:
+<span class="lineNum">     634 </span>            :  *   Is in &quot;Quiet&quot; mode if &quot;file&quot; is NULL (no __FILE__, __LINE__ prints)
+<span class="lineNum">     635 </span>            :  *****************************************************************************
+<span class="lineNum">     636 </span>            :  */
+<span class="lineNum">     637 </span>            : int myWarnRet (uChar f_errCode, int appErrCode, const char *file,
+<span class="lineNum">     638 </span>            :                int lineNum, const char *fmt, ...)
+<span class="lineNum">     639 </span>            : {
+<span class="lineNum">     640 </span>            :    va_list ap;          /* Contains the data needed by fmt. */
+<span class="lineNum">     641 </span>            : 
+<span class="lineNum">     642 </span>            :    if (fmt != NULL) {
+<span class="lineNum">     643 </span>            :       if (file != NULL) {
+<span class="lineNum">     644 </span>            :          myWarn (f_errCode, &quot;(%s, line %d) &quot;, file, lineNum);
+<span class="lineNum">     645 </span>            :       }
+<span class="lineNum">     646 </span>            :       /* Create the message in buff. */
+<span class="lineNum">     647 </span>            :       va_start (ap, fmt); /* make ap point to 1st unnamed arg. */
+<span class="lineNum">     648 </span>            :       _myWarn (f_errCode, fmt, ap);
+<span class="lineNum">     649 </span>            :       va_end (ap);      /* clean up when done. */
+<span class="lineNum">     650 </span>            :    } else if (file != NULL) {
+<span class="lineNum">     651 </span>            :       myWarn (f_errCode, &quot;(%s, line %d)\n&quot;, file, lineNum);
+<span class="lineNum">     652 </span>            :    }
+<span class="lineNum">     653 </span>            :    return appErrCode;
+<span class="lineNum">     654 </span>            : }
+<span class="lineNum">     655 </span>            : 
+<span class="lineNum">     656 </span>            : /*****************************************************************************
+<span class="lineNum">     657 </span>            :  * myWarnSet() -- Arthur Taylor / MDL
+<span class="lineNum">     658 </span>            :  *
+<span class="lineNum">     659 </span>            :  * PURPOSE
+<span class="lineNum">     660 </span>            :  *   This sets warnOutType, warnDetail, and warnFile for myWarn.
+<span class="lineNum">     661 </span>            :  *
+<span class="lineNum">     662 </span>            :  * ARGUMENTS
+<span class="lineNum">     663 </span>            :  *    f_outType = 0 =&gt; memory, 1 =&gt; memory + stdout, 2 =&gt; memory + stderr,
+<span class="lineNum">     664 </span>            :  *                3 =&gt; memory + warnFile, 4 =&gt; stdout, 5 =&gt; stderr,
+<span class="lineNum">     665 </span>            :  *                6 =&gt; warnFile. (Input)
+<span class="lineNum">     666 </span>            :  *     f_detail = 0 =&gt; report all, 1 =&gt; report errors, 2 =&gt; silent. (Input)
+<span class="lineNum">     667 </span>            :  * f_fileDetail = 0 =&gt; report all, 1 =&gt; report errors, 2 =&gt; silent. (Input)
+<span class="lineNum">     668 </span>            :  *     warnFile = An already opened alternate file to log errors to. (Input)
+<span class="lineNum">     669 </span>            :  *
+<span class="lineNum">     670 </span>            :  * RETURNS: void
+<span class="lineNum">     671 </span>            :  *
+<span class="lineNum">     672 </span>            :  * 12/2005 Arthur Taylor (MDL): Created.
+<span class="lineNum">     673 </span>            :  *
+<span class="lineNum">     674 </span>            :  * NOTES:
+<span class="lineNum">     675 </span>            :  *   The reason someone may want memory + warnFile is so that they can log the
+<span class="lineNum">     676 </span>            :  * errors in a logFile, but still have something come to stdout.
+<span class="lineNum">     677 </span>            :  *****************************************************************************
+<span class="lineNum">     678 </span>            :  */
+<span class="lineNum">     679 </span>            : void myWarnSet (uChar f_outType, uChar f_detail, uChar f_fileDetail,
+<span class="lineNum">     680 </span>            :                 FILE *warnFile)
+<span class="lineNum">     681 </span>            : {
+<span class="lineNum">     682 </span>            :    if (f_outType &gt; 6) {
+<span class="lineNum">     683 </span>            :       f_outType = 0;
+<span class="lineNum">     684 </span>            :    }
+<span class="lineNum">     685 </span>            :    if (f_detail &gt; 2) {
+<span class="lineNum">     686 </span>            :       f_detail = 0;
+<span class="lineNum">     687 </span>            :    }
+<span class="lineNum">     688 </span>            :    warnOutType = f_outType;
+<span class="lineNum">     689 </span>            :    warnDetail = f_detail;
+<span class="lineNum">     690 </span>            :    warnFileDetail = f_fileDetail;
+<span class="lineNum">     691 </span>            :    if ((f_outType == 1) || (f_outType == 4)) {
+<span class="lineNum">     692 </span>            :       warnFP = stdout;
+<span class="lineNum">     693 </span>            :    } else if ((f_outType == 2) || (f_outType == 5)) {
+<span class="lineNum">     694 </span>            :       warnFP = stderr;
+<span class="lineNum">     695 </span>            :    } else if ((f_outType == 3) || (f_outType == 6)) {
+<span class="lineNum">     696 </span>            :       if (warnFile == NULL) {
+<span class="lineNum">     697 </span>            :          warnFP = stderr;
+<span class="lineNum">     698 </span>            :       } else {
+<span class="lineNum">     699 </span>            :          warnFP = warnFile;
+<span class="lineNum">     700 </span>            :       }
+<span class="lineNum">     701 </span>            :    } else {
+<span class="lineNum">     702 </span>            :       warnFP = NULL;
+<span class="lineNum">     703 </span>            :    }
+<span class="lineNum">     704 </span>            : }
+<span class="lineNum">     705 </span>            : 
+<span class="lineNum">     706 </span>            : /*****************************************************************************
+<span class="lineNum">     707 </span>            :  * myWarnClear() -- Arthur Taylor / MDL
+<span class="lineNum">     708 </span>            :  *
+<span class="lineNum">     709 </span>            :  * PURPOSE
+<span class="lineNum">     710 </span>            :  *   This clears the warning stack, returns what is on there in msg, resets
+<span class="lineNum">     711 </span>            :  * the memory to NULL, and returns the error code.
+<span class="lineNum">     712 </span>            :  *
+<span class="lineNum">     713 </span>            :  * ARGUMENTS
+<span class="lineNum">     714 </span>            :  *         msg = Whatever has been written to the warning memory
+<span class="lineNum">     715 </span>            :  *               (NULL, or allocated memory) (Out)
+<span class="lineNum">     716 </span>            :  * f_closeFile = flag to close the warnFile or not (Input)
+<span class="lineNum">     717 </span>            :  *
+<span class="lineNum">     718 </span>            :  * RETURNS: sChar
+<span class="lineNum">     719 </span>            :  *   -1 means no messages in msg (msg should be null)
+<span class="lineNum">     720 </span>            :  *    0 means up to notation msg in msg, but msg should not be null.
+<span class="lineNum">     721 </span>            :  *    1 means up to warning messages in msg, msg should not be null.
+<span class="lineNum">     722 </span>            :  *    2 means up to error messages in msg, msg should not be null.
+<span class="lineNum">     723 </span>            :  *
+<span class="lineNum">     724 </span>            :  * 12/2005 Arthur Taylor (MDL): Created.
+<span class="lineNum">     725 </span>            :  *
+<span class="lineNum">     726 </span>            :  * NOTES:
+<span class="lineNum">     727 </span>            :  *****************************************************************************
+<span class="lineNum">     728 </span>            :  */
+<span class="lineNum">     729 </span>            : sChar myWarnClear (char **msg, uChar f_closeFile)
+<span class="lineNum">     730 </span>            : {
+<span class="lineNum">     731 </span>            :    sChar ans;
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span>            :    *msg = warnBuff;
+<span class="lineNum">     734 </span>            :    warnBuff = NULL;
+<span class="lineNum">     735 </span>            :    warnBuffLen = 0;
+<span class="lineNum">     736 </span>            :    ans = warnLevel;
+<span class="lineNum">     737 </span>            :    warnLevel = -1;
+<span class="lineNum">     738 </span>            :    if (f_closeFile) {
+<span class="lineNum">     739 </span>            :       fclose (warnFP);
+<span class="lineNum">     740 </span>            :    }
+<span class="lineNum">     741 </span>            :    return ans;
+<span class="lineNum">     742 </span>            : }
+<span class="lineNum">     743 </span>            : 
+<span class="lineNum">     744 </span>            : /*****************************************************************************
+<span class="lineNum">     745 </span>            :  * myWarnNotEmpty() -- Arthur Taylor / MDL
+<span class="lineNum">     746 </span>            :  *
+<span class="lineNum">     747 </span>            :  * PURPOSE
+<span class="lineNum">     748 </span>            :  *   This returns whether the warning message is null or not.
+<span class="lineNum">     749 </span>            :  *
+<span class="lineNum">     750 </span>            :  * ARGUMENTS
+<span class="lineNum">     751 </span>            :  *
+<span class="lineNum">     752 </span>            :  * RETURNS: uChar
+<span class="lineNum">     753 </span>            :  *   0 =&gt; msg == null, 1 =&gt; msg != null
+<span class="lineNum">     754 </span>            :  *
+<span class="lineNum">     755 </span>            :  * 12/2005 Arthur Taylor (MDL): Created.
+<span class="lineNum">     756 </span>            :  *
+<span class="lineNum">     757 </span>            :  * NOTES:
+<span class="lineNum">     758 </span>            :  *****************************************************************************
+<span class="lineNum">     759 </span>            :  */
+<span class="lineNum">     760 </span>            : uChar myWarnNotEmpty ()
+<span class="lineNum">     761 </span>            : {
+<span class="lineNum">     762 </span>            :    return (uChar) ((warnBuff != NULL) ? 1 : 0);
+<span class="lineNum">     763 </span>            : }
+<span class="lineNum">     764 </span>            : 
+<span class="lineNum">     765 </span>            : /*****************************************************************************
+<span class="lineNum">     766 </span>            :  * myWarnLevel() -- Arthur Taylor / MDL
+<span class="lineNum">     767 </span>            :  *
+<span class="lineNum">     768 </span>            :  * PURPOSE
+<span class="lineNum">     769 </span>            :  *   This returns the status of the warnLevel.
+<span class="lineNum">     770 </span>            :  *
+<span class="lineNum">     771 </span>            :  * ARGUMENTS
+<span class="lineNum">     772 </span>            :  *
+<span class="lineNum">     773 </span>            :  * RETURNS: sChar
+<span class="lineNum">     774 </span>            :  *   -1 means no messages in msg (msg should be null)
+<span class="lineNum">     775 </span>            :  *    0 means up to notation msg in msg, but msg should not be null.
+<span class="lineNum">     776 </span>            :  *    1 means up to warning messages in msg, msg should not be null.
+<span class="lineNum">     777 </span>            :  *    2 means up to error messages in msg, msg should not be null.
+<span class="lineNum">     778 </span>            :  *
+<span class="lineNum">     779 </span>            :  * 12/2005 Arthur Taylor (MDL): Created.
+<span class="lineNum">     780 </span>            :  *
+<span class="lineNum">     781 </span>            :  * NOTES:
+<span class="lineNum">     782 </span>            :  *****************************************************************************
+<span class="lineNum">     783 </span>            :  */
+<span class="lineNum">     784 </span>            : sChar myWarnLevel ()
+<span class="lineNum">     785 </span>            : {
+<span class="lineNum">     786 </span>            :    return warnLevel;
+<span class="lineNum">     787 </span>            : }
+<span class="lineNum">     788 </span>            : #endif // unused_by_GDAL
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span>            : #ifdef TEST_MYERROR
+<span class="lineNum">     791 </span>            : /*****************************************************************************
+<span class="lineNum">     792 </span>            :  * The following 2 procedures are included only to test myerror.c, and only
+<span class="lineNum">     793 </span>            :  * if TEST_MYERROR is defined.
+<span class="lineNum">     794 </span>            :  *****************************************************************************
+<span class="lineNum">     795 </span>            :  */
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span>            : /*****************************************************************************
+<span class="lineNum">     798 </span>            :  * checkAns() -- Arthur Taylor / MDL (Review 12/2002)
+<span class="lineNum">     799 </span>            :  *
+<span class="lineNum">     800 </span>            :  * PURPOSE
+<span class="lineNum">     801 </span>            :  *   To verify that a test gives the expected result.
+<span class="lineNum">     802 </span>            :  *
+<span class="lineNum">     803 </span>            :  * ARGUMENTS
+<span class="lineNum">     804 </span>            :  *  ptr = The results of the test. (Input)
+<span class="lineNum">     805 </span>            :  *  Ans = An array of correct answers. (Input)
+<span class="lineNum">     806 </span>            :  * test = Which test we are checking. (Input)
+<span class="lineNum">     807 </span>            :  *
+<span class="lineNum">     808 </span>            :  * RETURNS: void
+<span class="lineNum">     809 </span>            :  *
+<span class="lineNum">     810 </span>            :  *  9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     811 </span>            :  * 12/2002 (RY,FC,MA,&amp;TB): Code Review.
+<span class="lineNum">     812 </span>            :  *
+<span class="lineNum">     813 </span>            :  * NOTES
+<span class="lineNum">     814 </span>            :  *****************************************************************************
+<span class="lineNum">     815 </span>            :  */
+<span class="lineNum">     816 </span>            : static void checkAns (char *ptr, char **Ans, int test)
+<span class="lineNum">     817 </span>            : {
+<span class="lineNum">     818 </span>            :    if (ptr == NULL) {
+<span class="lineNum">     819 </span>            :       printf (&quot;-----Check test (%d)--(ptr == NULL)-----\n&quot;, test);
+<span class="lineNum">     820 </span>            :       return;
+<span class="lineNum">     821 </span>            :    }
+<span class="lineNum">     822 </span>            :    if (strcmp (ptr, Ans[test]) != 0) {
+<span class="lineNum">     823 </span>            :       printf (&quot;-----Failed test %d-------\n&quot;, test);
+<span class="lineNum">     824 </span>            :       printf (&quot;%s %d =?= %s %d\n&quot;, ptr, strlen (ptr),
+<span class="lineNum">     825 </span>            :               Ans[test], strlen (Ans[test]));
+<span class="lineNum">     826 </span>            :    } else {
+<span class="lineNum">     827 </span>            :       printf (&quot;passed test %d\n&quot;, test);
+<span class="lineNum">     828 </span>            :    }
+<span class="lineNum">     829 </span>            : }
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span>            : /*****************************************************************************
+<span class="lineNum">     832 </span>            :  * main() -- Arthur Taylor / MDL (Review 12/2002)
+<span class="lineNum">     833 </span>            :  *
+<span class="lineNum">     834 </span>            :  * PURPOSE
+<span class="lineNum">     835 </span>            :  *   To test reallocSprint, mallocSprint, and errSprintf, to make sure that
+<span class="lineNum">     836 </span>            :  * they pass certain basic tests.  I will be adding more tests, as more bugs
+<span class="lineNum">     837 </span>            :  * are found, and features added.
+<span class="lineNum">     838 </span>            :  *
+<span class="lineNum">     839 </span>            :  * ARGUMENTS
+<span class="lineNum">     840 </span>            :  * argc = The number of arguments on the command line. (Input)
+<span class="lineNum">     841 </span>            :  * argv = The arguments on the command line. (Input)
+<span class="lineNum">     842 </span>            :  *
+<span class="lineNum">     843 </span>            :  * RETURNS: int
+<span class="lineNum">     844 </span>            :  *
+<span class="lineNum">     845 </span>            :  *  9/2002 Arthur Taylor (MDL/RSIS): Created.
+<span class="lineNum">     846 </span>            :  * 12/2002 (RY,FC,MA,&amp;TB): Code Review.
+<span class="lineNum">     847 </span>            :  *
+<span class="lineNum">     848 </span>            :  * NOTES
+<span class="lineNum">     849 </span>            :  *****************************************************************************
+<span class="lineNum">     850 </span>            :  */
+<span class="lineNum">     851 </span>            : int main (int argc, char **argv)
+<span class="lineNum">     852 </span>            : {
+<span class="lineNum">     853 </span>            :    char *ptr;
+<span class="lineNum">     854 </span>            :    uChar warn;
+<span class="lineNum">     855 </span>            :    static char *Cmd[] = { &quot;configure&quot;, &quot;inquire&quot;, &quot;convert&quot;, NULL };
+<span class="lineNum">     856 </span>            :    sInt4 li_temp = 100000L;
+<span class="lineNum">     857 </span>            :    short int sect = 5;
+<span class="lineNum">     858 </span>            :    char varName[] = &quot;Helium is a gas&quot;;
+<span class="lineNum">     859 </span>            :    sInt4 lival = 22;
+<span class="lineNum">     860 </span>            :    char unit[] = &quot;km&quot;, sval[] = &quot;ans&quot;;
+<span class="lineNum">     861 </span>            :    double dval = 2.71828;
+<span class="lineNum">     862 </span>            : 
+<span class="lineNum">     863 </span>            :    char *buffer = NULL;
+<span class="lineNum">     864 </span>            :    short int ssect = 0;
+<span class="lineNum">     865 </span>            :    char vvarName[] = &quot;DataType&quot;;
+<span class="lineNum">     866 </span>            :    sInt4 llival = 0;
+<span class="lineNum">     867 </span>            :    char ssval[] = &quot;Meteorological products&quot;;
+<span class="lineNum">     868 </span>            : 
+<span class="lineNum">     869 </span>            :    static char *Ans[] = { &quot;S0 | DataType | 0 (Meteorological products)\n&quot;,
+<span class="lineNum">     870 </span>            :       &quot;&lt;testing&gt;&quot;, &quot;&lt;05&gt;&lt;3.1415&gt;&lt;D&gt;&lt;20&gt;&quot;,
+<span class="lineNum">     871 </span>            :       &quot;&lt;configure,inquire,convert&gt; ?options?&quot;,
+<span class="lineNum">     872 </span>            :       &quot;100000&quot;, &quot;25.123&quot;, &quot;02s&quot;, &quot;01234567890123456789012345&quot;,
+<span class="lineNum">     873 </span>            :       &quot;25.123,05, hello world&quot;,
+<span class="lineNum">     874 </span>            :       &quot;This is a test 5... Here I am\n&quot;,
+<span class="lineNum">     875 </span>            :       &quot;Parse error Section 0\nErrorERROR: Problems opening c:--goober for &quot;
+<span class="lineNum">     876 </span>            :             &quot;write.Projection code requires Earth with Rad = 6367.47 not &quot;
+<span class="lineNum">     877 </span>            :             &quot;6400.010000&quot;,
+<span class="lineNum">     878 </span>            :       &quot;ERROR IS1 not labeled correctly. 5000000\n&quot;
+<span class="lineNum">     879 </span>            :             &quot;Should be 1196575042 2 25\nERROR IS0 has unexpected values: &quot;
+<span class="lineNum">     880 </span>            :             &quot;100000 100000 100000\n&quot;,
+<span class="lineNum">     881 </span>            :       &quot;S5 | Helium is a gas | 22 (ans)\nS5 | Helium is a gas | 22\n&quot;
+<span class="lineNum">     882 </span>            :             &quot;S5 | Helium is a gas | 22 (ans (km))\nS5 | Helium is a gas | ans\n&quot;
+<span class="lineNum">     883 </span>            :             &quot;S5 | Helium is a gas | 2.718280\nS5 | Helium is a gas | &quot;
+<span class="lineNum">     884 </span>            :             &quot;2.718280 (km)\n&quot;,
+<span class="lineNum">     885 </span>            :       &quot;ERROR IS1 not labeled correctly. 5000000\n&quot;
+<span class="lineNum">     886 </span>            :             &quot;Should be 1196575042 2 25\nERROR IS0 has unexpected values: &quot;
+<span class="lineNum">     887 </span>            :             &quot;100000 100000 100000\n&quot;,
+<span class="lineNum">     888 </span>            :       &quot;5.670000e+001&quot;
+<span class="lineNum">     889 </span>            :    };
+<span class="lineNum">     890 </span>            : 
+<span class="lineNum">     891 </span>            : /* Test -2. (See if it can handle blank). */
+<span class="lineNum">     892 </span>            :    mallocSprintf (&amp;ptr, &quot;&quot;);
+<span class="lineNum">     893 </span>            :    free (ptr);
+<span class="lineNum">     894 </span>            :    ptr = NULL;
+<span class="lineNum">     895 </span>            : 
+<span class="lineNum">     896 </span>            :    mallocSprintf (&amp;ptr, &quot; &quot;);
+<span class="lineNum">     897 </span>            :    free (ptr);
+<span class="lineNum">     898 </span>            :    ptr = NULL;
+<span class="lineNum">     899 </span>            : 
+<span class="lineNum">     900 </span>            : 
+<span class="lineNum">     901 </span>            : /* Test -1. (see if checkAns is ok) */
+<span class="lineNum">     902 </span>            :    ptr = errSprintf (NULL);
+<span class="lineNum">     903 </span>            :    checkAns (ptr, Ans, -1);
+<span class="lineNum">     904 </span>            : 
+<span class="lineNum">     905 </span>            : /* Test 0 */
+<span class="lineNum">     906 </span>            :    reallocSprintf (&amp;buffer, &quot;S%d | %s | %ld (%s)\n&quot;, ssect, vvarName,
+<span class="lineNum">     907 </span>            :                    llival, ssval);
+<span class="lineNum">     908 </span>            :    checkAns (buffer, Ans, 0);
+<span class="lineNum">     909 </span>            :    free (buffer);
+<span class="lineNum">     910 </span>            : 
+<span class="lineNum">     911 </span>            : /* Test 1. */
+<span class="lineNum">     912 </span>            :    ptr = NULL;
+<span class="lineNum">     913 </span>            :    reallocSprintf (&amp;ptr, &quot;&lt;testing&gt;&quot;);
+<span class="lineNum">     914 </span>            :    checkAns (ptr, Ans, 1);
+<span class="lineNum">     915 </span>            :    free (ptr);
+<span class="lineNum">     916 </span>            : 
+<span class="lineNum">     917 </span>            : /* Test 2. */
+<span class="lineNum">     918 </span>            :    ptr = NULL;
+<span class="lineNum">     919 </span>            :    reallocSprintf (&amp;ptr, &quot;&lt;%02d&gt;&lt;%.4f&gt;&lt;%D&gt;&lt;%ld&gt;&quot;, 5, 3.1415, 20, 24);
+<span class="lineNum">     920 </span>            :    checkAns (ptr, Ans, 2);
+<span class="lineNum">     921 </span>            :    free (ptr);
+<span class="lineNum">     922 </span>            : 
+<span class="lineNum">     923 </span>            : /* Test 3. */
+<span class="lineNum">     924 </span>            :    ptr = NULL;
+<span class="lineNum">     925 </span>            :    reallocSprintf (&amp;ptr, &quot;&lt;%S&gt; ?options?&quot;, Cmd);
+<span class="lineNum">     926 </span>            :    checkAns (ptr, Ans, 3);
+<span class="lineNum">     927 </span>            :    free (ptr);
+<span class="lineNum">     928 </span>            : 
+<span class="lineNum">     929 </span>            : /* Test 4. */
+<span class="lineNum">     930 </span>            :    ptr = NULL;
+<span class="lineNum">     931 </span>            :    reallocSprintf (&amp;ptr, &quot;%ld&quot;, li_temp);
+<span class="lineNum">     932 </span>            :    checkAns (ptr, Ans, 4);
+<span class="lineNum">     933 </span>            :    free (ptr);
+<span class="lineNum">     934 </span>            : 
+<span class="lineNum">     935 </span>            : /* Test 5. */
+<span class="lineNum">     936 </span>            :    ptr = NULL;
+<span class="lineNum">     937 </span>            :    reallocSprintf (&amp;ptr, &quot;%.3f&quot;, 25.1234);
+<span class="lineNum">     938 </span>            :    checkAns (ptr, Ans, 5);
+<span class="lineNum">     939 </span>            :    free (ptr);
+<span class="lineNum">     940 </span>            : 
+<span class="lineNum">     941 </span>            : /* Test 6. */
+<span class="lineNum">     942 </span>            :    ptr = NULL;
+<span class="lineNum">     943 </span>            :    reallocSprintf (&amp;ptr, &quot;%02s&quot;, 25.1234);
+<span class="lineNum">     944 </span>            :    checkAns (ptr, Ans, 6);
+<span class="lineNum">     945 </span>            :    free (ptr);
+<span class="lineNum">     946 </span>            : 
+<span class="lineNum">     947 </span>            : /* Test 7. */
+<span class="lineNum">     948 </span>            :    ptr = NULL;
+<span class="lineNum">     949 </span>            :    reallocSprintf (&amp;ptr, &quot;%01234567890123456789012345&quot;);
+<span class="lineNum">     950 </span>            :    checkAns (ptr, Ans, 7);
+<span class="lineNum">     951 </span>            :    free (ptr);
+<span class="lineNum">     952 </span>            : 
+<span class="lineNum">     953 </span>            : /* Test 8. */
+<span class="lineNum">     954 </span>            :    mallocSprintf (&amp;ptr, &quot;%.3f&quot;, 25.1234);
+<span class="lineNum">     955 </span>            :    reallocSprintf (&amp;ptr, &quot;,%02d&quot;, 5);
+<span class="lineNum">     956 </span>            :    reallocSprintf (&amp;ptr, &quot;, %s&quot;, &quot;hello world&quot;);
+<span class="lineNum">     957 </span>            :    checkAns (ptr, Ans, 8);
+<span class="lineNum">     958 </span>            :    free (ptr);
+<span class="lineNum">     959 </span>            :    ptr = NULL;
+<span class="lineNum">     960 </span>            : 
+<span class="lineNum">     961 </span>            : /* Test 9. */
+<span class="lineNum">     962 </span>            :    errSprintf (&quot;This is a test %d... &quot;, 5);
+<span class="lineNum">     963 </span>            :    errSprintf (&quot;Here I am\n&quot;);
+<span class="lineNum">     964 </span>            :    ptr = errSprintf (NULL);
+<span class="lineNum">     965 </span>            :    checkAns (ptr, Ans, 9);
+<span class="lineNum">     966 </span>            :    free (ptr);
+<span class="lineNum">     967 </span>            : 
+<span class="lineNum">     968 </span>            : /* Test 10. */
+<span class="lineNum">     969 </span>            :    errSprintf (&quot;Parse error Section 0\n%s&quot;, &quot;Error&quot;);
+<span class="lineNum">     970 </span>            :    errSprintf (&quot;ERROR: Problems opening %s for write.&quot;, &quot;c:--goober&quot;);
+<span class="lineNum">     971 </span>            :    errSprintf (&quot;Projection code requires Earth with Rad = 6367.47 not %f&quot;,
+<span class="lineNum">     972 </span>            :                6400.01);
+<span class="lineNum">     973 </span>            :    ptr = errSprintf (NULL);
+<span class="lineNum">     974 </span>            :    checkAns (ptr, Ans, 10);
+<span class="lineNum">     975 </span>            :    free (ptr);
+<span class="lineNum">     976 </span>            : 
+<span class="lineNum">     977 </span>            : /* Test 11. */
+<span class="lineNum">     978 </span>            :    errSprintf (&quot;ERROR IS1 not labeled correctly. %ld\n&quot;, 5000000L);
+<span class="lineNum">     979 </span>            :    errSprintf (&quot;Should be %ld %d %ld\n&quot;, 1196575042L, 2, 25);
+<span class="lineNum">     980 </span>            :    errSprintf (&quot;ERROR IS0 has unexpected values: %ld %ld %ld\n&quot;, li_temp,
+<span class="lineNum">     981 </span>            :                li_temp, li_temp);
+<span class="lineNum">     982 </span>            :    ptr = errSprintf (NULL);
+<span class="lineNum">     983 </span>            :    checkAns (ptr, Ans, 11);
+<span class="lineNum">     984 </span>            :    free (ptr);
+<span class="lineNum">     985 </span>            : 
+<span class="lineNum">     986 </span>            : /* Test 12. */
+<span class="lineNum">     987 </span>            :    ptr = NULL;
+<span class="lineNum">     988 </span>            :    reallocSprintf (&amp;ptr, &quot;S%d | %s | %ld (%s)\n&quot;, sect, varName, lival, sval);
+<span class="lineNum">     989 </span>            :    reallocSprintf (&amp;ptr, &quot;S%d | %s | %ld\n&quot;, sect, varName, lival);
+<span class="lineNum">     990 </span>            :    reallocSprintf (&amp;ptr, &quot;S%d | %s | %ld (%s (%s))\n&quot;, sect, varName, lival,
+<span class="lineNum">     991 </span>            :                    sval, unit);
+<span class="lineNum">     992 </span>            :    reallocSprintf (&amp;ptr, &quot;S%d | %s | %s\n&quot;, sect, varName, sval);
+<span class="lineNum">     993 </span>            :    reallocSprintf (&amp;ptr, &quot;S%d | %s | %f\n&quot;, sect, varName, dval);
+<span class="lineNum">     994 </span>            :    reallocSprintf (&amp;ptr, &quot;S%d | %s | %f (%s)\n&quot;, sect, varName, dval, unit);
+<span class="lineNum">     995 </span>            :    checkAns (ptr, Ans, 12);
+<span class="lineNum">     996 </span>            :    free (ptr);
+<span class="lineNum">     997 </span>            : 
+<span class="lineNum">     998 </span>            : /* Test 13. */
+<span class="lineNum">     999 </span>            :    preErrSprintf (&quot;Should be %ld %d %ld\n&quot;, 1196575042L, 2, 25);
+<span class="lineNum">    1000 </span>            :    errSprintf (&quot;ERROR IS0 has unexpected values: %ld %ld %ld\n&quot;, li_temp,
+<span class="lineNum">    1001 </span>            :                li_temp, li_temp);
+<span class="lineNum">    1002 </span>            :    preErrSprintf (&quot;ERROR IS1 not labeled correctly. %ld\n&quot;, 5000000L);
+<span class="lineNum">    1003 </span>            :    ptr = errSprintf (NULL);
+<span class="lineNum">    1004 </span>            :    checkAns (ptr, Ans, 13);
+<span class="lineNum">    1005 </span>            :    free (ptr);
+<span class="lineNum">    1006 </span>            : 
+<span class="lineNum">    1007 </span>            : /* Test 14. */
+<span class="lineNum">    1008 </span>            :    ptr = NULL;
+<span class="lineNum">    1009 </span>            :    reallocSprintf (&amp;ptr, &quot;%e&quot;, 56.7);
+<span class="lineNum">    1010 </span>            :    checkAns (ptr, Ans, 14);
+<span class="lineNum">    1011 </span>            :    free (ptr);
+<span class="lineNum">    1012 </span>            : 
+<span class="lineNum">    1013 </span>            :    myWarnSet (1, 0, 1, NULL);
+<span class="lineNum">    1014 </span>            :    myWarnW2 (0, &quot;This is a test of Warn\n&quot;);
+<span class="lineNum">    1015 </span>            :    myWarnE2 (0, &quot;This is a test of Err\n&quot;);
+<span class="lineNum">    1016 </span>            :    myWarnQ2 (0, &quot;This is a quiet note\n&quot;);
+<span class="lineNum">    1017 </span>            :    myWarnPW2 (0, &quot;This is a test2 of Error\n&quot;);
+<span class="lineNum">    1018 </span>            :    myWarnW4 (0, &quot;This is a test of WarnLnW3 %d %d\n&quot;, 10, 20);
+<span class="lineNum">    1019 </span>            :    myWarnE3 (0, &quot;This is a test of WarnLnE2 %d\n&quot;, 10);
+<span class="lineNum">    1020 </span>            :    printf (&quot;\tTest myWarnRet: %d\n&quot;, myWarnW1 (-1));
+<span class="lineNum">    1021 </span>            :    printf (&quot;\tTest myWarnRet: %d\n&quot;, myWarnE2 (-2, &quot;Hello nurse\n&quot;));
+<span class="lineNum">    1022 </span>            :    if (myWarnNotEmpty ()) {
+<span class="lineNum">    1023 </span>            :       ptr = NULL;
+<span class="lineNum">    1024 </span>            :       warn = myWarnClear (&amp;ptr, 0);
+<span class="lineNum">    1025 </span>            :       printf (&quot;WarnLevel=%d\n%s&quot;, warn, ptr);
+<span class="lineNum">    1026 </span>            :       free (ptr);
+<span class="lineNum">    1027 </span>            :    }
+<span class="lineNum">    1028 </span>            : 
+<span class="lineNum">    1029 </span>            :    return 0;
+<span class="lineNum">    1030 </span>            : }
+<span class="lineNum">    1031 </span>            : #endif
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

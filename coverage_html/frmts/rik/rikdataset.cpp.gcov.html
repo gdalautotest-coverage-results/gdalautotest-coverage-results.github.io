@@ -1,0 +1,1386 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/rik/rikdataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/rik</a> - rikdataset.cpp<span style="font-size: 80%;"> (source / <a href="rikdataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">42</td>
+            <td class="headerCovTableEntry">443</td>
+            <td class="headerCovTableEntryLo">9.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntryLo">22.2 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  RIK Reader
+<span class="lineNum">       4 </span>            :  * Purpose:  All code for RIK Reader
+<span class="lineNum">       5 </span>            :  * Author:   Daniel Wallner, daniel.wallner@bredband.net
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2005, Daniel Wallner &lt;daniel.wallner@bredband.net&gt;
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2008-2011, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &lt;cfloat&gt;
+<span class="lineNum">      31 </span>            : #include &lt;zlib.h&gt;
+<span class="lineNum">      32 </span>            : #include &quot;gdal_frmts.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;gdal_pam.h&quot;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : #define RIK_HEADER_DEBUG 0
+<span class="lineNum">      38 </span>            : #define RIK_CLEAR_DEBUG 0
+<span class="lineNum">      39 </span>            : #define RIK_PIXEL_DEBUG 0
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : //#define RIK_SINGLE_BLOCK 0
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : #define RIK_ALLOW_BLOCK_ERRORS 1
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : //
+<span class="lineNum">      46 </span>            : // The RIK file format information was extracted from the trikpanel project:
+<span class="lineNum">      47 </span>            : // http://sourceforge.net/projects/trikpanel/
+<span class="lineNum">      48 </span>            : //
+<span class="lineNum">      49 </span>            : // A RIK file consists of the following elements:
+<span class="lineNum">      50 </span>            : //
+<span class="lineNum">      51 </span>            : // +--------------------+
+<span class="lineNum">      52 </span>            : // | Magic &quot;RIK3&quot;       | (Only in RIK version 3)
+<span class="lineNum">      53 </span>            : // +--------------------+
+<span class="lineNum">      54 </span>            : // | Map name           | (The first two bytes is the string length)
+<span class="lineNum">      55 </span>            : // +--------------------+
+<span class="lineNum">      56 </span>            : // | Header             | (Three different formats exists)
+<span class="lineNum">      57 </span>            : // +--------------------+
+<span class="lineNum">      58 </span>            : // | Color palette      |
+<span class="lineNum">      59 </span>            : // +--------------------+
+<span class="lineNum">      60 </span>            : // | Block offset array | (Only in compressed formats)
+<span class="lineNum">      61 </span>            : // +--------------------+
+<span class="lineNum">      62 </span>            : // | Image blocks       |
+<span class="lineNum">      63 </span>            : // +--------------------+
+<span class="lineNum">      64 </span>            : //
+<span class="lineNum">      65 </span>            : // All numbers are stored in little endian.
+<span class="lineNum">      66 </span>            : //
+<span class="lineNum">      67 </span>            : // There are four different image block formats:
+<span class="lineNum">      68 </span>            : //
+<span class="lineNum">      69 </span>            : // 1. Uncompressed image block
+<span class="lineNum">      70 </span>            : //
+<span class="lineNum">      71 </span>            : //   A stream of palette indexes.
+<span class="lineNum">      72 </span>            : //
+<span class="lineNum">      73 </span>            : // 2. RLE image block
+<span class="lineNum">      74 </span>            : //
+<span class="lineNum">      75 </span>            : //   The RLE image block is a stream of byte pairs:
+<span class="lineNum">      76 </span>            : //   |  Run length - 1 (byte)  |  Pixel value (byte)  |  Run length - 1 ...
+<span class="lineNum">      77 </span>            : //
+<span class="lineNum">      78 </span>            : // 3. LZW image block
+<span class="lineNum">      79 </span>            : //
+<span class="lineNum">      80 </span>            : //   The LZW image block uses the same LZW encoding as a GIF file
+<span class="lineNum">      81 </span>            : //   except that there is no EOF code and maximum code length is 13 bits.
+<span class="lineNum">      82 </span>            : //   These blocks are upside down compared to GDAL.
+<span class="lineNum">      83 </span>            : //
+<span class="lineNum">      84 </span>            : // 4. ZLIB image block
+<span class="lineNum">      85 </span>            : //
+<span class="lineNum">      86 </span>            : //   These blocks are upside down compared to GDAL.
+<span class="lineNum">      87 </span>            : //
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            : typedef struct
+<span class="lineNum">      90 </span>            : {
+<span class="lineNum">      91 </span>            :     GUInt16     iUnknown;
+<span class="lineNum">      92 </span>            :     double      fSouth;         // Map bounds
+<span class="lineNum">      93 </span>            :     double      fWest;
+<span class="lineNum">      94 </span>            :     double      fNorth;
+<span class="lineNum">      95 </span>            :     double      fEast;
+<span class="lineNum">      96 </span>            :     GUInt32     iScale;         // Source map scale
+<span class="lineNum">      97 </span>            :     float       iMPPNum;        // Meters per pixel numerator
+<span class="lineNum">      98 </span>            :     GUInt32     iMPPDen;        // Meters per pixel denominator
+<span class="lineNum">      99 </span>            :                                 // Only used if fSouth &lt; 4000000
+<span class="lineNum">     100 </span>            :     GUInt32     iBlockWidth;
+<span class="lineNum">     101 </span>            :     GUInt32     iBlockHeight;
+<span class="lineNum">     102 </span>            :     GUInt32     iHorBlocks;     // Number of horizontal blocks
+<span class="lineNum">     103 </span>            :     GUInt32     iVertBlocks;    // Number of vertical blocks
+<span class="lineNum">     104 </span>            :                                 // Only used if fSouth &gt;= 4000000
+<span class="lineNum">     105 </span>            :     GByte       iBitsPerPixel;
+<span class="lineNum">     106 </span>            :     GByte       iOptions;
+<span class="lineNum">     107 </span>            : } RIKHeader;
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span>            : /************************************************************************/
+<span class="lineNum">     110 </span>            : /* ==================================================================== */
+<span class="lineNum">     111 </span>            : /*                              RIKDataset                              */
+<span class="lineNum">     112 </span>            : /* ==================================================================== */
+<span class="lineNum">     113 </span>            : /************************************************************************/
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            : class RIKRasterBand;
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : class RIKDataset : public GDALPamDataset
+<span class="lineNum">     118 </span>            : {
+<span class="lineNum">     119 </span>            :     friend class RIKRasterBand;
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            :     VSILFILE        *fp;
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            :     double      adfTransform[6];
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span>            :     GUInt32     nBlockXSize;
+<span class="lineNum">     126 </span>            :     GUInt32     nBlockYSize;
+<span class="lineNum">     127 </span>            :     GUInt32     nHorBlocks;
+<span class="lineNum">     128 </span>            :     GUInt32     nVertBlocks;
+<span class="lineNum">     129 </span>            :     GUInt32     nFileSize;
+<span class="lineNum">     130 </span>            :     GUInt32     *pOffsets;
+<span class="lineNum">     131 </span>            :     GByte       options;
+<span class="lineNum">     132 </span>            : 
+<span class="lineNum">     133 </span>            :     GDALColorTable *poColorTable;
+<span class="lineNum">     134 </span>            : 
+<span class="lineNum">     135 </span>            :   public:
+<span class="lineNum">     136 </span>            :      RIKDataset();
+<span class="lineNum">     137 </span>            :     ~RIKDataset();
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span>            :     static GDALDataset *Open( GDALOpenInfo * );
+<span class="lineNum">     140 </span>            :     static int Identify( GDALOpenInfo * );
+<span class="lineNum">     141 </span>            : 
+<a name="142"><span class="lineNum">     142 </span>            :     CPLErr      GetGeoTransform( double * padfTransform ) override;</a>
+<span class="lineNum">     143 </span>            :     const char *_GetProjectionRef() override;
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :     const OGRSpatialReference* GetSpatialRef() const override {</span>
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :         return GetSpatialRefFromOldGetProjectionRef();</span>
+<span class="lineNum">     146 </span>            :     }
+<span class="lineNum">     147 </span>            : };
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            : /************************************************************************/
+<span class="lineNum">     150 </span>            : /* ==================================================================== */
+<span class="lineNum">     151 </span>            : /*                            RIKRasterBand                             */
+<span class="lineNum">     152 </span>            : /* ==================================================================== */
+<a name="153"><span class="lineNum">     153 </span>            : /************************************************************************/</a>
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 : class RIKRasterBand : public GDALPamRasterBand</span>
+<span class="lineNum">     156 </span>            : {
+<span class="lineNum">     157 </span>            :     friend class RIKDataset;
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :   public:
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            :     RIKRasterBand( RIKDataset *, int );
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            :     virtual CPLErr IReadBlock( int, int, void * ) override;
+<span class="lineNum">     164 </span>            :     virtual GDALColorInterp GetColorInterpretation() override;
+<span class="lineNum">     165 </span>            :     virtual GDALColorTable *GetColorTable() override;
+<span class="lineNum">     166 </span>            : };
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            : /************************************************************************/
+<span class="lineNum">     169 </span>            : /*                           RIKRasterBand()                            */
+<a name="170"><span class="lineNum">     170 </span>            : /************************************************************************/</a>
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 : RIKRasterBand::RIKRasterBand( RIKDataset *poDSIn, int nBandIn )</span>
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span>            : {
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :     poDS = poDSIn;</span>
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :     nBand = nBandIn;</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     eDataType = GDT_Byte;</span>
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :     nBlockXSize = poDSIn-&gt;nBlockXSize;</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :     nBlockYSize = poDSIn-&gt;nBlockYSize;</span>
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            : /************************************************************************/
+<span class="lineNum">     185 </span>            : /*                             GetNextLZWCode()                         */
+<a name="186"><span class="lineNum">     186 </span>            : /************************************************************************/</a>
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 : static int GetNextLZWCode( int codeBits,</span>
+<span class="lineNum">     189 </span>            :                            const GByte *blockData,
+<span class="lineNum">     190 </span>            :                            const GUInt32 blockSize,
+<span class="lineNum">     191 </span>            :                            GUInt32 &amp;filePos,
+<span class="lineNum">     192 </span>            :                            GUInt32 &amp;fileAlign,
+<span class="lineNum">     193 </span>            :                            int &amp;bitsTaken )
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            : {
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :     if( filePos == fileAlign )</span>
+<span class="lineNum">     197 </span>            :     {
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :         fileAlign += codeBits;</span>
+<span class="lineNum">     199 </span>            :     }
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span>            :     const int BitMask[] = {
+<span class="lineNum">     202 </span>            :         0x0000, 0x0001, 0x0003, 0x0007,
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :         0x000f, 0x001f, 0x003f, 0x007f };</span>
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :     int ret = 0;</span>
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :     int bitsLeftToGo = codeBits;</span>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :     while( bitsLeftToGo &gt; 0 )</span>
+<span class="lineNum">     209 </span>            :     {
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :         if( filePos &gt;= blockSize )</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :             return -1;</span>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :         int tmp = blockData[filePos];</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :         tmp = tmp &gt;&gt; bitsTaken;</span>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :         if( bitsLeftToGo &lt; 8 )</span>
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :             tmp &amp;= BitMask[bitsLeftToGo];</span>
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :         tmp = tmp &lt;&lt; (codeBits - bitsLeftToGo);</span>
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :         ret |= tmp;</span>
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :         bitsLeftToGo -= (8 - bitsTaken);</span>
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :         bitsTaken = 0;</span>
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :         if( bitsLeftToGo &lt; 0 )</span>
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :             bitsTaken = 8 + bitsLeftToGo;</span>
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :         if( bitsTaken == 0 )</span>
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :             filePos++;</span>
+<span class="lineNum">     231 </span>            :     }
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span>            : #if RIK_PIXEL_DEBUG
+<span class="lineNum">     234 </span>            :     printf( &quot;c%03X\n&quot;, ret );/*ok*/
+<span class="lineNum">     235 </span>            : #endif
+<span class="lineNum">     236 </span>            : 
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :     return ret;</span>
+<span class="lineNum">     238 </span>            : }
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            : /************************************************************************/
+<span class="lineNum">     241 </span>            : /*                             OutputPixel()                            */
+<a name="242"><span class="lineNum">     242 </span>            : /************************************************************************/</a>
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 : static void OutputPixel( GByte pixel,</span>
+<span class="lineNum">     245 </span>            :                          void * image,
+<span class="lineNum">     246 </span>            :                          GUInt32 imageWidth,
+<span class="lineNum">     247 </span>            :                          GUInt32 lineBreak,
+<span class="lineNum">     248 </span>            :                          int &amp;imageLine,
+<span class="lineNum">     249 </span>            :                          GUInt32 &amp;imagePos )
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            : {
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :     if( imagePos &lt; imageWidth &amp;&amp; imageLine &gt;= 0)</span>
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :       reinterpret_cast&lt;GByte *&gt;( image )[imagePos + imageLine * imageWidth]</span>
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :           = pixel;</span>
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :     imagePos++;</span>
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span>            : #if RIK_PIXEL_DEBUG
+<span class="lineNum">     259 </span>            :     printf( &quot;_%02X %d\n&quot;, pixel, imagePos );/*ok*/
+<span class="lineNum">     260 </span>            : #endif
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span>            :     // Check if we need to change line
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :     if( imagePos == lineBreak )</span>
+<span class="lineNum">     265 </span>            :     {
+<span class="lineNum">     266 </span>            : #if RIK_PIXEL_DEBUG
+<span class="lineNum">     267 </span>            :         printf( &quot;\n%d\n&quot;, imageLine );/*ok*/
+<span class="lineNum">     268 </span>            : #endif
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :         imagePos = 0;</span>
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :         imageLine--;</span>
+<span class="lineNum">     273 </span>            :     }
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span>            : /************************************************************************/
+<span class="lineNum">     277 </span>            : /*                             IReadBlock()                             */
+<a name="278"><span class="lineNum">     278 </span>            : /************************************************************************/</a>
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 : CPLErr RIKRasterBand::IReadBlock( int nBlockXOff, int nBlockYOff,</span>
+<span class="lineNum">     281 </span>            :                                   void * pImage )
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span>            : {
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :     RIKDataset *poRDS = reinterpret_cast&lt;RIKDataset *&gt;( poDS );</span>
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :     const GUInt32 blocks = poRDS-&gt;nHorBlocks * poRDS-&gt;nVertBlocks;</span>
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :     const GUInt32 nBlockIndex = nBlockXOff + nBlockYOff * poRDS-&gt;nHorBlocks;</span>
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :     const GUInt32 nBlockOffset = poRDS-&gt;pOffsets[nBlockIndex];</span>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :     GUInt32 nBlockSize = poRDS-&gt;nFileSize;</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :     for( GUInt32 bi = nBlockIndex + 1; bi &lt; blocks; bi++ )</span>
+<span class="lineNum">     292 </span>            :     {
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :         if( poRDS-&gt;pOffsets[bi] )</span>
+<span class="lineNum">     294 </span>            :         {
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :             nBlockSize = poRDS-&gt;pOffsets[bi];</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     297 </span>            :         }
+<span class="lineNum">     298 </span>            :     }
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :     nBlockSize -= nBlockOffset;</span>
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span>            :     GUInt32 pixels;
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :     pixels = poRDS-&gt;nBlockXSize * poRDS-&gt;nBlockYSize;</span>
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :     if( !nBlockOffset || !nBlockSize</span>
+<span class="lineNum">     306 </span>            : #ifdef RIK_SINGLE_BLOCK
+<span class="lineNum">     307 </span>            :         || nBlockIndex != RIK_SINGLE_BLOCK
+<span class="lineNum">     308 </span>            : #endif
+<span class="lineNum">     309 </span>            :         )
+<span class="lineNum">     310 </span>            :     {
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :         memset(pImage, 0, pixels);</span>
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     313 </span>            :     }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :     VSIFSeekL( poRDS-&gt;fp, nBlockOffset, SEEK_SET );</span>
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     318 </span>            : /*      Read uncompressed block.                                        */
+<span class="lineNum">     319 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :     if( poRDS-&gt;options == 0x00 || poRDS-&gt;options == 0x40 )</span>
+<span class="lineNum">     322 </span>            :     {
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :         VSIFReadL( pImage, 1, nBlockXSize * nBlockYSize, poRDS-&gt;fp );</span>
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     325 </span>            :     }
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            :     // Read block to memory
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :     GByte *blockData = reinterpret_cast&lt;GByte *&gt;( VSI_MALLOC_VERBOSE(nBlockSize) );</span>
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :     if( blockData == nullptr )</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :     if( VSIFReadL( blockData, 1, nBlockSize, poRDS-&gt;fp ) != nBlockSize )</span>
+<span class="lineNum">     332 </span>            :     {
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :         VSIFree(blockData);</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     335 </span>            :     }
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :     memset(pImage, 0, pixels);</span>
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     339 </span>            : /*      Read RLE block.                                                 */
+<span class="lineNum">     340 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :     GUInt32 filePos = 0;</span>
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :     GUInt32 imagePos = 0;</span>
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :     if( poRDS-&gt;options == 0x01 ||</span>
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :         poRDS-&gt;options == 0x41 )</span>
+<span class="lineNum">     346 </span>            :     {
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :         while( filePos+1 &lt; nBlockSize &amp;&amp; imagePos &lt; pixels )</span>
+<span class="lineNum">     348 </span>            :         {
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :             GByte count = blockData[filePos++];</span>
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :             GByte color = blockData[filePos++];</span>
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :             for (GByte i = 0; imagePos &lt; pixels &amp;&amp; i &lt;= count; i++)</span>
+<span class="lineNum">     353 </span>            :             {
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :                 reinterpret_cast&lt;GByte *&gt;( pImage )[imagePos++] = color;</span>
+<span class="lineNum">     355 </span>            :             }
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :         }</span>
+<span class="lineNum">     357 </span>            :     }
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     360 </span>            : /*      Read LZW block.                                                 */
+<span class="lineNum">     361 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     else if( poRDS-&gt;options == 0x0b )</span>
+<span class="lineNum">     364 </span>            :     {
+<span class="lineNum">     365 </span>            :       try
+<span class="lineNum">     366 </span>            :       {
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :         if( nBlockSize &lt; 5 )</span>
+<span class="lineNum">     368 </span>            :         {
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :             throw &quot;Not enough bytes&quot;;</span>
+<span class="lineNum">     370 </span>            :         }
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :         const bool LZW_HAS_CLEAR_CODE = !!(blockData[4] &amp; 0x80);</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :         const int LZW_MAX_BITS = blockData[4] &amp; 0x1f; // Max 13</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :         if( LZW_MAX_BITS &gt; 13 )</span>
+<span class="lineNum">     375 </span>            :         {
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :             throw &quot;Invalid LZW_MAX_BITS&quot;;</span>
+<span class="lineNum">     377 </span>            :         }
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :         const int LZW_BITS_PER_PIXEL = 8;</span>
+<span class="lineNum">     379 </span><span class="lineNoCov">          0 :         const int LZW_OFFSET = 5;</span>
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :         const int LZW_CLEAR = 1 &lt;&lt; LZW_BITS_PER_PIXEL;</span>
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :         const int LZW_CODES = 1 &lt;&lt; LZW_MAX_BITS;</span>
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :         const int LZW_NO_SUCH_CODE = LZW_CODES + 1;</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :         int lastAdded = LZW_HAS_CLEAR_CODE ? LZW_CLEAR : LZW_CLEAR - 1;</span>
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :         int codeBits = LZW_BITS_PER_PIXEL + 1;</span>
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span>            :         int code;
+<span class="lineNum">     389 </span>            :         int lastCode;
+<span class="lineNum">     390 </span>            :         GByte lastOutput;
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :         int bitsTaken = 0;</span>
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            :         int prefix[8192];      // only need LZW_CODES for size.
+<span class="lineNum">     394 </span>            :         GByte character[8192]; // only need LZW_CODES for size.
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :         for( int i = 0; i &lt; LZW_CLEAR; i++ )</span>
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :           character[i] = static_cast&lt;GByte&gt;( i );</span>
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :         for( int i = 0; i &lt; LZW_CODES; i++ )</span>
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :             prefix[i] = LZW_NO_SUCH_CODE;</span>
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :         filePos = LZW_OFFSET;</span>
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :         GUInt32 fileAlign = LZW_OFFSET;</span>
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :         int imageLine = poRDS-&gt;nBlockYSize - 1;</span>
+<span class="lineNum">     404 </span>            : 
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :         GUInt32 lineBreak = poRDS-&gt;nBlockXSize;</span>
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span>            :         // 32 bit alignment
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :         lineBreak += 3;</span>
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :         lineBreak &amp;= 0xfffffffc;</span>
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span>            :         code = GetNextLZWCode( codeBits, blockData, nBlockSize, filePos,
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :                                fileAlign, bitsTaken );</span>
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :         if( code &lt; 0 )</span>
+<span class="lineNum">     414 </span>            :         {
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :             throw &quot;Not enough bytes&quot;;</span>
+<span class="lineNum">     416 </span>            :         }
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span>            :         OutputPixel( static_cast&lt;GByte&gt;( code ), pImage, poRDS-&gt;nBlockXSize,
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :                      lineBreak, imageLine, imagePos );</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :         lastOutput = static_cast&lt;GByte&gt;( code );</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :         while( imageLine &gt;= 0 &amp;&amp;</span>
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :                (imageLine || imagePos &lt; poRDS-&gt;nBlockXSize) &amp;&amp;</span>
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :                filePos &lt; nBlockSize )</span>
+<span class="lineNum">     425 </span>            :         {
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :             lastCode = code;</span>
+<span class="lineNum">     427 </span>            :             code = GetNextLZWCode( codeBits, blockData, nBlockSize,
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :                                    filePos, fileAlign, bitsTaken );</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :             if( code &lt; 0 )</span>
+<span class="lineNum">     430 </span>            :             {
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :                 throw &quot;Not enough bytes&quot;;</span>
+<span class="lineNum">     432 </span>            :             }
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :             if( LZW_HAS_CLEAR_CODE &amp;&amp; code == LZW_CLEAR )</span>
+<span class="lineNum">     435 </span>            :             {
+<span class="lineNum">     436 </span>            : #if RIK_CLEAR_DEBUG
+<span class="lineNum">     437 </span>            :                 CPLDebug( &quot;RIK&quot;,
+<span class="lineNum">     438 </span>            :                           &quot;Clearing block %d\n&quot;
+<span class="lineNum">     439 </span>            :                           &quot; x=%d y=%d\n&quot;
+<span class="lineNum">     440 </span>            :                           &quot; pos=%d size=%d\n&quot;,
+<span class="lineNum">     441 </span>            :                           nBlockIndex,
+<span class="lineNum">     442 </span>            :                           imagePos, imageLine,
+<span class="lineNum">     443 </span>            :                           filePos, nBlockSize );
+<span class="lineNum">     444 </span>            : #endif
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span>            :                 // Clear prefix table
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :                 for( int i = LZW_CLEAR; i &lt; LZW_CODES; i++ )</span>
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :                     prefix[i] = LZW_NO_SUCH_CODE;</span>
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :                 lastAdded = LZW_CLEAR;</span>
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :                 codeBits = LZW_BITS_PER_PIXEL + 1;</span>
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :                 filePos = fileAlign;</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :                 bitsTaken = 0;</span>
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span>            :                 code = GetNextLZWCode( codeBits, blockData, nBlockSize,
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :                                        filePos, fileAlign, bitsTaken );</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :                 if( code &lt; 0 )</span>
+<span class="lineNum">     458 </span>            :                 {
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :                     throw &quot;Not enough bytes&quot;;</span>
+<span class="lineNum">     460 </span>            :                 }
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :                 if( code &gt; lastAdded )</span>
+<span class="lineNum">     463 </span>            :                 {
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 :                     throw &quot;Clear Error&quot;;</span>
+<span class="lineNum">     465 </span>            :                 }
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span>            :                 OutputPixel( (GByte)code, pImage, poRDS-&gt;nBlockXSize,
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :                              lineBreak, imageLine, imagePos );</span>
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :                 lastOutput = (GByte)code;</span>
+<span class="lineNum">     470 </span>            :             }
+<span class="lineNum">     471 </span>            :             else
+<span class="lineNum">     472 </span>            :             {
+<span class="lineNum">     473 </span>            :                 // Set-up decoding
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span>            :                 GByte stack[8192]; // only need LZW_CODES for size.
+<span class="lineNum">     476 </span>            : 
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :                 int stackPtr = 0;</span>
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :                 int decodeCode = code;</span>
+<span class="lineNum">     479 </span>            : 
+<span class="lineNum">     480 </span><span class="lineNoCov">          0 :                 if( code == lastAdded + 1 )</span>
+<span class="lineNum">     481 </span>            :                 {
+<span class="lineNum">     482 </span>            :                     // Handle special case
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :                     *stack = lastOutput;</span>
+<span class="lineNum">     484 </span><span class="lineNoCov">          0 :                     stackPtr = 1;</span>
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :                     decodeCode = lastCode;</span>
+<span class="lineNum">     486 </span>            :                 }
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :                 else if( code &gt; lastAdded + 1 )</span>
+<span class="lineNum">     488 </span>            :                 {
+<span class="lineNum">     489 </span><span class="lineNoCov">          0 :                     throw &quot;Too high code&quot;;</span>
+<span class="lineNum">     490 </span>            :                 }
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span>            :                 // Decode
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :                 int i = 0;</span>
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :                 while( ++i &lt; LZW_CODES &amp;&amp;</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :                        decodeCode &gt;= LZW_CLEAR &amp;&amp;</span>
+<span class="lineNum">     497 </span>            :                        decodeCode &lt; LZW_NO_SUCH_CODE )
+<span class="lineNum">     498 </span>            :                 {
+<span class="lineNum">     499 </span><span class="lineNoCov">          0 :                     stack[stackPtr++] = character[decodeCode];</span>
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :                     decodeCode = prefix[decodeCode];</span>
+<span class="lineNum">     501 </span>            :                 }
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 :                 stack[stackPtr++] = static_cast&lt;GByte&gt;( decodeCode );</span>
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span><span class="lineNoCov">          0 :                 if( i == LZW_CODES || decodeCode &gt;= LZW_NO_SUCH_CODE )</span>
+<span class="lineNum">     505 </span>            :                 {
+<span class="lineNum">     506 </span><span class="lineNoCov">          0 :                     throw &quot;Decode error&quot;;</span>
+<span class="lineNum">     507 </span>            :                 }
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span>            :                 // Output stack
+<span class="lineNum">     510 </span>            : 
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :                 lastOutput = stack[stackPtr - 1];</span>
+<span class="lineNum">     512 </span>            : 
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :                 while( stackPtr != 0 &amp;&amp; imagePos &lt; pixels )</span>
+<span class="lineNum">     514 </span>            :                 {
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :                     OutputPixel( stack[--stackPtr], pImage, poRDS-&gt;nBlockXSize,</span>
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :                                  lineBreak, imageLine, imagePos );</span>
+<span class="lineNum">     517 </span>            :                 }
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            :                 // Add code to string table
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :                 if( lastCode != LZW_NO_SUCH_CODE &amp;&amp;</span>
+<span class="lineNum">     522 </span><span class="lineNoCov">          0 :                     lastAdded != LZW_CODES - 1 )</span>
+<span class="lineNum">     523 </span>            :                 {
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :                     ++lastAdded;</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :                     if( lastAdded &gt;= 8192 )</span>
+<span class="lineNum">     526 </span>            :                     {
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :                         throw &quot;Decode error&quot;;</span>
+<span class="lineNum">     528 </span>            :                     }
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :                     prefix[lastAdded] = lastCode;</span>
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :                     character[lastAdded] = lastOutput;</span>
+<span class="lineNum">     531 </span>            :                 }
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span>            :                 // Check if we need to use more bits
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :                 if( lastAdded == (1 &lt;&lt; codeBits) - 1 &amp;&amp;</span>
+<span class="lineNum">     536 </span>            :                     codeBits != LZW_MAX_BITS )
+<span class="lineNum">     537 </span>            :                 {
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :                      codeBits++;</span>
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span><span class="lineNoCov">          0 :                      filePos = fileAlign;</span>
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :                      bitsTaken = 0;</span>
+<span class="lineNum">     542 </span>            :                 }
+<span class="lineNum">     543 </span>            :             }
+<span class="lineNum">     544 </span>            :         }
+<span class="lineNum">     545 </span>            :       }
+<span class="lineNum">     546 </span>            :       catch (const char *errStr)
+<span class="lineNum">     547 </span>            :       {
+<span class="lineNum">     548 </span>            : #if RIK_ALLOW_BLOCK_ERRORS
+<span class="lineNum">     549 </span>            :                 CPLDebug( &quot;RIK&quot;,
+<span class="lineNum">     550 </span>            :                           &quot;LZW Decompress Failed: %s\n&quot;
+<span class="lineNum">     551 </span>            :                           &quot; blocks: %d\n&quot;
+<span class="lineNum">     552 </span>            :                           &quot; blockindex: %d\n&quot;
+<span class="lineNum">     553 </span>            :                           &quot; blockoffset: %X\n&quot;
+<span class="lineNum">     554 </span>            :                           &quot; blocksize: %d\n&quot;,
+<span class="lineNum">     555 </span>            :                           errStr, blocks, nBlockIndex,
+<span class="lineNum">     556 </span>            :                           nBlockOffset, nBlockSize );
+<span class="lineNum">     557 </span>            : #else
+<span class="lineNum">     558 </span>            :                 CPLFree( blockData );
+<span class="lineNum">     559 </span>            :                 CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     560 </span>            :                           &quot;RIK decompression failed: %s&quot;,
+<span class="lineNum">     561 </span>            :                           errStr );
+<span class="lineNum">     562 </span>            :                 return CE_Failure;
+<span class="lineNum">     563 </span>            : #endif
+<span class="lineNum">     564 </span>            :       }
+<span class="lineNum">     565 </span>            :     }
+<span class="lineNum">     566 </span>            : 
+<span class="lineNum">     567 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     568 </span>            : /*      Read ZLIB block.                                                */
+<span class="lineNum">     569 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     570 </span>            : 
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :     else if( poRDS-&gt;options == 0x0d )</span>
+<span class="lineNum">     572 </span>            :     {
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :         uLong destLen = pixels;</span>
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :         Byte *upsideDown = static_cast&lt;Byte *&gt;( CPLMalloc( pixels ) );</span>
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :         uncompress( upsideDown, &amp;destLen, blockData, nBlockSize );</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :         for (GUInt32 i = 0; i &lt; poRDS-&gt;nBlockYSize; i++)</span>
+<span class="lineNum">     579 </span>            :         {
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :           memcpy( reinterpret_cast&lt;Byte *&gt;( pImage ) + poRDS-&gt;nBlockXSize * i,</span>
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :                     upsideDown + poRDS-&gt;nBlockXSize *</span>
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :                                  (poRDS-&gt;nBlockYSize - i - 1),</span>
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :                     poRDS-&gt;nBlockXSize );</span>
+<span class="lineNum">     584 </span>            :         }
+<span class="lineNum">     585 </span>            : 
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :         CPLFree( upsideDown );</span>
+<span class="lineNum">     587 </span>            :     }
+<span class="lineNum">     588 </span>            : 
+<span class="lineNum">     589 </span><span class="lineNoCov">          0 :     CPLFree( blockData );</span>
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span><span class="lineNoCov">          0 :     return CE_None;</span>
+<span class="lineNum">     592 </span>            : }
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            : /************************************************************************/
+<span class="lineNum">     595 </span>            : /*                       GetColorInterpretation()                       */
+<a name="596"><span class="lineNum">     596 </span>            : /************************************************************************/</a>
+<span class="lineNum">     597 </span>            : 
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 : GDALColorInterp RIKRasterBand::GetColorInterpretation()</span>
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span>            : {
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :     return GCI_PaletteIndex;</span>
+<span class="lineNum">     602 </span>            : }
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span>            : /************************************************************************/
+<span class="lineNum">     605 </span>            : /*                           GetColorTable()                            */
+<a name="606"><span class="lineNum">     606 </span>            : /************************************************************************/</a>
+<span class="lineNum">     607 </span>            : 
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 : GDALColorTable *RIKRasterBand::GetColorTable()</span>
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span>            : {
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 :     RIKDataset *poRDS = reinterpret_cast&lt;RIKDataset *&gt;( poDS );</span>
+<span class="lineNum">     612 </span>            : 
+<span class="lineNum">     613 </span><span class="lineNoCov">          0 :     return poRDS-&gt;poColorTable;</span>
+<span class="lineNum">     614 </span>            : }
+<span class="lineNum">     615 </span>            : 
+<span class="lineNum">     616 </span>            : /************************************************************************/
+<span class="lineNum">     617 </span>            : /* ==================================================================== */
+<span class="lineNum">     618 </span>            : /*                              RIKDataset                              */
+<span class="lineNum">     619 </span>            : /* ==================================================================== */
+<span class="lineNum">     620 </span>            : /************************************************************************/
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span>            : /************************************************************************/
+<span class="lineNum">     623 </span>            : /*                             RIKDataset()                             */
+<a name="624"><span class="lineNum">     624 </span>            : /************************************************************************/</a>
+<span class="lineNum">     625 </span>            : 
+<span class="lineNum">     626 </span><span class="lineNoCov">          0 : RIKDataset::RIKDataset() :</span>
+<span class="lineNum">     627 </span>            :     fp( nullptr ),
+<span class="lineNum">     628 </span>            :     nBlockXSize( 0 ),
+<span class="lineNum">     629 </span>            :     nBlockYSize( 0 ),
+<span class="lineNum">     630 </span>            :     nHorBlocks( 0 ),
+<span class="lineNum">     631 </span>            :     nVertBlocks( 0 ),
+<span class="lineNum">     632 </span>            :     nFileSize( 0 ),
+<span class="lineNum">     633 </span>            :     pOffsets( nullptr ),
+<span class="lineNum">     634 </span>            :     options( 0 ),
+<span class="lineNum">     635 </span><span class="lineNoCov">          0 :     poColorTable( nullptr )</span>
+<span class="lineNum">     636 </span>            : 
+<span class="lineNum">     637 </span>            : {
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :     memset( adfTransform, 0, sizeof(adfTransform) );</span>
+<span class="lineNum">     639 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     640 </span>            : 
+<span class="lineNum">     641 </span>            : /************************************************************************/
+<span class="lineNum">     642 </span>            : /*                            ~RIKDataset()                             */
+<a name="643"><span class="lineNum">     643 </span>            : /************************************************************************/</a>
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span><span class="lineNoCov">          0 : RIKDataset::~RIKDataset()</span>
+<span class="lineNum">     646 </span>            : 
+<span class="lineNum">     647 </span>            : {
+<span class="lineNum">     648 </span><span class="lineNoCov">          0 :     FlushCache();</span>
+<span class="lineNum">     649 </span><span class="lineNoCov">          0 :     CPLFree( pOffsets );</span>
+<span class="lineNum">     650 </span><span class="lineNoCov">          0 :     if( fp != nullptr )</span>
+<span class="lineNum">     651 </span><span class="lineNoCov">          0 :         VSIFCloseL( fp );</span>
+<span class="lineNum">     652 </span><span class="lineNoCov">          0 :     delete poColorTable;</span>
+<span class="lineNum">     653 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span>            : /************************************************************************/
+<span class="lineNum">     656 </span>            : /*                          GetGeoTransform()                           */
+<a name="657"><span class="lineNum">     657 </span>            : /************************************************************************/</a>
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 : CPLErr RIKDataset::GetGeoTransform( double * padfTransform )</span>
+<span class="lineNum">     660 </span>            : 
+<span class="lineNum">     661 </span>            : {
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :     memcpy( padfTransform, &amp;adfTransform, sizeof(double) * 6 );</span>
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span><span class="lineNoCov">          0 :     return CE_None;</span>
+<span class="lineNum">     665 </span>            : }
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span>            : /************************************************************************/
+<span class="lineNum">     668 </span>            : /*                          GetProjectionRef()                          */
+<a name="669"><span class="lineNum">     669 </span>            : /************************************************************************/</a>
+<span class="lineNum">     670 </span>            : 
+<span class="lineNum">     671 </span><span class="lineNoCov">          0 : const char *RIKDataset::_GetProjectionRef()</span>
+<span class="lineNum">     672 </span>            : 
+<span class="lineNum">     673 </span>            : {
+<span class="lineNum">     674 </span><span class="lineNoCov">          0 :   return( &quot;PROJCS[\&quot;RT90 2.5 gon V\&quot;,GEOGCS[\&quot;RT90\&quot;,DATUM[\&quot;Rikets_koordinatsystem_1990\&quot;,SPHEROID[\&quot;Bessel 1841\&quot;,6377397.155,299.1528128,AUTHORITY[\&quot;EPSG\&quot;,\&quot;7004\&quot;]],TOWGS84[414.1055246174,41.3265500042,603.0582474221,-0.8551163377,2.1413174055,-7.0227298286,0],AUTHORITY[\&quot;EPSG\&quot;,\&quot;6124\&quot;]],PRIMEM[\&quot;Greenwich\&quot;,0,AUTHORITY[\&quot;EPSG\&quot;,\&quot;8901\&quot;]],UNIT[\&quot;degree\&quot;,0.01745329251994328,AUTHORITY[\&quot;EPSG\&quot;,\&quot;9122\&quot;]],AUTHORITY[\&quot;EPSG\&quot;,\&quot;4124\&quot;]],PROJECTION[\&quot;Transverse_Mercator\&quot;],PARAMETER[\&quot;latitude_of_origin\&quot;,0],PARAMETER[\&quot;central_meridian\&quot;,15.80827777777778],PARAMETER[\&quot;scale_factor\&quot;,1],PARAMETER[\&quot;false_easting\&quot;,1500000],PARAMETER[\&quot;false_northing\&quot;,0],UNIT[\&quot;metre\&quot;,1,AUTHORITY[\&quot;EPSG\&quot;,\&quot;9001\&quot;]],AUTHORITY[\&quot;EPSG\&quot;,\&quot;3021\&quot;]]&quot; );</span>
+<span class="lineNum">     675 </span>            : }
+<span class="lineNum">     676 </span>            : 
+<span class="lineNum">     677 </span>            : /************************************************************************/
+<span class="lineNum">     678 </span>            : /*                             GetRikString()                           */
+<a name="679"><span class="lineNum">     679 </span>            : /************************************************************************/</a>
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span><span class="lineCov">        387 : static GUInt16 GetRikString( VSILFILE *fp,</span>
+<span class="lineNum">     682 </span>            :                              char *str,
+<span class="lineNum">     683 </span>            :                              GUInt16 strLength )
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span>            : {
+<span class="lineNum">     686 </span>            :     GUInt16 actLength;
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span><span class="lineCov">        387 :     VSIFReadL( &amp;actLength, 1, sizeof(actLength), fp );</span>
+<span class="lineNum">     689 </span>            : #ifdef CPL_MSB
+<span class="lineNum">     690 </span>            :     CPL_SWAP16PTR( &amp;actLength );
+<span class="lineNum">     691 </span>            : #endif
+<span class="lineNum">     692 </span>            : 
+<span class="lineNum">     693 </span><span class="lineCov">        388 :     if( actLength + 2 &gt; strLength )</span>
+<span class="lineNum">     694 </span>            :     {
+<span class="lineNum">     695 </span><span class="lineNoCov">          0 :         return actLength;</span>
+<span class="lineNum">     696 </span>            :     }
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span><span class="lineCov">        388 :     VSIFReadL( str, 1, actLength, fp );</span>
+<span class="lineNum">     699 </span>            : 
+<span class="lineNum">     700 </span><span class="lineCov">        387 :     str[actLength] = '\0';</span>
+<span class="lineNum">     701 </span>            : 
+<span class="lineNum">     702 </span><span class="lineCov">        387 :     return actLength;</span>
+<span class="lineNum">     703 </span>            : }
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span>            : /************************************************************************/
+<span class="lineNum">     706 </span>            : /*                          Identify()                                  */
+<a name="707"><span class="lineNum">     707 </span>            : /************************************************************************/</a>
+<span class="lineNum">     708 </span>            : 
+<span class="lineNum">     709 </span><span class="lineCov">      40762 : int RIKDataset::Identify( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     710 </span>            : 
+<span class="lineNum">     711 </span>            : {
+<span class="lineNum">     712 </span><span class="lineCov">      40762 :     if( poOpenInfo-&gt;fpL == nullptr || poOpenInfo-&gt;nHeaderBytes &lt; 50 )</span>
+<span class="lineNum">     713 </span><span class="lineCov">      36648 :         return FALSE;</span>
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span><span class="lineCov">       4114 :     if( STARTS_WITH_CI((const char *) poOpenInfo-&gt;pabyHeader, &quot;RIK3&quot;) )</span>
+<span class="lineNum">     716 </span>            :     {
+<span class="lineNum">     717 </span><span class="lineNoCov">          0 :         return TRUE;</span>
+<span class="lineNum">     718 </span>            :     }
+<span class="lineNum">     719 </span>            :     else
+<span class="lineNum">     720 </span>            :     {
+<span class="lineNum">     721 </span>            :         GUInt16 actLength;
+<span class="lineNum">     722 </span><span class="lineCov">       4115 :         memcpy(&amp;actLength, poOpenInfo-&gt;pabyHeader, 2);</span>
+<span class="lineNum">     723 </span>            : #ifdef CPL_MSB
+<span class="lineNum">     724 </span>            :         CPL_SWAP16PTR( &amp;actLength );
+<span class="lineNum">     725 </span>            : #endif
+<span class="lineNum">     726 </span><span class="lineCov">       4115 :         if( actLength + 2 &gt; 1024 )</span>
+<span class="lineNum">     727 </span>            :         {
+<span class="lineNum">     728 </span><span class="lineCov">       3110 :             return FALSE;</span>
+<span class="lineNum">     729 </span>            :         }
+<span class="lineNum">     730 </span><span class="lineCov">       1005 :         if( actLength == 0 )</span>
+<span class="lineNum">     731 </span><span class="lineCov">        861 :             return -1;</span>
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span><span class="lineCov">       1316 :         for( int i=0;i&lt;actLength;i++ )</span>
+<span class="lineNum">     734 </span>            :         {
+<span class="lineNum">     735 </span><span class="lineCov">       1316 :             if( poOpenInfo-&gt;pabyHeader[2+i] == 0 )</span>
+<span class="lineNum">     736 </span><span class="lineCov">        144 :                 return FALSE;</span>
+<span class="lineNum">     737 </span>            :         }
+<span class="lineNum">     738 </span>            : 
+<span class="lineNum">     739 </span><span class="lineNoCov">          0 :         if( EQUAL( CPLGetExtension(poOpenInfo-&gt;pszFilename), &quot;rik&quot;) )</span>
+<span class="lineNum">     740 </span><span class="lineNoCov">          0 :             return TRUE;</span>
+<span class="lineNum">     741 </span>            : 
+<span class="lineNum">     742 </span>            :         // We really need Open to be able to conclude
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     744 </span>            :     }
+<span class="lineNum">     745 </span>            : }
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span>            : /************************************************************************/
+<span class="lineNum">     748 </span>            : /*                                Open()                                */
+<a name="749"><span class="lineNum">     749 </span>            : /************************************************************************/</a>
+<span class="lineNum">     750 </span>            : 
+<span class="lineNum">     751 </span><span class="lineCov">       7883 : GDALDataset *RIKDataset::Open( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     752 </span>            : 
+<span class="lineNum">     753 </span>            : {
+<span class="lineNum">     754 </span><span class="lineCov">       7883 :     if( Identify(poOpenInfo) == FALSE )</span>
+<span class="lineNum">     755 </span><span class="lineCov">       7492 :         return nullptr;</span>
+<span class="lineNum">     756 </span>            : 
+<span class="lineNum">     757 </span><span class="lineCov">        387 :     bool rik3header = false;</span>
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span><span class="lineCov">        387 :     if( STARTS_WITH_CI((const char *) poOpenInfo-&gt;pabyHeader, &quot;RIK3&quot;) )</span>
+<span class="lineNum">     760 </span>            :     {
+<span class="lineNum">     761 </span><span class="lineNoCov">          0 :         rik3header = true;</span>
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 :         VSIFSeekL( poOpenInfo-&gt;fpL, 4, SEEK_SET );</span>
+<span class="lineNum">     763 </span>            :     }
+<span class="lineNum">     764 </span>            :     else
+<span class="lineNum">     765 </span><span class="lineCov">        387 :         VSIFSeekL( poOpenInfo-&gt;fpL, 0, SEEK_SET );</span>
+<span class="lineNum">     766 </span>            : 
+<span class="lineNum">     767 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     768 </span>            : /*      Read the map name.                                              */
+<span class="lineNum">     769 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     770 </span>            : 
+<span class="lineNum">     771 </span>            :     char name[1024];
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span><span class="lineCov">        387 :     GUInt16 nameLength = GetRikString( poOpenInfo-&gt;fpL, name, sizeof(name) );</span>
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span><span class="lineCov">        387 :     if( nameLength &gt; sizeof(name) - 1 )</span>
+<span class="lineNum">     776 </span>            :     {
+<span class="lineNum">     777 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     778 </span>            :     }
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span><span class="lineCov">        387 :     if( !rik3header )</span>
+<span class="lineNum">     781 </span>            :     {
+<span class="lineNum">     782 </span><span class="lineCov">        387 :         if( nameLength == 0 || nameLength != strlen(name) )</span>
+<span class="lineNum">     783 </span><span class="lineCov">        387 :             return nullptr;</span>
+<span class="lineNum">     784 </span>            :     }
+<span class="lineNum">     785 </span>            : 
+<span class="lineNum">     786 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     787 </span>            : /*      Read the header.                                                */
+<span class="lineNum">     788 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span>            :     RIKHeader header;
+<span class="lineNum">     791 </span>            :     double metersPerPixel;
+<span class="lineNum">     792 </span>            : 
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :     const char *headerType = &quot;RIK3&quot;;</span>
+<span class="lineNum">     794 </span>            : 
+<span class="lineNum">     795 </span><span class="lineNoCov">          0 :     if( rik3header )</span>
+<span class="lineNum">     796 </span>            :     {
+<span class="lineNum">     797 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     798 </span>            : /*      RIK3 header.                                                    */
+<span class="lineNum">     799 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     800 </span>            : 
+<span class="lineNum">     801 </span>            :         // Read projection name
+<span class="lineNum">     802 </span>            : 
+<span class="lineNum">     803 </span>            :         char projection[1024];
+<span class="lineNum">     804 </span>            : 
+<span class="lineNum">     805 </span>            :         GUInt16 projLength = GetRikString( poOpenInfo-&gt;fpL,
+<span class="lineNum">     806 </span><span class="lineNoCov">          0 :                                            projection, sizeof(projection) );</span>
+<span class="lineNum">     807 </span>            : 
+<span class="lineNum">     808 </span><span class="lineNoCov">          0 :         if( projLength &gt; sizeof(projection) - 1 )</span>
+<span class="lineNum">     809 </span>            :         {
+<span class="lineNum">     810 </span>            :             // Unreasonable string length, assume wrong format
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     812 </span>            :         }
+<span class="lineNum">     813 </span>            : 
+<span class="lineNum">     814 </span>            :         // Read unknown string
+<span class="lineNum">     815 </span>            : 
+<span class="lineNum">     816 </span><span class="lineNoCov">          0 :         /*projLength =*/ GetRikString( poOpenInfo-&gt;fpL, projection, sizeof(projection) );</span>
+<span class="lineNum">     817 </span>            : 
+<span class="lineNum">     818 </span>            :         // Read map north edge
+<span class="lineNum">     819 </span>            : 
+<span class="lineNum">     820 </span>            :         char tmpStr[16];
+<span class="lineNum">     821 </span>            : 
+<span class="lineNum">     822 </span>            :         GUInt16 tmpLength = GetRikString( poOpenInfo-&gt;fpL,
+<span class="lineNum">     823 </span><span class="lineNoCov">          0 :                                           tmpStr, sizeof(tmpStr) );</span>
+<span class="lineNum">     824 </span>            : 
+<span class="lineNum">     825 </span><span class="lineNoCov">          0 :         if( tmpLength &gt; sizeof(tmpStr) - 1 )</span>
+<span class="lineNum">     826 </span>            :         {
+<span class="lineNum">     827 </span>            :             // Unreasonable string length, assume wrong format
+<span class="lineNum">     828 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     829 </span>            :         }
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span><span class="lineNoCov">          0 :         header.fNorth = CPLAtof( tmpStr );</span>
+<span class="lineNum">     832 </span>            : 
+<span class="lineNum">     833 </span>            :         // Read map west edge
+<span class="lineNum">     834 </span>            : 
+<span class="lineNum">     835 </span>            :         tmpLength = GetRikString( poOpenInfo-&gt;fpL,
+<span class="lineNum">     836 </span><span class="lineNoCov">          0 :                                   tmpStr, sizeof(tmpStr) );</span>
+<span class="lineNum">     837 </span>            : 
+<span class="lineNum">     838 </span><span class="lineNoCov">          0 :         if( tmpLength &gt; sizeof(tmpStr) - 1 )</span>
+<span class="lineNum">     839 </span>            :         {
+<span class="lineNum">     840 </span>            :             // Unreasonable string length, assume wrong format
+<span class="lineNum">     841 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     842 </span>            :         }
+<span class="lineNum">     843 </span>            : 
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :         header.fWest = CPLAtof( tmpStr );</span>
+<span class="lineNum">     845 </span>            : 
+<span class="lineNum">     846 </span>            :         // Read binary values
+<span class="lineNum">     847 </span>            : 
+<span class="lineNum">     848 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iScale, 1, sizeof(header.iScale), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     849 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iMPPNum, 1, sizeof(header.iMPPNum), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     850 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iBlockWidth, 1, sizeof(header.iBlockWidth), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     851 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iBlockHeight, 1, sizeof(header.iBlockHeight), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     852 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iHorBlocks, 1, sizeof(header.iHorBlocks), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     853 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iVertBlocks, 1, sizeof(header.iVertBlocks), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     854 </span>            : #ifdef CPL_MSB
+<span class="lineNum">     855 </span>            :         CPL_SWAP32PTR( &amp;header.iScale );
+<span class="lineNum">     856 </span>            :         CPL_SWAP32PTR( &amp;header.iMPPNum );
+<span class="lineNum">     857 </span>            :         CPL_SWAP32PTR( &amp;header.iBlockWidth );
+<span class="lineNum">     858 </span>            :         CPL_SWAP32PTR( &amp;header.iBlockHeight );
+<span class="lineNum">     859 </span>            :         CPL_SWAP32PTR( &amp;header.iHorBlocks );
+<span class="lineNum">     860 </span>            :         CPL_SWAP32PTR( &amp;header.iVertBlocks );
+<span class="lineNum">     861 </span>            : #endif
+<span class="lineNum">     862 </span><span class="lineNoCov">          0 :         if ( header.iMPPNum == 0 )</span>
+<span class="lineNum">     863 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     864 </span>            : 
+<span class="lineNum">     865 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iBitsPerPixel, 1, sizeof(header.iBitsPerPixel), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iOptions, 1, sizeof(header.iOptions), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     867 </span><span class="lineNoCov">          0 :         header.iUnknown = header.iOptions;</span>
+<span class="lineNum">     868 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iOptions, 1, sizeof(header.iOptions), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     869 </span>            : 
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :         header.fSouth = header.fNorth -</span>
+<span class="lineNum">     871 </span><span class="lineNoCov">          0 :             header.iVertBlocks * header.iBlockHeight * header.iMPPNum;</span>
+<span class="lineNum">     872 </span><span class="lineNoCov">          0 :         header.fEast = header.fWest +</span>
+<span class="lineNum">     873 </span><span class="lineNoCov">          0 :             header.iHorBlocks * header.iBlockWidth * header.iMPPNum;</span>
+<span class="lineNum">     874 </span>            : 
+<span class="lineNum">     875 </span><span class="lineNoCov">          0 :         metersPerPixel = header.iMPPNum;</span>
+<span class="lineNum">     876 </span>            :     }
+<span class="lineNum">     877 </span>            :     else
+<span class="lineNum">     878 </span>            :     {
+<span class="lineNum">     879 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     880 </span>            : /*      Old RIK header.                                                 */
+<span class="lineNum">     881 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     882 </span>            : 
+<span class="lineNum">     883 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iUnknown, 1, sizeof(header.iUnknown), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     884 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.fSouth, 1, sizeof(header.fSouth), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     885 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.fWest, 1, sizeof(header.fWest), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     886 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.fNorth, 1, sizeof(header.fNorth), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     887 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.fEast, 1, sizeof(header.fEast), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     888 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iScale, 1, sizeof(header.iScale), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     889 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iMPPNum, 1, sizeof(header.iMPPNum), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     890 </span>            : #ifdef CPL_MSB
+<span class="lineNum">     891 </span>            :         CPL_SWAP64PTR( &amp;header.fSouth );
+<span class="lineNum">     892 </span>            :         CPL_SWAP64PTR( &amp;header.fWest );
+<span class="lineNum">     893 </span>            :         CPL_SWAP64PTR( &amp;header.fNorth );
+<span class="lineNum">     894 </span>            :         CPL_SWAP64PTR( &amp;header.fEast );
+<span class="lineNum">     895 </span>            :         CPL_SWAP32PTR( &amp;header.iScale );
+<span class="lineNum">     896 </span>            :         CPL_SWAP32PTR( &amp;header.iMPPNum );
+<span class="lineNum">     897 </span>            : #endif
+<span class="lineNum">     898 </span>            : 
+<span class="lineNum">     899 </span><span class="lineNoCov">          0 :         if (!CPLIsFinite(header.fSouth) ||</span>
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :             !CPLIsFinite(header.fWest) ||</span>
+<span class="lineNum">     901 </span><span class="lineNoCov">          0 :             !CPLIsFinite(header.fNorth) ||</span>
+<span class="lineNum">     902 </span><span class="lineNoCov">          0 :             !CPLIsFinite(header.fEast) ||</span>
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :             header.iMPPNum == 0)</span>
+<span class="lineNum">     904 </span>            :         {
+<span class="lineNum">     905 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     906 </span>            :         }
+<span class="lineNum">     907 </span>            : 
+<span class="lineNum">     908 </span><span class="lineNoCov">          0 :         const bool offsetBounds = header.fSouth &lt; 4000000;</span>
+<span class="lineNum">     909 </span>            : 
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :         header.iMPPDen = 1;</span>
+<span class="lineNum">     911 </span>            : 
+<span class="lineNum">     912 </span><span class="lineNoCov">          0 :         if( offsetBounds )</span>
+<span class="lineNum">     913 </span>            :         {
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :             header.fSouth += 4002995;</span>
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :             header.fNorth += 5004000;</span>
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :             header.fWest += 201000;</span>
+<span class="lineNum">     917 </span><span class="lineNoCov">          0 :             header.fEast += 302005;</span>
+<span class="lineNum">     918 </span>            : 
+<span class="lineNum">     919 </span><span class="lineNoCov">          0 :             VSIFReadL( &amp;header.iMPPDen, 1, sizeof(header.iMPPDen), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     920 </span>            : #ifdef CPL_MSB
+<span class="lineNum">     921 </span>            :             CPL_SWAP32PTR( &amp;header.iMPPDen );
+<span class="lineNum">     922 </span>            : #endif
+<span class="lineNum">     923 </span><span class="lineNoCov">          0 :             if( header.iMPPDen == 0 )</span>
+<span class="lineNum">     924 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     925 </span>            : 
+<span class="lineNum">     926 </span><span class="lineNoCov">          0 :             headerType = &quot;RIK1&quot;;</span>
+<span class="lineNum">     927 </span>            :         }
+<span class="lineNum">     928 </span>            :         else
+<span class="lineNum">     929 </span>            :         {
+<span class="lineNum">     930 </span><span class="lineNoCov">          0 :             headerType = &quot;RIK2&quot;;</span>
+<span class="lineNum">     931 </span>            :         }
+<span class="lineNum">     932 </span>            : 
+<span class="lineNum">     933 </span><span class="lineNoCov">          0 :         metersPerPixel = header.iMPPNum / static_cast&lt;double&gt;( header.iMPPDen );</span>
+<span class="lineNum">     934 </span>            : 
+<span class="lineNum">     935 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iBlockWidth, 1, sizeof(header.iBlockWidth), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     936 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iBlockHeight, 1, sizeof(header.iBlockHeight), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     937 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iHorBlocks, 1, sizeof(header.iHorBlocks), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     938 </span>            : #ifdef CPL_MSB
+<span class="lineNum">     939 </span>            :         CPL_SWAP32PTR( &amp;header.iBlockWidth );
+<span class="lineNum">     940 </span>            :         CPL_SWAP32PTR( &amp;header.iBlockHeight );
+<span class="lineNum">     941 </span>            :         CPL_SWAP32PTR( &amp;header.iHorBlocks );
+<span class="lineNum">     942 </span>            : #endif
+<span class="lineNum">     943 </span>            : 
+<span class="lineNum">     944 </span><span class="lineNoCov">          0 :         if(( header.iBlockWidth &gt; 2000 ) || ( header.iBlockWidth &lt; 10 ) ||</span>
+<span class="lineNum">     945 </span><span class="lineNoCov">          0 :            ( header.iBlockHeight &gt; 2000 ) || ( header.iBlockHeight &lt; 10 ))</span>
+<span class="lineNum">     946 </span><span class="lineNoCov">          0 :            return nullptr;</span>
+<span class="lineNum">     947 </span>            : 
+<span class="lineNum">     948 </span><span class="lineNoCov">          0 :         if( !offsetBounds )</span>
+<span class="lineNum">     949 </span>            :         {
+<span class="lineNum">     950 </span><span class="lineNoCov">          0 :             VSIFReadL( &amp;header.iVertBlocks, 1, sizeof(header.iVertBlocks), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     951 </span>            : #ifdef CPL_MSB
+<span class="lineNum">     952 </span>            :             CPL_SWAP32PTR( &amp;header.iVertBlocks );
+<span class="lineNum">     953 </span>            : #endif
+<span class="lineNum">     954 </span>            :         }
+<span class="lineNum">     955 </span>            : 
+<span class="lineNum">     956 </span><span class="lineNoCov">          0 :         if( offsetBounds || !header.iVertBlocks )</span>
+<span class="lineNum">     957 </span>            :         {
+<span class="lineNum">     958 </span><span class="lineNoCov">          0 :             double dfVertBlocks = ceil( (header.fNorth - header.fSouth) /</span>
+<span class="lineNum">     959 </span><span class="lineNoCov">          0 :                       (header.iBlockHeight * metersPerPixel) );</span>
+<span class="lineNum">     960 </span><span class="lineNoCov">          0 :             if( dfVertBlocks &lt; 1 || dfVertBlocks &gt; INT_MAX )</span>
+<span class="lineNum">     961 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     962 </span><span class="lineNoCov">          0 :             header.iVertBlocks = static_cast&lt;GUInt32&gt;(dfVertBlocks);</span>
+<span class="lineNum">     963 </span>            :         }
+<span class="lineNum">     964 </span>            : 
+<span class="lineNum">     965 </span>            : #if RIK_HEADER_DEBUG
+<span class="lineNum">     966 </span>            :         CPLDebug( &quot;RIK&quot;,
+<span class="lineNum">     967 </span>            :                   &quot;Original vertical blocks %d\n&quot;,
+<span class="lineNum">     968 </span>            :                   header.iVertBlocks );
+<span class="lineNum">     969 </span>            : #endif
+<span class="lineNum">     970 </span>            : 
+<span class="lineNum">     971 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iBitsPerPixel, 1, sizeof(header.iBitsPerPixel), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     972 </span>            : 
+<span class="lineNum">     973 </span><span class="lineNoCov">          0 :         if( header.iBitsPerPixel != 8 )</span>
+<span class="lineNum">     974 </span>            :         {
+<span class="lineNum">     975 </span>            :             CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">     976 </span>            :                       &quot;File %s has unsupported number of bits per pixel.\n&quot;,
+<span class="lineNum">     977 </span><span class="lineNoCov">          0 :                       poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     978 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     979 </span>            :         }
+<span class="lineNum">     980 </span>            : 
+<span class="lineNum">     981 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;header.iOptions, 1, sizeof(header.iOptions), poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">     982 </span>            : 
+<span class="lineNum">     983 </span><span class="lineNoCov">          0 :         if( header.iOptions != 0x00 &amp;&amp; // Uncompressed</span>
+<span class="lineNum">     984 </span><span class="lineNoCov">          0 :             header.iOptions != 0x40 &amp;&amp; // Uncompressed</span>
+<span class="lineNum">     985 </span><span class="lineNoCov">          0 :             header.iOptions != 0x01 &amp;&amp; // RLE</span>
+<span class="lineNum">     986 </span><span class="lineNoCov">          0 :             header.iOptions != 0x41 &amp;&amp; // RLE</span>
+<span class="lineNum">     987 </span><span class="lineNoCov">          0 :             header.iOptions != 0x0B &amp;&amp; // LZW</span>
+<span class="lineNum">     988 </span><span class="lineNoCov">          0 :             header.iOptions != 0x0D )  // ZLIB</span>
+<span class="lineNum">     989 </span>            :         {
+<span class="lineNum">     990 </span>            :             CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">     991 </span>            :                       &quot;File %s. Unknown map options.\n&quot;,
+<span class="lineNum">     992 </span><span class="lineNoCov">          0 :                       poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     993 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     994 </span>            :         }
+<span class="lineNum">     995 </span>            :     }
+<span class="lineNum">     996 </span>            : 
+<span class="lineNum">     997 </span><span class="lineNoCov">          0 :     if( header.iBlockWidth == 0 ||</span>
+<span class="lineNum">     998 </span><span class="lineNoCov">          0 :         header.iHorBlocks == 0 ||</span>
+<span class="lineNum">     999 </span><span class="lineNoCov">          0 :         header.iBlockWidth &gt;= INT_MAX / header.iHorBlocks ||</span>
+<span class="lineNum">    1000 </span><span class="lineNoCov">          0 :         header.iBlockHeight == 0 ||</span>
+<span class="lineNum">    1001 </span><span class="lineNoCov">          0 :         header.iVertBlocks == 0 ||</span>
+<span class="lineNum">    1002 </span><span class="lineNoCov">          0 :         header.iBlockHeight &gt;= INT_MAX / header.iVertBlocks ||</span>
+<span class="lineNum">    1003 </span><span class="lineNoCov">          0 :         header.iBlockHeight &gt;= INT_MAX / header.iBlockWidth ||</span>
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :         header.iVertBlocks &gt;= INT_MAX / (int)sizeof(GUInt32) ||</span>
+<span class="lineNum">    1005 </span><span class="lineNoCov">          0 :         header.iHorBlocks &gt;= INT_MAX / (header.iVertBlocks * (int)sizeof(GUInt32)) )</span>
+<span class="lineNum">    1006 </span>            :     {
+<span class="lineNum">    1007 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1008 </span>            :     }
+<span class="lineNum">    1009 </span>            : 
+<span class="lineNum">    1010 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1011 </span>            : /*      Read the palette.                                               */
+<span class="lineNum">    1012 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1013 </span>            : 
+<span class="lineNum">    1014 </span>            :     GByte palette[768];
+<span class="lineNum">    1015 </span>            : 
+<span class="lineNum">    1016 </span><span class="lineNoCov">          0 :     for( GUInt16 i = 0; i &lt; 256; i++ )</span>
+<span class="lineNum">    1017 </span>            :     {
+<span class="lineNum">    1018 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;palette[i * 3 + 2], 1, 1, poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">    1019 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;palette[i * 3 + 1], 1, 1, poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">    1020 </span><span class="lineNoCov">          0 :         VSIFReadL( &amp;palette[i * 3 + 0], 1, 1, poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">    1021 </span>            :     }
+<span class="lineNum">    1022 </span>            : 
+<span class="lineNum">    1023 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1024 </span>            : /*      Find block offsets.                                             */
+<span class="lineNum">    1025 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1026 </span>            : 
+<span class="lineNum">    1027 </span><span class="lineNoCov">          0 :     GUInt32 blocks = header.iHorBlocks * header.iVertBlocks;</span>
+<span class="lineNum">    1028 </span>            :     GUInt32 *offsets = reinterpret_cast&lt;GUInt32 *&gt;(
+<span class="lineNum">    1029 </span><span class="lineNoCov">          0 :         VSIMalloc( blocks * sizeof(GUInt32) ) );</span>
+<span class="lineNum">    1030 </span>            : 
+<span class="lineNum">    1031 </span><span class="lineNoCov">          0 :     if( !offsets )</span>
+<span class="lineNum">    1032 </span>            :     {
+<span class="lineNum">    1033 </span>            :         CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1034 </span>            :                   &quot;File %s. Unable to allocate offset table.\n&quot;,
+<span class="lineNum">    1035 </span><span class="lineNoCov">          0 :                   poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1036 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1037 </span>            :     }
+<span class="lineNum">    1038 </span>            : 
+<span class="lineNum">    1039 </span><span class="lineNoCov">          0 :     if( header.iOptions == 0x00 )</span>
+<span class="lineNum">    1040 </span>            :     {
+<span class="lineNum">    1041 </span><span class="lineNoCov">          0 :         offsets[0] = static_cast&lt;GUInt32&gt;(VSIFTellL( poOpenInfo-&gt;fpL ));</span>
+<span class="lineNum">    1042 </span>            : 
+<span class="lineNum">    1043 </span><span class="lineNoCov">          0 :         if( VSIFEofL( poOpenInfo-&gt;fpL ) )</span>
+<span class="lineNum">    1044 </span>            :         {
+<span class="lineNum">    1045 </span>            :             CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1046 </span>            :                     &quot;File %s. Read past end of file.\n&quot;,
+<span class="lineNum">    1047 </span><span class="lineNoCov">          0 :                     poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1048 </span><span class="lineNoCov">          0 :             CPLFree(offsets);</span>
+<span class="lineNum">    1049 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1050 </span>            :         }
+<span class="lineNum">    1051 </span>            : 
+<span class="lineNum">    1052 </span><span class="lineNoCov">          0 :         VSIFSeekL( poOpenInfo-&gt;fpL, 0, SEEK_END );</span>
+<span class="lineNum">    1053 </span><span class="lineNoCov">          0 :         vsi_l_offset nBigFileSize = VSIFTellL( poOpenInfo-&gt;fpL );</span>
+<span class="lineNum">    1054 </span><span class="lineNoCov">          0 :         if( nBigFileSize &gt; UINT_MAX )</span>
+<span class="lineNum">    1055 </span><span class="lineNoCov">          0 :             nBigFileSize = UINT_MAX;</span>
+<span class="lineNum">    1056 </span><span class="lineNoCov">          0 :         GUInt32 fileSize = static_cast&lt;GUInt32&gt;(nBigFileSize);</span>
+<span class="lineNum">    1057 </span>            : 
+<span class="lineNum">    1058 </span><span class="lineNoCov">          0 :         GUInt32 nBlocksFromFileSize = (fileSize - offsets[0]) / (header.iBlockWidth * header.iBlockHeight);</span>
+<span class="lineNum">    1059 </span><span class="lineNoCov">          0 :         if( nBlocksFromFileSize &lt; blocks )</span>
+<span class="lineNum">    1060 </span>            :         {
+<span class="lineNum">    1061 </span><span class="lineNoCov">          0 :             blocks = nBlocksFromFileSize;</span>
+<span class="lineNum">    1062 </span><span class="lineNoCov">          0 :             header.iVertBlocks = blocks / header.iHorBlocks;</span>
+<span class="lineNum">    1063 </span>            :         }
+<span class="lineNum">    1064 </span>            : 
+<span class="lineNum">    1065 </span><span class="lineNoCov">          0 :         if( header.iVertBlocks == 0 )</span>
+<span class="lineNum">    1066 </span>            :         {
+<span class="lineNum">    1067 </span>            :             CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1068 </span>            :                         &quot;File %s too short.\n&quot;,
+<span class="lineNum">    1069 </span><span class="lineNoCov">          0 :                         poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1070 </span><span class="lineNoCov">          0 :             CPLFree( offsets );</span>
+<span class="lineNum">    1071 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1072 </span>            :         }
+<span class="lineNum">    1073 </span>            : 
+<span class="lineNum">    1074 </span><span class="lineNoCov">          0 :         for( GUInt32 i = 1; i &lt; blocks; i++ )</span>
+<span class="lineNum">    1075 </span>            :         {
+<span class="lineNum">    1076 </span><span class="lineNoCov">          0 :             offsets[i] = offsets[i - 1] +</span>
+<span class="lineNum">    1077 </span><span class="lineNoCov">          0 :                 header.iBlockWidth * header.iBlockHeight;</span>
+<span class="lineNum">    1078 </span>            :         }
+<span class="lineNum">    1079 </span>            :     }
+<span class="lineNum">    1080 </span>            :     else
+<span class="lineNum">    1081 </span>            :     {
+<span class="lineNum">    1082 </span><span class="lineNoCov">          0 :         for( GUInt32 i = 0; i &lt; blocks; i++ )</span>
+<span class="lineNum">    1083 </span>            :         {
+<span class="lineNum">    1084 </span><span class="lineNoCov">          0 :             if( VSIFReadL( &amp;offsets[i], sizeof(offsets[i]), 1, poOpenInfo-&gt;fpL ) != 1 )</span>
+<span class="lineNum">    1085 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1086 </span>            : #ifdef CPL_MSB
+<span class="lineNum">    1087 </span>            :             CPL_SWAP32PTR( &amp;offsets[i] );
+<span class="lineNum">    1088 </span>            : #endif
+<span class="lineNum">    1089 </span><span class="lineNoCov">          0 :             if( rik3header )</span>
+<span class="lineNum">    1090 </span>            :             {
+<span class="lineNum">    1091 </span>            :                 GUInt32 blockSize;
+<span class="lineNum">    1092 </span><span class="lineNoCov">          0 :                 if( VSIFReadL( &amp;blockSize, sizeof(blockSize), 1, poOpenInfo-&gt;fpL ) != 1 )</span>
+<span class="lineNum">    1093 </span><span class="lineNoCov">          0 :                     break;</span>
+<span class="lineNum">    1094 </span>            : #ifdef CPL_MSB
+<span class="lineNum">    1095 </span>            :                 CPL_SWAP32PTR( &amp;blockSize );
+<span class="lineNum">    1096 </span>            : #endif
+<span class="lineNum">    1097 </span>            :             }
+<span class="lineNum">    1098 </span>            :         }
+<span class="lineNum">    1099 </span>            :     }
+<span class="lineNum">    1100 </span>            : 
+<span class="lineNum">    1101 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1102 </span>            : /*      Final checks.                                                   */
+<span class="lineNum">    1103 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1104 </span>            : 
+<span class="lineNum">    1105 </span>            :     // File size
+<span class="lineNum">    1106 </span>            : 
+<span class="lineNum">    1107 </span><span class="lineNoCov">          0 :     if( VSIFEofL( poOpenInfo-&gt;fpL ) )</span>
+<span class="lineNum">    1108 </span>            :     {
+<span class="lineNum">    1109 </span>            :         CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1110 </span>            :                   &quot;File %s. Read past end of file.\n&quot;,
+<span class="lineNum">    1111 </span><span class="lineNoCov">          0 :                   poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1112 </span><span class="lineNoCov">          0 :         CPLFree(offsets);</span>
+<span class="lineNum">    1113 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1114 </span>            :     }
+<span class="lineNum">    1115 </span>            : 
+<span class="lineNum">    1116 </span><span class="lineNoCov">          0 :     VSIFSeekL( poOpenInfo-&gt;fpL, 0, SEEK_END );</span>
+<span class="lineNum">    1117 </span><span class="lineNoCov">          0 :     GUInt32 fileSize = static_cast&lt;GUInt32&gt;(VSIFTellL( poOpenInfo-&gt;fpL ));</span>
+<span class="lineNum">    1118 </span>            : 
+<span class="lineNum">    1119 </span>            : #if RIK_HEADER_DEBUG
+<span class="lineNum">    1120 </span>            :     CPLDebug( &quot;RIK&quot;,
+<span class="lineNum">    1121 </span>            :               &quot;File size %d\n&quot;,
+<span class="lineNum">    1122 </span>            :               fileSize );
+<span class="lineNum">    1123 </span>            : #endif
+<span class="lineNum">    1124 </span>            : 
+<span class="lineNum">    1125 </span>            :     // Make sure the offset table is valid
+<span class="lineNum">    1126 </span>            : 
+<span class="lineNum">    1127 </span><span class="lineNoCov">          0 :     GUInt32 lastoffset = 0;</span>
+<span class="lineNum">    1128 </span>            : 
+<span class="lineNum">    1129 </span><span class="lineNoCov">          0 :     for( GUInt32 y = 0; y &lt; header.iVertBlocks; y++)</span>
+<span class="lineNum">    1130 </span>            :     {
+<span class="lineNum">    1131 </span><span class="lineNoCov">          0 :         for( GUInt32 x = 0; x &lt; header.iHorBlocks; x++)</span>
+<span class="lineNum">    1132 </span>            :         {
+<span class="lineNum">    1133 </span><span class="lineNoCov">          0 :             if( !offsets[x + y * header.iHorBlocks] )</span>
+<span class="lineNum">    1134 </span>            :             {
+<span class="lineNum">    1135 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">    1136 </span>            :             }
+<span class="lineNum">    1137 </span>            : 
+<span class="lineNum">    1138 </span><span class="lineNoCov">          0 :             if( offsets[x + y * header.iHorBlocks] &gt;= fileSize )</span>
+<span class="lineNum">    1139 </span>            :             {
+<span class="lineNum">    1140 </span><span class="lineNoCov">          0 :                 if( !y )</span>
+<span class="lineNum">    1141 </span>            :                 {
+<span class="lineNum">    1142 </span>            :                     CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1143 </span>            :                               &quot;File %s too short.\n&quot;,
+<span class="lineNum">    1144 </span><span class="lineNoCov">          0 :                               poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1145 </span><span class="lineNoCov">          0 :                     CPLFree( offsets );</span>
+<span class="lineNum">    1146 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">    1147 </span>            :                 }
+<span class="lineNum">    1148 </span><span class="lineNoCov">          0 :                 header.iVertBlocks = y;</span>
+<span class="lineNum">    1149 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1150 </span>            :             }
+<span class="lineNum">    1151 </span>            : 
+<span class="lineNum">    1152 </span><span class="lineNoCov">          0 :             if( offsets[x + y * header.iHorBlocks] &lt; lastoffset )</span>
+<span class="lineNum">    1153 </span>            :             {
+<span class="lineNum">    1154 </span><span class="lineNoCov">          0 :                 if( !y )</span>
+<span class="lineNum">    1155 </span>            :                 {
+<span class="lineNum">    1156 </span>            :                     CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">    1157 </span>            :                               &quot;File %s. Corrupt offset table.\n&quot;,
+<span class="lineNum">    1158 </span><span class="lineNoCov">          0 :                               poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1159 </span><span class="lineNoCov">          0 :                     CPLFree( offsets );</span>
+<span class="lineNum">    1160 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">    1161 </span>            :                 }
+<span class="lineNum">    1162 </span><span class="lineNoCov">          0 :                 header.iVertBlocks = y;</span>
+<span class="lineNum">    1163 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1164 </span>            :             }
+<span class="lineNum">    1165 </span>            : 
+<span class="lineNum">    1166 </span><span class="lineNoCov">          0 :             lastoffset = offsets[x + y * header.iHorBlocks];</span>
+<span class="lineNum">    1167 </span>            :         }
+<span class="lineNum">    1168 </span>            :     }
+<span class="lineNum">    1169 </span>            : 
+<span class="lineNum">    1170 </span>            : #if RIK_HEADER_DEBUG
+<span class="lineNum">    1171 </span>            :     CPLDebug( &quot;RIK&quot;,
+<span class="lineNum">    1172 </span>            :               &quot;first offset %d\n&quot;
+<span class="lineNum">    1173 </span>            :               &quot;last offset %d\n&quot;,
+<span class="lineNum">    1174 </span>            :               offsets[0],
+<span class="lineNum">    1175 </span>            :               lastoffset );
+<span class="lineNum">    1176 </span>            : #endif
+<span class="lineNum">    1177 </span>            : 
+<span class="lineNum">    1178 </span><span class="lineNoCov">          0 :     const char *compression = &quot;RLE&quot;;</span>
+<span class="lineNum">    1179 </span>            : 
+<span class="lineNum">    1180 </span><span class="lineNoCov">          0 :     if( header.iOptions == 0x00 ||</span>
+<span class="lineNum">    1181 </span><span class="lineNoCov">          0 :         header.iOptions == 0x40 )</span>
+<span class="lineNum">    1182 </span><span class="lineNoCov">          0 :         compression = &quot;Uncompressed&quot;;</span>
+<span class="lineNum">    1183 </span><span class="lineNoCov">          0 :     if( header.iOptions == 0x0b )</span>
+<span class="lineNum">    1184 </span><span class="lineNoCov">          0 :         compression = &quot;LZW&quot;;</span>
+<span class="lineNum">    1185 </span><span class="lineNoCov">          0 :     if( header.iOptions == 0x0d )</span>
+<span class="lineNum">    1186 </span><span class="lineNoCov">          0 :         compression = &quot;ZLIB&quot;;</span>
+<span class="lineNum">    1187 </span>            : 
+<span class="lineNum">    1188 </span>            :     CPLDebug( &quot;RIK&quot;,
+<span class="lineNum">    1189 </span>            :               &quot;RIK file parameters:\n&quot;
+<span class="lineNum">    1190 </span>            :               &quot; name: %s\n&quot;
+<span class="lineNum">    1191 </span>            :               &quot; header: %s\n&quot;
+<span class="lineNum">    1192 </span>            :               &quot; unknown: 0x%X\n&quot;
+<span class="lineNum">    1193 </span>            :               &quot; south: %f\n&quot;
+<span class="lineNum">    1194 </span>            :               &quot; west: %f\n&quot;
+<span class="lineNum">    1195 </span>            :               &quot; north: %f\n&quot;
+<span class="lineNum">    1196 </span>            :               &quot; east: %f\n&quot;
+<span class="lineNum">    1197 </span>            :               &quot; original scale: %d\n&quot;
+<span class="lineNum">    1198 </span>            :               &quot; meters per pixel: %f\n&quot;
+<span class="lineNum">    1199 </span>            :               &quot; block width: %d\n&quot;
+<span class="lineNum">    1200 </span>            :               &quot; block height: %d\n&quot;
+<span class="lineNum">    1201 </span>            :               &quot; horizontal blocks: %d\n&quot;
+<span class="lineNum">    1202 </span>            :               &quot; vertical blocks: %d\n&quot;
+<span class="lineNum">    1203 </span>            :               &quot; bits per pixel: %d\n&quot;
+<span class="lineNum">    1204 </span>            :               &quot; options: 0x%X\n&quot;
+<span class="lineNum">    1205 </span>            :               &quot; compression: %s\n&quot;,
+<span class="lineNum">    1206 </span>            :               name, headerType, header.iUnknown,
+<span class="lineNum">    1207 </span>            :               header.fSouth, header.fWest, header.fNorth, header.fEast,
+<span class="lineNum">    1208 </span>            :               header.iScale, metersPerPixel,
+<span class="lineNum">    1209 </span>            :               header.iBlockWidth, header.iBlockHeight,
+<span class="lineNum">    1210 </span>            :               header.iHorBlocks, header.iVertBlocks,
+<span class="lineNum">    1211 </span><span class="lineNoCov">          0 :               header.iBitsPerPixel, header.iOptions, compression);</span>
+<span class="lineNum">    1212 </span>            : 
+<span class="lineNum">    1213 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1214 </span>            : /*      Create a corresponding GDALDataset.                             */
+<span class="lineNum">    1215 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1216 </span>            : 
+<span class="lineNum">    1217 </span><span class="lineNoCov">          0 :     RIKDataset *poDS = new RIKDataset();</span>
+<span class="lineNum">    1218 </span>            : 
+<span class="lineNum">    1219 </span><span class="lineNoCov">          0 :     poDS-&gt;fp = poOpenInfo-&gt;fpL;</span>
+<span class="lineNum">    1220 </span><span class="lineNoCov">          0 :     poOpenInfo-&gt;fpL = nullptr;</span>
+<span class="lineNum">    1221 </span>            : 
+<span class="lineNum">    1222 </span><span class="lineNoCov">          0 :     poDS-&gt;adfTransform[0] = header.fWest - metersPerPixel / 2.0;</span>
+<span class="lineNum">    1223 </span><span class="lineNoCov">          0 :     poDS-&gt;adfTransform[1] = metersPerPixel;</span>
+<span class="lineNum">    1224 </span><span class="lineNoCov">          0 :     poDS-&gt;adfTransform[2] = 0.0;</span>
+<span class="lineNum">    1225 </span><span class="lineNoCov">          0 :     poDS-&gt;adfTransform[3] = header.fNorth + metersPerPixel / 2.0;</span>
+<span class="lineNum">    1226 </span><span class="lineNoCov">          0 :     poDS-&gt;adfTransform[4] = 0.0;</span>
+<span class="lineNum">    1227 </span><span class="lineNoCov">          0 :     poDS-&gt;adfTransform[5] = -metersPerPixel;</span>
+<span class="lineNum">    1228 </span>            : 
+<span class="lineNum">    1229 </span><span class="lineNoCov">          0 :     poDS-&gt;nBlockXSize = header.iBlockWidth;</span>
+<span class="lineNum">    1230 </span><span class="lineNoCov">          0 :     poDS-&gt;nBlockYSize = header.iBlockHeight;</span>
+<span class="lineNum">    1231 </span><span class="lineNoCov">          0 :     poDS-&gt;nHorBlocks = header.iHorBlocks;</span>
+<span class="lineNum">    1232 </span><span class="lineNoCov">          0 :     poDS-&gt;nVertBlocks = header.iVertBlocks;</span>
+<span class="lineNum">    1233 </span><span class="lineNoCov">          0 :     poDS-&gt;pOffsets = offsets;</span>
+<span class="lineNum">    1234 </span><span class="lineNoCov">          0 :     poDS-&gt;options = header.iOptions;</span>
+<span class="lineNum">    1235 </span><span class="lineNoCov">          0 :     poDS-&gt;nFileSize = fileSize;</span>
+<span class="lineNum">    1236 </span>            : 
+<span class="lineNum">    1237 </span><span class="lineNoCov">          0 :     poDS-&gt;nRasterXSize = header.iBlockWidth * header.iHorBlocks;</span>
+<span class="lineNum">    1238 </span><span class="lineNoCov">          0 :     poDS-&gt;nRasterYSize = header.iBlockHeight * header.iVertBlocks;</span>
+<span class="lineNum">    1239 </span>            : 
+<span class="lineNum">    1240 </span><span class="lineNoCov">          0 :     poDS-&gt;nBands = 1;</span>
+<span class="lineNum">    1241 </span>            : 
+<span class="lineNum">    1242 </span>            :     GDALColorEntry oEntry;
+<span class="lineNum">    1243 </span><span class="lineNoCov">          0 :     poDS-&gt;poColorTable = new GDALColorTable();</span>
+<span class="lineNum">    1244 </span><span class="lineNoCov">          0 :     for( GUInt16 i = 0; i &lt; 256; i++ )</span>
+<span class="lineNum">    1245 </span>            :     {
+<span class="lineNum">    1246 </span><span class="lineNoCov">          0 :         oEntry.c1 = palette[i * 3 + 2]; // Red</span>
+<span class="lineNum">    1247 </span><span class="lineNoCov">          0 :         oEntry.c2 = palette[i * 3 + 1]; // Green</span>
+<span class="lineNum">    1248 </span><span class="lineNoCov">          0 :         oEntry.c3 = palette[i * 3];     // Blue</span>
+<span class="lineNum">    1249 </span><span class="lineNoCov">          0 :         oEntry.c4 = 255;</span>
+<span class="lineNum">    1250 </span>            : 
+<span class="lineNum">    1251 </span><span class="lineNoCov">          0 :         poDS-&gt;poColorTable-&gt;SetColorEntry( i, &amp;oEntry );</span>
+<span class="lineNum">    1252 </span>            :     }
+<span class="lineNum">    1253 </span>            : 
+<span class="lineNum">    1254 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1255 </span>            : /*      Create band information objects.                                */
+<span class="lineNum">    1256 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1257 </span>            : 
+<span class="lineNum">    1258 </span><span class="lineNoCov">          0 :     poDS-&gt;SetBand( 1, new RIKRasterBand( poDS, 1 ));</span>
+<span class="lineNum">    1259 </span>            : 
+<span class="lineNum">    1260 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1261 </span>            : /*      Initialize any PAM information.                                 */
+<span class="lineNum">    1262 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1263 </span>            : 
+<span class="lineNum">    1264 </span><span class="lineNoCov">          0 :     poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">    1265 </span><span class="lineNoCov">          0 :     poDS-&gt;TryLoadXML();</span>
+<span class="lineNum">    1266 </span>            : 
+<span class="lineNum">    1267 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1268 </span>            : /*      Check for external overviews.                                   */
+<span class="lineNum">    1269 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1270 </span><span class="lineNoCov">          0 :     poDS-&gt;oOvManager.Initialize( poDS, poOpenInfo-&gt;pszFilename, poOpenInfo-&gt;GetSiblingFiles() );</span>
+<span class="lineNum">    1271 </span>            : 
+<span class="lineNum">    1272 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1273 </span>            : /*      Confirm the requested access is supported.                      */
+<span class="lineNum">    1274 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1275 </span><span class="lineNoCov">          0 :     if( poOpenInfo-&gt;eAccess == GA_Update )</span>
+<span class="lineNum">    1276 </span>            :     {
+<span class="lineNum">    1277 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">    1278 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1279 </span>            :                   &quot;The RIK driver does not support update access to existing&quot;
+<span class="lineNum">    1280 </span><span class="lineNoCov">          0 :                   &quot; datasets.\n&quot; );</span>
+<span class="lineNum">    1281 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1282 </span>            :     }
+<span class="lineNum">    1283 </span>            : 
+<span class="lineNum">    1284 </span><span class="lineNoCov">          0 :     return poDS;</span>
+<span class="lineNum">    1285 </span>            : }
+<span class="lineNum">    1286 </span>            : 
+<span class="lineNum">    1287 </span>            : /************************************************************************/
+<span class="lineNum">    1288 </span>            : /*                          GDALRegister_RIK()                          */
+<a name="1289"><span class="lineNum">    1289 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1290 </span>            : 
+<span class="lineNum">    1291 </span><span class="lineCov">       1109 : void GDALRegister_RIK()</span>
+<span class="lineNum">    1292 </span>            : 
+<span class="lineNum">    1293 </span>            : {
+<span class="lineNum">    1294 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( &quot;RIK&quot; ) != nullptr )</span>
+<span class="lineNum">    1295 </span><span class="lineCov">       1231 :         return;</span>
+<span class="lineNum">    1296 </span>            : 
+<span class="lineNum">    1297 </span><span class="lineCov">        987 :     GDALDriver *poDriver = new GDALDriver();</span>
+<span class="lineNum">    1298 </span>            : 
+<span class="lineNum">    1299 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( &quot;RIK&quot; );</span>
+<span class="lineNum">    1300 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">    1301 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME, &quot;Swedish Grid RIK (.rik)&quot; );</span>
+<span class="lineNum">    1302 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_HELPTOPIC, &quot;frmt_various.html#RIK&quot; );</span>
+<span class="lineNum">    1303 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_EXTENSION, &quot;rik&quot; );</span>
+<span class="lineNum">    1304 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VIRTUALIO, &quot;YES&quot; );</span>
+<span class="lineNum">    1305 </span>            : 
+<span class="lineNum">    1306 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = RIKDataset::Open;</span>
+<span class="lineNum">    1307 </span><span class="lineCov">        987 :     poDriver-&gt;pfnIdentify = RIKDataset::Identify;</span>
+<span class="lineNum">    1308 </span>            : 
+<span class="lineNum">    1309 </span><span class="lineCov">        987 :     GetGDALDriverManager()-&gt;RegisterDriver( poDriver );</span>
+<span class="lineNum">    1310 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

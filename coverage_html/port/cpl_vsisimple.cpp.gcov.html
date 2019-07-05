@@ -1,0 +1,1559 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_vsisimple.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_vsisimple.cpp<span style="font-size: 80%;"> (source / <a href="cpl_vsisimple.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">146</td>
+            <td class="headerCovTableEntry">193</td>
+            <td class="headerCovTableEntryMed">75.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">29</td>
+            <td class="headerCovTableEntry">42</td>
+            <td class="headerCovTableEntryLo">69.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  Common Portability Library
+<span class="lineNum">       4 </span>            :  * Purpose:  Simple implementation of POSIX VSI functions.
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 1998, Frank Warmerdam
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2008-2012, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************
+<span class="lineNum">      29 </span>            :  *
+<span class="lineNum">      30 </span>            :  * NB: Note that in wrappers we are always saving the error state (errno
+<span class="lineNum">      31 </span>            :  * variable) to avoid side effects during debug prints or other possible
+<span class="lineNum">      32 </span>            :  * standard function calls (error states will be overwritten after such
+<span class="lineNum">      33 </span>            :  * a call).
+<span class="lineNum">      34 </span>            :  *
+<span class="lineNum">      35 </span>            :  ****************************************************************************/
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      38 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : #include &lt;cerrno&gt;
+<span class="lineNum">      41 </span>            : #include &lt;cstdarg&gt;
+<span class="lineNum">      42 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      43 </span>            : #include &lt;cstdio&gt;
+<span class="lineNum">      44 </span>            : #include &lt;cstdlib&gt;
+<span class="lineNum">      45 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      46 </span>            : #include &lt;ctime&gt;
+<span class="lineNum">      47 </span>            : #if HAVE_SYS_STAT_H
+<span class="lineNum">      48 </span>            : #  include &lt;sys/stat.h&gt;
+<span class="lineNum">      49 </span>            : #endif
+<span class="lineNum">      50 </span>            : #if HAVE_GETRLIMIT
+<span class="lineNum">      51 </span>            : #include &lt;sys/time.h&gt;
+<span class="lineNum">      52 </span>            : #include &lt;sys/resource.h&gt;
+<span class="lineNum">      53 </span>            : #endif
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            : #include &quot;cpl_config.h&quot;
+<span class="lineNum">      56 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      57 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span>            : #ifdef _WIN32
+<span class="lineNum">      60 </span>            : #include &lt;malloc.h&gt; // For _aligned_malloc
+<span class="lineNum">      61 </span>            : #endif
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            : // Uncomment to check consistent usage of VSIMalloc(), VSIRealloc(),
+<span class="lineNum">      64 </span>            : // VSICalloc(), VSIFree(), VSIStrdup().
+<span class="lineNum">      65 </span>            : // #define DEBUG_VSIMALLOC
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            : // Uncomment to compute memory usage statistics.
+<span class="lineNum">      68 </span>            : // DEBUG_VSIMALLOC must also be defined.
+<span class="lineNum">      69 </span>            : // #define DEBUG_VSIMALLOC_STATS
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            : // Highly experimental, and likely buggy. Do not use, except for fixing it!
+<span class="lineNum">      72 </span>            : // DEBUG_VSIMALLOC must also be defined.
+<span class="lineNum">      73 </span>            : // #define DEBUG_VSIMALLOC_MPROTECT
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            : #ifdef DEBUG_VSIMALLOC_MPROTECT
+<span class="lineNum">      76 </span>            : #include &lt;sys/mman.h&gt;
+<span class="lineNum">      77 </span>            : #endif
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span>            : // Uncomment to print every memory allocation or deallocation.
+<span class="lineNum">      80 </span>            : // DEBUG_VSIMALLOC must also be defined.
+<span class="lineNum">      81 </span>            : // #define DEBUG_VSIMALLOC_VERBOSE
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            : // Number of bytes of the malloc/calloc/free that triggers a debug trace.
+<span class="lineNum">      84 </span>            : // Can be 0 for all allocs.
+<span class="lineNum">      85 </span>            : #define THRESHOLD_PRINT 10000
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            : // Uncomment to print GDAL block cache use.
+<span class="lineNum">      88 </span>            : // Only used if DEBUG_VSIMALLOC_VERBOSE is enabled.
+<span class="lineNum">      89 </span>            : // #define DEBUG_BLOCK_CACHE_USE
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span>            : #ifdef DEBUG_BLOCK_CACHE_USE
+<span class="lineNum">      92 </span>            : extern &quot;C&quot; GIntBig CPL_DLL CPL_STDCALL GDALGetCacheUsed64(void);
+<span class="lineNum">      93 </span>            : #endif
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            : /* Unix or Windows NT/2000/XP */
+<span class="lineNum">      98 </span>            : #if !defined(WIN32)
+<span class="lineNum">      99 </span>            : #  include &lt;unistd.h&gt;
+<span class="lineNum">     100 </span>            : #else
+<span class="lineNum">     101 </span>            : #  include &lt;io.h&gt;
+<span class="lineNum">     102 </span>            : #  include &lt;fcntl.h&gt;
+<span class="lineNum">     103 </span>            : #  include &lt;direct.h&gt;
+<span class="lineNum">     104 </span>            : #endif
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span>            : /************************************************************************/
+<span class="lineNum">     107 </span>            : /*                              VSIFOpen()                              */
+<a name="108"><span class="lineNum">     108 </span>            : /************************************************************************/</a>
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span><span class="lineCov">         63 : FILE *VSIFOpen( const char * pszFilename, const char * pszAccess )</span>
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            : {
+<span class="lineNum">     113 </span>            : #if defined(WIN32)
+<span class="lineNum">     114 </span>            :     FILE *fp = nullptr;
+<span class="lineNum">     115 </span>            :     if( CPLTestBool( CPLGetConfigOption( &quot;GDAL_FILENAME_IS_UTF8&quot;, &quot;YES&quot; ) ) )
+<span class="lineNum">     116 </span>            :     {
+<span class="lineNum">     117 </span>            :         wchar_t *pwszFilename =
+<span class="lineNum">     118 </span>            :             CPLRecodeToWChar( pszFilename, CPL_ENC_UTF8, CPL_ENC_UCS2 );
+<span class="lineNum">     119 </span>            :         wchar_t *pwszAccess =
+<span class="lineNum">     120 </span>            :             CPLRecodeToWChar( pszAccess, CPL_ENC_UTF8, CPL_ENC_UCS2 );
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            :         fp = _wfopen( pwszFilename, pwszAccess );
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span>            :         CPLFree( pwszFilename );
+<span class="lineNum">     125 </span>            :         CPLFree( pwszAccess );
+<span class="lineNum">     126 </span>            :     }
+<span class="lineNum">     127 </span>            :     else
+<span class="lineNum">     128 </span>            :     {
+<span class="lineNum">     129 </span>            :         // Are the casts really necessary?
+<span class="lineNum">     130 </span>            :         fp = fopen(const_cast&lt;char *&gt;(pszFilename),
+<span class="lineNum">     131 </span>            :                    const_cast&lt;char *&gt;(pszAccess));
+<span class="lineNum">     132 </span>            :     }
+<span class="lineNum">     133 </span>            : #else
+<span class="lineNum">     134 </span><span class="lineCov">         63 :     FILE *fp = fopen(pszFilename, pszAccess);</span>
+<span class="lineNum">     135 </span>            : #endif
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span>            : #ifdef VSI_DEBUG
+<span class="lineNum">     138 </span>            :     // Capture the error from fopen to avoid being overwritten by errors
+<span class="lineNum">     139 </span>            :     // from VSIDebug3.
+<span class="lineNum">     140 </span>            :     const int nError = errno;
+<span class="lineNum">     141 </span>            :     VSIDebug3( &quot;VSIFOpen(%s,%s) = %p&quot;, pszFilename, pszAccess, fp );
+<span class="lineNum">     142 </span>            :     errno = nError;
+<span class="lineNum">     143 </span>            : #endif
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span><span class="lineCov">         63 :     return fp;</span>
+<span class="lineNum">     146 </span>            : }
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            : /************************************************************************/
+<span class="lineNum">     149 </span>            : /*                             VSIFClose()                              */
+<a name="150"><span class="lineNum">     150 </span>            : /************************************************************************/</a>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">         56 : int VSIFClose( FILE * fp )</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            : {
+<span class="lineNum">     155 </span>            :     VSIDebug1( &quot;VSIClose(%p)&quot;, fp );
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span><span class="lineCov">         56 :     return fclose(fp);</span>
+<span class="lineNum">     158 </span>            : }
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            : /************************************************************************/
+<span class="lineNum">     161 </span>            : /*                              VSIFSeek()                              */
+<a name="162"><span class="lineNum">     162 </span>            : /************************************************************************/</a>
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span><span class="lineCov">         64 : int VSIFSeek( FILE * fp, long nOffset, int nWhence )</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : {
+<span class="lineNum">     167 </span>            : #ifdef DEBUG
+<span class="lineNum">     168 </span>            :     // To workaround Coverity strange warning about potential negative seek
+<span class="lineNum">     169 </span>            :     // CID 1340084 when called from dgnwrite.cpp.
+<span class="lineNum">     170 </span><span class="lineCov">         64 :     if( nWhence == SEEK_SET &amp;&amp; nOffset &lt; 0 )</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     172 </span>            : #endif
+<span class="lineNum">     173 </span><span class="lineCov">         64 :     int nResult = fseek( fp, nOffset, nWhence );</span>
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span>            : #ifdef VSI_DEBUG
+<span class="lineNum">     176 </span>            :     // Capture the error from fseek to avoid being overwritten by errors
+<span class="lineNum">     177 </span>            :     // from VSIDebug.
+<span class="lineNum">     178 </span>            :     const int nError = errno;
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span>            :     if( nWhence == SEEK_SET )
+<span class="lineNum">     181 </span>            :     {
+<span class="lineNum">     182 </span>            :         VSIDebug3( &quot;VSIFSeek(%p,%ld,SEEK_SET) = %d&quot;, fp, nOffset, nResult );
+<span class="lineNum">     183 </span>            :     }
+<span class="lineNum">     184 </span>            :     else if( nWhence == SEEK_END )
+<span class="lineNum">     185 </span>            :     {
+<span class="lineNum">     186 </span>            :         VSIDebug3( &quot;VSIFSeek(%p,%ld,SEEK_END) = %d&quot;, fp, nOffset, nResult );
+<span class="lineNum">     187 </span>            :     }
+<span class="lineNum">     188 </span>            :     else if( nWhence == SEEK_CUR )
+<span class="lineNum">     189 </span>            :     {
+<span class="lineNum">     190 </span>            :         VSIDebug3( &quot;VSIFSeek(%p,%ld,SEEK_CUR) = %d&quot;, fp, nOffset, nResult );
+<span class="lineNum">     191 </span>            :     }
+<span class="lineNum">     192 </span>            :     else
+<span class="lineNum">     193 </span>            :     {
+<span class="lineNum">     194 </span>            :         VSIDebug4( &quot;VSIFSeek(%p,%ld,%d-Unknown) = %d&quot;,
+<span class="lineNum">     195 </span>            :                    fp, nOffset, nWhence, nResult );
+<span class="lineNum">     196 </span>            :     }
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            :     errno = nError;
+<span class="lineNum">     199 </span>            : #endif
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span><span class="lineCov">         64 :     return nResult;</span>
+<span class="lineNum">     202 </span>            : }
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span>            : /************************************************************************/
+<span class="lineNum">     205 </span>            : /*                              VSIFTell()                              */
+<a name="206"><span class="lineNum">     206 </span>            : /************************************************************************/</a>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineCov">         73 : long VSIFTell( FILE * fp )</span>
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            : {
+<span class="lineNum">     211 </span><span class="lineCov">         73 :     const long nOffset = ftell(fp);</span>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span>            : #ifdef VSI_DEBUG
+<span class="lineNum">     214 </span>            :     // Capture the error from ftell to avoid being overwritten by errors
+<span class="lineNum">     215 </span>            :     // from VSIDebug.
+<span class="lineNum">     216 </span>            :     const int nError = errno;
+<span class="lineNum">     217 </span>            :     VSIDebug2( &quot;VSIFTell(%p) = %ld&quot;, fp, nOffset );
+<span class="lineNum">     218 </span>            :     errno = nError;
+<span class="lineNum">     219 </span>            : #endif
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span><span class="lineCov">         73 :     return nOffset;</span>
+<span class="lineNum">     222 </span>            : }
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            : /************************************************************************/
+<span class="lineNum">     225 </span>            : /*                             VSIRewind()                              */
+<a name="226"><span class="lineNum">     226 </span>            : /************************************************************************/</a>
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 : void VSIRewind( FILE * fp )</span>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span>            : {
+<span class="lineNum">     231 </span>            :     VSIDebug1(&quot;VSIRewind(%p)&quot;, fp );
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :     rewind( fp );</span>
+<span class="lineNum">     233 </span>            : #ifdef VSI_DEBUG
+<span class="lineNum">     234 </span>            :     // Capture the error rewind ftell to avoid being overwritten by errors
+<span class="lineNum">     235 </span>            :     // from VSIDebug.
+<span class="lineNum">     236 </span>            :     const int nError = errno;
+<span class="lineNum">     237 </span>            :     VSIDebug2( &quot;VSIRewind(%p) errno = %d&quot;, fp, nError );
+<span class="lineNum">     238 </span>            :     errno = nError;
+<span class="lineNum">     239 </span>            : #endif
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     241 </span>            : 
+<span class="lineNum">     242 </span>            : /************************************************************************/
+<span class="lineNum">     243 </span>            : /*                              VSIFRead()                              */
+<a name="244"><span class="lineNum">     244 </span>            : /************************************************************************/</a>
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 : size_t VSIFRead( void * pBuffer, size_t nSize, size_t nCount, FILE * fp )</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            : {
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :     const size_t nResult = fread( pBuffer, nSize, nCount, fp );</span>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            : #ifdef VSI_DEBUG
+<span class="lineNum">     252 </span>            :     // Capture the error from fread to avoid being overwritten by errors
+<span class="lineNum">     253 </span>            :     // from VSIDebug.
+<span class="lineNum">     254 </span>            :     const int nError = errno;
+<span class="lineNum">     255 </span>            :     VSIDebug4( &quot;VSIFRead(%p,%ld,%ld) = %ld&quot;,
+<span class="lineNum">     256 </span>            :                fp, static_cast&lt;long&gt;(nSize), static_cast&lt;long&gt;(nCount),
+<span class="lineNum">     257 </span>            :                static_cast&lt;long&gt;(nResult) );
+<span class="lineNum">     258 </span>            :     errno = nError;
+<span class="lineNum">     259 </span>            : #endif
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :     return nResult;</span>
+<span class="lineNum">     262 </span>            : }
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span>            : /************************************************************************/
+<span class="lineNum">     265 </span>            : /*                             VSIFWrite()                              */
+<a name="266"><span class="lineNum">     266 </span>            : /************************************************************************/</a>
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span><span class="lineCov">        966 : size_t VSIFWrite( const void *pBuffer, size_t nSize, size_t nCount, FILE * fp )</span>
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            : {
+<span class="lineNum">     271 </span><span class="lineCov">        966 :     const size_t nResult = fwrite( pBuffer, nSize, nCount, fp );</span>
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span>            : #ifdef VSI_DEBUG
+<span class="lineNum">     274 </span>            :     // Capture the error from fwrite to avoid being overwritten by errors
+<span class="lineNum">     275 </span>            :     // from VSIDebug.
+<span class="lineNum">     276 </span>            :     const int nError = errno;
+<span class="lineNum">     277 </span>            :     VSIDebug4( &quot;VSIFWrite(%p,%ld,%ld) = %ld&quot;,
+<span class="lineNum">     278 </span>            :                fp, static_cast&lt;long&gt;(nSize), static_cast&lt;long&gt;(nCount),
+<span class="lineNum">     279 </span>            :                static_cast&lt;long&gt;(nResult) );
+<span class="lineNum">     280 </span>            :     errno = nError;
+<span class="lineNum">     281 </span>            : #endif
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span><span class="lineCov">        966 :     return nResult;</span>
+<span class="lineNum">     284 </span>            : }
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            : /************************************************************************/
+<span class="lineNum">     287 </span>            : /*                             VSIFFlush()                              */
+<a name="288"><span class="lineNum">     288 </span>            : /************************************************************************/</a>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 : void VSIFFlush( FILE * fp )</span>
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            : {
+<span class="lineNum">     293 </span>            : #ifdef VSI_DEBUG
+<span class="lineNum">     294 </span>            :     VSIDebug1( &quot;VSIFFlush(%p)&quot;, fp );
+<span class="lineNum">     295 </span>            :     const int result =
+<span class="lineNum">     296 </span>            : #endif
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :         fflush( fp );</span>
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span>            : #ifdef VSI_DEBUG
+<span class="lineNum">     300 </span>            :     // Capture the error rewind ftell to avoid being overwritten by errors
+<span class="lineNum">     301 </span>            :     // from VSIDebug.
+<span class="lineNum">     302 </span>            :     const int nError = errno;
+<span class="lineNum">     303 </span>            :     VSIDebug2( &quot;VSIRewind(%p) errno = %d&quot;, fp, nError );
+<span class="lineNum">     304 </span>            :     if( result != 0 )
+<span class="lineNum">     305 </span>            :     {
+<span class="lineNum">     306 </span>            :         CPLError( CE_Failure, CPLE_FileIO, &quot;Flush failed.  errno = %d&quot;,
+<span class="lineNum">     307 </span>            :                   nError);
+<span class="lineNum">     308 </span>            :     }
+<span class="lineNum">     309 </span>            :     errno = nError;
+<span class="lineNum">     310 </span>            : #endif
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            : /************************************************************************/
+<span class="lineNum">     314 </span>            : /*                              VSIFGets()                              */
+<a name="315"><span class="lineNum">     315 </span>            : /************************************************************************/</a>
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineCov">         72 : char *VSIFGets( char *pszBuffer, int nBufferSize, FILE * fp )</span>
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span>            : {
+<span class="lineNum">     320 </span><span class="lineCov">         72 :     return fgets( pszBuffer, nBufferSize, fp );</span>
+<span class="lineNum">     321 </span>            : }
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            : /************************************************************************/
+<span class="lineNum">     324 </span>            : /*                              VSIFGetc()                              */
+<a name="325"><span class="lineNum">     325 </span>            : /************************************************************************/</a>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 : int VSIFGetc( FILE * fp )</span>
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span>            : {
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :     return fgetc( fp );</span>
+<span class="lineNum">     331 </span>            : }
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            : /************************************************************************/
+<span class="lineNum">     334 </span>            : /*                             VSIUngetc()                              */
+<a name="335"><span class="lineNum">     335 </span>            : /************************************************************************/</a>
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 : int VSIUngetc( int c, FILE * fp )</span>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            : {
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :     return ungetc( c, fp );</span>
+<span class="lineNum">     341 </span>            : }
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span>            : /************************************************************************/
+<span class="lineNum">     344 </span>            : /*                             VSIFPrintf()                             */
+<span class="lineNum">     345 </span>            : /*                                                                      */
+<span class="lineNum">     346 </span>            : /*      This is a little more complicated than just calling             */
+<span class="lineNum">     347 </span>            : /*      fprintf() because of the variable arguments.  Instead we        */
+<span class="lineNum">     348 </span>            : /*      have to use vfprintf().                                         */
+<a name="349"><span class="lineNum">     349 </span>            : /************************************************************************/</a>
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 : int VSIFPrintf( FILE * fp, CPL_FORMAT_STRING(const char * pszFormat), ... )</span>
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            : {
+<span class="lineNum">     354 </span>            :     va_list args;
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :     va_start( args, pszFormat );</span>
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :     const int nReturn = vfprintf( fp, pszFormat, args );</span>
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :     va_end( args );</span>
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :     return nReturn;</span>
+<span class="lineNum">     361 </span>            : }
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span>            : /************************************************************************/
+<span class="lineNum">     364 </span>            : /*                              VSIFEof()                               */
+<a name="365"><span class="lineNum">     365 </span>            : /************************************************************************/</a>
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 : int VSIFEof( FILE * fp )</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span>            : {
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :     return feof( fp );</span>
+<span class="lineNum">     371 </span>            : }
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span>            : /************************************************************************/
+<span class="lineNum">     374 </span>            : /*                              VSIFPuts()                              */
+<a name="375"><span class="lineNum">     375 </span>            : /************************************************************************/</a>
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 : int VSIFPuts( const char * pszString, FILE * fp )</span>
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            : {
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :     return fputs( pszString, fp );</span>
+<span class="lineNum">     381 </span>            : }
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span>            : /************************************************************************/
+<span class="lineNum">     384 </span>            : /*                              VSIFPutc()                              */
+<a name="385"><span class="lineNum">     385 </span>            : /************************************************************************/</a>
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 : int VSIFPutc( int nChar, FILE * fp )</span>
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span>            : {
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :     return fputc( nChar, fp );</span>
+<span class="lineNum">     391 </span>            : }
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     394 </span>            : #include &quot;cpl_multiproc.h&quot;
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span>            : static CPLMutex* hMemStatMutex = nullptr;
+<span class="lineNum">     397 </span>            : static size_t nCurrentTotalAllocs = 0;
+<span class="lineNum">     398 </span>            : static size_t nMaxTotalAllocs = 0;
+<span class="lineNum">     399 </span>            : static GUIntBig nVSIMallocs = 0;
+<span class="lineNum">     400 </span>            : static GUIntBig nVSICallocs = 0;
+<span class="lineNum">     401 </span>            : static GUIntBig nVSIReallocs = 0;
+<span class="lineNum">     402 </span>            : static GUIntBig nVSIFrees = 0;
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            : /************************************************************************/
+<span class="lineNum">     405 </span>            : /*                         VSIShowMemStats()                            */
+<span class="lineNum">     406 </span>            : /************************************************************************/
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span>            : void VSIShowMemStats();
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span>            : void VSIShowMemStats()
+<span class="lineNum">     411 </span>            : {
+<span class="lineNum">     412 </span>            :     char* pszShowMemStats = getenv(&quot;CPL_SHOW_MEM_STATS&quot;);
+<span class="lineNum">     413 </span>            :     if( pszShowMemStats == nullptr || pszShowMemStats[0] == '\0' )
+<span class="lineNum">     414 </span>            :         return;
+<span class="lineNum">     415 </span>            :     printf(&quot;Current VSI memory usage        : &quot; CPL_FRMT_GUIB &quot; bytes\n&quot;, /*ok*/
+<span class="lineNum">     416 </span>            :            static_cast&lt;GUIntBig&gt;(nCurrentTotalAllocs));
+<span class="lineNum">     417 </span>            :     printf(&quot;Maximum VSI memory usage        : &quot; CPL_FRMT_GUIB &quot; bytes\n&quot;, /*ok*/
+<span class="lineNum">     418 </span>            :            static_cast&lt;GUIntBig&gt;(nMaxTotalAllocs));
+<span class="lineNum">     419 </span>            :     printf(&quot;Number of calls to VSIMalloc()  : &quot; CPL_FRMT_GUIB &quot;\n&quot;, /*ok*/
+<span class="lineNum">     420 </span>            :            nVSIMallocs);
+<span class="lineNum">     421 </span>            :     printf(&quot;Number of calls to VSICalloc()  : &quot; CPL_FRMT_GUIB &quot;\n&quot;, /*ok*/
+<span class="lineNum">     422 </span>            :            nVSICallocs);
+<span class="lineNum">     423 </span>            :     printf(&quot;Number of calls to VSIRealloc() : &quot; CPL_FRMT_GUIB &quot;\n&quot;, /*ok*/
+<span class="lineNum">     424 </span>            :            nVSIReallocs);
+<span class="lineNum">     425 </span>            :     printf(&quot;Number of calls to VSIFree()    : &quot; CPL_FRMT_GUIB &quot;\n&quot;, /*ok*/
+<span class="lineNum">     426 </span>            :            nVSIFrees);
+<span class="lineNum">     427 </span>            :     printf(&quot;VSIMalloc + VSICalloc - VSIFree : &quot; CPL_FRMT_GUIB &quot;\n&quot;, /*ok*/
+<span class="lineNum">     428 </span>            :            nVSIMallocs + nVSICallocs - nVSIFrees);
+<span class="lineNum">     429 </span>            : }
+<span class="lineNum">     430 </span>            : #endif
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span>            : #ifdef DEBUG_VSIMALLOC
+<span class="lineNum">     433 </span>            : static GIntBig nMaxPeakAllocSize = -1;
+<span class="lineNum">     434 </span>            : static GIntBig nMaxCumulAllocSize = -1;
+<span class="lineNum">     435 </span>            : #endif
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span>            : /************************************************************************/
+<span class="lineNum">     438 </span>            : /*                             VSICalloc()                              */
+<span class="lineNum">     439 </span>            : /************************************************************************/
+<span class="lineNum">     440 </span>            : 
+<span class="lineNum">     441 </span>            : #ifndef DEBUG_VSIMALLOC
+<a name="442"><span class="lineNum">     442 </span>            : </a>
+<span class="lineNum">     443 </span>            : /** Analog of calloc(). Use VSIFree() to free */
+<span class="lineNum">     444 </span><span class="lineCov">   12453628 : void *VSICalloc( size_t nCount, size_t nSize )</span>
+<span class="lineNum">     445 </span>            : {
+<span class="lineNum">     446 </span>            :     // cppcheck-suppress invalidFunctionArg
+<span class="lineNum">     447 </span><span class="lineCov">   12453628 :     return calloc( nCount, nSize );</span>
+<span class="lineNum">     448 </span>            : }
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span>            : #else  // DEBUG_VSIMALLOC
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span>            : void *VSICalloc( size_t nCount, size_t nSize )
+<span class="lineNum">     453 </span>            : {
+<span class="lineNum">     454 </span>            :     size_t nMul = nCount * nSize;
+<span class="lineNum">     455 </span>            :     if( nCount != 0 &amp;&amp; nMul / nCount != nSize )
+<span class="lineNum">     456 </span>            :     {
+<span class="lineNum">     457 </span>            :         fprintf(stderr, &quot;Overflow in VSICalloc(%d, %d)\n&quot;, /*ok*/
+<span class="lineNum">     458 </span>            :                 static_cast&lt;int&gt;(nCount), static_cast&lt;int&gt;(nSize));
+<span class="lineNum">     459 </span>            :         return nullptr;
+<span class="lineNum">     460 </span>            :     }
+<span class="lineNum">     461 </span>            :     if( nMaxPeakAllocSize &lt; 0 )
+<span class="lineNum">     462 </span>            :     {
+<span class="lineNum">     463 </span>            :         char* pszMaxPeakAllocSize = getenv(&quot;CPL_MAX_PEAK_ALLOC_SIZE&quot;);
+<span class="lineNum">     464 </span>            :         nMaxPeakAllocSize = pszMaxPeakAllocSize ? atoi(pszMaxPeakAllocSize) : 0;
+<span class="lineNum">     465 </span>            :         char* pszMaxCumulAllocSize = getenv(&quot;CPL_MAX_CUMUL_ALLOC_SIZE&quot;);
+<span class="lineNum">     466 </span>            :         nMaxCumulAllocSize =
+<span class="lineNum">     467 </span>            :             pszMaxCumulAllocSize ? atoi(pszMaxCumulAllocSize) : 0;
+<span class="lineNum">     468 </span>            :     }
+<span class="lineNum">     469 </span>            :     if( nMaxPeakAllocSize &gt; 0 &amp;&amp;
+<span class="lineNum">     470 </span>            :         static_cast&lt;GIntBig&gt;(nMul) &gt; nMaxPeakAllocSize )
+<span class="lineNum">     471 </span>            :         return nullptr;
+<span class="lineNum">     472 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     473 </span>            :     if( nMaxCumulAllocSize &gt; 0 &amp;&amp;
+<span class="lineNum">     474 </span>            :         static_cast&lt;GIntBig&gt;(nCurrentTotalAllocs) + static_cast&lt;GIntBig&gt;(nMul) &gt;
+<span class="lineNum">     475 </span>            :         nMaxCumulAllocSize )
+<span class="lineNum">     476 </span>            :         return nullptr;
+<span class="lineNum">     477 </span>            : #endif
+<span class="lineNum">     478 </span>            : 
+<span class="lineNum">     479 </span>            : #ifdef DEBUG_VSIMALLOC_MPROTECT
+<span class="lineNum">     480 </span>            :     char* ptr = nullptr;
+<span class="lineNum">     481 </span>            :     const size_t nPageSize = getpagesize();
+<span class="lineNum">     482 </span>            :     const size_t nRequestedSize =
+<span class="lineNum">     483 </span>            :         (3 * sizeof(void*) + nMul + nPageSize - 1) &amp; ~(nPageSize - 1);
+<span class="lineNum">     484 </span>            :     if( nRequestedSize &lt; nMul )
+<span class="lineNum">     485 </span>            :         return nullptr;
+<span class="lineNum">     486 </span>            :     posix_memalign((void**)&amp;ptr, nPageSize, nRequestedSize);
+<span class="lineNum">     487 </span>            :     if( ptr == nullptr )
+<span class="lineNum">     488 </span>            :         return nullptr;
+<span class="lineNum">     489 </span>            :     memset(ptr + 2 * sizeof(void*), 0, nMul);
+<span class="lineNum">     490 </span>            : #else
+<span class="lineNum">     491 </span>            :     const size_t nRequestedSize = 3 * sizeof(void*) + nMul;
+<span class="lineNum">     492 </span>            :     if( nRequestedSize &lt; nMul )
+<span class="lineNum">     493 </span>            :         return nullptr;
+<span class="lineNum">     494 </span>            :     char* ptr = static_cast&lt;char *&gt;(calloc(1, nRequestedSize));
+<span class="lineNum">     495 </span>            :     if( ptr == nullptr )
+<span class="lineNum">     496 </span>            :         return nullptr;
+<span class="lineNum">     497 </span>            : #endif
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span>            :     ptr[0] = 'V';
+<span class="lineNum">     500 </span>            :     ptr[1] = 'S';
+<span class="lineNum">     501 </span>            :     ptr[2] = 'I';
+<span class="lineNum">     502 </span>            :     ptr[3] = 'M';
+<span class="lineNum">     503 </span>            :     // cppcheck-suppress pointerSize
+<span class="lineNum">     504 </span>            :     memcpy(ptr + sizeof(void*), &amp;nMul, sizeof(void*));
+<span class="lineNum">     505 </span>            :     ptr[2 * sizeof(void*) + nMul + 0] = 'E';
+<span class="lineNum">     506 </span>            :     ptr[2 * sizeof(void*) + nMul + 1] = 'V';
+<span class="lineNum">     507 </span>            :     ptr[2 * sizeof(void*) + nMul + 2] = 'S';
+<span class="lineNum">     508 </span>            :     ptr[2 * sizeof(void*) + nMul + 3] = 'I';
+<span class="lineNum">     509 </span>            : #if defined(DEBUG_VSIMALLOC_STATS) || defined(DEBUG_VSIMALLOC_VERBOSE)
+<span class="lineNum">     510 </span>            :     {
+<span class="lineNum">     511 </span>            :         CPLMutexHolderD(&amp;hMemStatMutex);
+<span class="lineNum">     512 </span>            : #ifdef DEBUG_VSIMALLOC_VERBOSE
+<span class="lineNum">     513 </span>            :         if( nMul &gt; THRESHOLD_PRINT )
+<span class="lineNum">     514 </span>            :         {
+<span class="lineNum">     515 </span>            :             fprintf(stderr, &quot;Thread[%p] VSICalloc(%d,%d) = %p&quot; /*ok*/
+<span class="lineNum">     516 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     517 </span>            :                          &quot;, current_cumul = &quot; CPL_FRMT_GUIB
+<span class="lineNum">     518 </span>            : #ifdef DEBUG_BLOCK_CACHE_USE
+<span class="lineNum">     519 </span>            :                          &quot;, block_cache_used = &quot; CPL_FRMT_GIB
+<span class="lineNum">     520 </span>            : #endif
+<span class="lineNum">     521 </span>            :                          &quot;, mal+cal-free = %d&quot;
+<span class="lineNum">     522 </span>            : #endif
+<span class="lineNum">     523 </span>            :                          &quot;\n&quot;,
+<span class="lineNum">     524 </span>            :                     (void*)CPLGetPID(),
+<span class="lineNum">     525 </span>            :                     static_cast&lt;int&gt;(nCount),
+<span class="lineNum">     526 </span>            :                     static_cast&lt;int&gt;(nSize), ptr + 2 * sizeof(void*)
+<span class="lineNum">     527 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     528 </span>            :                     , static_cast&lt;GUIntBig&gt;(nCurrentTotalAllocs + nMul)
+<span class="lineNum">     529 </span>            : #ifdef DEBUG_BLOCK_CACHE_USE
+<span class="lineNum">     530 </span>            :                     , GDALGetCacheUsed64()
+<span class="lineNum">     531 </span>            : #endif
+<span class="lineNum">     532 </span>            :                     , static_cast&lt;int&gt;(nVSIMallocs + nVSICallocs - nVSIFrees)
+<span class="lineNum">     533 </span>            : #endif
+<span class="lineNum">     534 </span>            :                 );
+<span class="lineNum">     535 </span>            :         }
+<span class="lineNum">     536 </span>            : #endif
+<span class="lineNum">     537 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     538 </span>            :         nVSICallocs++;
+<span class="lineNum">     539 </span>            :         if( nMaxTotalAllocs == 0 )
+<span class="lineNum">     540 </span>            :             atexit(VSIShowMemStats);
+<span class="lineNum">     541 </span>            :         nCurrentTotalAllocs += nMul;
+<span class="lineNum">     542 </span>            :         if( nCurrentTotalAllocs &gt; nMaxTotalAllocs )
+<span class="lineNum">     543 </span>            :             nMaxTotalAllocs = nCurrentTotalAllocs;
+<span class="lineNum">     544 </span>            : #endif
+<span class="lineNum">     545 </span>            :     }
+<span class="lineNum">     546 </span>            : #endif
+<span class="lineNum">     547 </span>            :     // cppcheck-suppress memleak
+<span class="lineNum">     548 </span>            :     return ptr + 2 * sizeof(void*);
+<span class="lineNum">     549 </span>            : }
+<span class="lineNum">     550 </span>            : #endif   // DEBUG_VSIMALLOC
+<span class="lineNum">     551 </span>            : 
+<span class="lineNum">     552 </span>            : /************************************************************************/
+<span class="lineNum">     553 </span>            : /*                             VSIMalloc()                              */
+<span class="lineNum">     554 </span>            : /************************************************************************/
+<span class="lineNum">     555 </span>            : 
+<a name="556"><span class="lineNum">     556 </span>            : #ifndef DEBUG_VSIMALLOC</a>
+<span class="lineNum">     557 </span>            : /** Analog of malloc(). Use VSIFree() to free */
+<span class="lineNum">     558 </span><span class="lineCov">   30265203 : void *VSIMalloc( size_t nSize )</span>
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            : {
+<span class="lineNum">     561 </span><span class="lineCov">   30265203 :     return malloc( nSize );</span>
+<span class="lineNum">     562 </span>            : }
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span>            : #else  // DEBUG_VSIMALLOC
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span>            : void *VSIMalloc( size_t nSize )
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span>            : {
+<span class="lineNum">     569 </span>            :     if( nMaxPeakAllocSize &lt; 0 )
+<span class="lineNum">     570 </span>            :     {
+<span class="lineNum">     571 </span>            :         char* pszMaxPeakAllocSize = getenv(&quot;CPL_MAX_PEAK_ALLOC_SIZE&quot;);
+<span class="lineNum">     572 </span>            :         nMaxPeakAllocSize = pszMaxPeakAllocSize ? atoi(pszMaxPeakAllocSize) : 0;
+<span class="lineNum">     573 </span>            :         char* pszMaxCumulAllocSize = getenv(&quot;CPL_MAX_CUMUL_ALLOC_SIZE&quot;);
+<span class="lineNum">     574 </span>            :         nMaxCumulAllocSize =
+<span class="lineNum">     575 </span>            :             pszMaxCumulAllocSize ? atoi(pszMaxCumulAllocSize) : 0;
+<span class="lineNum">     576 </span>            :     }
+<span class="lineNum">     577 </span>            :     if( nMaxPeakAllocSize &gt; 0 &amp;&amp;
+<span class="lineNum">     578 </span>            :         static_cast&lt;GIntBig&gt;(nSize) &gt; nMaxPeakAllocSize )
+<span class="lineNum">     579 </span>            :         return nullptr;
+<span class="lineNum">     580 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     581 </span>            :     if( nMaxCumulAllocSize &gt; 0 &amp;&amp;
+<span class="lineNum">     582 </span>            :         static_cast&lt;GIntBig&gt;(nCurrentTotalAllocs) +
+<span class="lineNum">     583 </span>            :         static_cast&lt;GIntBig&gt;(nSize) &gt; nMaxCumulAllocSize )
+<span class="lineNum">     584 </span>            :         return nullptr;
+<span class="lineNum">     585 </span>            : #endif  // DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     586 </span>            : 
+<span class="lineNum">     587 </span>            : #ifdef DEBUG_VSIMALLOC_MPROTECT
+<span class="lineNum">     588 </span>            :     char* ptr = nullptr;
+<span class="lineNum">     589 </span>            :     const size_t nPageSize = getpagesize();
+<span class="lineNum">     590 </span>            :     const size_t nRequestedSize =
+<span class="lineNum">     591 </span>            :         (3 * sizeof(void*) + nSize + nPageSize - 1) &amp; ~(nPageSize - 1);
+<span class="lineNum">     592 </span>            :     if( nRequestedSize &lt; nSize )
+<span class="lineNum">     593 </span>            :         return nullptr;
+<span class="lineNum">     594 </span>            :     posix_memalign((void**)&amp;ptr, nPageSize, nRequestedSize );
+<span class="lineNum">     595 </span>            : #else
+<span class="lineNum">     596 </span>            :     const size_t nRequestedSize = 3 * sizeof(void*) + nSize;
+<span class="lineNum">     597 </span>            :     if( nRequestedSize &lt; nSize )
+<span class="lineNum">     598 </span>            :         return nullptr;
+<span class="lineNum">     599 </span>            :     char* ptr = static_cast&lt;char *&gt;(malloc(nRequestedSize));
+<span class="lineNum">     600 </span>            : #endif  // DEBUG_VSIMALLOC_MPROTECT
+<span class="lineNum">     601 </span>            :     if( ptr == nullptr )
+<span class="lineNum">     602 </span>            :         return nullptr;
+<span class="lineNum">     603 </span>            :     ptr[0] = 'V';
+<span class="lineNum">     604 </span>            :     ptr[1] = 'S';
+<span class="lineNum">     605 </span>            :     ptr[2] = 'I';
+<span class="lineNum">     606 </span>            :     ptr[3] = 'M';
+<span class="lineNum">     607 </span>            :     // cppcheck-suppress pointerSize
+<span class="lineNum">     608 </span>            :     memcpy(ptr + sizeof(void*), &amp;nSize, sizeof(void*));
+<span class="lineNum">     609 </span>            :     ptr[2 * sizeof(void*) + nSize + 0] = 'E';
+<span class="lineNum">     610 </span>            :     ptr[2 * sizeof(void*) + nSize + 1] = 'V';
+<span class="lineNum">     611 </span>            :     ptr[2 * sizeof(void*) + nSize + 2] = 'S';
+<span class="lineNum">     612 </span>            :     ptr[2 * sizeof(void*) + nSize + 3] = 'I';
+<span class="lineNum">     613 </span>            : #if defined(DEBUG_VSIMALLOC_STATS) || defined(DEBUG_VSIMALLOC_VERBOSE)
+<span class="lineNum">     614 </span>            :     {
+<span class="lineNum">     615 </span>            :         CPLMutexHolderD(&amp;hMemStatMutex);
+<span class="lineNum">     616 </span>            : #ifdef DEBUG_VSIMALLOC_VERBOSE
+<span class="lineNum">     617 </span>            :         if( nSize &gt; THRESHOLD_PRINT )
+<span class="lineNum">     618 </span>            :         {
+<span class="lineNum">     619 </span>            :             fprintf(stderr, &quot;Thread[%p] VSIMalloc(%d) = %p&quot;/*ok*/
+<span class="lineNum">     620 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     621 </span>            :                     &quot;, current_cumul = &quot; CPL_FRMT_GUIB
+<span class="lineNum">     622 </span>            : #ifdef DEBUG_BLOCK_CACHE_USE
+<span class="lineNum">     623 </span>            :                     &quot;, block_cache_used = &quot; CPL_FRMT_GIB
+<span class="lineNum">     624 </span>            : #endif
+<span class="lineNum">     625 </span>            :                     &quot;, mal+cal-free = %d&quot;
+<span class="lineNum">     626 </span>            : #endif
+<span class="lineNum">     627 </span>            :                     &quot;\n&quot;,
+<span class="lineNum">     628 </span>            :                     (void*)CPLGetPID(),
+<span class="lineNum">     629 </span>            :                     static_cast&lt;int&gt;(nSize), ptr + 2 * sizeof(void*)
+<span class="lineNum">     630 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     631 </span>            :                     , static_cast&lt;GUIntBig&gt;(nCurrentTotalAllocs + nSize)
+<span class="lineNum">     632 </span>            : #ifdef DEBUG_BLOCK_CACHE_USE
+<span class="lineNum">     633 </span>            :                     , GDALGetCacheUsed64()
+<span class="lineNum">     634 </span>            : #endif
+<span class="lineNum">     635 </span>            :                     , static_cast&lt;int&gt;(nVSIMallocs + nVSICallocs - nVSIFrees)
+<span class="lineNum">     636 </span>            : #endif
+<span class="lineNum">     637 </span>            :                 );
+<span class="lineNum">     638 </span>            :         }
+<span class="lineNum">     639 </span>            : #endif  // DEBUG_VSIMALLOC_VERBOSE
+<span class="lineNum">     640 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     641 </span>            :         nVSIMallocs++;
+<span class="lineNum">     642 </span>            :         if( nMaxTotalAllocs == 0 )
+<span class="lineNum">     643 </span>            :             atexit(VSIShowMemStats);
+<span class="lineNum">     644 </span>            :         nCurrentTotalAllocs += nSize;
+<span class="lineNum">     645 </span>            :         if( nCurrentTotalAllocs &gt; nMaxTotalAllocs )
+<span class="lineNum">     646 </span>            :             nMaxTotalAllocs = nCurrentTotalAllocs;
+<span class="lineNum">     647 </span>            : #endif  // DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     648 </span>            :     }
+<span class="lineNum">     649 </span>            : #endif  // DEBUG_VSIMALLOC_STATS || DEBUG_VSIMALLOC_VERBOSE
+<span class="lineNum">     650 </span>            :     // cppcheck-suppress memleak
+<span class="lineNum">     651 </span>            :     return ptr + 2 * sizeof(void*);
+<span class="lineNum">     652 </span>            : }
+<span class="lineNum">     653 </span>            : 
+<span class="lineNum">     654 </span>            : static void VSICheckMarkerBegin(char* ptr)
+<span class="lineNum">     655 </span>            : {
+<span class="lineNum">     656 </span>            :     if( memcmp(ptr, &quot;VSIM&quot;, 4) != 0 )
+<span class="lineNum">     657 </span>            :     {
+<span class="lineNum">     658 </span>            :         CPLError(CE_Fatal, CPLE_AppDefined,
+<span class="lineNum">     659 </span>            :                  &quot;Inconsistent use of VSI memory allocation primitives &quot;
+<span class="lineNum">     660 </span>            :                  &quot;for %p : %c%c%c%c&quot;,
+<span class="lineNum">     661 </span>            :                  ptr, ptr[0], ptr[1], ptr[2], ptr[3]);
+<span class="lineNum">     662 </span>            :     }
+<span class="lineNum">     663 </span>            : }
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span>            : static void VSICheckMarkerEnd(char* ptr, size_t nEnd)
+<span class="lineNum">     666 </span>            : {
+<span class="lineNum">     667 </span>            :     if( memcmp(ptr + nEnd, &quot;EVSI&quot;, 4) != 0 )
+<span class="lineNum">     668 </span>            :     {
+<span class="lineNum">     669 </span>            :         CPLError(CE_Fatal, CPLE_AppDefined,
+<span class="lineNum">     670 </span>            :                  &quot;Memory has been written after the end of %p&quot;, ptr);
+<span class="lineNum">     671 </span>            :     }
+<span class="lineNum">     672 </span>            : }
+<span class="lineNum">     673 </span>            : 
+<span class="lineNum">     674 </span>            : #endif  // DEBUG_VSIMALLOC
+<span class="lineNum">     675 </span>            : 
+<span class="lineNum">     676 </span>            : /************************************************************************/
+<span class="lineNum">     677 </span>            : /*                             VSIRealloc()                             */
+<span class="lineNum">     678 </span>            : /************************************************************************/
+<a name="679"><span class="lineNum">     679 </span>            : </a>
+<span class="lineNum">     680 </span>            : /** Analog of realloc(). Use VSIFree() to free */
+<span class="lineNum">     681 </span><span class="lineCov">    6005930 : void * VSIRealloc( void * pData, size_t nNewSize )</span>
+<span class="lineNum">     682 </span>            : 
+<span class="lineNum">     683 </span>            : {
+<span class="lineNum">     684 </span>            : #ifdef DEBUG_VSIMALLOC
+<span class="lineNum">     685 </span>            :     if( pData == nullptr )
+<span class="lineNum">     686 </span>            :         return VSIMalloc(nNewSize);
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span>            :     char* ptr = ((char*)pData) - 2 * sizeof(void*);
+<span class="lineNum">     689 </span>            :     VSICheckMarkerBegin(ptr);
+<span class="lineNum">     690 </span>            : 
+<span class="lineNum">     691 </span>            :     size_t nOldSize = 0;
+<span class="lineNum">     692 </span>            :     // cppcheck-suppress pointerSize
+<span class="lineNum">     693 </span>            :     memcpy(&amp;nOldSize, ptr + sizeof(void*), sizeof(void*));
+<span class="lineNum">     694 </span>            :     VSICheckMarkerEnd(ptr, 2 * sizeof(void*) + nOldSize);
+<span class="lineNum">     695 </span>            : 
+<span class="lineNum">     696 </span>            :     if( nMaxPeakAllocSize &lt; 0 )
+<span class="lineNum">     697 </span>            :     {
+<span class="lineNum">     698 </span>            :         char* pszMaxPeakAllocSize = getenv(&quot;CPL_MAX_PEAK_ALLOC_SIZE&quot;);
+<span class="lineNum">     699 </span>            :         nMaxPeakAllocSize = pszMaxPeakAllocSize ? atoi(pszMaxPeakAllocSize) : 0;
+<span class="lineNum">     700 </span>            :     }
+<span class="lineNum">     701 </span>            :     if( nMaxPeakAllocSize &gt; 0 &amp;&amp;
+<span class="lineNum">     702 </span>            :         static_cast&lt;GIntBig&gt;(nNewSize) &gt; nMaxPeakAllocSize )
+<span class="lineNum">     703 </span>            :         return nullptr;
+<span class="lineNum">     704 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     705 </span>            :     if( nMaxCumulAllocSize &gt; 0 &amp;&amp;
+<span class="lineNum">     706 </span>            :         static_cast&lt;GIntBig&gt;(nCurrentTotalAllocs) +
+<span class="lineNum">     707 </span>            :         static_cast&lt;GIntBig&gt;(nNewSize) -
+<span class="lineNum">     708 </span>            :         static_cast&lt;GIntBig&gt;(nOldSize) &gt; nMaxCumulAllocSize )
+<span class="lineNum">     709 </span>            :         return nullptr;
+<span class="lineNum">     710 </span>            : #endif
+<span class="lineNum">     711 </span>            : 
+<span class="lineNum">     712 </span>            :     ptr[2 * sizeof(void*) + nOldSize + 0] = 'I';
+<span class="lineNum">     713 </span>            :     ptr[2 * sizeof(void*) + nOldSize + 1] = 'S';
+<span class="lineNum">     714 </span>            :     ptr[2 * sizeof(void*) + nOldSize + 2] = 'V';
+<span class="lineNum">     715 </span>            :     ptr[2 * sizeof(void*) + nOldSize + 3] = 'E';
+<span class="lineNum">     716 </span>            : 
+<span class="lineNum">     717 </span>            : #ifdef DEBUG_VSIMALLOC_MPROTECT
+<span class="lineNum">     718 </span>            :     char* newptr = nullptr;
+<span class="lineNum">     719 </span>            :     const size_t nPageSize = getpagesize();
+<span class="lineNum">     720 </span>            :     const size_t nRequestedSize =
+<span class="lineNum">     721 </span>            :         (nNewSize + 3 * sizeof(void*) + nPageSize - 1) &amp; ~(nPageSize - 1);
+<span class="lineNum">     722 </span>            :     if( nRequestedSize &lt; nNewSize )
+<span class="lineNum">     723 </span>            :     {
+<span class="lineNum">     724 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 0] = 'E';
+<span class="lineNum">     725 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 1] = 'V';
+<span class="lineNum">     726 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 2] = 'S';
+<span class="lineNum">     727 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 3] = 'I';
+<span class="lineNum">     728 </span>            :         return nullptr;
+<span class="lineNum">     729 </span>            :     }
+<span class="lineNum">     730 </span>            :     posix_memalign((void**)&amp;newptr, nPageSize, nRequestedSize);
+<span class="lineNum">     731 </span>            :     if( newptr == nullptr )
+<span class="lineNum">     732 </span>            :     {
+<span class="lineNum">     733 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 0] = 'E';
+<span class="lineNum">     734 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 1] = 'V';
+<span class="lineNum">     735 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 2] = 'S';
+<span class="lineNum">     736 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 3] = 'I';
+<span class="lineNum">     737 </span>            :         return nullptr;
+<span class="lineNum">     738 </span>            :     }
+<span class="lineNum">     739 </span>            :     memcpy(newptr + 2 * sizeof(void*), pData, nOldSize);
+<span class="lineNum">     740 </span>            :     ptr[0] = 'M';
+<span class="lineNum">     741 </span>            :     ptr[1] = 'I';
+<span class="lineNum">     742 </span>            :     ptr[2] = 'S';
+<span class="lineNum">     743 </span>            :     ptr[3] = 'V';
+<span class="lineNum">     744 </span>            :     free(ptr);
+<span class="lineNum">     745 </span>            :     newptr[0] = 'V';
+<span class="lineNum">     746 </span>            :     newptr[1] = 'S';
+<span class="lineNum">     747 </span>            :     newptr[2] = 'I';
+<span class="lineNum">     748 </span>            :     newptr[3] = 'M';
+<span class="lineNum">     749 </span>            : #else
+<span class="lineNum">     750 </span>            :     const size_t nRequestedSize = 3 * sizeof(void*) + nNewSize;
+<span class="lineNum">     751 </span>            :     if( nRequestedSize &lt; nNewSize )
+<span class="lineNum">     752 </span>            :     {
+<span class="lineNum">     753 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 0] = 'E';
+<span class="lineNum">     754 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 1] = 'V';
+<span class="lineNum">     755 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 2] = 'S';
+<span class="lineNum">     756 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 3] = 'I';
+<span class="lineNum">     757 </span>            :         return nullptr;
+<span class="lineNum">     758 </span>            :     }
+<span class="lineNum">     759 </span>            :     void* newptr = realloc(ptr, nRequestedSize);
+<span class="lineNum">     760 </span>            :     if( newptr == nullptr )
+<span class="lineNum">     761 </span>            :     {
+<span class="lineNum">     762 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 0] = 'E';
+<span class="lineNum">     763 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 1] = 'V';
+<span class="lineNum">     764 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 2] = 'S';
+<span class="lineNum">     765 </span>            :         ptr[2 * sizeof(void*) + nOldSize + 3] = 'I';
+<span class="lineNum">     766 </span>            :         return nullptr;
+<span class="lineNum">     767 </span>            :     }
+<span class="lineNum">     768 </span>            : #endif
+<span class="lineNum">     769 </span>            :     ptr = static_cast&lt;char *&gt;(newptr);
+<span class="lineNum">     770 </span>            :     // cppcheck-suppress pointerSize
+<span class="lineNum">     771 </span>            :     memcpy(ptr + sizeof(void*), &amp;nNewSize, sizeof(void*));
+<span class="lineNum">     772 </span>            :     ptr[2 * sizeof(void*) + nNewSize + 0] = 'E';
+<span class="lineNum">     773 </span>            :     ptr[2 * sizeof(void*) + nNewSize + 1] = 'V';
+<span class="lineNum">     774 </span>            :     ptr[2 * sizeof(void*) + nNewSize + 2] = 'S';
+<span class="lineNum">     775 </span>            :     ptr[2 * sizeof(void*) + nNewSize + 3] = 'I';
+<span class="lineNum">     776 </span>            : 
+<span class="lineNum">     777 </span>            : #if defined(DEBUG_VSIMALLOC_STATS) || defined(DEBUG_VSIMALLOC_VERBOSE)
+<span class="lineNum">     778 </span>            :     {
+<span class="lineNum">     779 </span>            :         CPLMutexHolderD(&amp;hMemStatMutex);
+<span class="lineNum">     780 </span>            : #ifdef DEBUG_VSIMALLOC_VERBOSE
+<span class="lineNum">     781 </span>            :         if( nNewSize &gt; THRESHOLD_PRINT )
+<span class="lineNum">     782 </span>            :         {
+<span class="lineNum">     783 </span>            :             fprintf(stderr, &quot;Thread[%p] VSIRealloc(%p, %d) = %p&quot;/*ok*/
+<span class="lineNum">     784 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     785 </span>            :                     &quot;, current_cumul = &quot; CPL_FRMT_GUIB
+<span class="lineNum">     786 </span>            : #ifdef DEBUG_BLOCK_CACHE_USE
+<span class="lineNum">     787 </span>            :                     &quot;, block_cache_used = &quot; CPL_FRMT_GIB
+<span class="lineNum">     788 </span>            : #endif
+<span class="lineNum">     789 </span>            :                     &quot;, mal+cal-free = %d&quot;
+<span class="lineNum">     790 </span>            : #endif
+<span class="lineNum">     791 </span>            :                     &quot;\n&quot;,
+<span class="lineNum">     792 </span>            :                     (void*)CPLGetPID(),
+<span class="lineNum">     793 </span>            :                     pData,
+<span class="lineNum">     794 </span>            :                     static_cast&lt;int&gt;(nNewSize),
+<span class="lineNum">     795 </span>            :                     ptr + 2 * sizeof(void*)
+<span class="lineNum">     796 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     797 </span>            :                     , static_cast&lt;GUIntBig&gt;(
+<span class="lineNum">     798 </span>            :                         nCurrentTotalAllocs - nOldSize + nNewSize)
+<span class="lineNum">     799 </span>            : #ifdef DEBUG_BLOCK_CACHE_USE
+<span class="lineNum">     800 </span>            :                     , GDALGetCacheUsed64()
+<span class="lineNum">     801 </span>            : #endif
+<span class="lineNum">     802 </span>            :                     , static_cast&lt;int&gt;(nVSIMallocs + nVSICallocs - nVSIFrees)
+<span class="lineNum">     803 </span>            : #endif
+<span class="lineNum">     804 </span>            :                     );
+<span class="lineNum">     805 </span>            :         }
+<span class="lineNum">     806 </span>            : #endif
+<span class="lineNum">     807 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     808 </span>            :         nVSIReallocs++;
+<span class="lineNum">     809 </span>            :         nCurrentTotalAllocs -= nOldSize;
+<span class="lineNum">     810 </span>            :         nCurrentTotalAllocs += nNewSize;
+<span class="lineNum">     811 </span>            :         if( nCurrentTotalAllocs &gt; nMaxTotalAllocs )
+<span class="lineNum">     812 </span>            :             nMaxTotalAllocs = nCurrentTotalAllocs;
+<span class="lineNum">     813 </span>            : #endif
+<span class="lineNum">     814 </span>            :     }
+<span class="lineNum">     815 </span>            : #endif
+<span class="lineNum">     816 </span>            :     return ptr + 2 * sizeof(void*);
+<span class="lineNum">     817 </span>            : #else
+<span class="lineNum">     818 </span><span class="lineCov">    6005930 :     return realloc( pData, nNewSize );</span>
+<span class="lineNum">     819 </span>            : #endif
+<span class="lineNum">     820 </span>            : }
+<span class="lineNum">     821 </span>            : 
+<span class="lineNum">     822 </span>            : /************************************************************************/
+<span class="lineNum">     823 </span>            : /*                              VSIFree()                               */
+<span class="lineNum">     824 </span>            : /************************************************************************/
+<a name="825"><span class="lineNum">     825 </span>            : </a>
+<span class="lineNum">     826 </span>            : /** Analog of free() for data allocated with VSIMalloc(), VSICalloc(), VSIRealloc() */
+<span class="lineNum">     827 </span><span class="lineCov">   56107053 : void VSIFree( void * pData )</span>
+<span class="lineNum">     828 </span>            : 
+<span class="lineNum">     829 </span>            : {
+<span class="lineNum">     830 </span>            : #ifdef DEBUG_VSIMALLOC
+<span class="lineNum">     831 </span>            :     if( pData == nullptr )
+<span class="lineNum">     832 </span>            :         return;
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span>            :     char* ptr = ((char*)pData) - 2 * sizeof(void*);
+<span class="lineNum">     835 </span>            :     VSICheckMarkerBegin(ptr);
+<span class="lineNum">     836 </span>            :     size_t nOldSize = 0;
+<span class="lineNum">     837 </span>            :     // cppcheck-suppress pointerSize
+<span class="lineNum">     838 </span>            :     memcpy(&amp;nOldSize, ptr + sizeof(void*), sizeof(void*));
+<span class="lineNum">     839 </span>            :     VSICheckMarkerEnd(ptr, 2 * sizeof(void*) + nOldSize);
+<span class="lineNum">     840 </span>            :     ptr[0] = 'M';
+<span class="lineNum">     841 </span>            :     ptr[1] = 'I';
+<span class="lineNum">     842 </span>            :     ptr[2] = 'S';
+<span class="lineNum">     843 </span>            :     ptr[3] = 'V';
+<span class="lineNum">     844 </span>            :     ptr[2 * sizeof(void*) + nOldSize + 0] = 'I';
+<span class="lineNum">     845 </span>            :     ptr[2 * sizeof(void*) + nOldSize + 1] = 'S';
+<span class="lineNum">     846 </span>            :     ptr[2 * sizeof(void*) + nOldSize + 2] = 'V';
+<span class="lineNum">     847 </span>            :     ptr[2 * sizeof(void*) + nOldSize + 3] = 'E';
+<span class="lineNum">     848 </span>            : #if defined(DEBUG_VSIMALLOC_STATS) || defined(DEBUG_VSIMALLOC_VERBOSE)
+<span class="lineNum">     849 </span>            :     {
+<span class="lineNum">     850 </span>            :         CPLMutexHolderD(&amp;hMemStatMutex);
+<span class="lineNum">     851 </span>            : #ifdef DEBUG_VSIMALLOC_VERBOSE
+<span class="lineNum">     852 </span>            :         if( nOldSize &gt; THRESHOLD_PRINT )
+<span class="lineNum">     853 </span>            :         {
+<span class="lineNum">     854 </span>            :             fprintf(stderr, &quot;Thread[%p] VSIFree(%p, (%d bytes))\n&quot;, /*ok*/
+<span class="lineNum">     855 </span>            :                     (void*)CPLGetPID(), pData, static_cast&lt;int&gt;(nOldSize));
+<span class="lineNum">     856 </span>            :         }
+<span class="lineNum">     857 </span>            : #endif
+<span class="lineNum">     858 </span>            : #ifdef DEBUG_VSIMALLOC_STATS
+<span class="lineNum">     859 </span>            :         nVSIFrees++;
+<span class="lineNum">     860 </span>            :         nCurrentTotalAllocs -= nOldSize;
+<span class="lineNum">     861 </span>            : #endif
+<span class="lineNum">     862 </span>            :     }
+<span class="lineNum">     863 </span>            : #endif
+<span class="lineNum">     864 </span>            : 
+<span class="lineNum">     865 </span>            : #ifdef DEBUG_VSIMALLOC_MPROTECT
+<span class="lineNum">     866 </span>            :     mprotect(ptr, nOldSize + 2 * sizeof(void*), PROT_NONE);
+<span class="lineNum">     867 </span>            : #else
+<span class="lineNum">     868 </span>            :     free(ptr);
+<span class="lineNum">     869 </span>            : #endif
+<span class="lineNum">     870 </span>            : 
+<span class="lineNum">     871 </span>            : #else
+<span class="lineNum">     872 </span><span class="lineCov">   56107053 :     if( pData != nullptr )</span>
+<span class="lineNum">     873 </span><span class="lineCov">   43274977 :         free( pData );</span>
+<span class="lineNum">     874 </span>            : #endif
+<span class="lineNum">     875 </span><span class="lineCov">   56107053 : }</span>
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span>            : /************************************************************************/
+<span class="lineNum">     878 </span>            : /*                      VSIMallocAligned()                              */
+<span class="lineNum">     879 </span>            : /************************************************************************/
+<span class="lineNum">     880 </span>            : 
+<span class="lineNum">     881 </span>            : /** Allocates a buffer with an alignment constraint.
+<span class="lineNum">     882 </span>            :  *
+<span class="lineNum">     883 </span>            :  * The return value must be freed with VSIFreeAligned().
+<span class="lineNum">     884 </span>            :  *
+<span class="lineNum">     885 </span>            :  * @param nAlignment Must be a power of 2, multiple of sizeof(void*), and
+<span class="lineNum">     886 </span>            :  *                   lesser than 256.
+<span class="lineNum">     887 </span>            :  * @param nSize Size of the buffer to allocate.
+<span class="lineNum">     888 </span>            :  * @return a buffer aligned on nAlignment and of size nSize, or NULL
+<span class="lineNum">     889 </span>            :  * @since GDAL 2.2
+<a name="890"><span class="lineNum">     890 </span>            :  */</a>
+<span class="lineNum">     891 </span>            : 
+<span class="lineNum">     892 </span><span class="lineCov">    2434408 : void* VSIMallocAligned( size_t nAlignment, size_t nSize )</span>
+<span class="lineNum">     893 </span>            : {
+<span class="lineNum">     894 </span>            : #if defined(HAVE_POSIX_MEMALIGN) &amp;&amp; !defined(DEBUG_VSIMALLOC)
+<span class="lineNum">     895 </span><span class="lineCov">    2434408 :     void* pRet = nullptr;</span>
+<span class="lineNum">     896 </span><span class="lineCov">    2434408 :     if( posix_memalign( &amp;pRet, nAlignment, nSize ) != 0 )</span>
+<span class="lineNum">     897 </span>            :     {
+<span class="lineNum">     898 </span><span class="lineCov">          4 :         pRet = nullptr;</span>
+<span class="lineNum">     899 </span>            :     }
+<span class="lineNum">     900 </span><span class="lineCov">    2434463 :     return pRet;</span>
+<span class="lineNum">     901 </span>            : #elif defined(_WIN32) &amp;&amp; !defined(DEBUG_VSIMALLOC)
+<span class="lineNum">     902 </span>            :     return _aligned_malloc( nSize, nAlignment );
+<span class="lineNum">     903 </span>            : #else
+<span class="lineNum">     904 </span>            :     // Check constraints on alignment.
+<span class="lineNum">     905 </span>            :     if( nAlignment &lt; sizeof(void*) || nAlignment &gt;= 256 ||
+<span class="lineNum">     906 </span>            :         (nAlignment &amp; (nAlignment - 1)) != 0 )
+<span class="lineNum">     907 </span>            :         return nullptr;
+<span class="lineNum">     908 </span>            :     // Detect overflow.
+<span class="lineNum">     909 </span>            :     if( nSize + nAlignment &lt; nSize )
+<span class="lineNum">     910 </span>            :         return nullptr;
+<span class="lineNum">     911 </span>            :     // TODO(schwehr): C++11 has std::aligned_storage, alignas, and related.
+<span class="lineNum">     912 </span>            :     GByte* pabyData = static_cast&lt;GByte*&gt;(VSIMalloc( nSize + nAlignment ));
+<span class="lineNum">     913 </span>            :     if( pabyData == nullptr )
+<span class="lineNum">     914 </span>            :         return nullptr;
+<span class="lineNum">     915 </span>            :     size_t nShift =
+<span class="lineNum">     916 </span>            :         nAlignment - (reinterpret_cast&lt;size_t&gt;(pabyData) % nAlignment);
+<span class="lineNum">     917 </span>            :     GByte* pabyAligned = pabyData + nShift;
+<span class="lineNum">     918 </span>            :     // Guaranteed to fit on a byte since nAlignment &lt; 256.
+<span class="lineNum">     919 </span>            :     pabyAligned[-1] = static_cast&lt;GByte&gt;(nShift);
+<span class="lineNum">     920 </span>            :     return pabyAligned;
+<span class="lineNum">     921 </span>            : #endif
+<span class="lineNum">     922 </span>            : }
+<span class="lineNum">     923 </span>            : 
+<span class="lineNum">     924 </span>            : /************************************************************************/
+<span class="lineNum">     925 </span>            : /*                     VSIMallocAlignedAuto()                           */
+<span class="lineNum">     926 </span>            : /************************************************************************/
+<span class="lineNum">     927 </span>            : 
+<span class="lineNum">     928 </span>            : /** Allocates a buffer with an alignment constraint such that it can be
+<span class="lineNum">     929 </span>            :  * used by the most demanding vector instruction set on that platform.
+<span class="lineNum">     930 </span>            :  *
+<span class="lineNum">     931 </span>            :  * The return value must be freed with VSIFreeAligned().
+<span class="lineNum">     932 </span>            :  *
+<span class="lineNum">     933 </span>            :  * @param nSize Size of the buffer to allocate.
+<span class="lineNum">     934 </span>            :  * @return an aligned buffer of size nSize, or NULL
+<span class="lineNum">     935 </span>            :  * @since GDAL 2.2
+<a name="936"><span class="lineNum">     936 </span>            :  */</a>
+<span class="lineNum">     937 </span>            : 
+<span class="lineNum">     938 </span><span class="lineCov">    2434402 : void* VSIMallocAlignedAuto( size_t nSize )</span>
+<span class="lineNum">     939 </span>            : {
+<span class="lineNum">     940 </span>            :     // We could potentially dynamically detect the capability of the CPU
+<span class="lineNum">     941 </span>            :     // but to simplify use 64 for AVX512 requirements (we use only AVX256
+<span class="lineNum">     942 </span>            :     // currently).
+<span class="lineNum">     943 </span><span class="lineCov">    2434402 :     return VSIMallocAligned(64, nSize);</span>
+<span class="lineNum">     944 </span>            : }
+<span class="lineNum">     945 </span>            : 
+<span class="lineNum">     946 </span>            : /************************************************************************/
+<span class="lineNum">     947 </span>            : /*                        VSIMallocAlignedAutoVerbose()                 */
+<span class="lineNum">     948 </span>            : /************************************************************************/
+<a name="949"><span class="lineNum">     949 </span>            : </a>
+<span class="lineNum">     950 </span>            : /** See VSIMallocAlignedAuto() */
+<span class="lineNum">     951 </span><span class="lineCov">    2434404 : void *VSIMallocAlignedAutoVerbose( size_t nSize, const char* pszFile,</span>
+<span class="lineNum">     952 </span>            :                                    int nLine )
+<span class="lineNum">     953 </span>            : {
+<span class="lineNum">     954 </span><span class="lineCov">    2434404 :     void* pRet = VSIMallocAlignedAuto(nSize);</span>
+<span class="lineNum">     955 </span><span class="lineCov">    2434458 :     if( pRet == nullptr &amp;&amp; nSize != 0 )</span>
+<span class="lineNum">     956 </span>            :     {
+<span class="lineNum">     957 </span>            :         CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">     958 </span>            :                  &quot;%s, %d: cannot allocate &quot; CPL_FRMT_GUIB &quot; bytes&quot;,
+<span class="lineNum">     959 </span>            :                  pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">     960 </span><span class="lineNoCov">          0 :                  nLine, static_cast&lt;GUIntBig&gt;(nSize));</span>
+<span class="lineNum">     961 </span>            :     }
+<span class="lineNum">     962 </span><span class="lineCov">    2434457 :     return pRet;</span>
+<span class="lineNum">     963 </span>            : }
+<span class="lineNum">     964 </span>            : 
+<span class="lineNum">     965 </span>            : /************************************************************************/
+<span class="lineNum">     966 </span>            : /*                        VSIFreeAligned()                              */
+<span class="lineNum">     967 </span>            : /************************************************************************/
+<span class="lineNum">     968 </span>            : 
+<span class="lineNum">     969 </span>            : /** Free a buffer allocated with VSIMallocAligned().
+<span class="lineNum">     970 </span>            :  *
+<span class="lineNum">     971 </span>            :  * @param ptr Buffer to free.
+<span class="lineNum">     972 </span>            :  * @since GDAL 2.2
+<a name="973"><span class="lineNum">     973 </span>            :  */</a>
+<span class="lineNum">     974 </span>            : 
+<span class="lineNum">     975 </span><span class="lineCov">    2434561 : void VSIFreeAligned( void* ptr )</span>
+<span class="lineNum">     976 </span>            : {
+<span class="lineNum">     977 </span>            : #if defined(HAVE_POSIX_MEMALIGN) &amp;&amp; !defined(DEBUG_VSIMALLOC)
+<span class="lineNum">     978 </span><span class="lineCov">    2434561 :     free(ptr);</span>
+<span class="lineNum">     979 </span>            : #elif defined(_WIN32) &amp;&amp; !defined(DEBUG_VSIMALLOC)
+<span class="lineNum">     980 </span>            :     _aligned_free(ptr);
+<span class="lineNum">     981 </span>            : #else
+<span class="lineNum">     982 </span>            :     if( ptr == nullptr )
+<span class="lineNum">     983 </span>            :         return;
+<span class="lineNum">     984 </span>            :     GByte* pabyAligned = static_cast&lt;GByte*&gt;(ptr);
+<span class="lineNum">     985 </span>            :     size_t nShift = pabyAligned[-1];
+<span class="lineNum">     986 </span>            :     VSIFree( pabyAligned - nShift );
+<span class="lineNum">     987 </span>            : #endif
+<span class="lineNum">     988 </span><span class="lineCov">    2434561 : }</span>
+<span class="lineNum">     989 </span>            : 
+<span class="lineNum">     990 </span>            : /************************************************************************/
+<span class="lineNum">     991 </span>            : /*                             VSIStrdup()                              */
+<span class="lineNum">     992 </span>            : /************************************************************************/
+<a name="993"><span class="lineNum">     993 </span>            : </a>
+<span class="lineNum">     994 </span>            : /** Analog of strdup(). Use VSIFree() to free */
+<span class="lineNum">     995 </span><span class="lineCov">   13286416 : char *VSIStrdup( const char * pszString )</span>
+<span class="lineNum">     996 </span>            : 
+<span class="lineNum">     997 </span>            : {
+<span class="lineNum">     998 </span><span class="lineCov">   13286416 :     const size_t nSize = strlen(pszString) + 1;</span>
+<span class="lineNum">     999 </span><span class="lineCov">   13286416 :     char* ptr = static_cast&lt;char*&gt;( VSIMalloc(nSize) );</span>
+<span class="lineNum">    1000 </span><span class="lineCov">   13286453 :     if( ptr == nullptr )</span>
+<span class="lineNum">    1001 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1002 </span><span class="lineCov">   13286453 :     memcpy(ptr, pszString, nSize);</span>
+<span class="lineNum">    1003 </span><span class="lineCov">   13286453 :     return ptr;</span>
+<span class="lineNum">    1004 </span>            : }
+<span class="lineNum">    1005 </span>            : 
+<span class="lineNum">    1006 </span>            : /************************************************************************/
+<span class="lineNum">    1007 </span>            : /*                          VSICheckMul2()                              */
+<span class="lineNum">    1008 </span>            : /************************************************************************/
+<a name="1009"><span class="lineNum">    1009 </span>            : </a>
+<span class="lineNum">    1010 </span>            : CPL_NOSANITIZE_UNSIGNED_INT_OVERFLOW
+<span class="lineNum">    1011 </span><span class="lineCov">      27934 : static size_t VSICheckMul2( size_t mul1, size_t mul2, bool *pbOverflowFlag,</span>
+<span class="lineNum">    1012 </span>            :                             const char* pszFile, int nLine )
+<span class="lineNum">    1013 </span>            : {
+<span class="lineNum">    1014 </span><span class="lineCov">      27934 :     const size_t res = mul1 * mul2;</span>
+<span class="lineNum">    1015 </span><span class="lineCov">      27934 :     if( mul1 != 0 )</span>
+<span class="lineNum">    1016 </span>            :     {
+<span class="lineNum">    1017 </span><span class="lineCov">      27933 :         if( res / mul1 == mul2 )</span>
+<span class="lineNum">    1018 </span>            :         {
+<span class="lineNum">    1019 </span><span class="lineCov">      27932 :             if( pbOverflowFlag )</span>
+<span class="lineNum">    1020 </span><span class="lineCov">      27917 :                 *pbOverflowFlag = FALSE;</span>
+<span class="lineNum">    1021 </span><span class="lineCov">      27932 :             return res;</span>
+<span class="lineNum">    1022 </span>            :         }
+<span class="lineNum">    1023 </span>            :         else
+<span class="lineNum">    1024 </span>            :         {
+<span class="lineNum">    1025 </span><span class="lineCov">          1 :             if( pbOverflowFlag )</span>
+<span class="lineNum">    1026 </span><span class="lineCov">          1 :                 *pbOverflowFlag = TRUE;</span>
+<span class="lineNum">    1027 </span>            :             CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1028 </span>            :                      &quot;%s: %d: Multiplication overflow : &quot; CPL_FRMT_GUIB
+<span class="lineNum">    1029 </span>            :                      &quot; * &quot; CPL_FRMT_GUIB,
+<span class="lineNum">    1030 </span>            :                      pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">    1031 </span>            :                      nLine,
+<span class="lineNum">    1032 </span>            :                      static_cast&lt;GUIntBig&gt;(mul1),
+<span class="lineNum">    1033 </span><span class="lineCov">          1 :                      static_cast&lt;GUIntBig&gt;(mul2));</span>
+<span class="lineNum">    1034 </span>            :         }
+<span class="lineNum">    1035 </span>            :     }
+<span class="lineNum">    1036 </span>            :     else
+<span class="lineNum">    1037 </span>            :     {
+<span class="lineNum">    1038 </span><span class="lineCov">          1 :         if( pbOverflowFlag )</span>
+<span class="lineNum">    1039 </span><span class="lineCov">          1 :              *pbOverflowFlag = FALSE;</span>
+<span class="lineNum">    1040 </span>            :     }
+<span class="lineNum">    1041 </span><span class="lineCov">          2 :     return 0;</span>
+<span class="lineNum">    1042 </span>            : }
+<span class="lineNum">    1043 </span>            : 
+<span class="lineNum">    1044 </span>            : /************************************************************************/
+<span class="lineNum">    1045 </span>            : /*                          VSICheckMul3()                              */
+<span class="lineNum">    1046 </span>            : /************************************************************************/
+<a name="1047"><span class="lineNum">    1047 </span>            : </a>
+<span class="lineNum">    1048 </span>            : CPL_NOSANITIZE_UNSIGNED_INT_OVERFLOW
+<span class="lineNum">    1049 </span><span class="lineCov">      22497 : static size_t VSICheckMul3( size_t mul1, size_t mul2, size_t mul3,</span>
+<span class="lineNum">    1050 </span>            :                             bool *pbOverflowFlag,
+<span class="lineNum">    1051 </span>            :                             const char* pszFile, int nLine )
+<span class="lineNum">    1052 </span>            : {
+<span class="lineNum">    1053 </span><span class="lineCov">      22497 :     if( mul1 != 0 )</span>
+<span class="lineNum">    1054 </span>            :     {
+<span class="lineNum">    1055 </span><span class="lineCov">      22496 :         const size_t res = mul1 * mul2;</span>
+<span class="lineNum">    1056 </span><span class="lineCov">      22496 :         if( res / mul1 == mul2 )</span>
+<span class="lineNum">    1057 </span>            :         {
+<span class="lineNum">    1058 </span><span class="lineCov">      22495 :             const size_t res2 = res * mul3;</span>
+<span class="lineNum">    1059 </span><span class="lineCov">      22495 :             if( mul3 != 0 )</span>
+<span class="lineNum">    1060 </span>            :             {
+<span class="lineNum">    1061 </span><span class="lineCov">      22494 :                 if( res2 / mul3 == res )</span>
+<span class="lineNum">    1062 </span>            :                 {
+<span class="lineNum">    1063 </span><span class="lineCov">      22492 :                     if( pbOverflowFlag )</span>
+<span class="lineNum">    1064 </span><span class="lineCov">      22490 :                         *pbOverflowFlag = false;</span>
+<span class="lineNum">    1065 </span><span class="lineCov">      22492 :                     return res2;</span>
+<span class="lineNum">    1066 </span>            :                 }
+<span class="lineNum">    1067 </span>            :                 else
+<span class="lineNum">    1068 </span>            :                 {
+<span class="lineNum">    1069 </span><span class="lineCov">          2 :                     if( pbOverflowFlag )</span>
+<span class="lineNum">    1070 </span><span class="lineCov">          2 :                         *pbOverflowFlag = true;</span>
+<span class="lineNum">    1071 </span>            :                     CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1072 </span>            :                              &quot;%s: %d: Multiplication overflow : &quot; CPL_FRMT_GUIB
+<span class="lineNum">    1073 </span>            :                              &quot; * &quot; CPL_FRMT_GUIB &quot; * &quot; CPL_FRMT_GUIB,
+<span class="lineNum">    1074 </span>            :                              pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">    1075 </span>            :                              nLine,
+<span class="lineNum">    1076 </span>            :                              static_cast&lt;GUIntBig&gt;(mul1),
+<span class="lineNum">    1077 </span>            :                              static_cast&lt;GUIntBig&gt;(mul2),
+<span class="lineNum">    1078 </span><span class="lineCov">          2 :                              static_cast&lt;GUIntBig&gt;(mul3));</span>
+<span class="lineNum">    1079 </span>            :                 }
+<span class="lineNum">    1080 </span>            :             }
+<span class="lineNum">    1081 </span>            :             else
+<span class="lineNum">    1082 </span>            :             {
+<span class="lineNum">    1083 </span><span class="lineCov">          1 :                 if( pbOverflowFlag )</span>
+<span class="lineNum">    1084 </span><span class="lineCov">          1 :                     *pbOverflowFlag = false;</span>
+<span class="lineNum">    1085 </span>            :             }
+<span class="lineNum">    1086 </span>            :         }
+<span class="lineNum">    1087 </span>            :         else
+<span class="lineNum">    1088 </span>            :         {
+<span class="lineNum">    1089 </span><span class="lineCov">          1 :             if( pbOverflowFlag )</span>
+<span class="lineNum">    1090 </span><span class="lineCov">          1 :                 *pbOverflowFlag = true;</span>
+<span class="lineNum">    1091 </span>            :             CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1092 </span>            :                      &quot;%s: %d: Multiplication overflow : &quot; CPL_FRMT_GUIB &quot; * &quot;
+<span class="lineNum">    1093 </span>            :                      CPL_FRMT_GUIB &quot; * &quot; CPL_FRMT_GUIB,
+<span class="lineNum">    1094 </span>            :                      pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">    1095 </span>            :                      nLine,
+<span class="lineNum">    1096 </span>            :                      static_cast&lt;GUIntBig&gt;(mul1),
+<span class="lineNum">    1097 </span>            :                      static_cast&lt;GUIntBig&gt;(mul2),
+<span class="lineNum">    1098 </span><span class="lineCov">          1 :                      static_cast&lt;GUIntBig&gt;(mul3));</span>
+<span class="lineNum">    1099 </span>            :         }
+<span class="lineNum">    1100 </span>            :     }
+<span class="lineNum">    1101 </span>            :     else
+<span class="lineNum">    1102 </span>            :     {
+<span class="lineNum">    1103 </span><span class="lineCov">          1 :         if( pbOverflowFlag )</span>
+<span class="lineNum">    1104 </span><span class="lineCov">          1 :              *pbOverflowFlag = false;</span>
+<span class="lineNum">    1105 </span>            :     }
+<span class="lineNum">    1106 </span><span class="lineCov">          5 :     return 0;</span>
+<span class="lineNum">    1107 </span>            : }
+<span class="lineNum">    1108 </span>            : 
+<span class="lineNum">    1109 </span>            : /**
+<span class="lineNum">    1110 </span>            :  VSIMalloc2 allocates (nSize1 * nSize2) bytes.
+<span class="lineNum">    1111 </span>            :  In case of overflow of the multiplication, or if memory allocation fails, a
+<span class="lineNum">    1112 </span>            :  NULL pointer is returned and a CE_Failure error is raised with CPLError().
+<span class="lineNum">    1113 </span>            :  If nSize1 == 0 || nSize2 == 0, a NULL pointer will also be returned.
+<a name="1114"><span class="lineNum">    1114 </span>            :  CPLFree() or VSIFree() can be used to free memory allocated by this function.</a>
+<span class="lineNum">    1115 </span>            : */
+<span class="lineNum">    1116 </span><span class="lineCov">        244 : void CPL_DLL *VSIMalloc2( size_t nSize1, size_t nSize2 )</span>
+<span class="lineNum">    1117 </span>            : {
+<span class="lineNum">    1118 </span><span class="lineCov">        244 :     return VSIMalloc2Verbose( nSize1, nSize2, nullptr, 0);</span>
+<span class="lineNum">    1119 </span>            : }
+<span class="lineNum">    1120 </span>            : 
+<span class="lineNum">    1121 </span>            : /**
+<span class="lineNum">    1122 </span>            :  VSIMalloc3 allocates (nSize1 * nSize2 * nSize3) bytes.
+<span class="lineNum">    1123 </span>            :  In case of overflow of the multiplication, or if memory allocation fails, a
+<span class="lineNum">    1124 </span>            :  NULL pointer is returned and a CE_Failure error is raised with CPLError().
+<span class="lineNum">    1125 </span>            :  If nSize1 == 0 || nSize2 == 0 || nSize3 == 0, a NULL pointer will also be
+<span class="lineNum">    1126 </span>            :  returned.  CPLFree() or VSIFree() can be used to free memory allocated by this
+<a name="1127"><span class="lineNum">    1127 </span>            :  function.</a>
+<span class="lineNum">    1128 </span>            : */
+<span class="lineNum">    1129 </span><span class="lineCov">        694 : void CPL_DLL *VSIMalloc3( size_t nSize1, size_t nSize2, size_t nSize3 )</span>
+<span class="lineNum">    1130 </span>            : {
+<span class="lineNum">    1131 </span><span class="lineCov">        694 :     return VSIMalloc3Verbose( nSize1, nSize2, nSize3, nullptr, 0);</span>
+<span class="lineNum">    1132 </span>            : }
+<span class="lineNum">    1133 </span>            : 
+<span class="lineNum">    1134 </span>            : /************************************************************************/
+<span class="lineNum">    1135 </span>            : /*                          VSIMallocVerbose()                          */
+<a name="1136"><span class="lineNum">    1136 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1137 </span>            : 
+<span class="lineNum">    1138 </span><span class="lineCov">    1378828 : void *VSIMallocVerbose( size_t nSize, const char* pszFile, int nLine )</span>
+<span class="lineNum">    1139 </span>            : {
+<span class="lineNum">    1140 </span><span class="lineCov">    1378828 :     void* pRet = VSIMalloc(nSize);</span>
+<span class="lineNum">    1141 </span><span class="lineCov">    1378828 :     if( pRet == nullptr &amp;&amp; nSize != 0 )</span>
+<span class="lineNum">    1142 </span>            :     {
+<span class="lineNum">    1143 </span>            :         CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1144 </span>            :                  &quot;%s, %d: cannot allocate &quot; CPL_FRMT_GUIB &quot; bytes&quot;,
+<span class="lineNum">    1145 </span>            :                  pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">    1146 </span><span class="lineCov">          2 :                  nLine, static_cast&lt;GUIntBig&gt;(nSize));</span>
+<span class="lineNum">    1147 </span>            :     }
+<span class="lineNum">    1148 </span><span class="lineCov">    1378828 :     return pRet;</span>
+<span class="lineNum">    1149 </span>            : }
+<span class="lineNum">    1150 </span>            : 
+<span class="lineNum">    1151 </span>            : /************************************************************************/
+<span class="lineNum">    1152 </span>            : /*                          VSIMalloc2Verbose()                         */
+<a name="1153"><span class="lineNum">    1153 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1154 </span>            : 
+<span class="lineNum">    1155 </span><span class="lineCov">      27926 : void *VSIMalloc2Verbose( size_t nSize1, size_t nSize2, const char* pszFile,</span>
+<span class="lineNum">    1156 </span>            :                          int nLine )
+<span class="lineNum">    1157 </span>            : {
+<span class="lineNum">    1158 </span><span class="lineCov">      27926 :     bool bOverflowFlag = false;</span>
+<span class="lineNum">    1159 </span>            :     const size_t nSizeToAllocate =
+<span class="lineNum">    1160 </span><span class="lineCov">      27926 :         VSICheckMul2( nSize1, nSize2, &amp;bOverflowFlag, pszFile, nLine );</span>
+<span class="lineNum">    1161 </span><span class="lineCov">      27935 :     if( bOverflowFlag || nSizeToAllocate == 0 )</span>
+<span class="lineNum">    1162 </span><span class="lineCov">         25 :         return nullptr;</span>
+<span class="lineNum">    1163 </span>            : 
+<span class="lineNum">    1164 </span><span class="lineCov">      27910 :     void* pRet = VSIMalloc(nSizeToAllocate);</span>
+<span class="lineNum">    1165 </span><span class="lineCov">      27955 :     if( pRet == nullptr )</span>
+<span class="lineNum">    1166 </span>            :     {
+<span class="lineNum">    1167 </span>            :         CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1168 </span>            :                  &quot;%s, %d: cannot allocate &quot; CPL_FRMT_GUIB &quot; bytes&quot;,
+<span class="lineNum">    1169 </span>            :                  pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">    1170 </span>            :                  nLine,
+<span class="lineNum">    1171 </span><span class="lineCov">          2 :                  static_cast&lt;GUIntBig&gt;(nSize1) * static_cast&lt;GUIntBig&gt;(nSize2));</span>
+<span class="lineNum">    1172 </span>            :     }
+<span class="lineNum">    1173 </span><span class="lineCov">      27955 :     return pRet;</span>
+<span class="lineNum">    1174 </span>            : }
+<span class="lineNum">    1175 </span>            : 
+<span class="lineNum">    1176 </span>            : /************************************************************************/
+<span class="lineNum">    1177 </span>            : /*                          VSIMalloc3Verbose()                         */
+<a name="1178"><span class="lineNum">    1178 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1179 </span>            : 
+<span class="lineNum">    1180 </span><span class="lineCov">      22488 : void *VSIMalloc3Verbose( size_t nSize1, size_t nSize2, size_t nSize3,</span>
+<span class="lineNum">    1181 </span>            :                          const char* pszFile, int nLine )
+<span class="lineNum">    1182 </span>            : {
+<span class="lineNum">    1183 </span><span class="lineCov">      22488 :     bool bOverflowFlag = false;</span>
+<span class="lineNum">    1184 </span>            :     size_t nSizeToAllocate = VSICheckMul3( nSize1, nSize2, nSize3,
+<span class="lineNum">    1185 </span><span class="lineCov">      22488 :                                            &amp;bOverflowFlag, pszFile, nLine );</span>
+<span class="lineNum">    1186 </span><span class="lineCov">      22491 :     if( bOverflowFlag || nSizeToAllocate == 0 )</span>
+<span class="lineNum">    1187 </span><span class="lineCov">          6 :         return nullptr;</span>
+<span class="lineNum">    1188 </span>            : 
+<span class="lineNum">    1189 </span><span class="lineCov">      22485 :     void* pRet = VSIMalloc(nSizeToAllocate);</span>
+<span class="lineNum">    1190 </span><span class="lineCov">      22495 :     if( pRet == nullptr )</span>
+<span class="lineNum">    1191 </span>            :     {
+<span class="lineNum">    1192 </span>            :         CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1193 </span>            :                  &quot;%s, %d: cannot allocate &quot; CPL_FRMT_GUIB &quot; bytes&quot;,
+<span class="lineNum">    1194 </span>            :                  pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">    1195 </span>            :                  nLine,
+<span class="lineNum">    1196 </span><span class="lineCov">          4 :                  static_cast&lt;GUIntBig&gt;(nSize1) * static_cast&lt;GUIntBig&gt;(nSize2) *</span>
+<span class="lineNum">    1197 </span><span class="lineCov">          4 :                  static_cast&lt;GUIntBig&gt;(nSize3));</span>
+<span class="lineNum">    1198 </span>            :     }
+<span class="lineNum">    1199 </span><span class="lineCov">      22495 :     return pRet;</span>
+<span class="lineNum">    1200 </span>            : }
+<span class="lineNum">    1201 </span>            : /************************************************************************/
+<span class="lineNum">    1202 </span>            : /*                          VSICallocVerbose()                          */
+<a name="1203"><span class="lineNum">    1203 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1204 </span>            : 
+<span class="lineNum">    1205 </span><span class="lineCov">    2278014 : void *VSICallocVerbose( size_t nCount, size_t nSize, const char* pszFile,</span>
+<span class="lineNum">    1206 </span>            :                         int nLine )
+<span class="lineNum">    1207 </span>            : {
+<span class="lineNum">    1208 </span><span class="lineCov">    2278014 :     void* pRet = VSICalloc(nCount, nSize);</span>
+<span class="lineNum">    1209 </span><span class="lineCov">    2278057 :     if( pRet == nullptr &amp;&amp; nCount != 0 &amp;&amp; nSize != 0 )</span>
+<span class="lineNum">    1210 </span>            :     {
+<span class="lineNum">    1211 </span>            :         CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1212 </span>            :                  &quot;%s, %d: cannot allocate &quot; CPL_FRMT_GUIB &quot;x&quot; CPL_FRMT_GUIB &quot; bytes&quot;,
+<span class="lineNum">    1213 </span>            :                  pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">    1214 </span>            :                  nLine,
+<span class="lineNum">    1215 </span><span class="lineCov">          5 :                  static_cast&lt;GUIntBig&gt;(nCount), static_cast&lt;GUIntBig&gt;(nSize));</span>
+<span class="lineNum">    1216 </span>            :     }
+<span class="lineNum">    1217 </span><span class="lineCov">    2278048 :     return pRet;</span>
+<span class="lineNum">    1218 </span>            : }
+<span class="lineNum">    1219 </span>            : 
+<span class="lineNum">    1220 </span>            : /************************************************************************/
+<span class="lineNum">    1221 </span>            : /*                          VSIReallocVerbose()                         */
+<a name="1222"><span class="lineNum">    1222 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1223 </span>            : 
+<span class="lineNum">    1224 </span><span class="lineCov">    1891974 : void *VSIReallocVerbose( void* pOldPtr, size_t nNewSize, const char* pszFile,</span>
+<span class="lineNum">    1225 </span>            :                          int nLine )
+<span class="lineNum">    1226 </span>            : {
+<span class="lineNum">    1227 </span><span class="lineCov">    1891974 :     void* pRet = VSIRealloc(pOldPtr, nNewSize);</span>
+<span class="lineNum">    1228 </span><span class="lineCov">    1891988 :     if( pRet == nullptr &amp;&amp; nNewSize != 0 )</span>
+<span class="lineNum">    1229 </span>            :     {
+<span class="lineNum">    1230 </span>            :         CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1231 </span>            :                  &quot;%s, %d: cannot allocate &quot; CPL_FRMT_GUIB &quot; bytes&quot;,
+<span class="lineNum">    1232 </span>            :                  pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">    1233 </span><span class="lineCov">          1 :                  nLine, static_cast&lt;GUIntBig&gt;(nNewSize));</span>
+<span class="lineNum">    1234 </span>            :     }
+<span class="lineNum">    1235 </span><span class="lineCov">    1891988 :     return pRet;</span>
+<span class="lineNum">    1236 </span>            : }
+<span class="lineNum">    1237 </span>            : 
+<span class="lineNum">    1238 </span>            : /************************************************************************/
+<span class="lineNum">    1239 </span>            : /*                          VSIStrdupVerbose()                          */
+<a name="1240"><span class="lineNum">    1240 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1241 </span>            : 
+<span class="lineNum">    1242 </span><span class="lineCov">    3183677 : char *VSIStrdupVerbose( const char* pszStr, const char* pszFile, int nLine )</span>
+<span class="lineNum">    1243 </span>            : {
+<span class="lineNum">    1244 </span><span class="lineCov">    3183677 :     char* pRet = VSIStrdup(pszStr);</span>
+<span class="lineNum">    1245 </span><span class="lineCov">    3183706 :     if( pRet == nullptr )</span>
+<span class="lineNum">    1246 </span>            :     {
+<span class="lineNum">    1247 </span>            :         CPLError(CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1248 </span>            :                  &quot;%s, %d: cannot allocate &quot; CPL_FRMT_GUIB &quot; bytes&quot;,
+<span class="lineNum">    1249 </span>            :                  pszFile ? pszFile : &quot;(unknown file)&quot;,
+<span class="lineNum">    1250 </span><span class="lineNoCov">          0 :                  nLine, static_cast&lt;GUIntBig&gt;(strlen(pszStr) + 1));</span>
+<span class="lineNum">    1251 </span>            :     }
+<span class="lineNum">    1252 </span><span class="lineCov">    3183706 :     return pRet;</span>
+<span class="lineNum">    1253 </span>            : }
+<span class="lineNum">    1254 </span>            : 
+<span class="lineNum">    1255 </span>            : /************************************************************************/
+<span class="lineNum">    1256 </span>            : /*                              VSIStat()                               */
+<a name="1257"><span class="lineNum">    1257 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1258 </span>            : 
+<span class="lineNum">    1259 </span><span class="lineCov">        629 : int VSIStat( const char * pszFilename, VSIStatBuf * pStatBuf )</span>
+<span class="lineNum">    1260 </span>            : 
+<span class="lineNum">    1261 </span>            : {
+<span class="lineNum">    1262 </span>            : #if defined(WIN32)
+<span class="lineNum">    1263 </span>            :     if( CPLTestBool( CPLGetConfigOption( &quot;GDAL_FILENAME_IS_UTF8&quot;, &quot;YES&quot; ) ) )
+<span class="lineNum">    1264 </span>            :     {
+<span class="lineNum">    1265 </span>            :         wchar_t *pwszFilename =
+<span class="lineNum">    1266 </span>            :             CPLRecodeToWChar( pszFilename, CPL_ENC_UTF8, CPL_ENC_UCS2 );
+<span class="lineNum">    1267 </span>            : 
+<span class="lineNum">    1268 </span>            :         int nResult = _wstat( pwszFilename, reinterpret_cast&lt;struct _stat *&gt;(pStatBuf) );
+<span class="lineNum">    1269 </span>            : 
+<span class="lineNum">    1270 </span>            :         CPLFree( pwszFilename );
+<span class="lineNum">    1271 </span>            : 
+<span class="lineNum">    1272 </span>            :         return nResult;
+<span class="lineNum">    1273 </span>            :     }
+<span class="lineNum">    1274 </span>            : 
+<span class="lineNum">    1275 </span>            : #endif
+<span class="lineNum">    1276 </span><span class="lineCov">        629 :     return stat( pszFilename, pStatBuf );</span>
+<span class="lineNum">    1277 </span>            : }
+<span class="lineNum">    1278 </span>            : 
+<span class="lineNum">    1279 </span>            : /************************************************************************/
+<span class="lineNum">    1280 </span>            : /*                              VSITime()                               */
+<a name="1281"><span class="lineNum">    1281 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1282 </span>            : 
+<span class="lineNum">    1283 </span><span class="lineNoCov">          0 : unsigned long VSITime( unsigned long * pnTimeToSet )</span>
+<span class="lineNum">    1284 </span>            : 
+<span class="lineNum">    1285 </span>            : {
+<span class="lineNum">    1286 </span>            :     time_t tTime;
+<span class="lineNum">    1287 </span>            : 
+<span class="lineNum">    1288 </span><span class="lineNoCov">          0 :     tTime = time( nullptr );</span>
+<span class="lineNum">    1289 </span>            : 
+<span class="lineNum">    1290 </span><span class="lineNoCov">          0 :     if( pnTimeToSet != nullptr )</span>
+<span class="lineNum">    1291 </span><span class="lineNoCov">          0 :         *pnTimeToSet = static_cast&lt;unsigned long&gt;( tTime );</span>
+<span class="lineNum">    1292 </span>            : 
+<span class="lineNum">    1293 </span><span class="lineNoCov">          0 :     return static_cast&lt;unsigned long&gt;( tTime );</span>
+<span class="lineNum">    1294 </span>            : }
+<span class="lineNum">    1295 </span>            : 
+<span class="lineNum">    1296 </span>            : /************************************************************************/
+<span class="lineNum">    1297 </span>            : /*                              VSICTime()                              */
+<a name="1298"><span class="lineNum">    1298 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1299 </span>            : 
+<span class="lineNum">    1300 </span><span class="lineNoCov">          0 : const char *VSICTime( unsigned long nTime )</span>
+<span class="lineNum">    1301 </span>            : 
+<span class="lineNum">    1302 </span>            : {
+<span class="lineNum">    1303 </span><span class="lineNoCov">          0 :     time_t tTime = static_cast&lt;time_t&gt;(nTime);</span>
+<span class="lineNum">    1304 </span>            : 
+<span class="lineNum">    1305 </span><span class="lineNoCov">          0 :     return reinterpret_cast&lt;const char *&gt;(ctime( &amp;tTime ));</span>
+<span class="lineNum">    1306 </span>            : }
+<span class="lineNum">    1307 </span>            : 
+<span class="lineNum">    1308 </span>            : /************************************************************************/
+<span class="lineNum">    1309 </span>            : /*                             VSIGMTime()                              */
+<a name="1310"><span class="lineNum">    1310 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1311 </span>            : 
+<span class="lineNum">    1312 </span><span class="lineNoCov">          0 : struct tm *VSIGMTime( const time_t *pnTime, struct tm *poBrokenTime )</span>
+<span class="lineNum">    1313 </span>            : {
+<span class="lineNum">    1314 </span>            : 
+<span class="lineNum">    1315 </span>            : #if HAVE_GMTIME_R
+<span class="lineNum">    1316 </span>            :     gmtime_r( pnTime, poBrokenTime );
+<span class="lineNum">    1317 </span>            : #else
+<span class="lineNum">    1318 </span><span class="lineNoCov">          0 :     struct tm *poTime = gmtime( pnTime );</span>
+<span class="lineNum">    1319 </span><span class="lineNoCov">          0 :     memcpy( poBrokenTime, poTime, sizeof(tm) );</span>
+<span class="lineNum">    1320 </span>            : #endif
+<span class="lineNum">    1321 </span>            : 
+<span class="lineNum">    1322 </span><span class="lineNoCov">          0 :     return poBrokenTime;</span>
+<span class="lineNum">    1323 </span>            : }
+<span class="lineNum">    1324 </span>            : 
+<span class="lineNum">    1325 </span>            : /************************************************************************/
+<span class="lineNum">    1326 </span>            : /*                             VSILocalTime()                           */
+<a name="1327"><span class="lineNum">    1327 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1328 </span>            : 
+<span class="lineNum">    1329 </span><span class="lineNoCov">          0 : struct tm *VSILocalTime( const time_t *pnTime, struct tm *poBrokenTime )</span>
+<span class="lineNum">    1330 </span>            : {
+<span class="lineNum">    1331 </span>            : 
+<span class="lineNum">    1332 </span>            : #if HAVE_LOCALTIME_R
+<span class="lineNum">    1333 </span>            :     localtime_r( pnTime, poBrokenTime );
+<span class="lineNum">    1334 </span>            : #else
+<span class="lineNum">    1335 </span><span class="lineNoCov">          0 :     struct tm *poTime = localtime( pnTime );</span>
+<span class="lineNum">    1336 </span><span class="lineNoCov">          0 :     memcpy( poBrokenTime, poTime, sizeof(tm) );</span>
+<span class="lineNum">    1337 </span>            : #endif
+<span class="lineNum">    1338 </span>            : 
+<span class="lineNum">    1339 </span><span class="lineNoCov">          0 :     return poBrokenTime;</span>
+<span class="lineNum">    1340 </span>            : }
+<span class="lineNum">    1341 </span>            : 
+<span class="lineNum">    1342 </span>            : /************************************************************************/
+<span class="lineNum">    1343 </span>            : /*                            VSIStrerror()                             */
+<span class="lineNum">    1344 </span>            : /************************************************************************/
+<a name="1345"><span class="lineNum">    1345 </span>            : </a>
+<span class="lineNum">    1346 </span>            : /** Return the error string corresponding to the error number. Do not free it */
+<span class="lineNum">    1347 </span><span class="lineCov">         37 : char *VSIStrerror( int nErrno )</span>
+<span class="lineNum">    1348 </span>            : 
+<span class="lineNum">    1349 </span>            : {
+<span class="lineNum">    1350 </span><span class="lineCov">         37 :     return strerror( nErrno );</span>
+<span class="lineNum">    1351 </span>            : }
+<span class="lineNum">    1352 </span>            : 
+<span class="lineNum">    1353 </span>            : /************************************************************************/
+<span class="lineNum">    1354 </span>            : /*                        CPLGetPhysicalRAM()                           */
+<span class="lineNum">    1355 </span>            : /************************************************************************/
+<span class="lineNum">    1356 </span>            : 
+<span class="lineNum">    1357 </span>            : #if HAVE_SC_PHYS_PAGES
+<span class="lineNum">    1358 </span>            : 
+<span class="lineNum">    1359 </span>            : /** Return the total physical RAM in bytes.
+<span class="lineNum">    1360 </span>            :  *
+<span class="lineNum">    1361 </span>            :  * In the context of a container using cgroups (typically Docker), this
+<span class="lineNum">    1362 </span>            :  * will take into account that limitation (starting with GDAL 2.4.0)
+<span class="lineNum">    1363 </span>            :  *
+<span class="lineNum">    1364 </span>            :  * You should generally use CPLGetUsablePhysicalRAM() instead.
+<span class="lineNum">    1365 </span>            :  *
+<span class="lineNum">    1366 </span>            :  * @return the total physical RAM in bytes (or 0 in case of failure).
+<a name="1367"><span class="lineNum">    1367 </span>            :  * @since GDAL 2.0</a>
+<span class="lineNum">    1368 </span>            :  */
+<span class="lineNum">    1369 </span><span class="lineCov">        940 : GIntBig CPLGetPhysicalRAM( void )</span>
+<span class="lineNum">    1370 </span>            : {
+<span class="lineNum">    1371 </span><span class="lineCov">        940 :     const long nPhysPages = sysconf(_SC_PHYS_PAGES);</span>
+<span class="lineNum">    1372 </span><span class="lineCov">        940 :     const long nPageSize = sysconf(_SC_PAGESIZE);</span>
+<span class="lineNum">    1373 </span><span class="lineCov">        940 :     if( nPhysPages &lt; 0 || nPageSize &lt; 0 )</span>
+<span class="lineNum">    1374 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">    1375 </span><span class="lineCov">        940 :     GIntBig nVal = static_cast&lt;GIntBig&gt;(nPhysPages) * nPageSize;</span>
+<span class="lineNum">    1376 </span>            : 
+<span class="lineNum">    1377 </span>            :     // In a Docker container the memory might be limited
+<span class="lineNum">    1378 </span>            :     // If no limitation, on 64 bit, 9223372036854771712 is returned.
+<span class="lineNum">    1379 </span><span class="lineCov">        940 :     FILE* f = fopen(&quot;/sys/fs/cgroup/memory/memory.limit_in_bytes&quot;, &quot;rb&quot;);</span>
+<span class="lineNum">    1380 </span><span class="lineCov">        940 :     if( f )</span>
+<span class="lineNum">    1381 </span>            :     {
+<span class="lineNum">    1382 </span>            :         char szBuffer[32];
+<span class="lineNum">    1383 </span>            :         const int nRead = static_cast&lt;int&gt;(
+<span class="lineNum">    1384 </span><span class="lineCov">        940 :             fread(szBuffer, 1, sizeof(szBuffer)-1, f));</span>
+<span class="lineNum">    1385 </span><span class="lineCov">        940 :         szBuffer[nRead] = 0;</span>
+<span class="lineNum">    1386 </span><span class="lineCov">        940 :         fclose(f);</span>
+<span class="lineNum">    1387 </span><span class="lineCov">        940 :         const GUIntBig nLimit = CPLScanUIntBig(szBuffer, nRead);</span>
+<span class="lineNum">    1388 </span>            :         nVal = static_cast&lt;GIntBig&gt;(
+<span class="lineNum">    1389 </span><span class="lineCov">        940 :             std::min(static_cast&lt;GUIntBig&gt;(nVal), nLimit));</span>
+<span class="lineNum">    1390 </span>            :     }
+<span class="lineNum">    1391 </span>            : 
+<span class="lineNum">    1392 </span><span class="lineCov">        940 :     return nVal;</span>
+<span class="lineNum">    1393 </span>            : }
+<span class="lineNum">    1394 </span>            : 
+<span class="lineNum">    1395 </span>            : #elif defined(__MACH__) &amp;&amp; defined(__APPLE__)
+<span class="lineNum">    1396 </span>            : 
+<span class="lineNum">    1397 </span>            : #include &lt;sys/types.h&gt;
+<span class="lineNum">    1398 </span>            : #include &lt;sys/sysctl.h&gt;
+<span class="lineNum">    1399 </span>            : 
+<span class="lineNum">    1400 </span>            : GIntBig CPLGetPhysicalRAM(void)
+<span class="lineNum">    1401 </span>            : {
+<span class="lineNum">    1402 </span>            :     GIntBig nPhysMem = 0;
+<span class="lineNum">    1403 </span>            : 
+<span class="lineNum">    1404 </span>            :     int mib[2] = { CTL_HW, HW_MEMSIZE };
+<span class="lineNum">    1405 </span>            :     size_t nLengthRes = sizeof(nPhysMem);
+<span class="lineNum">    1406 </span>            :     sysctl(mib, CPL_ARRAYSIZE(mib), &amp;nPhysMem, &amp;nLengthRes, nullptr, 0);
+<span class="lineNum">    1407 </span>            : 
+<span class="lineNum">    1408 </span>            :     return nPhysMem;
+<span class="lineNum">    1409 </span>            : }
+<span class="lineNum">    1410 </span>            : 
+<span class="lineNum">    1411 </span>            : #elif defined(WIN32)
+<span class="lineNum">    1412 </span>            : 
+<span class="lineNum">    1413 </span>            : // GlobalMemoryStatusEx requires _WIN32_WINNT &gt;= 0x0500.
+<span class="lineNum">    1414 </span>            : #ifndef _WIN32_WINNT
+<span class="lineNum">    1415 </span>            : #define _WIN32_WINNT 0x0500
+<span class="lineNum">    1416 </span>            : #endif
+<span class="lineNum">    1417 </span>            : #include &lt;windows.h&gt;
+<span class="lineNum">    1418 </span>            : 
+<span class="lineNum">    1419 </span>            : GIntBig CPLGetPhysicalRAM( void )
+<span class="lineNum">    1420 </span>            : {
+<span class="lineNum">    1421 </span>            :     MEMORYSTATUSEX statex;
+<span class="lineNum">    1422 </span>            :     statex.ullTotalPhys = 0;
+<span class="lineNum">    1423 </span>            :     statex.dwLength = sizeof (statex);
+<span class="lineNum">    1424 </span>            :     GlobalMemoryStatusEx (&amp;statex);
+<span class="lineNum">    1425 </span>            :     return static_cast&lt;GIntBig&gt;( statex.ullTotalPhys );
+<span class="lineNum">    1426 </span>            : }
+<span class="lineNum">    1427 </span>            : 
+<span class="lineNum">    1428 </span>            : #else
+<span class="lineNum">    1429 </span>            : 
+<span class="lineNum">    1430 </span>            : GIntBig CPLGetPhysicalRAM( void )
+<span class="lineNum">    1431 </span>            : {
+<span class="lineNum">    1432 </span>            :     static bool bOnce = false;
+<span class="lineNum">    1433 </span>            :     if( !bOnce )
+<span class="lineNum">    1434 </span>            :     {
+<span class="lineNum">    1435 </span>            :         bOnce = true;
+<span class="lineNum">    1436 </span>            :         CPLDebug(&quot;PORT&quot;, &quot;No implementation for CPLGetPhysicalRAM()&quot;);
+<span class="lineNum">    1437 </span>            :     }
+<span class="lineNum">    1438 </span>            :     return 0;
+<span class="lineNum">    1439 </span>            : }
+<span class="lineNum">    1440 </span>            : #endif
+<span class="lineNum">    1441 </span>            : 
+<span class="lineNum">    1442 </span>            : /************************************************************************/
+<span class="lineNum">    1443 </span>            : /*                       CPLGetUsablePhysicalRAM()                      */
+<span class="lineNum">    1444 </span>            : /************************************************************************/
+<span class="lineNum">    1445 </span>            : 
+<span class="lineNum">    1446 </span>            : /** Return the total physical RAM, usable by a process, in bytes.
+<span class="lineNum">    1447 </span>            :  *
+<span class="lineNum">    1448 </span>            :  * This is the same as CPLGetPhysicalRAM() except it will limit to 2 GB
+<span class="lineNum">    1449 </span>            :  * for 32 bit processes.
+<span class="lineNum">    1450 </span>            :  *
+<span class="lineNum">    1451 </span>            :  * Starting with GDAL 2.4.0, it will also take account resource limits on
+<span class="lineNum">    1452 </span>            :  * Posix systems.
+<span class="lineNum">    1453 </span>            :  *
+<span class="lineNum">    1454 </span>            :  * Note: This memory may already be partly used by other processes.
+<span class="lineNum">    1455 </span>            :  *
+<span class="lineNum">    1456 </span>            :  * @return the total physical RAM, usable by a process, in bytes (or 0
+<span class="lineNum">    1457 </span>            :  * in case of failure).
+<a name="1458"><span class="lineNum">    1458 </span>            :  * @since GDAL 2.0</a>
+<span class="lineNum">    1459 </span>            :  */
+<span class="lineNum">    1460 </span><span class="lineCov">        939 : GIntBig CPLGetUsablePhysicalRAM( void )</span>
+<span class="lineNum">    1461 </span>            : {
+<span class="lineNum">    1462 </span><span class="lineCov">        939 :     GIntBig nRAM = CPLGetPhysicalRAM();</span>
+<span class="lineNum">    1463 </span>            : #if SIZEOF_VOIDP == 4
+<span class="lineNum">    1464 </span>            :     if( nRAM &gt; INT_MAX )
+<span class="lineNum">    1465 </span>            :         nRAM = INT_MAX;
+<span class="lineNum">    1466 </span>            : #endif
+<span class="lineNum">    1467 </span>            : #if HAVE_GETRLIMIT
+<span class="lineNum">    1468 </span>            :     struct rlimit sLimit;
+<span class="lineNum">    1469 </span>            : #   if HAVE_RLIMIT_AS
+<span class="lineNum">    1470 </span><span class="lineCov">        939 :     const int res = RLIMIT_AS;</span>
+<span class="lineNum">    1471 </span>            : #   else
+<span class="lineNum">    1472 </span>            :     // OpenBSD currently doesn't support RLIMIT_AS (mandated by Posix though)
+<span class="lineNum">    1473 </span>            :     const int res = RLIMIT_DATA;
+<span class="lineNum">    1474 </span>            : #   endif
+<span class="lineNum">    1475 </span><span class="lineCov">       2817 :     if( getrlimit( res, &amp;sLimit) == 0 &amp;&amp;</span>
+<span class="lineNum">    1476 </span><span class="lineCov">        939 :         sLimit.rlim_cur != RLIM_INFINITY &amp;&amp;</span>
+<span class="lineNum">    1477 </span><span class="lineNoCov">          0 :         static_cast&lt;GIntBig&gt;(sLimit.rlim_cur) &lt; nRAM )</span>
+<span class="lineNum">    1478 </span>            :     {
+<span class="lineNum">    1479 </span><span class="lineNoCov">          0 :         nRAM = static_cast&lt;GIntBig&gt;(sLimit.rlim_cur);</span>
+<span class="lineNum">    1480 </span>            :     }
+<span class="lineNum">    1481 </span>            : #endif
+<span class="lineNum">    1482 </span><span class="lineCov">        939 :     return nRAM;</span>
+<span class="lineNum">    1483 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

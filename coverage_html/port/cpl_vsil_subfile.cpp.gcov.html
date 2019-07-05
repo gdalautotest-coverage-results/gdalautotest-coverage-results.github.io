@@ -1,0 +1,572 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_vsil_subfile.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_vsil_subfile.cpp<span style="font-size: 80%;"> (source / <a href="cpl_vsil_subfile.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">103</td>
+            <td class="headerCovTableEntry">149</td>
+            <td class="headerCovTableEntryLo">69.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntry">20</td>
+            <td class="headerCovTableEntryMed">85.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  VSI Virtual File System
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of subfile virtual IO functions.
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2005, Frank Warmerdam &lt;warmerdam@pobox.com&gt;
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2009-2014, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cerrno&gt;
+<span class="lineNum">      34 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      35 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      36 </span>            : #if HAVE_FCNTL_H
+<span class="lineNum">      37 </span>            : #  include &lt;fcntl.h&gt;
+<span class="lineNum">      38 </span>            : #endif
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;cpl_multiproc.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;cpl_vsi_virtual.h&quot;
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : /************************************************************************/
+<span class="lineNum">      48 </span>            : /* ==================================================================== */
+<span class="lineNum">      49 </span>            : /*                           VSISubFileHandle                           */
+<span class="lineNum">      50 </span>            : /* ==================================================================== */
+<span class="lineNum">      51 </span>            : /************************************************************************/
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : class VSISubFileHandle : public VSIVirtualHandle
+<span class="lineNum">      54 </span>            : {
+<span class="lineNum">      55 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSISubFileHandle)
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            :   public:
+<span class="lineNum">      58 </span>            :     VSILFILE     *fp = nullptr;
+<span class="lineNum">      59 </span>            :     vsi_l_offset  nSubregionOffset = 0;
+<span class="lineNum">      60 </span>            :     vsi_l_offset  nSubregionSize = 0;
+<a name="61"><span class="lineNum">      61 </span>            :     bool          bAtEOF = false;</a>
+<a name="62"><span class="lineNum">      62 </span>            : </a>
+<span class="lineNum">      63 </span><span class="lineCov">         89 :     VSISubFileHandle() = default;</span>
+<span class="lineNum">      64 </span><span class="lineCov">        178 :     ~VSISubFileHandle() override = default;</span>
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            :     int Seek( vsi_l_offset nOffset, int nWhence ) override;
+<span class="lineNum">      67 </span>            :     vsi_l_offset Tell() override;
+<span class="lineNum">      68 </span>            :     size_t Read( void *pBuffer, size_t nSize, size_t nMemb ) override;
+<span class="lineNum">      69 </span>            :     size_t Write( const void *pBuffer, size_t nSize, size_t nMemb ) override;
+<span class="lineNum">      70 </span>            :     int Eof() override;
+<span class="lineNum">      71 </span>            :     int Close() override;
+<span class="lineNum">      72 </span>            : };
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            : /************************************************************************/
+<span class="lineNum">      75 </span>            : /* ==================================================================== */
+<span class="lineNum">      76 </span>            : /*                   VSISubFileFilesystemHandler                        */
+<span class="lineNum">      77 </span>            : /* ==================================================================== */
+<span class="lineNum">      78 </span>            : /************************************************************************/
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            : class VSISubFileFilesystemHandler : public VSIFilesystemHandler
+<span class="lineNum">      81 </span>            : {
+<span class="lineNum">      82 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSISubFileFilesystemHandler)
+<a name="83"><span class="lineNum">      83 </span>            : </a>
+<a name="84"><span class="lineNum">      84 </span>            :   public:</a>
+<span class="lineNum">      85 </span><span class="lineCov">        988 :     VSISubFileFilesystemHandler() = default;</span>
+<span class="lineNum">      86 </span><span class="lineCov">       1438 :     ~VSISubFileFilesystemHandler() override = default;</span>
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span>            :     static int              DecomposePath( const char *pszPath,
+<span class="lineNum">      89 </span>            :                                     CPLString &amp;osFilename,
+<span class="lineNum">      90 </span>            :                                     vsi_l_offset &amp;nSubFileOffset,
+<span class="lineNum">      91 </span>            :                                     vsi_l_offset &amp;nSubFileSize );
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            :     VSIVirtualHandle *Open( const char *pszFilename,
+<span class="lineNum">      94 </span>            :                             const char *pszAccess,
+<span class="lineNum">      95 </span>            :                             bool bSetError ) override;
+<span class="lineNum">      96 </span>            :     int Stat( const char *pszFilename, VSIStatBufL *pStatBuf,
+<span class="lineNum">      97 </span>            :               int nFlags ) override;
+<span class="lineNum">      98 </span>            :     int Unlink( const char *pszFilename ) override;
+<span class="lineNum">      99 </span>            :     int Mkdir( const char *pszDirname, long nMode ) override;
+<span class="lineNum">     100 </span>            :     int Rmdir( const char *pszDirname ) override;
+<span class="lineNum">     101 </span>            :     char **ReadDir( const char *pszDirname ) override;
+<span class="lineNum">     102 </span>            : };
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            : /************************************************************************/
+<span class="lineNum">     105 </span>            : /* ==================================================================== */
+<span class="lineNum">     106 </span>            : /*                             VSISubFileHandle                         */
+<span class="lineNum">     107 </span>            : /* ==================================================================== */
+<span class="lineNum">     108 </span>            : /************************************************************************/
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span>            : /************************************************************************/
+<span class="lineNum">     111 </span>            : /*                               Close()                                */
+<a name="112"><span class="lineNum">     112 </span>            : /************************************************************************/</a>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineCov">         89 : int VSISubFileHandle::Close()</span>
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span>            : {
+<span class="lineNum">     117 </span><span class="lineCov">         89 :     int nRet = VSIFCloseL( fp );</span>
+<span class="lineNum">     118 </span><span class="lineCov">         89 :     fp = nullptr;</span>
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span><span class="lineCov">         89 :     return nRet;</span>
+<span class="lineNum">     121 </span>            : }
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            : /************************************************************************/
+<span class="lineNum">     124 </span>            : /*                                Seek()                                */
+<a name="125"><span class="lineNum">     125 </span>            : /************************************************************************/</a>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineCov">        582 : int VSISubFileHandle::Seek( vsi_l_offset nOffset, int nWhence )</span>
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span>            : {
+<span class="lineNum">     130 </span><span class="lineCov">        582 :     bAtEOF = false;</span>
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span><span class="lineCov">        582 :     if( nWhence == SEEK_SET )</span>
+<span class="lineNum">     133 </span><span class="lineCov">        539 :         nOffset += nSubregionOffset;</span>
+<span class="lineNum">     134 </span><span class="lineCov">         43 :     else if( nWhence == SEEK_CUR )</span>
+<span class="lineNum">     135 </span>            :     {
+<span class="lineNum">     136 </span>            :         // handle normally.
+<span class="lineNum">     137 </span>            :     }
+<span class="lineNum">     138 </span><span class="lineCov">         43 :     else if( nWhence == SEEK_END )</span>
+<span class="lineNum">     139 </span>            :     {
+<span class="lineNum">     140 </span><span class="lineCov">         43 :         if( nSubregionSize != 0 )</span>
+<span class="lineNum">     141 </span>            :         {
+<span class="lineNum">     142 </span><span class="lineCov">         30 :             nOffset = nSubregionOffset + nSubregionSize;</span>
+<span class="lineNum">     143 </span><span class="lineCov">         30 :             nWhence = SEEK_SET;</span>
+<span class="lineNum">     144 </span>            :         }
+<span class="lineNum">     145 </span>            :     }
+<span class="lineNum">     146 </span>            :     else
+<span class="lineNum">     147 </span>            :     {
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :         errno = EINVAL;</span>
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     150 </span>            :     }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">        582 :     return VSIFSeekL( fp, nOffset, nWhence );</span>
+<span class="lineNum">     153 </span>            : }
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            : /************************************************************************/
+<span class="lineNum">     156 </span>            : /*                                Tell()                                */
+<a name="157"><span class="lineNum">     157 </span>            : /************************************************************************/</a>
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span><span class="lineCov">       1620 : vsi_l_offset VSISubFileHandle::Tell()</span>
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            : {
+<span class="lineNum">     162 </span><span class="lineCov">       1620 :     vsi_l_offset nBasePos = VSIFTellL( fp );</span>
+<span class="lineNum">     163 </span><span class="lineCov">       1620 :     if( nBasePos &gt;= nSubregionOffset )</span>
+<span class="lineNum">     164 </span><span class="lineCov">       1620 :         return nBasePos - nSubregionOffset;</span>
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :     return 0;</span>
+<span class="lineNum">     166 </span>            : }
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            : /************************************************************************/
+<span class="lineNum">     169 </span>            : /*                                Read()                                */
+<a name="170"><span class="lineNum">     170 </span>            : /************************************************************************/</a>
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span><span class="lineCov">       2373 : size_t VSISubFileHandle::Read( void * pBuffer, size_t nSize, size_t nCount )</span>
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span>            : {
+<span class="lineNum">     175 </span><span class="lineCov">       2373 :     size_t nRet = 0;</span>
+<span class="lineNum">     176 </span><span class="lineCov">       2373 :     if( nSubregionSize == 0 )</span>
+<span class="lineNum">     177 </span>            :     {
+<span class="lineNum">     178 </span><span class="lineCov">        440 :         nRet = VSIFReadL( pBuffer, nSize, nCount, fp );</span>
+<span class="lineNum">     179 </span>            :     }
+<span class="lineNum">     180 </span>            :     else
+<span class="lineNum">     181 </span>            :     {
+<span class="lineNum">     182 </span><span class="lineCov">       1933 :         if( nSize == 0 )</span>
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :             return 0;</span>
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span><span class="lineCov">       1933 :         const vsi_l_offset nCurOffset = VSIFTellL(fp);</span>
+<span class="lineNum">     186 </span><span class="lineCov">       1933 :         if( nCurOffset &gt;= nSubregionOffset + nSubregionSize )</span>
+<span class="lineNum">     187 </span>            :         {
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :             bAtEOF = true;</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :             return 0;</span>
+<span class="lineNum">     190 </span>            :         }
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span><span class="lineCov">       1933 :         const size_t nByteToRead = nSize * nCount;</span>
+<span class="lineNum">     193 </span><span class="lineCov">       1933 :         if( nCurOffset + nByteToRead &gt; nSubregionOffset + nSubregionSize )</span>
+<span class="lineNum">     194 </span>            :         {
+<span class="lineNum">     195 </span>            :             const int nRead = static_cast&lt;int&gt;(
+<span class="lineNum">     196 </span>            :                 VSIFReadL(
+<span class="lineNum">     197 </span>            :                     pBuffer, 1,
+<span class="lineNum">     198 </span><span class="lineCov">         29 :                     static_cast&lt;size_t&gt;(nSubregionOffset + nSubregionSize -</span>
+<span class="lineNum">     199 </span><span class="lineCov">         58 :                                         nCurOffset), fp));</span>
+<span class="lineNum">     200 </span><span class="lineCov">         29 :             nRet = nRead / nSize;</span>
+<span class="lineNum">     201 </span>            :         }
+<span class="lineNum">     202 </span>            :         else
+<span class="lineNum">     203 </span>            :         {
+<span class="lineNum">     204 </span><span class="lineCov">       1904 :             nRet = VSIFReadL( pBuffer, nSize, nCount, fp );</span>
+<span class="lineNum">     205 </span>            :         }
+<span class="lineNum">     206 </span>            :     }
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineCov">       2373 :     if( nRet &lt; nCount )</span>
+<span class="lineNum">     209 </span><span class="lineCov">         47 :         bAtEOF = true;</span>
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span><span class="lineCov">       2373 :     return nRet;</span>
+<span class="lineNum">     212 </span>            : }
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            : /************************************************************************/
+<span class="lineNum">     215 </span>            : /*                               Write()                                */
+<a name="216"><span class="lineNum">     216 </span>            : /************************************************************************/</a>
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span><span class="lineCov">       2613 : size_t VSISubFileHandle::Write( const void * pBuffer, size_t nSize,</span>
+<span class="lineNum">     219 </span>            :                                 size_t nCount )
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span>            : {
+<span class="lineNum">     222 </span><span class="lineCov">       2613 :     bAtEOF = false;</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span><span class="lineCov">       2613 :     if( nSubregionSize == 0 )</span>
+<span class="lineNum">     225 </span><span class="lineCov">       2613 :         return VSIFWriteL( pBuffer, nSize, nCount, fp );</span>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :     if( nSize == 0 )</span>
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :     const vsi_l_offset nCurOffset = VSIFTellL(fp);</span>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :     if( nCurOffset &gt;= nSubregionOffset + nSubregionSize )</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :     const size_t nByteToWrite = nSize * nCount;</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :     if( nCurOffset + nByteToWrite &gt; nSubregionOffset + nSubregionSize )</span>
+<span class="lineNum">     236 </span>            :     {
+<span class="lineNum">     237 </span>            :         const int nWritten = static_cast&lt;int&gt;(
+<span class="lineNum">     238 </span>            :             VSIFWriteL(
+<span class="lineNum">     239 </span>            :                 pBuffer, 1,
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :                 static_cast&lt;size_t&gt;(nSubregionOffset + nSubregionSize -</span>
+<span class="lineNum">     241 </span>            :                                      nCurOffset),
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :                 fp));</span>
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :         return nWritten / nSize;</span>
+<span class="lineNum">     244 </span>            :     }
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :     return VSIFWriteL( pBuffer, nSize, nCount, fp );</span>
+<span class="lineNum">     247 </span>            : }
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span>            : /************************************************************************/
+<span class="lineNum">     250 </span>            : /*                                Eof()                                 */
+<a name="251"><span class="lineNum">     251 </span>            : /************************************************************************/</a>
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span><span class="lineCov">         24 : int VSISubFileHandle::Eof()</span>
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span>            : {
+<span class="lineNum">     256 </span><span class="lineCov">         24 :     return bAtEOF;</span>
+<span class="lineNum">     257 </span>            : }
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span>            : /************************************************************************/
+<span class="lineNum">     260 </span>            : /* ==================================================================== */
+<span class="lineNum">     261 </span>            : /*                       VSISubFileFilesystemHandler                    */
+<span class="lineNum">     262 </span>            : /* ==================================================================== */
+<span class="lineNum">     263 </span>            : /************************************************************************/
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span>            : /************************************************************************/
+<span class="lineNum">     266 </span>            : /*                           DecomposePath()                            */
+<span class="lineNum">     267 </span>            : /*                                                                      */
+<span class="lineNum">     268 </span>            : /*      Parse a path like /vsisubfile/1000_2000,data/abc.tif into an    */
+<span class="lineNum">     269 </span>            : /*      offset (1000), a size (2000) and a path (data/abc.tif).         */
+<span class="lineNum">     270 </span>            : /************************************************************************/
+<a name="271"><span class="lineNum">     271 </span>            : </a>
+<span class="lineNum">     272 </span>            : int
+<span class="lineNum">     273 </span><span class="lineCov">        168 : VSISubFileFilesystemHandler::DecomposePath( const char *pszPath,</span>
+<span class="lineNum">     274 </span>            :                                             CPLString &amp;osFilename,
+<span class="lineNum">     275 </span>            :                                             vsi_l_offset &amp;nSubFileOffset,
+<span class="lineNum">     276 </span>            :                                             vsi_l_offset &amp;nSubFileSize )
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            : {
+<span class="lineNum">     279 </span><span class="lineCov">        168 :     if( !STARTS_WITH(pszPath, &quot;/vsisubfile/&quot;) )</span>
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineCov">        168 :     osFilename = &quot;&quot;;</span>
+<span class="lineNum">     283 </span><span class="lineCov">        168 :     nSubFileOffset = 0;</span>
+<span class="lineNum">     284 </span><span class="lineCov">        168 :     nSubFileSize = 0;</span>
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            :     nSubFileOffset =
+<span class="lineNum">     287 </span><span class="lineCov">        168 :         CPLScanUIntBig(pszPath+12, static_cast&lt;int&gt;(strlen(pszPath + 12)));</span>
+<span class="lineNum">     288 </span><span class="lineCov">       1160 :     for( int i = 12; pszPath[i] != '\0'; i++ )</span>
+<span class="lineNum">     289 </span>            :     {
+<span class="lineNum">     290 </span><span class="lineCov">       1160 :         if( pszPath[i] == '_' &amp;&amp; nSubFileSize == 0 )</span>
+<span class="lineNum">     291 </span>            :         {
+<span class="lineNum">     292 </span>            :             // -1 is sometimes passed to mean that we don't know the file size
+<span class="lineNum">     293 </span>            :             // for example when creating a JPEG2000 datastream in a NITF file
+<span class="lineNum">     294 </span>            :             // Transform it into 0 for correct behaviour of Read(), Write() and
+<span class="lineNum">     295 </span>            :             // Eof().
+<span class="lineNum">     296 </span><span class="lineCov">        272 :             if( pszPath[i + 1] == '-' )</span>
+<span class="lineNum">     297 </span><span class="lineCov">         83 :                 nSubFileSize = 0;</span>
+<span class="lineNum">     298 </span>            :             else
+<span class="lineNum">     299 </span>            :                 nSubFileSize =
+<span class="lineNum">     300 </span><span class="lineCov">         53 :                     CPLScanUIntBig(pszPath + i + 1,</span>
+<span class="lineNum">     301 </span><span class="lineCov">        106 :                                    static_cast&lt;int&gt;(strlen(pszPath + i + 1)));</span>
+<span class="lineNum">     302 </span>            :         }
+<span class="lineNum">     303 </span><span class="lineCov">       1024 :         else if( pszPath[i] == ',' )</span>
+<span class="lineNum">     304 </span>            :         {
+<span class="lineNum">     305 </span><span class="lineCov">        168 :             osFilename = pszPath + i + 1;</span>
+<span class="lineNum">     306 </span><span class="lineCov">        168 :             return TRUE;</span>
+<span class="lineNum">     307 </span>            :         }
+<span class="lineNum">     308 </span><span class="lineCov">        856 :         else if( pszPath[i] == '/' )</span>
+<span class="lineNum">     309 </span>            :         {
+<span class="lineNum">     310 </span>            :             // Missing comma!
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     312 </span>            :         }
+<span class="lineNum">     313 </span>            :     }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :     return FALSE;</span>
+<span class="lineNum">     316 </span>            : }
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span>            : /************************************************************************/
+<span class="lineNum">     319 </span>            : /*                                Open()                                */
+<span class="lineNum">     320 </span>            : /************************************************************************/
+<a name="321"><span class="lineNum">     321 </span>            : </a>
+<span class="lineNum">     322 </span>            : VSIVirtualHandle *
+<span class="lineNum">     323 </span><span class="lineCov">        113 : VSISubFileFilesystemHandler::Open( const char *pszFilename,</span>
+<span class="lineNum">     324 </span>            :                                    const char *pszAccess,
+<span class="lineNum">     325 </span>            :                                    bool /* bSetError */ )
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            : {
+<span class="lineNum">     328 </span><span class="lineCov">        113 :     if( !STARTS_WITH_CI(pszFilename, &quot;/vsisubfile/&quot;) )</span>
+<span class="lineNum">     329 </span><span class="lineCov">          1 :         return nullptr;</span>
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineCov">        112 :     CPLString osSubFilePath;</span>
+<span class="lineNum">     332 </span><span class="lineCov">        112 :     vsi_l_offset nOff = 0;</span>
+<span class="lineNum">     333 </span><span class="lineCov">        112 :     vsi_l_offset nSize = 0;</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span><span class="lineCov">        112 :     if( !DecomposePath( pszFilename, osSubFilePath, nOff, nSize ) )</span>
+<span class="lineNum">     336 </span>            :     {
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :         errno = ENOENT;</span>
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     339 </span>            :     }
+<span class="lineNum">     340 </span><span class="lineCov">        112 :     if( nOff + nSize &lt; nOff )</span>
+<span class="lineNum">     341 </span>            :     {
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     343 </span>            :     }
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     346 </span>            : /*      We can't open the containing file with &quot;w&quot; access, so if        */
+<span class="lineNum">     347 </span>            : /*      that is requested use &quot;r+&quot; instead to update in place.          */
+<span class="lineNum">     348 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     349 </span><span class="lineCov">        112 :     if( pszAccess[0] == 'w' )</span>
+<span class="lineNum">     350 </span><span class="lineCov">          5 :         pszAccess = &quot;r+&quot;;</span>
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     353 </span>            : /*      Open the underlying file.                                       */
+<span class="lineNum">     354 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     355 </span><span class="lineCov">        112 :     VSILFILE *fp = VSIFOpenL( osSubFilePath, pszAccess );</span>
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span><span class="lineCov">        112 :     if( fp == nullptr )</span>
+<span class="lineNum">     358 </span><span class="lineCov">         23 :         return nullptr;</span>
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     361 </span>            : /*      Setup the file handle on this file.                             */
+<span class="lineNum">     362 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     363 </span><span class="lineCov">         89 :     VSISubFileHandle *poHandle = new VSISubFileHandle;</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineCov">         89 :     poHandle-&gt;fp = fp;</span>
+<span class="lineNum">     366 </span><span class="lineCov">         89 :     poHandle-&gt;nSubregionOffset = nOff;</span>
+<span class="lineNum">     367 </span><span class="lineCov">         89 :     poHandle-&gt;nSubregionSize = nSize;</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span>            :     // In read-only mode validate (offset, size) against underlying file size
+<span class="lineNum">     370 </span><span class="lineCov">         89 :     if( strchr(pszAccess, 'r') != nullptr &amp;&amp; strchr(pszAccess, '+') == nullptr )</span>
+<span class="lineNum">     371 </span>            :     {
+<span class="lineNum">     372 </span><span class="lineCov">         81 :         if( VSIFSeekL( fp, 0, SEEK_END ) != 0 )</span>
+<span class="lineNum">     373 </span>            :         {
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :             poHandle-&gt;Close();</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :             delete poHandle;</span>
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     377 </span>            :         }
+<span class="lineNum">     378 </span><span class="lineCov">         81 :         vsi_l_offset nFpSize = VSIFTellL(fp);</span>
+<span class="lineNum">     379 </span>            :         // For a directory, the size will be max(vsi_l_offset) / 2
+<span class="lineNum">     380 </span><span class="lineCov">         81 :         if( nFpSize == ~(static_cast&lt;vsi_l_offset&gt;(0)) / 2 || nOff &gt; nFpSize )</span>
+<span class="lineNum">     381 </span>            :         {
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :             poHandle-&gt;Close();</span>
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :             delete poHandle;</span>
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     385 </span>            :         }
+<span class="lineNum">     386 </span><span class="lineCov">         81 :         if( nOff + nSize &gt; nFpSize )</span>
+<span class="lineNum">     387 </span>            :         {
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :             nSize = nFpSize - nOff;</span>
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :             poHandle-&gt;nSubregionSize = nSize;</span>
+<span class="lineNum">     390 </span>            :         }
+<span class="lineNum">     391 </span>            :     }
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span><span class="lineCov">         89 :     if( VSIFSeekL( fp, nOff, SEEK_SET ) != 0 )</span>
+<span class="lineNum">     394 </span>            :     {
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :         poHandle-&gt;Close();</span>
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :         delete poHandle;</span>
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :         poHandle = nullptr;</span>
+<span class="lineNum">     398 </span>            :     }
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span><span class="lineCov">         89 :     return poHandle;</span>
+<span class="lineNum">     401 </span>            : }
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            : /************************************************************************/
+<span class="lineNum">     404 </span>            : /*                                Stat()                                */
+<a name="405"><span class="lineNum">     405 </span>            : /************************************************************************/</a>
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span><span class="lineCov">         57 : int VSISubFileFilesystemHandler::Stat( const char * pszFilename,</span>
+<span class="lineNum">     408 </span>            :                                        VSIStatBufL * psStatBuf,
+<span class="lineNum">     409 </span>            :                                        int nFlags )
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span>            : {
+<span class="lineNum">     412 </span><span class="lineCov">         57 :     if( !STARTS_WITH_CI(pszFilename, &quot;/vsisubfile/&quot;) )</span>
+<span class="lineNum">     413 </span><span class="lineCov">          1 :         return -1;</span>
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span><span class="lineCov">         56 :     CPLString osSubFilePath;</span>
+<span class="lineNum">     416 </span><span class="lineCov">         56 :     vsi_l_offset nOff = 0;</span>
+<span class="lineNum">     417 </span><span class="lineCov">         56 :     vsi_l_offset nSize = 0;</span>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineCov">         56 :     memset( psStatBuf, 0, sizeof(VSIStatBufL) );</span>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span><span class="lineCov">         56 :     if( !DecomposePath( pszFilename, osSubFilePath, nOff, nSize ) )</span>
+<span class="lineNum">     422 </span>            :     {
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :         errno = ENOENT;</span>
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :         return -1;</span>
+<span class="lineNum">     425 </span>            :     }
+<span class="lineNum">     426 </span>            : 
+<span class="lineNum">     427 </span><span class="lineCov">         56 :     const int nResult = VSIStatExL( osSubFilePath, psStatBuf, nFlags );</span>
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineCov">         56 :     if( nResult == 0 )</span>
+<span class="lineNum">     430 </span>            :     {
+<span class="lineNum">     431 </span><span class="lineCov">         35 :         if( nSize != 0 )</span>
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :             psStatBuf-&gt;st_size = nSize;</span>
+<span class="lineNum">     433 </span>            :         else
+<span class="lineNum">     434 </span><span class="lineCov">         35 :             psStatBuf-&gt;st_size -= nOff;</span>
+<span class="lineNum">     435 </span>            :     }
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span><span class="lineCov">         56 :     return nResult;</span>
+<span class="lineNum">     438 </span>            : }
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span>            : /************************************************************************/
+<span class="lineNum">     441 </span>            : /*                               Unlink()                               */
+<a name="442"><span class="lineNum">     442 </span>            : /************************************************************************/</a>
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 : int VSISubFileFilesystemHandler::Unlink( const char * /* pszFilename */ )</span>
+<span class="lineNum">     445 </span>            : {
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :     errno = EACCES;</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     448 </span>            : }
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span>            : /************************************************************************/
+<span class="lineNum">     451 </span>            : /*                               Mkdir()                                */
+<a name="452"><span class="lineNum">     452 </span>            : /************************************************************************/</a>
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 : int VSISubFileFilesystemHandler::Mkdir( const char * /* pszPathname */,</span>
+<span class="lineNum">     455 </span>            :                                         long /* nMode */ )
+<span class="lineNum">     456 </span>            : {
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :     errno = EACCES;</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     459 </span>            : }
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span>            : /************************************************************************/
+<span class="lineNum">     462 </span>            : /*                               Rmdir()                                */
+<a name="463"><span class="lineNum">     463 </span>            : /************************************************************************/</a>
+<span class="lineNum">     464 </span>            : 
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 : int VSISubFileFilesystemHandler::Rmdir( const char * /* pszPathname */ )</span>
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span>            : {
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :     errno = EACCES;</span>
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     470 </span>            : }
+<span class="lineNum">     471 </span>            : 
+<span class="lineNum">     472 </span>            : /************************************************************************/
+<span class="lineNum">     473 </span>            : /*                              ReadDir()                               */
+<a name="474"><span class="lineNum">     474 </span>            : /************************************************************************/</a>
+<span class="lineNum">     475 </span>            : 
+<span class="lineNum">     476 </span><span class="lineCov">         37 : char **VSISubFileFilesystemHandler::ReadDir( const char * /* pszPath */ )</span>
+<span class="lineNum">     477 </span>            : {
+<span class="lineNum">     478 </span><span class="lineCov">         37 :     errno = EACCES;</span>
+<span class="lineNum">     479 </span><span class="lineCov">         37 :     return nullptr;</span>
+<span class="lineNum">     480 </span>            : }
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span>            : /************************************************************************/
+<span class="lineNum">     483 </span>            : /*                 VSIInstallSubFileFilesystemHandler()                 */
+<span class="lineNum">     484 </span>            : /************************************************************************/
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span>            : /**
+<span class="lineNum">     487 </span>            :  * Install /vsisubfile/ virtual file handler.
+<span class="lineNum">     488 </span>            :  *
+<span class="lineNum">     489 </span>            :  * @see &lt;a href=&quot;gdal_virtual_file_systems.html#gdal_virtual_file_systems_subfile&quot;&gt;/vsisubfile/ documentation&lt;/a&gt;
+<a name="490"><span class="lineNum">     490 </span>            :  */</a>
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span><span class="lineCov">        988 : void VSIInstallSubFileHandler()</span>
+<span class="lineNum">     493 </span>            : {
+<span class="lineNum">     494 </span>            :     VSIFileManager::InstallHandler( &quot;/vsisubfile/&quot;,
+<span class="lineNum">     495 </span><span class="lineCov">        988 :                                     new VSISubFileFilesystemHandler );</span>
+<span class="lineNum">     496 </span><span class="lineCov">        988 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

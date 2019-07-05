@@ -1,0 +1,210 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_minizip_ioapi.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_minizip_ioapi.cpp<span style="font-size: 80%;"> (source / <a href="cpl_minizip_ioapi.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">45</td>
+            <td class="headerCovTableEntry">48</td>
+            <td class="headerCovTableEntryHi">93.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">7</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntryMed">87.5 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* Modified version by Even Rouault. :</a>
+<span class="lineNum">       2 </span>            :       - change fill_fopen_filefunc to cpl_fill_fopen_filefunc
+<span class="lineNum">       3 </span>            :       - port to VSIL*L API
+<span class="lineNum">       4 </span>            :       - Remove old C style function prototypes
+<span class="lineNum">       5 </span>            :       - Add support for ZIP64
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            :  * Copyright (c) 2008-2010, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            :    Original licence available in port/LICENCE_minizip
+<span class="lineNum">      10 </span>            : */
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : /* ioapi.c -- IO base function header for compress/uncompress .zip
+<span class="lineNum">      13 </span>            :    files using zlib + zip or unzip API
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            :    Version 1.01e, February 12th, 2005
+<span class="lineNum">      16 </span>            : 
+<span class="lineNum">      17 </span>            :    Copyright (C) 1998-2005 Gilles Vollant
+<span class="lineNum">      18 </span>            : */
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;cpl_minizip_ioapi.h&quot;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      24 </span>            : #include &lt;cstdio&gt;
+<span class="lineNum">      25 </span>            : #include &lt;cstdlib&gt;
+<span class="lineNum">      26 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      27 </span>            : #if HAVE_FCNTL_H
+<span class="lineNum">      28 </span>            : #include &lt;fcntl.h&gt;
+<span class="lineNum">      29 </span>            : #endif
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : #include &quot;cpl_minizip_ioapi.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;zconf.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;zlib.h&quot;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<a name="37"><span class="lineNum">      37 </span>            : </a>
+<span class="lineNum">      38 </span>            : static
+<span class="lineNum">      39 </span><span class="lineCov">       3448 : voidpf ZCALLBACK fopen_file_func ( voidpf /* opaque */ ,</span>
+<span class="lineNum">      40 </span>            :                                    const char* filename, int mode )
+<span class="lineNum">      41 </span>            : {
+<span class="lineNum">      42 </span><span class="lineCov">       3448 :     VSILFILE* file = nullptr;</span>
+<span class="lineNum">      43 </span><span class="lineCov">       3448 :     const char* mode_fopen = nullptr;</span>
+<span class="lineNum">      44 </span><span class="lineCov">       3448 :     if ((mode &amp; ZLIB_FILEFUNC_MODE_READWRITEFILTER)==ZLIB_FILEFUNC_MODE_READ)</span>
+<span class="lineNum">      45 </span><span class="lineCov">       3173 :         mode_fopen = &quot;rb&quot;;</span>
+<span class="lineNum">      46 </span>            :     else
+<span class="lineNum">      47 </span><span class="lineCov">        275 :     if (mode &amp; ZLIB_FILEFUNC_MODE_EXISTING)</span>
+<span class="lineNum">      48 </span><span class="lineCov">        190 :         mode_fopen = &quot;r+b&quot;;</span>
+<span class="lineNum">      49 </span>            :     else
+<span class="lineNum">      50 </span><span class="lineCov">         85 :     if (mode &amp; ZLIB_FILEFUNC_MODE_CREATE)</span>
+<span class="lineNum">      51 </span>            :     {
+<span class="lineNum">      52 </span><span class="lineCov">         85 :         mode_fopen = &quot;wb&quot;;</span>
+<span class="lineNum">      53 </span><span class="lineCov">         85 :         if( filename != nullptr )</span>
+<span class="lineNum">      54 </span><span class="lineCov">         85 :             return VSIFOpenExL(filename, mode_fopen, true);</span>
+<span class="lineNum">      55 </span>            :     }
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span><span class="lineCov">       3363 :     if ((filename!=nullptr) &amp;&amp; (mode_fopen != nullptr))</span>
+<span class="lineNum">      58 </span><span class="lineCov">       3363 :         file = VSIFOpenL(filename, mode_fopen);</span>
+<span class="lineNum">      59 </span><span class="lineCov">       3363 :     return file;</span>
+<span class="lineNum">      60 </span>            : }
+<a name="61"><span class="lineNum">      61 </span>            : </a>
+<span class="lineNum">      62 </span>            : static
+<span class="lineNum">      63 </span><span class="lineCov">    1525706 : uLong ZCALLBACK fread_file_func ( voidpf /* opaque */, voidpf stream,</span>
+<span class="lineNum">      64 </span>            :                                   void* buf, uLong size )
+<span class="lineNum">      65 </span>            : {
+<span class="lineNum">      66 </span>            :     uLong ret =
+<span class="lineNum">      67 </span>            :         static_cast&lt;uLong&gt;(VSIFReadL(buf, 1, static_cast&lt;size_t&gt;(size),
+<span class="lineNum">      68 </span><span class="lineCov">    1525706 :                                      static_cast&lt;VSILFILE *&gt;(stream)));</span>
+<span class="lineNum">      69 </span><span class="lineCov">    1525706 :     return ret;</span>
+<span class="lineNum">      70 </span>            : }
+<a name="71"><span class="lineNum">      71 </span>            : </a>
+<span class="lineNum">      72 </span>            : static
+<span class="lineNum">      73 </span><span class="lineCov">       4383 : uLong ZCALLBACK fwrite_file_func ( voidpf /* opaque */, voidpf stream,</span>
+<span class="lineNum">      74 </span>            :                                    const void* buf, uLong size )
+<span class="lineNum">      75 </span>            : {
+<span class="lineNum">      76 </span>            :     uLong ret =
+<span class="lineNum">      77 </span>            :         static_cast&lt;uLong&gt;(VSIFWriteL(buf, 1, static_cast&lt;size_t&gt;(size),
+<span class="lineNum">      78 </span><span class="lineCov">       4383 :                                       static_cast&lt;VSILFILE *&gt;(stream)));</span>
+<span class="lineNum">      79 </span><span class="lineCov">       4383 :     return ret;</span>
+<span class="lineNum">      80 </span>            : }
+<a name="81"><span class="lineNum">      81 </span>            : </a>
+<span class="lineNum">      82 </span>            : static
+<span class="lineNum">      83 </span><span class="lineCov">       8595 : uLong64 ZCALLBACK ftell_file_func ( voidpf /* opaque */, voidpf stream )</span>
+<span class="lineNum">      84 </span>            : {
+<span class="lineNum">      85 </span>            :     uLong64 ret;
+<span class="lineNum">      86 </span><span class="lineCov">       8595 :     ret = VSIFTellL(reinterpret_cast&lt;VSILFILE*&gt;(stream));</span>
+<span class="lineNum">      87 </span><span class="lineCov">       8595 :     return ret;</span>
+<span class="lineNum">      88 </span>            : }
+<a name="89"><span class="lineNum">      89 </span>            : </a>
+<span class="lineNum">      90 </span>            : static
+<span class="lineNum">      91 </span><span class="lineCov">     213978 : long ZCALLBACK fseek_file_func ( voidpf /* opaque */, voidpf stream,</span>
+<span class="lineNum">      92 </span>            :                                  uLong64 offset, int origin )
+<span class="lineNum">      93 </span>            : {
+<span class="lineNum">      94 </span><span class="lineCov">     213978 :     int fseek_origin=0;</span>
+<span class="lineNum">      95 </span><span class="lineCov">     213978 :     switch (origin)</span>
+<span class="lineNum">      96 </span>            :     {
+<span class="lineNum">      97 </span>            :     case ZLIB_FILEFUNC_SEEK_CUR :
+<span class="lineNum">      98 </span><span class="lineCov">      42988 :         fseek_origin = SEEK_CUR;</span>
+<span class="lineNum">      99 </span><span class="lineCov">      42988 :         break;</span>
+<span class="lineNum">     100 </span>            :     case ZLIB_FILEFUNC_SEEK_END :
+<span class="lineNum">     101 </span><span class="lineCov">       6722 :         fseek_origin = SEEK_END;</span>
+<span class="lineNum">     102 </span><span class="lineCov">       6722 :         break;</span>
+<span class="lineNum">     103 </span>            :     case ZLIB_FILEFUNC_SEEK_SET :
+<span class="lineNum">     104 </span><span class="lineCov">     164268 :         fseek_origin = SEEK_SET;</span>
+<span class="lineNum">     105 </span><span class="lineCov">     164268 :         break;</span>
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :     default: return -1;</span>
+<span class="lineNum">     107 </span>            :     }
+<span class="lineNum">     108 </span><span class="lineCov">     213978 :     return VSIFSeekL(reinterpret_cast&lt;VSILFILE*&gt;(stream), offset, fseek_origin);</span>
+<span class="lineNum">     109 </span>            : }
+<a name="110"><span class="lineNum">     110 </span>            : </a>
+<span class="lineNum">     111 </span>            : static
+<span class="lineNum">     112 </span><span class="lineCov">       3443 : int ZCALLBACK fclose_file_func ( voidpf /* opaque */, voidpf stream )</span>
+<span class="lineNum">     113 </span>            : {
+<span class="lineNum">     114 </span><span class="lineCov">       3443 :     return VSIFCloseL(reinterpret_cast&lt;VSILFILE*&gt;(stream));</span>
+<span class="lineNum">     115 </span>            : }
+<a name="116"><span class="lineNum">     116 </span>            : </a>
+<span class="lineNum">     117 </span>            : static
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 : int ZCALLBACK ferror_file_func ( voidpf /* opaque */, voidpf /* stream */ )</span>
+<span class="lineNum">     119 </span>            : {
+<span class="lineNum">     120 </span>            :     // ret = ferror((FILE *)stream);
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :     return 0;</span>
+<a name="122"><span class="lineNum">     122 </span>            : }</a>
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span><span class="lineCov">       3448 : void cpl_fill_fopen_filefunc (zlib_filefunc_def*  pzlib_filefunc_def)</span>
+<span class="lineNum">     125 </span>            : {
+<span class="lineNum">     126 </span><span class="lineCov">       3448 :     pzlib_filefunc_def-&gt;zopen_file = fopen_file_func;</span>
+<span class="lineNum">     127 </span><span class="lineCov">       3448 :     pzlib_filefunc_def-&gt;zread_file = fread_file_func;</span>
+<span class="lineNum">     128 </span><span class="lineCov">       3448 :     pzlib_filefunc_def-&gt;zwrite_file = fwrite_file_func;</span>
+<span class="lineNum">     129 </span><span class="lineCov">       3448 :     pzlib_filefunc_def-&gt;ztell_file = ftell_file_func;</span>
+<span class="lineNum">     130 </span><span class="lineCov">       3448 :     pzlib_filefunc_def-&gt;zseek_file = fseek_file_func;</span>
+<span class="lineNum">     131 </span><span class="lineCov">       3448 :     pzlib_filefunc_def-&gt;zclose_file = fclose_file_func;</span>
+<span class="lineNum">     132 </span><span class="lineCov">       3448 :     pzlib_filefunc_def-&gt;zerror_file = ferror_file_func;</span>
+<span class="lineNum">     133 </span><span class="lineCov">       3448 :     pzlib_filefunc_def-&gt;opaque = nullptr;</span>
+<span class="lineNum">     134 </span><span class="lineCov">       3448 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

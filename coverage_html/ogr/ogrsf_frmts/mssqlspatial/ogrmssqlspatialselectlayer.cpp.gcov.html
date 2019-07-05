@@ -1,0 +1,341 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/mssqlspatial/ogrmssqlspatialselectlayer.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/mssqlspatial</a> - ogrmssqlspatialselectlayer.cpp<span style="font-size: 80%;"> (source / <a href="ogrmssqlspatialselectlayer.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">90</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  MSSQL Spatial driver
+<span class="lineNum">       4 </span>            :  * Purpose:  Implements OGRMSSQLSpatialSelectLayer class, layer access to the results
+<span class="lineNum">       5 </span>            :  *           of a SELECT statement executed via ExecuteSQL().
+<span class="lineNum">       6 </span>            :  * Author:   Tamas Szekeres, szekerest at gmail.com
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  ******************************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2010, Tamas Szekeres
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;ogr_mssqlspatial.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : // SQL_CA_SS_UDT_TYPE_NAME not defined in unixODBC headers
+<span class="lineNum">      34 </span>            : #ifndef SQL_CA_SS_BASE
+<span class="lineNum">      35 </span>            : #define SQL_CA_SS_BASE 1200
+<span class="lineNum">      36 </span>            : #endif
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #ifndef SQL_CA_SS_UDT_TYPE_NAME
+<span class="lineNum">      39 </span>            : #define SQL_CA_SS_UDT_TYPE_NAME (SQL_CA_SS_BASE+20)
+<span class="lineNum">      40 </span>            : #endif
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      43 </span>            : /************************************************************************/
+<span class="lineNum">      44 </span>            : /*                     OGRMSSQLSpatialSelectLayer()                     */
+<a name="45"><span class="lineNum">      45 </span>            : /************************************************************************/</a>
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 : OGRMSSQLSpatialSelectLayer::OGRMSSQLSpatialSelectLayer( OGRMSSQLSpatialDataSource *poDSIn,</span>
+<span class="lineNum">      48 </span><span class="lineNoCov">          0 :                                         CPLODBCStatement * poStmtIn )</span>
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : {
+<span class="lineNum">      51 </span><span class="lineNoCov">          0 :     poDS = poDSIn;</span>
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 :     iNextShapeId = 0;</span>
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :     nSRSId = 0;</span>
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :     poFeatureDefn = nullptr;</span>
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :     poStmt = poStmtIn;</span>
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :     pszBaseStatement = CPLStrdup( poStmtIn-&gt;GetCommand() );</span>
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span>            :     /* identify the geometry column */
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :     pszGeomColumn = nullptr;</span>
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :     int iImageCol = -1;</span>
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :     for ( int iColumn = 0; iColumn &lt; poStmt-&gt;GetColCount(); iColumn++ )</span>
+<span class="lineNum">      64 </span>            :     {
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :         if ( EQUAL(poStmt-&gt;GetColTypeName( iColumn ), &quot;image&quot;) )</span>
+<span class="lineNum">      66 </span>            :         {
+<span class="lineNum">      67 </span>            :             SQLCHAR     szTableName[256];
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :             SQLSMALLINT nTableNameLength = 0;</span>
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            :             SQLColAttribute(poStmt-&gt;GetStatement(), (SQLSMALLINT)(iColumn + 1), SQL_DESC_TABLE_NAME,
+<span class="lineNum">      71 </span>            :                                      szTableName, sizeof(szTableName),
+<span class="lineNum">      72 </span><span class="lineNoCov">          0 :                                      &amp;nTableNameLength, nullptr);</span>
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :             if (nTableNameLength &gt; 0)</span>
+<span class="lineNum">      75 </span>            :             {
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :                 OGRLayer *poBaseLayer = poDS-&gt;GetLayerByName((const char*)szTableName);</span>
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :                 if (poBaseLayer != nullptr &amp;&amp; EQUAL(poBaseLayer-&gt;GetGeometryColumn(), poStmt-&gt;GetColName(iColumn)))</span>
+<span class="lineNum">      78 </span>            :                 {
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :                     nGeomColumnType = MSSQLCOLTYPE_BINARY;</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :                     pszGeomColumn = CPLStrdup(poStmt-&gt;GetColName(iColumn));</span>
+<span class="lineNum">      81 </span>            :                     /* copy spatial reference */
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :                     if (!poSRS &amp;&amp; poBaseLayer-&gt;GetSpatialRef())</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :                         poSRS = poBaseLayer-&gt;GetSpatialRef()-&gt;Clone();</span>
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :                     break;</span>
+<span class="lineNum">      85 </span>            :                 }
+<span class="lineNum">      86 </span>            :             }
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :             else if (iImageCol == -1)</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :                 iImageCol = iColumn;</span>
+<span class="lineNum">      89 </span>            :         }
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :         else if ( EQUAL(poStmt-&gt;GetColTypeName( iColumn ), &quot;geometry&quot;) )</span>
+<span class="lineNum">      91 </span>            :         {
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :             nGeomColumnType = MSSQLCOLTYPE_GEOMETRY;</span>
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :             pszGeomColumn = CPLStrdup(poStmt-&gt;GetColName(iColumn));</span>
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">      95 </span>            :         }
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :         else if ( EQUAL(poStmt-&gt;GetColTypeName( iColumn ), &quot;geography&quot;) )</span>
+<span class="lineNum">      97 </span>            :         {
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :             nGeomColumnType = MSSQLCOLTYPE_GEOGRAPHY;</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :             pszGeomColumn = CPLStrdup(poStmt-&gt;GetColName(iColumn));</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     101 </span>            :         }
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :         else if ( EQUAL(poStmt-&gt;GetColTypeName( iColumn ), &quot;udt&quot;) )</span>
+<span class="lineNum">     103 </span>            :         {
+<span class="lineNum">     104 </span>            :             SQLCHAR     szUDTTypeName[256];
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :             SQLSMALLINT nUDTTypeNameLength = 0;</span>
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            :             SQLColAttribute(poStmt-&gt;GetStatement(), (SQLSMALLINT)(iColumn + 1), SQL_CA_SS_UDT_TYPE_NAME,
+<span class="lineNum">     108 </span>            :                                      szUDTTypeName, sizeof(szUDTTypeName),
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :                                      &amp;nUDTTypeNameLength, nullptr);</span>
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            :             // For some reason on unixODBC, a UCS2 string is returned
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :             if ( EQUAL((char*)szUDTTypeName, &quot;geometry&quot;) ||</span>
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :                  (nUDTTypeNameLength == 16 &amp;&amp;</span>
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :                   memcmp(szUDTTypeName, &quot;g\0e\0o\0m\0e\0t\0r\0y&quot;, 16) == 0) )</span>
+<span class="lineNum">     115 </span>            :             {
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :                 nGeomColumnType = MSSQLCOLTYPE_GEOMETRY;</span>
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :                 pszGeomColumn = CPLStrdup(poStmt-&gt;GetColName(iColumn));</span>
+<span class="lineNum">     118 </span>            :             }
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :             else if ( EQUAL((char*)szUDTTypeName, &quot;geography&quot;) ||</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :                  (nUDTTypeNameLength == 18 &amp;&amp;</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :                   memcmp(szUDTTypeName, &quot;g\0e\0o\0g\0r\0a\0p\0h\0y&quot;, 18) == 0) )</span>
+<span class="lineNum">     122 </span>            :             {
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :                 nGeomColumnType = MSSQLCOLTYPE_GEOGRAPHY;</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :                 pszGeomColumn = CPLStrdup(poStmt-&gt;GetColName(iColumn));</span>
+<span class="lineNum">     125 </span>            :             }
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     127 </span>            :         }
+<span class="lineNum">     128 </span>            :     }
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :     if (pszGeomColumn == nullptr &amp;&amp; iImageCol &gt;= 0)</span>
+<span class="lineNum">     131 </span>            :     {
+<span class="lineNum">     132 </span>            :         /* set the image col as geometry column as the last resort */
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :         nGeomColumnType = MSSQLCOLTYPE_BINARY;</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :         pszGeomColumn = CPLStrdup(poStmt-&gt;GetColName(iImageCol));</span>
+<span class="lineNum">     135 </span>            :     }
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :     BuildFeatureDefn( &quot;SELECT&quot;, poStmt );</span>
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :     if ( GetSpatialRef() &amp;&amp; poFeatureDefn-&gt;GetGeomFieldCount() == 1)</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :         poFeatureDefn-&gt;GetGeomFieldDefn(0)-&gt;SetSpatialRef( poSRS );</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            : /************************************************************************/
+<span class="lineNum">     144 </span>            : /*                    ~OGRMSSQLSpatialSelectLayer()                     */
+<a name="145"><span class="lineNum">     145 </span>            : /************************************************************************/</a>
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 : OGRMSSQLSpatialSelectLayer::~OGRMSSQLSpatialSelectLayer()</span>
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            : {
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :     ClearStatement();</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :     CPLFree(pszBaseStatement);</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            : /************************************************************************/
+<span class="lineNum">     155 </span>            : /*                           ClearStatement()                           */
+<a name="156"><span class="lineNum">     156 </span>            : /************************************************************************/</a>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 : void OGRMSSQLSpatialSelectLayer::ClearStatement()</span>
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            : {
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :     if( poStmt != nullptr )</span>
+<span class="lineNum">     162 </span>            :     {
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :         delete poStmt;</span>
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :         poStmt = nullptr;</span>
+<span class="lineNum">     165 </span>            :     }
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            : /************************************************************************/
+<span class="lineNum">     169 </span>            : /*                            GetStatement()                            */
+<a name="170"><span class="lineNum">     170 </span>            : /************************************************************************/</a>
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 : CPLODBCStatement *OGRMSSQLSpatialSelectLayer::GetStatement()</span>
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span>            : {
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :     if( poStmt == nullptr )</span>
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :         ResetStatement();</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     return poStmt;</span>
+<span class="lineNum">     179 </span>            : }
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span>            : /************************************************************************/
+<span class="lineNum">     182 </span>            : /*                           ResetStatement()                           */
+<a name="183"><span class="lineNum">     183 </span>            : /************************************************************************/</a>
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 : OGRErr OGRMSSQLSpatialSelectLayer::ResetStatement()</span>
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            : {
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :     ClearStatement();</span>
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :     iNextShapeId = 0;</span>
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :     CPLDebug( &quot;OGR_MSSQLSpatial&quot;, &quot;Recreating statement.&quot; );</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :     poStmt = new CPLODBCStatement( poDS-&gt;GetSession() );</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :     poStmt-&gt;Append( pszBaseStatement );</span>
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :     if( poStmt-&gt;ExecuteSQL() )</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :         return OGRERR_NONE;</span>
+<span class="lineNum">     198 </span>            :     else
+<span class="lineNum">     199 </span>            :     {
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :         delete poStmt;</span>
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :         poStmt = nullptr;</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :         return OGRERR_FAILURE;</span>
+<span class="lineNum">     203 </span>            :     }
+<span class="lineNum">     204 </span>            : }
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            : /************************************************************************/
+<span class="lineNum">     207 </span>            : /*                            ResetReading()                            */
+<a name="208"><span class="lineNum">     208 </span>            : /************************************************************************/</a>
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 : void OGRMSSQLSpatialSelectLayer::ResetReading()</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            : {
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :     if( iNextShapeId != 0 )</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :         ClearStatement();</span>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :     OGRMSSQLSpatialLayer::ResetReading();</span>
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            : /************************************************************************/
+<span class="lineNum">     220 </span>            : /*                             GetFeature()                             */
+<a name="221"><span class="lineNum">     221 </span>            : /************************************************************************/</a>
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 : OGRFeature *OGRMSSQLSpatialSelectLayer::GetFeature( GIntBig nFeatureId )</span>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            : {
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :     return OGRMSSQLSpatialLayer::GetFeature( nFeatureId );</span>
+<span class="lineNum">     227 </span>            : }
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            : /************************************************************************/
+<span class="lineNum">     230 </span>            : /*                           TestCapability()                           */
+<a name="231"><span class="lineNum">     231 </span>            : /************************************************************************/</a>
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 : int OGRMSSQLSpatialSelectLayer::TestCapability( const char * pszCap )</span>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            : {
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :     return OGRMSSQLSpatialLayer::TestCapability( pszCap );</span>
+<span class="lineNum">     237 </span>            : }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            : /************************************************************************/
+<span class="lineNum">     240 </span>            : /*                             GetExtent()                              */
+<span class="lineNum">     241 </span>            : /*                                                                      */
+<span class="lineNum">     242 </span>            : /*      Since SELECT layers currently cannot ever have geometry, we     */
+<span class="lineNum">     243 </span>            : /*      can optimize the GetExtent() method!                            */
+<a name="244"><span class="lineNum">     244 </span>            : /************************************************************************/</a>
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 : OGRErr OGRMSSQLSpatialSelectLayer::GetExtent(OGREnvelope *, int )</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            : {
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :     return OGRERR_FAILURE;</span>
+<span class="lineNum">     250 </span>            : }
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            : /************************************************************************/
+<span class="lineNum">     253 </span>            : /*                          GetFeatureCount()                           */
+<span class="lineNum">     254 </span>            : /*                                                                      */
+<span class="lineNum">     255 </span>            : /*      If a spatial filter is in effect, we turn control over to       */
+<span class="lineNum">     256 </span>            : /*      the generic counter.  Otherwise we return the total count.      */
+<span class="lineNum">     257 </span>            : /*      Eventually we should consider implementing a more efficient     */
+<span class="lineNum">     258 </span>            : /*      way of counting features matching a spatial query.              */
+<a name="259"><span class="lineNum">     259 </span>            : /************************************************************************/</a>
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 : GIntBig OGRMSSQLSpatialSelectLayer::GetFeatureCount( int bForce )</span>
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span>            : {
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :     return OGRMSSQLSpatialLayer::GetFeatureCount( bForce );</span>
+<span class="lineNum">     265 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

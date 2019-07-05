@@ -1,0 +1,568 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - gcore/gdalarraybandblockcache.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">gcore</a> - gdalarraybandblockcache.cpp<span style="font-size: 80%;"> (source / <a href="gdalarraybandblockcache.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">142</td>
+            <td class="headerCovTableEntry">154</td>
+            <td class="headerCovTableEntryHi">92.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL Core
+<span class="lineNum">       4 </span>            :  * Purpose:  Store cached blocks in a array or a two-level array
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys dot org&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 1998, Frank Warmerdam
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2007-2015, Even Rouault &lt;even dot rouault at spatialys dot org&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cassert&gt;
+<span class="lineNum">      34 </span>            : #include &lt;climits&gt;
+<span class="lineNum">      35 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      36 </span>            : #include &lt;new&gt;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_multiproc.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : constexpr int SUBBLOCK_SIZE = 64;
+<span class="lineNum">      46 </span>            : #define TO_SUBBLOCK(x) ((x) &gt;&gt; 6)
+<span class="lineNum">      47 </span>            : #define WITHIN_SUBBLOCK(x) ((x) &amp; 0x3f)
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : /* ******************************************************************** */
+<span class="lineNum">      52 </span>            : /*                        GDALArrayBandBlockCache                       */
+<span class="lineNum">      53 </span>            : /* ******************************************************************** */
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            : class GDALArrayBandBlockCache final : public GDALAbstractBandBlockCache
+<span class="lineNum">      56 </span>            : {
+<span class="lineNum">      57 </span>            :     bool              bSubBlockingActive = false;
+<span class="lineNum">      58 </span>            :     int               nSubBlocksPerRow = 0;
+<span class="lineNum">      59 </span>            :     int               nSubBlocksPerColumn = 0;
+<span class="lineNum">      60 </span>            :     union u
+<span class="lineNum">      61 </span>            :     {
+<span class="lineNum">      62 </span>            :         GDALRasterBlock **papoBlocks;
+<a name="63"><span class="lineNum">      63 </span>            :         GDALRasterBlock ***papapoBlocks;</a>
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span><span class="lineCov">      18348 :         u(): papoBlocks(nullptr) {}</span>
+<span class="lineNum">      66 </span>            :     } u{};
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :     CPL_DISALLOW_COPY_ASSIGN(GDALArrayBandBlockCache)
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            :   public:
+<span class="lineNum">      71 </span>            :     explicit GDALArrayBandBlockCache( GDALRasterBand* poBand );
+<span class="lineNum">      72 </span>            :     ~GDALArrayBandBlockCache() override;
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            :     bool Init() override;
+<span class="lineNum">      75 </span>            :     bool IsInitOK() override;
+<span class="lineNum">      76 </span>            :     CPLErr FlushCache() override;
+<span class="lineNum">      77 </span>            :     CPLErr AdoptBlock( GDALRasterBlock * )  override;
+<span class="lineNum">      78 </span>            :     GDALRasterBlock *TryGetLockedBlockRef( int nXBlockOff,
+<span class="lineNum">      79 </span>            :                                            int nYBlockYOff ) override;
+<span class="lineNum">      80 </span>            :     CPLErr UnreferenceBlock( GDALRasterBlock* poBlock ) override;
+<span class="lineNum">      81 </span>            :     CPLErr FlushBlock( int nXBlockOff, int nYBlockOff,
+<span class="lineNum">      82 </span>            :                        int bWriteDirtyBlock ) override;
+<span class="lineNum">      83 </span>            : };
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            : /************************************************************************/
+<span class="lineNum">      86 </span>            : /*                     GDALArrayBandBlockCacheCreate()                 */
+<a name="87"><span class="lineNum">      87 </span>            : /************************************************************************/</a>
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span><span class="lineCov">      18350 : GDALAbstractBandBlockCache* GDALArrayBandBlockCacheCreate(GDALRasterBand* poBand)</span>
+<span class="lineNum">      90 </span>            : {
+<span class="lineNum">      91 </span><span class="lineCov">      18350 :     return new (std::nothrow) GDALArrayBandBlockCache(poBand);</span>
+<span class="lineNum">      92 </span>            : }
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span>            : /************************************************************************/
+<span class="lineNum">      95 </span>            : /*                       GDALArrayBandBlockCache()                      */
+<a name="96"><span class="lineNum">      96 </span>            : /************************************************************************/</a>
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span><span class="lineCov">      18350 : GDALArrayBandBlockCache::GDALArrayBandBlockCache(GDALRasterBand* poBandIn) :</span>
+<span class="lineNum">      99 </span><span class="lineCov">      18350 :     GDALAbstractBandBlockCache(poBandIn)</span>
+<span class="lineNum">     100 </span>            : {
+<span class="lineNum">     101 </span><span class="lineCov">      18348 : }</span>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            : /************************************************************************/
+<span class="lineNum">     104 </span>            : /*                      ~GDALArrayBandBlockCache()                     */
+<a name="105"><span class="lineNum">     105 </span>            : /************************************************************************/</a>
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span><span class="lineCov">      55048 : GDALArrayBandBlockCache::~GDALArrayBandBlockCache()</span>
+<span class="lineNum">     108 </span>            : {
+<span class="lineNum">     109 </span><span class="lineCov">      18349 :     FlushCache();</span>
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span><span class="lineCov">      18350 :     if( !bSubBlockingActive )</span>
+<span class="lineNum">     112 </span><span class="lineCov">      18209 :         CPLFree( u.papoBlocks );</span>
+<span class="lineNum">     113 </span>            :     else
+<span class="lineNum">     114 </span><span class="lineCov">        141 :         CPLFree( u.papapoBlocks );</span>
+<span class="lineNum">     115 </span><span class="lineCov">      36698 : }</span>
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : /************************************************************************/
+<span class="lineNum">     118 </span>            : /*                                  Init()                              */
+<a name="119"><span class="lineNum">     119 </span>            : /************************************************************************/</a>
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span><span class="lineCov">      18346 : bool GDALArrayBandBlockCache::Init()</span>
+<span class="lineNum">     122 </span>            : {
+<span class="lineNum">     123 </span><span class="lineCov">      18346 :     if( poBand-&gt;nBlocksPerRow &lt; SUBBLOCK_SIZE/2 )</span>
+<span class="lineNum">     124 </span>            :     {
+<span class="lineNum">     125 </span><span class="lineCov">      18205 :         bSubBlockingActive = false;</span>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineCov">      18205 :         if (poBand-&gt;nBlocksPerRow &lt; INT_MAX / poBand-&gt;nBlocksPerColumn)</span>
+<span class="lineNum">     128 </span>            :         {
+<span class="lineNum">     129 </span>            :             u.papoBlocks = static_cast&lt;GDALRasterBlock **&gt;(
+<span class="lineNum">     130 </span>            :                 VSICalloc( sizeof(void*),
+<span class="lineNum">     131 </span><span class="lineCov">      18205 :                            poBand-&gt;nBlocksPerRow * poBand-&gt;nBlocksPerColumn ) );</span>
+<span class="lineNum">     132 </span><span class="lineCov">      18208 :             if( u.papoBlocks == nullptr )</span>
+<span class="lineNum">     133 </span>            :             {
+<span class="lineNum">     134 </span>            :                 poBand-&gt;ReportError( CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :                                     &quot;Out of memory in InitBlockInfo().&quot; );</span>
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     137 </span>            :             }
+<span class="lineNum">     138 </span>            :         }
+<span class="lineNum">     139 </span>            :         else
+<span class="lineNum">     140 </span>            :         {
+<span class="lineNum">     141 </span>            :             poBand-&gt;ReportError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     142 </span>            :                                  &quot;Too many blocks : %d x %d&quot;,
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :                                  poBand-&gt;nBlocksPerRow, poBand-&gt;nBlocksPerColumn );</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     145 </span>            :         }
+<span class="lineNum">     146 </span>            :     }
+<span class="lineNum">     147 </span>            :     else
+<span class="lineNum">     148 </span>            :     {
+<span class="lineNum">     149 </span><span class="lineCov">        141 :         bSubBlockingActive = true;</span>
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span><span class="lineCov">        141 :         nSubBlocksPerRow = DIV_ROUND_UP(poBand-&gt;nBlocksPerRow, SUBBLOCK_SIZE);</span>
+<span class="lineNum">     152 </span><span class="lineCov">        141 :         nSubBlocksPerColumn = DIV_ROUND_UP(poBand-&gt;nBlocksPerColumn, SUBBLOCK_SIZE);</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineCov">        141 :         if (nSubBlocksPerRow &lt; INT_MAX / nSubBlocksPerColumn)</span>
+<span class="lineNum">     155 </span>            :         {
+<span class="lineNum">     156 </span>            :             u.papapoBlocks = static_cast&lt;GDALRasterBlock ***&gt;(
+<span class="lineNum">     157 </span>            :                 VSICalloc( sizeof(void*),
+<span class="lineNum">     158 </span><span class="lineCov">        141 :                            nSubBlocksPerRow * nSubBlocksPerColumn ) );</span>
+<span class="lineNum">     159 </span><span class="lineCov">        141 :             if( u.papapoBlocks == nullptr )</span>
+<span class="lineNum">     160 </span>            :             {
+<span class="lineNum">     161 </span>            :                 poBand-&gt;ReportError( CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :                                     &quot;Out of memory in InitBlockInfo().&quot; );</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     164 </span>            :             }
+<span class="lineNum">     165 </span>            :         }
+<span class="lineNum">     166 </span>            :         else
+<span class="lineNum">     167 </span>            :         {
+<span class="lineNum">     168 </span>            :             poBand-&gt;ReportError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     169 </span>            :                                  &quot;Too many subblocks : %d x %d&quot;,
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :                                  nSubBlocksPerRow, nSubBlocksPerColumn );</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     172 </span>            :         }
+<span class="lineNum">     173 </span>            :     }
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span><span class="lineCov">      18349 :     return true;</span>
+<span class="lineNum">     176 </span>            : }
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            : /************************************************************************/
+<span class="lineNum">     179 </span>            : /*                             IsInitOK()                               */
+<a name="180"><span class="lineNum">     180 </span>            : /************************************************************************/</a>
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span><span class="lineCov">   10083152 : bool GDALArrayBandBlockCache::IsInitOK()</span>
+<span class="lineNum">     183 </span>            : {
+<span class="lineNum">     184 </span><span class="lineCov">   10083152 :     return (!bSubBlockingActive) ?</span>
+<span class="lineNum">     185 </span><span class="lineCov">   10083152 :         u.papoBlocks != nullptr : u.papapoBlocks != nullptr;</span>
+<span class="lineNum">     186 </span>            : }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span>            : /************************************************************************/
+<span class="lineNum">     189 </span>            : /*                            AdoptBlock()                              */
+<a name="190"><span class="lineNum">     190 </span>            : /************************************************************************/</a>
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span><span class="lineCov">     747476 : CPLErr GDALArrayBandBlockCache::AdoptBlock( GDALRasterBlock * poBlock )</span>
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            : {
+<span class="lineNum">     195 </span><span class="lineCov">     747476 :     const int nXBlockOff = poBlock-&gt;GetXOff();</span>
+<span class="lineNum">     196 </span><span class="lineCov">     747470 :     const int nYBlockOff = poBlock-&gt;GetYOff();</span>
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span><span class="lineCov">     747469 :     FreeDanglingBlocks();</span>
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     201 </span>            : /*      Simple case without subblocking.                                */
+<span class="lineNum">     202 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineCov">     747472 :     if( !bSubBlockingActive )</span>
+<span class="lineNum">     205 </span>            :     {
+<span class="lineNum">     206 </span><span class="lineCov">     668181 :         const int nBlockIndex = nXBlockOff + nYBlockOff * poBand-&gt;nBlocksPerRow;</span>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineCov">     668181 :         CPLAssert( u.papoBlocks[nBlockIndex] == nullptr );</span>
+<span class="lineNum">     209 </span><span class="lineCov">     668181 :         u.papoBlocks[nBlockIndex] = poBlock;</span>
+<span class="lineNum">     210 </span>            :     }
+<span class="lineNum">     211 </span>            :     else
+<span class="lineNum">     212 </span>            :     {
+<span class="lineNum">     213 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     214 </span>            : /*      Identify the subblock in which our target occurs, and create    */
+<span class="lineNum">     215 </span>            : /*      it if necessary.                                                */
+<span class="lineNum">     216 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     217 </span><span class="lineCov">      79291 :         const int nSubBlock = TO_SUBBLOCK(nXBlockOff)</span>
+<span class="lineNum">     218 </span><span class="lineCov">      79291 :             + TO_SUBBLOCK(nYBlockOff) * nSubBlocksPerRow;</span>
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span><span class="lineCov">      79291 :         if( u.papapoBlocks[nSubBlock] == nullptr )</span>
+<span class="lineNum">     221 </span>            :         {
+<span class="lineNum">     222 </span>            :             const int nSubGridSize =
+<span class="lineNum">     223 </span><span class="lineCov">        238 :                 sizeof(GDALRasterBlock*) * SUBBLOCK_SIZE * SUBBLOCK_SIZE;</span>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineCov">        238 :             u.papapoBlocks[nSubBlock] = static_cast&lt;GDALRasterBlock **&gt;(</span>
+<span class="lineNum">     226 </span><span class="lineCov">        238 :                 VSICalloc(1, nSubGridSize) );</span>
+<span class="lineNum">     227 </span><span class="lineCov">        238 :             if( u.papapoBlocks[nSubBlock] == nullptr )</span>
+<span class="lineNum">     228 </span>            :             {
+<span class="lineNum">     229 </span>            :                 poBand-&gt;ReportError( CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :                         &quot;Out of memory in AdoptBlock().&quot; );</span>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :                 return CE_Failure;</span>
+<span class="lineNum">     232 </span>            :             }
+<span class="lineNum">     233 </span>            :         }
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     236 </span>            : /*      Check within subblock.                                          */
+<span class="lineNum">     237 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     238 </span><span class="lineCov">      79291 :         GDALRasterBlock **papoSubBlockGrid = u.papapoBlocks[nSubBlock];</span>
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span><span class="lineCov">      79291 :         const int nBlockInSubBlock = WITHIN_SUBBLOCK(nXBlockOff)</span>
+<span class="lineNum">     241 </span><span class="lineCov">      79291 :             + WITHIN_SUBBLOCK(nYBlockOff) * SUBBLOCK_SIZE;</span>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineCov">      79291 :         CPLAssert( papoSubBlockGrid[nBlockInSubBlock] == nullptr );</span>
+<span class="lineNum">     244 </span><span class="lineCov">      79291 :         papoSubBlockGrid[nBlockInSubBlock] = poBlock;</span>
+<span class="lineNum">     245 </span>            :     }
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span><span class="lineCov">     747472 :     return CE_None;</span>
+<span class="lineNum">     248 </span>            : }
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span>            : /************************************************************************/
+<span class="lineNum">     251 </span>            : /*                            FlushCache()                              */
+<a name="252"><span class="lineNum">     252 </span>            : /************************************************************************/</a>
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span><span class="lineCov">     109949 : CPLErr GDALArrayBandBlockCache::FlushCache()</span>
+<span class="lineNum">     255 </span>            : {
+<span class="lineNum">     256 </span><span class="lineCov">     109949 :     FreeDanglingBlocks();</span>
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineCov">     109950 :     CPLErr eGlobalErr = poBand-&gt;eFlushBlockErr;</span>
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span><span class="lineCov">     109950 :     StartDirtyBlockFlushingLog();</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     263 </span>            : /*      Flush all blocks in memory ... this case is without subblocking.*/
+<span class="lineNum">     264 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     265 </span><span class="lineCov">     109947 :     if( !bSubBlockingActive &amp;&amp; u.papoBlocks != nullptr )</span>
+<span class="lineNum">     266 </span>            :     {
+<span class="lineNum">     267 </span><span class="lineCov">     109541 :         const int nBlocksPerColumn = poBand-&gt;nBlocksPerColumn;</span>
+<span class="lineNum">     268 </span><span class="lineCov">     109541 :         const int nBlocksPerRow = poBand-&gt;nBlocksPerRow;</span>
+<span class="lineNum">     269 </span><span class="lineCov">   83505849 :         for( int iY = 0; iY &lt; nBlocksPerColumn; iY++ )</span>
+<span class="lineNum">     270 </span>            :         {
+<span class="lineNum">     271 </span><span class="lineCov">  167038211 :             for( int iX = 0; iX &lt; nBlocksPerRow; iX++ )</span>
+<span class="lineNum">     272 </span>            :             {
+<span class="lineNum">     273 </span><span class="lineCov">   83641903 :                 if( u.papoBlocks[iX + iY*nBlocksPerRow] != nullptr )</span>
+<span class="lineNum">     274 </span>            :                 {
+<span class="lineNum">     275 </span><span class="lineCov">     600424 :                     CPLErr eErr = FlushBlock( iX, iY, eGlobalErr == CE_None );</span>
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span><span class="lineCov">     600360 :                     if( eErr != CE_None )</span>
+<span class="lineNum">     278 </span><span class="lineCov">          5 :                         eGlobalErr = eErr;</span>
+<span class="lineNum">     279 </span>            :                 }
+<span class="lineNum">     280 </span>            :             }
+<span class="lineNum">     281 </span><span class="lineCov">     109477 :         }</span>
+<span class="lineNum">     282 </span>            :     }
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     285 </span>            : /*      With subblocking.  We can short circuit missing subblocks.      */
+<span class="lineNum">     286 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     287 </span><span class="lineCov">        406 :     else if( u.papapoBlocks != nullptr )</span>
+<span class="lineNum">     288 </span>            :     {
+<span class="lineNum">     289 </span><span class="lineCov">        976 :         for( int iSBY = 0; iSBY &lt; nSubBlocksPerColumn; iSBY++ )</span>
+<span class="lineNum">     290 </span>            :         {
+<span class="lineNum">     291 </span><span class="lineCov">       1343 :             for( int iSBX = 0; iSBX &lt; nSubBlocksPerRow; iSBX++ )</span>
+<span class="lineNum">     292 </span>            :             {
+<span class="lineNum">     293 </span><span class="lineCov">        840 :                 const int nSubBlock = iSBX + iSBY * nSubBlocksPerRow;</span>
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span><span class="lineCov">        840 :                 GDALRasterBlock **papoSubBlockGrid =  u.papapoBlocks[nSubBlock];</span>
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span><span class="lineCov">        840 :                 if( papoSubBlockGrid == nullptr )</span>
+<span class="lineNum">     298 </span><span class="lineCov">        602 :                     continue;</span>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">      15470 :                 for( int iY = 0; iY &lt; SUBBLOCK_SIZE; iY++ )</span>
+<span class="lineNum">     301 </span>            :                 {
+<span class="lineNum">     302 </span><span class="lineCov">     990080 :                     for( int iX = 0; iX &lt; SUBBLOCK_SIZE; iX++ )</span>
+<span class="lineNum">     303 </span>            :                     {
+<span class="lineNum">     304 </span><span class="lineCov">     974848 :                         if( papoSubBlockGrid[iX + iY * SUBBLOCK_SIZE] != nullptr )</span>
+<span class="lineNum">     305 </span>            :                         {
+<span class="lineNum">     306 </span><span class="lineCov">      62388 :                             CPLErr eErr = FlushBlock( iX + iSBX * SUBBLOCK_SIZE,</span>
+<span class="lineNum">     307 </span><span class="lineCov">      62388 :                                                       iY + iSBY * SUBBLOCK_SIZE,</span>
+<span class="lineNum">     308 </span><span class="lineCov">     187164 :                                                       eGlobalErr == CE_None );</span>
+<span class="lineNum">     309 </span><span class="lineCov">      62388 :                             if( eErr != CE_None )</span>
+<span class="lineNum">     310 </span><span class="lineCov">          3 :                                 eGlobalErr = eErr;</span>
+<span class="lineNum">     311 </span>            :                         }
+<span class="lineNum">     312 </span>            :                     }
+<span class="lineNum">     313 </span>            :                 }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            :                 // We might as well get rid of this grid chunk since we know
+<span class="lineNum">     316 </span>            :                 // it is now empty.
+<span class="lineNum">     317 </span><span class="lineCov">        238 :                 u.papapoBlocks[nSubBlock] = nullptr;</span>
+<span class="lineNum">     318 </span><span class="lineCov">        238 :                 CPLFree( papoSubBlockGrid );</span>
+<span class="lineNum">     319 </span>            :             }
+<span class="lineNum">     320 </span>            :         }
+<span class="lineNum">     321 </span>            :     }
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span><span class="lineCov">     109883 :     EndDirtyBlockFlushingLog();</span>
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span><span class="lineCov">     109951 :     WaitKeepAliveCounter();</span>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineCov">     109952 :     return( eGlobalErr );</span>
+<span class="lineNum">     328 </span>            : }
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            : /************************************************************************/
+<span class="lineNum">     331 </span>            : /*                        UnreferenceBlock()                            */
+<a name="332"><span class="lineNum">     332 </span>            : /************************************************************************/</a>
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span><span class="lineCov">      83302 : CPLErr GDALArrayBandBlockCache::UnreferenceBlock( GDALRasterBlock* poBlock )</span>
+<span class="lineNum">     335 </span>            : {
+<span class="lineNum">     336 </span><span class="lineCov">      83302 :     const int nXBlockOff = poBlock-&gt;GetXOff();</span>
+<span class="lineNum">     337 </span><span class="lineCov">      83302 :     const int nYBlockOff = poBlock-&gt;GetYOff();</span>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineCov">      83302 :     UnreferenceBlockBase();</span>
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     342 </span>            : /*      Simple case for single level caches.                            */
+<span class="lineNum">     343 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     344 </span><span class="lineCov">      83302 :     if( !bSubBlockingActive )</span>
+<span class="lineNum">     345 </span>            :     {
+<span class="lineNum">     346 </span><span class="lineCov">      66401 :         const int nBlockIndex = nXBlockOff + nYBlockOff * poBand-&gt;nBlocksPerRow;</span>
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span><span class="lineCov">      66401 :         u.papoBlocks[nBlockIndex] = nullptr;</span>
+<span class="lineNum">     349 </span>            :     }
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     352 </span>            : /*      Identify our subblock.                                          */
+<span class="lineNum">     353 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     354 </span>            :     else
+<span class="lineNum">     355 </span>            :     {
+<span class="lineNum">     356 </span><span class="lineCov">      16901 :         const int nSubBlock = TO_SUBBLOCK(nXBlockOff)</span>
+<span class="lineNum">     357 </span><span class="lineCov">      16901 :             + TO_SUBBLOCK(nYBlockOff) * nSubBlocksPerRow;</span>
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     360 </span>            : /*      Check within subblock.                                          */
+<span class="lineNum">     361 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     362 </span><span class="lineCov">      16901 :         GDALRasterBlock **papoSubBlockGrid = u.papapoBlocks[nSubBlock];</span>
+<span class="lineNum">     363 </span><span class="lineCov">      16901 :         if( papoSubBlockGrid == nullptr )</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :             return CE_None;</span>
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span><span class="lineCov">      16901 :         const int nBlockInSubBlock = WITHIN_SUBBLOCK(nXBlockOff)</span>
+<span class="lineNum">     367 </span><span class="lineCov">      16901 :             + WITHIN_SUBBLOCK(nYBlockOff) * SUBBLOCK_SIZE;</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span><span class="lineCov">      16901 :         papoSubBlockGrid[nBlockInSubBlock] = nullptr;</span>
+<span class="lineNum">     370 </span>            :     }
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineCov">      83302 :     return CE_None;</span>
+<span class="lineNum">     373 </span>            : }
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span>            : /************************************************************************/
+<span class="lineNum">     376 </span>            : /*                            FlushBlock()                              */
+<a name="377"><span class="lineNum">     377 </span>            : /************************************************************************/</a>
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span><span class="lineCov">     664584 : CPLErr GDALArrayBandBlockCache::FlushBlock( int nXBlockOff, int nYBlockOff,</span>
+<span class="lineNum">     380 </span>            :                                              int bWriteDirtyBlock )
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span>            : {
+<span class="lineNum">     383 </span><span class="lineCov">     664584 :     GDALRasterBlock *poBlock = nullptr;</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     386 </span>            : /*      Simple case for single level caches.                            */
+<span class="lineNum">     387 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     388 </span><span class="lineCov">     664584 :     if( !bSubBlockingActive )</span>
+<span class="lineNum">     389 </span>            :     {
+<span class="lineNum">     390 </span><span class="lineCov">     602194 :         const int nBlockIndex = nXBlockOff + nYBlockOff * poBand-&gt;nBlocksPerRow;</span>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineCov">     602194 :         assert(u.papoBlocks);</span>
+<span class="lineNum">     393 </span><span class="lineCov">     602194 :         poBlock = u.papoBlocks[nBlockIndex];</span>
+<span class="lineNum">     394 </span><span class="lineCov">     602194 :         u.papoBlocks[nBlockIndex] = nullptr;</span>
+<span class="lineNum">     395 </span>            :     }
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     398 </span>            : /*      Identify our subblock.                                          */
+<span class="lineNum">     399 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     400 </span>            :     else
+<span class="lineNum">     401 </span>            :     {
+<span class="lineNum">     402 </span><span class="lineCov">      62390 :         const int nSubBlock = TO_SUBBLOCK(nXBlockOff)</span>
+<span class="lineNum">     403 </span><span class="lineCov">      62390 :             + TO_SUBBLOCK(nYBlockOff) * nSubBlocksPerRow;</span>
+<span class="lineNum">     404 </span>            : 
+<span class="lineNum">     405 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     406 </span>            : /*      Check within subblock.                                          */
+<span class="lineNum">     407 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     408 </span><span class="lineCov">      62390 :         GDALRasterBlock **papoSubBlockGrid = u.papapoBlocks[nSubBlock];</span>
+<span class="lineNum">     409 </span><span class="lineCov">      62390 :         if( papoSubBlockGrid == nullptr )</span>
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :             return CE_None;</span>
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span><span class="lineCov">      62390 :         const int nBlockInSubBlock = WITHIN_SUBBLOCK(nXBlockOff)</span>
+<span class="lineNum">     413 </span><span class="lineCov">      62390 :             + WITHIN_SUBBLOCK(nYBlockOff) * SUBBLOCK_SIZE;</span>
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span><span class="lineCov">      62390 :         poBlock = papoSubBlockGrid[nBlockInSubBlock];</span>
+<span class="lineNum">     416 </span><span class="lineCov">      62390 :         papoSubBlockGrid[nBlockInSubBlock] = nullptr;</span>
+<span class="lineNum">     417 </span>            :     }
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineCov">     664584 :     if( poBlock == nullptr )</span>
+<span class="lineNum">     420 </span><span class="lineCov">        400 :         return CE_None;</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineCov">     664184 :     if( !poBlock-&gt;DropLockForRemovalFromStorage() )</span>
+<span class="lineNum">     423 </span><span class="lineCov">          2 :         return CE_None;</span>
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     426 </span>            : /*      Is the target block dirty?  If so we need to write it.          */
+<span class="lineNum">     427 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     428 </span><span class="lineCov">     664182 :     poBlock-&gt;Detach();</span>
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span><span class="lineCov">     664182 :     CPLErr eErr = CE_None;</span>
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span><span class="lineCov">     664182 :     if( bWriteDirtyBlock &amp;&amp; poBlock-&gt;GetDirty() )</span>
+<span class="lineNum">     433 </span>            :     {
+<span class="lineNum">     434 </span><span class="lineCov">     136797 :         UpdateDirtyBlockFlushingLog();</span>
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span><span class="lineCov">     136797 :         eErr = poBlock-&gt;Write();</span>
+<span class="lineNum">     437 </span>            :     }
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     440 </span>            : /*      Deallocate the block;                                           */
+<span class="lineNum">     441 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     442 </span><span class="lineCov">     664182 :     delete poBlock;</span>
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span><span class="lineCov">     664180 :     return eErr;</span>
+<span class="lineNum">     445 </span>            : }
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            : /************************************************************************/
+<span class="lineNum">     448 </span>            : /*                        TryGetLockedBlockRef()                        */
+<a name="449"><span class="lineNum">     449 </span>            : /************************************************************************/</a>
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span><span class="lineCov">    8918719 : GDALRasterBlock *GDALArrayBandBlockCache::TryGetLockedBlockRef( int nXBlockOff,</span>
+<span class="lineNum">     452 </span>            :                                                                  int nYBlockOff )
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span>            : {
+<span class="lineNum">     455 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     456 </span>            : /*      Simple case for single level caches.                            */
+<span class="lineNum">     457 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     458 </span><span class="lineCov">    8918719 :     if( !bSubBlockingActive )</span>
+<span class="lineNum">     459 </span>            :     {
+<span class="lineNum">     460 </span><span class="lineCov">    6530636 :         const int nBlockIndex = nXBlockOff + nYBlockOff * poBand-&gt;nBlocksPerRow;</span>
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span><span class="lineCov">    6530636 :         GDALRasterBlock* poBlock = u.papoBlocks[nBlockIndex];</span>
+<span class="lineNum">     463 </span><span class="lineCov">    6530636 :         if( poBlock == nullptr || !poBlock-&gt;TakeLock() )</span>
+<span class="lineNum">     464 </span><span class="lineCov">     651591 :             return nullptr;</span>
+<span class="lineNum">     465 </span><span class="lineCov">    5879069 :         return poBlock;</span>
+<span class="lineNum">     466 </span>            :     }
+<span class="lineNum">     467 </span>            :     else
+<span class="lineNum">     468 </span>            :     {
+<span class="lineNum">     469 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     470 </span>            : /*      Identify our subblock.                                          */
+<span class="lineNum">     471 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     472 </span><span class="lineCov">    2388083 :         const int nSubBlock = TO_SUBBLOCK(nXBlockOff)</span>
+<span class="lineNum">     473 </span><span class="lineCov">    2388083 :             + TO_SUBBLOCK(nYBlockOff) * nSubBlocksPerRow;</span>
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     476 </span>            : /*      Check within subblock.                                          */
+<span class="lineNum">     477 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     478 </span><span class="lineCov">    2388083 :         GDALRasterBlock **papoSubBlockGrid = u.papapoBlocks[nSubBlock];</span>
+<span class="lineNum">     479 </span><span class="lineCov">    2388083 :         if( papoSubBlockGrid == nullptr )</span>
+<span class="lineNum">     480 </span><span class="lineCov">        104 :             return nullptr;</span>
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span><span class="lineCov">    2387979 :         const int nBlockInSubBlock = WITHIN_SUBBLOCK(nXBlockOff)</span>
+<span class="lineNum">     483 </span><span class="lineCov">    2387979 :             + WITHIN_SUBBLOCK(nYBlockOff) * SUBBLOCK_SIZE;</span>
+<span class="lineNum">     484 </span>            : 
+<span class="lineNum">     485 </span><span class="lineCov">    2387979 :         GDALRasterBlock* poBlock = papoSubBlockGrid[nBlockInSubBlock];</span>
+<span class="lineNum">     486 </span><span class="lineCov">    2387979 :         if( poBlock == nullptr || !poBlock-&gt;TakeLock() )</span>
+<span class="lineNum">     487 </span><span class="lineCov">      79100 :             return nullptr;</span>
+<span class="lineNum">     488 </span><span class="lineCov">    2308879 :         return poBlock;</span>
+<span class="lineNum">     489 </span>            :     }
+<span class="lineNum">     490 </span>            : }
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span>            : //! @endcond
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

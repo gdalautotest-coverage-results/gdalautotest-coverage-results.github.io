@@ -1,0 +1,582 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/gtiff/tifvsi.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/gtiff</a> - tifvsi.cpp<span style="font-size: 80%;"> (source / <a href="tifvsi.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">198</td>
+            <td class="headerCovTableEntry">208</td>
+            <td class="headerCovTableEntryHi">95.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">22</td>
+            <td class="headerCovTableEntry">22</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GeoTIFF Driver
+<span class="lineNum">       4 </span>            :  * Purpose:  Implement system hook functions for libtiff on top of CPL/VSI,
+<span class="lineNum">       5 </span>            :  *           including &gt; 2GB support.  Based on tif_unix.c from libtiff
+<span class="lineNum">       6 </span>            :  *           distribution.
+<span class="lineNum">       7 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       8 </span>            :  *
+<span class="lineNum">       9 </span>            :  ******************************************************************************
+<span class="lineNum">      10 </span>            :  * Copyright (c) 2005, Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">      11 </span>            :  * Copyright (c) 2010-2012, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      12 </span>            :  *
+<span class="lineNum">      13 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      14 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      15 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      16 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      17 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      18 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      21 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      22 </span>            :  *
+<span class="lineNum">      23 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      24 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      25 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      26 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      27 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      28 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      29 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      30 </span>            :  ****************************************************************************/
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : // TIFF Library UNIX-specific Routines.
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      35 </span>            : #include &quot;tifvsi.h&quot;
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : #include &lt;assert.h&gt;
+<span class="lineNum">      38 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      39 </span>            : #include &lt;cerrno&gt;
+<span class="lineNum">      40 </span>            : #if HAVE_FCNTL_H
+<span class="lineNum">      41 </span>            : #  include &lt;fcntl.h&gt;
+<span class="lineNum">      42 </span>            : #endif
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : // We avoid including xtiffio.h since it drags in the libgeotiff version
+<span class="lineNum">      49 </span>            : // of the VSI functions.
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : #ifdef RENAME_INTERNAL_LIBGEOTIFF_SYMBOLS
+<span class="lineNum">      52 </span>            : #include &quot;gdal_libgeotiff_symbol_rename.h&quot;
+<span class="lineNum">      53 </span>            : #endif
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : CPL_C_START
+<span class="lineNum">      58 </span>            : extern TIFF CPL_DLL * XTIFFClientOpen( const char* name, const char* mode,
+<span class="lineNum">      59 </span>            :                                        thandle_t thehandle,
+<span class="lineNum">      60 </span>            :                                        TIFFReadWriteProc, TIFFReadWriteProc,
+<span class="lineNum">      61 </span>            :                                        TIFFSeekProc, TIFFCloseProc,
+<span class="lineNum">      62 </span>            :                                        TIFFSizeProc,
+<span class="lineNum">      63 </span>            :                                        TIFFMapFileProc, TIFFUnmapFileProc );
+<span class="lineNum">      64 </span>            : CPL_C_END
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            : constexpr int BUFFER_SIZE = 65536;
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            : struct GDALTiffHandle;
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : struct GDALTiffHandleShared
+<span class="lineNum">      71 </span>            : {
+<span class="lineNum">      72 </span>            :     VSILFILE       *fpL;
+<span class="lineNum">      73 </span>            :     bool            bReadOnly;
+<span class="lineNum">      74 </span>            :     bool            bLazyStrileLoading;
+<span class="lineNum">      75 </span>            :     char           *pszName;
+<span class="lineNum">      76 </span>            :     GDALTiffHandle *psActiveHandle; // only used on the parent
+<span class="lineNum">      77 </span>            :     int             nUserCounter;
+<span class="lineNum">      78 </span>            :     bool            bAtEndOfFile;
+<span class="lineNum">      79 </span>            :     vsi_l_offset    nFileLength;
+<span class="lineNum">      80 </span>            : };
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : struct GDALTiffHandle
+<span class="lineNum">      83 </span>            : {
+<span class="lineNum">      84 </span>            :     GDALTiffHandle* psParent; // nullptr for the parent itself
+<span class="lineNum">      85 </span>            :     GDALTiffHandleShared* psShared;
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            :     GByte      *abyWriteBuffer;
+<span class="lineNum">      88 </span>            :     int         nWriteBufferSize;
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            :     // For pseudo-mmap'ed /vsimem/ file
+<span class="lineNum">      91 </span>            :     vsi_l_offset nDataLength;
+<span class="lineNum">      92 </span>            :     void*        pBase;
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span>            :     // If we pre-cached data (typically from /vsicurl/ )
+<span class="lineNum">      95 </span>            :     int          nCachedRanges;
+<span class="lineNum">      96 </span>            :     void**       ppCachedData;
+<span class="lineNum">      97 </span>            :     vsi_l_offset* panCachedOffsets;
+<span class="lineNum">      98 </span>            :     size_t*       panCachedSizes;
+<span class="lineNum">      99 </span>            : };
+<span class="lineNum">     100 </span>            : 
+<a name="101"><span class="lineNum">     101 </span>            : static bool GTHFlushBuffer( thandle_t th );</a>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span><span class="lineCov">    2884263 : static void SetActiveGTH(GDALTiffHandle* psGTH)</span>
+<span class="lineNum">     104 </span>            : {
+<span class="lineNum">     105 </span><span class="lineCov">    2884263 :     auto psShared = psGTH-&gt;psShared;</span>
+<span class="lineNum">     106 </span><span class="lineCov">    2884263 :     if( psShared-&gt;psActiveHandle != psGTH )</span>
+<span class="lineNum">     107 </span>            :     {
+<span class="lineNum">     108 </span><span class="lineCov">      12733 :         if( psShared-&gt;psActiveHandle != nullptr )</span>
+<span class="lineNum">     109 </span>            :         {
+<span class="lineNum">     110 </span><span class="lineCov">      11949 :             GTHFlushBuffer( static_cast&lt;thandle_t&gt;(psShared-&gt;psActiveHandle) );</span>
+<span class="lineNum">     111 </span>            :         }
+<span class="lineNum">     112 </span><span class="lineCov">      12733 :         psShared-&gt;psActiveHandle = psGTH;</span>
+<span class="lineNum">     113 </span>            :     }
+<a name="114"><span class="lineNum">     114 </span><span class="lineCov">    2884263 : }</span></a>
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span><span class="lineCov">        140 : void* VSI_TIFFGetCachedRange( thandle_t th, vsi_l_offset nOffset, size_t nSize )</span>
+<span class="lineNum">     117 </span>            : {
+<span class="lineNum">     118 </span><span class="lineCov">        140 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle*&gt;( th );</span>
+<span class="lineNum">     119 </span><span class="lineCov">        140 :     for( int i = 0; i &lt; psGTH-&gt;nCachedRanges; i++ )</span>
+<span class="lineNum">     120 </span>            :     {
+<span class="lineNum">     121 </span><span class="lineCov">        280 :         if( nOffset &gt;= psGTH-&gt;panCachedOffsets[i] &amp;&amp;</span>
+<span class="lineNum">     122 </span><span class="lineCov">        140 :             nOffset + nSize &lt;=</span>
+<span class="lineNum">     123 </span><span class="lineCov">        140 :                 psGTH-&gt;panCachedOffsets[i] + psGTH-&gt;panCachedSizes[i] )</span>
+<span class="lineNum">     124 </span>            :         {
+<span class="lineNum">     125 </span><span class="lineCov">        140 :             return static_cast&lt;GByte*&gt;(psGTH-&gt;ppCachedData[i]) +</span>
+<span class="lineNum">     126 </span><span class="lineCov">        140 :                             (nOffset - psGTH-&gt;panCachedOffsets[i]);</span>
+<span class="lineNum">     127 </span>            :         }
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :         if( nOffset &lt; psGTH-&gt;panCachedOffsets[i] )</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     130 </span>            :     }
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     132 </span>            : }
+<a name="133"><span class="lineNum">     133 </span>            : </a>
+<span class="lineNum">     134 </span>            : static tsize_t
+<span class="lineNum">     135 </span><span class="lineCov">    2380248 : _tiffReadProc( thandle_t th, tdata_t buf, tsize_t size )</span>
+<span class="lineNum">     136 </span>            : {
+<span class="lineNum">     137 </span><span class="lineCov">    2380248 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle *&gt;(th);</span>
+<span class="lineNum">     138 </span>            :     //SetActiveGTH(psGTH);
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span><span class="lineCov">    2380248 :     if( psGTH-&gt;nCachedRanges )</span>
+<span class="lineNum">     141 </span>            :     {
+<span class="lineNum">     142 </span><span class="lineCov">          1 :         const vsi_l_offset nCurOffset = VSIFTellL( psGTH-&gt;psShared-&gt;fpL );</span>
+<span class="lineNum">     143 </span><span class="lineCov">          1 :         void* data = VSI_TIFFGetCachedRange(th, nCurOffset, static_cast&lt;size_t&gt;(size));</span>
+<span class="lineNum">     144 </span><span class="lineCov">          1 :         if( data )</span>
+<span class="lineNum">     145 </span>            :         {
+<span class="lineNum">     146 </span><span class="lineCov">          1 :             memcpy(buf, data, size);</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :             VSIFSeekL( psGTH-&gt;psShared-&gt;fpL, nCurOffset + size, SEEK_SET );</span>
+<span class="lineNum">     148 </span><span class="lineCov">          1 :             return size;</span>
+<span class="lineNum">     149 </span>            :         }
+<span class="lineNum">     150 </span>            :     }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            : #ifdef DEBUG_VERBOSE_EXTRA
+<span class="lineNum">     153 </span>            :     CPLDebug(&quot;GTiff&quot;, &quot;Reading %d bytes at offset &quot; CPL_FRMT_GUIB,
+<span class="lineNum">     154 </span>            :              static_cast&lt;int&gt;(size),
+<span class="lineNum">     155 </span>            :              VSIFTellL( psGTH-&gt;psShared-&gt;fpL ));
+<span class="lineNum">     156 </span>            : #endif
+<span class="lineNum">     157 </span><span class="lineCov">    2380247 :     return VSIFReadL( buf, 1, size, psGTH-&gt;psShared-&gt;fpL );</span>
+<a name="158"><span class="lineNum">     158 </span>            : }</a>
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span><span class="lineCov">    2424695 : static bool GTHFlushBuffer( thandle_t th )</span>
+<span class="lineNum">     161 </span>            : {
+<span class="lineNum">     162 </span><span class="lineCov">    2424695 :     GDALTiffHandle* psGTH = static_cast&lt;GDALTiffHandle*&gt;(th);</span>
+<span class="lineNum">     163 </span><span class="lineCov">    2424695 :     bool bRet = true;</span>
+<span class="lineNum">     164 </span><span class="lineCov">    2424695 :     if( psGTH-&gt;abyWriteBuffer &amp;&amp; psGTH-&gt;nWriteBufferSize )</span>
+<span class="lineNum">     165 </span>            :     {
+<span class="lineNum">     166 </span>            :         const tsize_t nRet = VSIFWriteL( psGTH-&gt;abyWriteBuffer, 1,
+<span class="lineNum">     167 </span><span class="lineCov">      10146 :                                          psGTH-&gt;nWriteBufferSize, psGTH-&gt;psShared-&gt;fpL );</span>
+<span class="lineNum">     168 </span><span class="lineCov">      10146 :         bRet = nRet == psGTH-&gt;nWriteBufferSize;</span>
+<span class="lineNum">     169 </span><span class="lineCov">      10146 :         if( !bRet )</span>
+<span class="lineNum">     170 </span>            :         {
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :             TIFFErrorExt( th, &quot;_tiffWriteProc&quot;, &quot;%s&quot;, VSIStrerror( errno ) );</span>
+<span class="lineNum">     172 </span>            :         }
+<span class="lineNum">     173 </span><span class="lineCov">      10146 :         psGTH-&gt;nWriteBufferSize = 0;</span>
+<span class="lineNum">     174 </span>            :     }
+<span class="lineNum">     175 </span><span class="lineCov">    2424695 :     return bRet;</span>
+<span class="lineNum">     176 </span>            : }
+<a name="177"><span class="lineNum">     177 </span>            : </a>
+<span class="lineNum">     178 </span>            : static tsize_t
+<span class="lineNum">     179 </span><span class="lineCov">     297176 : _tiffWriteProc( thandle_t th, tdata_t buf, tsize_t size )</span>
+<span class="lineNum">     180 </span>            : {
+<span class="lineNum">     181 </span><span class="lineCov">     297176 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle *&gt;( th );</span>
+<span class="lineNum">     182 </span><span class="lineCov">     297176 :     SetActiveGTH(psGTH);</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            :     // If we have a write buffer and are at end of file, then accumulate
+<span class="lineNum">     185 </span>            :     // the bytes until the buffer is full.
+<span class="lineNum">     186 </span><span class="lineCov">     297177 :     if( psGTH-&gt;psShared-&gt;bAtEndOfFile &amp;&amp; psGTH-&gt;abyWriteBuffer )</span>
+<span class="lineNum">     187 </span>            :     {
+<span class="lineNum">     188 </span><span class="lineCov">      76689 :         const GByte* pabyData = reinterpret_cast&lt;GByte *&gt;( buf );</span>
+<span class="lineNum">     189 </span><span class="lineCov">      76689 :         tsize_t nRemainingBytes = size;</span>
+<span class="lineNum">     190 </span>            :         while( true )
+<span class="lineNum">     191 </span>            :         {
+<span class="lineNum">     192 </span><span class="lineCov">      78515 :             if( psGTH-&gt;nWriteBufferSize + nRemainingBytes &lt;= BUFFER_SIZE )</span>
+<span class="lineNum">     193 </span>            :             {
+<span class="lineNum">     194 </span><span class="lineCov">      76689 :                 memcpy( psGTH-&gt;abyWriteBuffer + psGTH-&gt;nWriteBufferSize,</span>
+<span class="lineNum">     195 </span><span class="lineCov">     153378 :                         pabyData, nRemainingBytes );</span>
+<span class="lineNum">     196 </span><span class="lineCov">      76689 :                 psGTH-&gt;nWriteBufferSize += static_cast&lt;int&gt;(nRemainingBytes);</span>
+<span class="lineNum">     197 </span><span class="lineCov">      76689 :                 if( psGTH-&gt;psShared-&gt;bAtEndOfFile )</span>
+<span class="lineNum">     198 </span>            :                 {
+<span class="lineNum">     199 </span><span class="lineCov">      76689 :                     psGTH-&gt;psShared-&gt;nFileLength += size;</span>
+<span class="lineNum">     200 </span>            :                 }
+<span class="lineNum">     201 </span><span class="lineCov">      76689 :                 return size;</span>
+<span class="lineNum">     202 </span>            :             }
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineCov">       1826 :             int nAppendable = BUFFER_SIZE - psGTH-&gt;nWriteBufferSize;</span>
+<span class="lineNum">     205 </span><span class="lineCov">       1826 :             memcpy( psGTH-&gt;abyWriteBuffer + psGTH-&gt;nWriteBufferSize, pabyData,</span>
+<span class="lineNum">     206 </span><span class="lineCov">       3652 :                     nAppendable );</span>
+<span class="lineNum">     207 </span>            :             const tsize_t nRet = VSIFWriteL( psGTH-&gt;abyWriteBuffer, 1,
+<span class="lineNum">     208 </span><span class="lineCov">       1826 :                                              BUFFER_SIZE, psGTH-&gt;psShared-&gt;fpL );</span>
+<span class="lineNum">     209 </span><span class="lineCov">       1826 :             psGTH-&gt;nWriteBufferSize = 0;</span>
+<span class="lineNum">     210 </span><span class="lineCov">       1826 :             if( nRet != BUFFER_SIZE )</span>
+<span class="lineNum">     211 </span>            :             {
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :                 TIFFErrorExt( th, &quot;_tiffWriteProc&quot;, &quot;%s&quot;, VSIStrerror( errno ) );</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :                 return 0;</span>
+<span class="lineNum">     214 </span>            :             }
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineCov">       1826 :             pabyData += nAppendable;</span>
+<span class="lineNum">     217 </span><span class="lineCov">       1826 :             nRemainingBytes -= nAppendable;</span>
+<span class="lineNum">     218 </span><span class="lineCov">       1826 :         }</span>
+<span class="lineNum">     219 </span>            :     }
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span><span class="lineCov">     220488 :     const tsize_t nRet = VSIFWriteL( buf, 1, size, psGTH-&gt;psShared-&gt;fpL );</span>
+<span class="lineNum">     222 </span><span class="lineCov">     220485 :     if( nRet &lt; size )</span>
+<span class="lineNum">     223 </span>            :     {
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :         TIFFErrorExt( th, &quot;_tiffWriteProc&quot;, &quot;%s&quot;, VSIStrerror( errno ) );</span>
+<span class="lineNum">     225 </span>            :     }
+<span class="lineNum">     226 </span><span class="lineCov">     220485 :     if( psGTH-&gt;psShared-&gt;bAtEndOfFile )</span>
+<span class="lineNum">     227 </span>            :     {
+<span class="lineNum">     228 </span><span class="lineCov">      63957 :         psGTH-&gt;psShared-&gt;nFileLength += nRet;</span>
+<span class="lineNum">     229 </span>            :     }
+<span class="lineNum">     230 </span><span class="lineCov">     220485 :     return nRet;</span>
+<span class="lineNum">     231 </span>            : }
+<a name="232"><span class="lineNum">     232 </span>            : </a>
+<span class="lineNum">     233 </span>            : static toff_t
+<span class="lineNum">     234 </span><span class="lineCov">    2519203 : _tiffSeekProc( thandle_t th, toff_t off, int whence )</span>
+<span class="lineNum">     235 </span>            : {
+<span class="lineNum">     236 </span><span class="lineCov">    2519203 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle *&gt;( th );</span>
+<span class="lineNum">     237 </span><span class="lineCov">    2519203 :     SetActiveGTH(psGTH);</span>
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :     // Optimization: if we are already at end, then no need to
+<span class="lineNum">     240 </span>            :     // issue a VSIFSeekL().
+<span class="lineNum">     241 </span><span class="lineCov">    2519244 :     if( whence == SEEK_END )</span>
+<span class="lineNum">     242 </span>            :     {
+<span class="lineNum">     243 </span><span class="lineCov">     154108 :         if( psGTH-&gt;psShared-&gt;bAtEndOfFile )</span>
+<span class="lineNum">     244 </span>            :         {
+<span class="lineNum">     245 </span><span class="lineCov">     110196 :             return static_cast&lt;toff_t&gt;( psGTH-&gt;psShared-&gt;nFileLength );</span>
+<span class="lineNum">     246 </span>            :         }
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineCov">      43912 :         if( VSIFSeekL( psGTH-&gt;psShared-&gt;fpL, off, whence ) != 0 )</span>
+<span class="lineNum">     249 </span>            :         {
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :             TIFFErrorExt( th, &quot;_tiffSeekProc&quot;, &quot;%s&quot;, VSIStrerror( errno ) );</span>
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :             return static_cast&lt;toff_t&gt;( -1 );</span>
+<span class="lineNum">     252 </span>            :         }
+<span class="lineNum">     253 </span><span class="lineCov">      43912 :         psGTH-&gt;psShared-&gt;bAtEndOfFile = true;</span>
+<span class="lineNum">     254 </span><span class="lineCov">      43912 :         psGTH-&gt;psShared-&gt;nFileLength = VSIFTellL( psGTH-&gt;psShared-&gt;fpL );</span>
+<span class="lineNum">     255 </span><span class="lineCov">      43912 :         return static_cast&lt;toff_t&gt;(psGTH-&gt;psShared-&gt;nFileLength);</span>
+<span class="lineNum">     256 </span>            :     }
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineCov">    2365136 :     GTHFlushBuffer(th);</span>
+<span class="lineNum">     259 </span><span class="lineCov">    2365156 :     psGTH-&gt;psShared-&gt;bAtEndOfFile = false;</span>
+<span class="lineNum">     260 </span><span class="lineCov">    2365156 :     psGTH-&gt;psShared-&gt;nFileLength = 0;</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span><span class="lineCov">    2365156 :     if( VSIFSeekL( psGTH-&gt;psShared-&gt;fpL, off, whence ) == 0 )</span>
+<span class="lineNum">     263 </span>            :     {
+<span class="lineNum">     264 </span><span class="lineCov">    2365184 :         return static_cast&lt;toff_t&gt;( VSIFTellL( psGTH-&gt;psShared-&gt;fpL ) );</span>
+<span class="lineNum">     265 </span>            :     }
+<span class="lineNum">     266 </span>            :     else
+<span class="lineNum">     267 </span>            :     {
+<span class="lineNum">     268 </span><span class="lineCov">          1 :         TIFFErrorExt( th, &quot;_tiffSeekProc&quot;, &quot;%s&quot;, VSIStrerror( errno ) );</span>
+<span class="lineNum">     269 </span><span class="lineCov">          1 :         return static_cast&lt;toff_t&gt;(-1);</span>
+<span class="lineNum">     270 </span>            :     }
+<a name="271"><span class="lineNum">     271 </span>            : }</a>
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span><span class="lineCov">      43112 : static void FreeGTH(GDALTiffHandle* psGTH)</span>
+<span class="lineNum">     274 </span>            : {
+<span class="lineNum">     275 </span><span class="lineCov">      43112 :     psGTH-&gt;psShared-&gt;nUserCounter --;</span>
+<span class="lineNum">     276 </span><span class="lineCov">      43112 :     if( psGTH-&gt;psParent == nullptr )</span>
+<span class="lineNum">     277 </span>            :     {
+<span class="lineNum">     278 </span><span class="lineCov">      42328 :         assert( psGTH-&gt;psShared-&gt;nUserCounter == 0 );</span>
+<span class="lineNum">     279 </span><span class="lineCov">      42328 :         CPLFree(psGTH-&gt;psShared-&gt;pszName);</span>
+<span class="lineNum">     280 </span><span class="lineCov">      42338 :         CPLFree(psGTH-&gt;psShared);</span>
+<span class="lineNum">     281 </span>            :     }
+<span class="lineNum">     282 </span>            :     else
+<span class="lineNum">     283 </span>            :     {
+<span class="lineNum">     284 </span><span class="lineCov">        784 :         if( psGTH-&gt;psShared-&gt;psActiveHandle == psGTH )</span>
+<span class="lineNum">     285 </span><span class="lineCov">        784 :             psGTH-&gt;psShared-&gt;psActiveHandle = nullptr;</span>
+<span class="lineNum">     286 </span>            :     }
+<span class="lineNum">     287 </span><span class="lineCov">      43118 :     CPLFree(psGTH-&gt;abyWriteBuffer);</span>
+<span class="lineNum">     288 </span><span class="lineCov">      43120 :     CPLFree(psGTH-&gt;ppCachedData);</span>
+<span class="lineNum">     289 </span><span class="lineCov">      43119 :     CPLFree(psGTH-&gt;panCachedOffsets);</span>
+<span class="lineNum">     290 </span><span class="lineCov">      43121 :     CPLFree(psGTH-&gt;panCachedSizes);</span>
+<span class="lineNum">     291 </span><span class="lineCov">      43123 :     CPLFree(psGTH);</span>
+<span class="lineNum">     292 </span><span class="lineCov">      43123 : }</span>
+<a name="293"><span class="lineNum">     293 </span>            : </a>
+<span class="lineNum">     294 </span>            : static int
+<span class="lineNum">     295 </span><span class="lineCov">      43106 : _tiffCloseProc( thandle_t th )</span>
+<span class="lineNum">     296 </span>            : {
+<span class="lineNum">     297 </span><span class="lineCov">      43106 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle*&gt;( th );</span>
+<span class="lineNum">     298 </span><span class="lineCov">      43106 :     SetActiveGTH(psGTH);</span>
+<span class="lineNum">     299 </span><span class="lineCov">      43118 :     GTHFlushBuffer(th);</span>
+<span class="lineNum">     300 </span><span class="lineCov">      43121 :     FreeGTH(psGTH);</span>
+<span class="lineNum">     301 </span><span class="lineCov">      43121 :     return 0;</span>
+<span class="lineNum">     302 </span>            : }
+<a name="303"><span class="lineNum">     303 </span>            : </a>
+<span class="lineNum">     304 </span>            : static toff_t
+<span class="lineNum">     305 </span><span class="lineCov">      15022 : _tiffSizeProc( thandle_t th )</span>
+<span class="lineNum">     306 </span>            : {
+<span class="lineNum">     307 </span><span class="lineCov">      15022 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle*&gt;( th );</span>
+<span class="lineNum">     308 </span><span class="lineCov">      15022 :     SetActiveGTH(psGTH);</span>
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span><span class="lineCov">      15022 :     if( psGTH-&gt;psShared-&gt;bAtEndOfFile )</span>
+<span class="lineNum">     311 </span>            :     {
+<span class="lineNum">     312 </span><span class="lineCov">       3322 :         return static_cast&lt;toff_t&gt;( psGTH-&gt;psShared-&gt;nFileLength );</span>
+<span class="lineNum">     313 </span>            :     }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span><span class="lineCov">      11700 :     const vsi_l_offset old_off = VSIFTellL( psGTH-&gt;psShared-&gt;fpL );</span>
+<span class="lineNum">     316 </span><span class="lineCov">      11728 :     CPL_IGNORE_RET_VAL(VSIFSeekL( psGTH-&gt;psShared-&gt;fpL, 0, SEEK_END ));</span>
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span><span class="lineCov">      11698 :     const toff_t file_size = static_cast&lt;toff_t&gt;(VSIFTellL( psGTH-&gt;psShared-&gt;fpL ));</span>
+<span class="lineNum">     319 </span><span class="lineCov">      11742 :     CPL_IGNORE_RET_VAL(VSIFSeekL( psGTH-&gt;psShared-&gt;fpL, old_off, SEEK_SET ));</span>
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineCov">      11749 :     return file_size;</span>
+<span class="lineNum">     322 </span>            : }
+<a name="323"><span class="lineNum">     323 </span>            : </a>
+<span class="lineNum">     324 </span>            : static int
+<span class="lineNum">     325 </span><span class="lineCov">      11419 : _tiffMapProc( thandle_t th, tdata_t* pbase , toff_t* psize )</span>
+<span class="lineNum">     326 </span>            : {
+<span class="lineNum">     327 </span><span class="lineCov">      11419 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle*&gt;( th );</span>
+<span class="lineNum">     328 </span>            :     //SetActiveGTH(psGTH);
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span><span class="lineCov">      11419 :     if( psGTH-&gt;pBase )</span>
+<span class="lineNum">     331 </span>            :     {
+<span class="lineNum">     332 </span><span class="lineCov">          8 :         *pbase = psGTH-&gt;pBase;</span>
+<span class="lineNum">     333 </span><span class="lineCov">          8 :         *psize = static_cast&lt;toff_t&gt;(psGTH-&gt;nDataLength);</span>
+<span class="lineNum">     334 </span><span class="lineCov">          8 :         return 1;</span>
+<span class="lineNum">     335 </span>            :     }
+<span class="lineNum">     336 </span><span class="lineCov">      11411 :     return 0;</span>
+<span class="lineNum">     337 </span>            : }
+<a name="338"><span class="lineNum">     338 </span>            : </a>
+<span class="lineNum">     339 </span>            : static void
+<span class="lineNum">     340 </span><span class="lineCov">          8 : _tiffUnmapProc( thandle_t /* th */, tdata_t /* base */, toff_t /* size */ )</span>
+<a name="341"><span class="lineNum">     341 </span><span class="lineCov">          8 : {}</span></a>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span><span class="lineCov">       4466 : VSILFILE* VSI_TIFFGetVSILFile( thandle_t th )</span>
+<span class="lineNum">     344 </span>            : {
+<span class="lineNum">     345 </span><span class="lineCov">       4466 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle *&gt;( th );</span>
+<span class="lineNum">     346 </span><span class="lineCov">       4466 :     SetActiveGTH(psGTH);</span>
+<span class="lineNum">     347 </span><span class="lineCov">       4466 :     VSI_TIFFFlushBufferedWrite(th);</span>
+<span class="lineNum">     348 </span><span class="lineCov">       4466 :     return psGTH-&gt;psShared-&gt;fpL;</span>
+<a name="349"><span class="lineNum">     349 </span>            : }</a>
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span><span class="lineCov">       4476 : int VSI_TIFFFlushBufferedWrite( thandle_t th )</span>
+<span class="lineNum">     352 </span>            : {
+<span class="lineNum">     353 </span><span class="lineCov">       4476 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle*&gt;( th );</span>
+<span class="lineNum">     354 </span><span class="lineCov">       4476 :     SetActiveGTH(psGTH);</span>
+<span class="lineNum">     355 </span><span class="lineCov">       4476 :     psGTH-&gt;psShared-&gt;bAtEndOfFile = false;</span>
+<span class="lineNum">     356 </span><span class="lineCov">       4476 :     return GTHFlushBuffer(th);</span>
+<a name="357"><span class="lineNum">     357 </span>            : }</a>
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineCov">       1267 : int VSI_TIFFHasCachedRanges( thandle_t th )</span>
+<span class="lineNum">     360 </span>            : {
+<span class="lineNum">     361 </span><span class="lineCov">       1267 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle*&gt;( th );</span>
+<span class="lineNum">     362 </span><span class="lineCov">       1267 :     return psGTH-&gt;nCachedRanges != 0;</span>
+<a name="363"><span class="lineNum">     363 </span>            : }</a>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineCov">      20854 : toff_t VSI_TIFFSeek(TIFF* tif, toff_t off, int whence )</span>
+<span class="lineNum">     366 </span>            : {
+<span class="lineNum">     367 </span><span class="lineCov">      20854 :     thandle_t th = TIFFClientdata( tif );</span>
+<span class="lineNum">     368 </span><span class="lineCov">      20854 :     return _tiffSeekProc(th, off, whence);</span>
+<a name="369"><span class="lineNum">     369 </span>            : }</a>
+<span class="lineNum">     370 </span>            : 
+<span class="lineNum">     371 </span><span class="lineCov">      41249 : int VSI_TIFFWrite( TIFF* tif, const void* buffer, size_t buffersize )</span>
+<span class="lineNum">     372 </span>            : {
+<span class="lineNum">     373 </span><span class="lineCov">      41249 :     thandle_t th = TIFFClientdata( tif );</span>
+<span class="lineNum">     374 </span>            :     return static_cast&lt;size_t&gt;(
+<span class="lineNum">     375 </span><span class="lineCov">      41249 :         _tiffWriteProc( th, const_cast&lt;tdata_t&gt;(buffer), buffersize )) == buffersize;</span>
+<a name="376"><span class="lineNum">     376 </span>            : }</a>
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span><span class="lineCov">         42 : void VSI_TIFFSetCachedRanges( thandle_t th, int nRanges,</span>
+<span class="lineNum">     379 </span>            :                               void ** ppData,
+<span class="lineNum">     380 </span>            :                               const vsi_l_offset* panOffsets,
+<span class="lineNum">     381 </span>            :                               const size_t* panSizes )
+<span class="lineNum">     382 </span>            : {
+<span class="lineNum">     383 </span><span class="lineCov">         42 :     GDALTiffHandle* psGTH = reinterpret_cast&lt;GDALTiffHandle*&gt;( th );</span>
+<span class="lineNum">     384 </span><span class="lineCov">         42 :     psGTH-&gt;nCachedRanges = nRanges;</span>
+<span class="lineNum">     385 </span><span class="lineCov">         42 :     if( nRanges )</span>
+<span class="lineNum">     386 </span>            :     {
+<span class="lineNum">     387 </span>            :         psGTH-&gt;ppCachedData =
+<span class="lineNum">     388 </span>            :             static_cast&lt;void**&gt;(CPLRealloc(psGTH-&gt;ppCachedData,
+<span class="lineNum">     389 </span><span class="lineCov">         21 :                                                 nRanges * sizeof(void*)));</span>
+<span class="lineNum">     390 </span>            :         memcpy(psGTH-&gt;ppCachedData, ppData,
+<span class="lineNum">     391 </span><span class="lineCov">         21 :             nRanges * sizeof(void*));</span>
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            :         psGTH-&gt;panCachedOffsets =
+<span class="lineNum">     394 </span>            :             static_cast&lt;vsi_l_offset*&gt;(CPLRealloc(psGTH-&gt;panCachedOffsets,
+<span class="lineNum">     395 </span><span class="lineCov">         21 :                                                 nRanges * sizeof(vsi_l_offset)));</span>
+<span class="lineNum">     396 </span>            :         memcpy(psGTH-&gt;panCachedOffsets, panOffsets,
+<span class="lineNum">     397 </span><span class="lineCov">         21 :             nRanges * sizeof(vsi_l_offset));</span>
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span>            :         psGTH-&gt;panCachedSizes =
+<span class="lineNum">     400 </span>            :             static_cast&lt;size_t*&gt;(CPLRealloc(psGTH-&gt;panCachedSizes,
+<span class="lineNum">     401 </span><span class="lineCov">         21 :                                                 nRanges * sizeof(size_t)));</span>
+<span class="lineNum">     402 </span>            :         memcpy(psGTH-&gt;panCachedSizes, panSizes,
+<span class="lineNum">     403 </span><span class="lineCov">         21 :             nRanges * sizeof(size_t));</span>
+<span class="lineNum">     404 </span>            :     }
+<a name="405"><span class="lineNum">     405 </span><span class="lineCov">         42 : }</span></a>
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span><span class="lineCov">      43114 : static bool IsReadOnly(const char* mode)</span>
+<span class="lineNum">     408 </span>            : {
+<span class="lineNum">     409 </span><span class="lineCov">      43114 :     bool bReadOnly = true;</span>
+<span class="lineNum">     410 </span><span class="lineCov">     163430 :     for( int i = 0; mode[i] != '\0'; i++ )</span>
+<span class="lineNum">     411 </span>            :     {
+<span class="lineNum">     412 </span><span class="lineCov">     120316 :         if( mode[i] == 'w'</span>
+<span class="lineNum">     413 </span><span class="lineCov">      90175 :             || mode[i] == '+'</span>
+<span class="lineNum">     414 </span><span class="lineCov">      58570 :             || mode[i] == 'a' )</span>
+<span class="lineNum">     415 </span>            :         {
+<span class="lineNum">     416 </span><span class="lineCov">      61754 :             bReadOnly = false;</span>
+<span class="lineNum">     417 </span>            :         }
+<span class="lineNum">     418 </span>            :     }
+<span class="lineNum">     419 </span><span class="lineCov">      43114 :     return bReadOnly;</span>
+<a name="420"><span class="lineNum">     420 </span>            : }</a>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineCov">      43116 : static void InitializeWriteBuffer(GDALTiffHandle* psGTH, const char* pszMode)</span>
+<span class="lineNum">     423 </span>            : {
+<span class="lineNum">     424 </span>            :     // No need to buffer on /vsimem/
+<span class="lineNum">     425 </span><span class="lineCov">      43116 :     const bool bReadOnly = IsReadOnly(pszMode);</span>
+<span class="lineNum">     426 </span><span class="lineCov">      43112 :     bool bAllocBuffer = !bReadOnly;</span>
+<span class="lineNum">     427 </span><span class="lineCov">      43112 :     if( STARTS_WITH(psGTH-&gt;psShared-&gt;pszName, &quot;/vsimem/&quot;) )</span>
+<span class="lineNum">     428 </span>            :     {
+<span class="lineNum">     429 </span><span class="lineCov">      32494 :         if( bReadOnly &amp;&amp;</span>
+<span class="lineNum">     430 </span><span class="lineCov">       1665 :             CPLTestBool(CPLGetConfigOption(&quot;GTIFF_USE_MMAP&quot;, &quot;NO&quot;)) )</span>
+<span class="lineNum">     431 </span>            :         {
+<span class="lineNum">     432 </span><span class="lineCov">          8 :             psGTH-&gt;nDataLength = 0;</span>
+<span class="lineNum">     433 </span>            :             psGTH-&gt;pBase = 
+<span class="lineNum">     434 </span><span class="lineCov">          8 :                 VSIGetMemFileBuffer(psGTH-&gt;psShared-&gt;pszName, &amp;psGTH-&gt;nDataLength, FALSE);</span>
+<span class="lineNum">     435 </span>            :         }
+<span class="lineNum">     436 </span><span class="lineCov">      30829 :         bAllocBuffer = false;</span>
+<span class="lineNum">     437 </span>            :     }
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span>            :     psGTH-&gt;abyWriteBuffer =
+<span class="lineNum">     440 </span><span class="lineCov">      43112 :         bAllocBuffer ? static_cast&lt;GByte *&gt;( VSIMalloc(BUFFER_SIZE) ) : nullptr;</span>
+<span class="lineNum">     441 </span><span class="lineCov">      43112 :     psGTH-&gt;nWriteBufferSize = 0;</span>
+<span class="lineNum">     442 </span>            : 
+<a name="443"><span class="lineNum">     443 </span><span class="lineCov">      43112 : }</span></a>
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span><span class="lineCov">      43120 : static TIFF* VSI_TIFFOpen_common(GDALTiffHandle* psGTH, const char* pszMode)</span>
+<span class="lineNum">     446 </span>            : {
+<span class="lineNum">     447 </span><span class="lineCov">      43120 :     InitializeWriteBuffer(psGTH, pszMode);</span>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span>            :     TIFF *tif =
+<span class="lineNum">     450 </span>            :         XTIFFClientOpen( psGTH-&gt;psShared-&gt;pszName,
+<span class="lineNum">     451 </span>            :                          pszMode,
+<span class="lineNum">     452 </span>            :                          reinterpret_cast&lt;thandle_t&gt;(psGTH),
+<span class="lineNum">     453 </span>            :                          _tiffReadProc, _tiffWriteProc,
+<span class="lineNum">     454 </span>            :                          _tiffSeekProc, _tiffCloseProc, _tiffSizeProc,
+<span class="lineNum">     455 </span><span class="lineCov">      43112 :                          _tiffMapProc, _tiffUnmapProc );</span>
+<span class="lineNum">     456 </span><span class="lineCov">      43066 :     if( tif == nullptr )</span>
+<span class="lineNum">     457 </span><span class="lineCov">          1 :         FreeGTH(psGTH);</span>
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span><span class="lineCov">      43049 :     return tif;</span>
+<span class="lineNum">     460 </span>            : }
+<a name="461"><span class="lineNum">     461 </span>            : </a>
+<span class="lineNum">     462 </span>            : // Open a TIFF file for read/writing.
+<span class="lineNum">     463 </span><span class="lineCov">      42338 : TIFF* VSI_TIFFOpen( const char* name, const char* mode,</span>
+<span class="lineNum">     464 </span>            :                     VSILFILE* fpL )
+<span class="lineNum">     465 </span>            : {
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span><span class="lineCov">      42338 :     if( VSIFSeekL(fpL, 0, SEEK_SET) &lt; 0 )</span>
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     469 </span>            : 
+<span class="lineNum">     470 </span>            :     GDALTiffHandle* psGTH = static_cast&lt;GDALTiffHandle *&gt;(
+<span class="lineNum">     471 </span><span class="lineCov">      42339 :         CPLCalloc(1, sizeof(GDALTiffHandle)) );</span>
+<span class="lineNum">     472 </span><span class="lineCov">      42339 :     psGTH-&gt;psParent = nullptr;</span>
+<span class="lineNum">     473 </span>            :     psGTH-&gt;psShared = static_cast&lt;GDALTiffHandleShared *&gt;(
+<span class="lineNum">     474 </span><span class="lineCov">      42339 :         CPLCalloc(1, sizeof(GDALTiffHandleShared)) );</span>
+<span class="lineNum">     475 </span><span class="lineCov">      42338 :     psGTH-&gt;psShared-&gt;bReadOnly = (strchr(mode, '+') == nullptr);</span>
+<span class="lineNum">     476 </span><span class="lineCov">      42338 :     psGTH-&gt;psShared-&gt;bLazyStrileLoading = (strchr(mode, 'D') != nullptr);</span>
+<span class="lineNum">     477 </span><span class="lineCov">      42337 :     psGTH-&gt;psShared-&gt;pszName = CPLStrdup(name);</span>
+<span class="lineNum">     478 </span><span class="lineCov">      42339 :     psGTH-&gt;psShared-&gt;fpL = fpL;</span>
+<span class="lineNum">     479 </span><span class="lineCov">      42339 :     psGTH-&gt;psShared-&gt;psActiveHandle = psGTH;</span>
+<span class="lineNum">     480 </span><span class="lineCov">      42339 :     psGTH-&gt;psShared-&gt;nFileLength = 0;</span>
+<span class="lineNum">     481 </span><span class="lineCov">      42339 :     psGTH-&gt;psShared-&gt;bAtEndOfFile = false;</span>
+<span class="lineNum">     482 </span><span class="lineCov">      42339 :     psGTH-&gt;psShared-&gt;nUserCounter = 1;</span>
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span><span class="lineCov">      42339 :     return VSI_TIFFOpen_common(psGTH, mode);</span>
+<a name="485"><span class="lineNum">     485 </span>            : }</a>
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span><span class="lineCov">        784 : TIFF* VSI_TIFFOpenChild( TIFF* parent )</span>
+<span class="lineNum">     488 </span>            : {
+<span class="lineNum">     489 </span>            :     GDALTiffHandle* psGTHParent =
+<span class="lineNum">     490 </span><span class="lineCov">        784 :         reinterpret_cast&lt;GDALTiffHandle*&gt;(TIFFClientdata(parent));</span>
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span>            :     GDALTiffHandle* psGTH = static_cast&lt;GDALTiffHandle *&gt;(
+<span class="lineNum">     493 </span><span class="lineCov">        784 :         CPLCalloc(1, sizeof(GDALTiffHandle)) );</span>
+<span class="lineNum">     494 </span><span class="lineCov">        784 :     psGTH-&gt;psParent = psGTHParent;</span>
+<span class="lineNum">     495 </span><span class="lineCov">        784 :     psGTH-&gt;psShared = psGTHParent-&gt;psShared;</span>
+<span class="lineNum">     496 </span><span class="lineCov">        784 :     psGTH-&gt;psShared-&gt;nUserCounter ++;</span>
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span><span class="lineCov">        784 :     SetActiveGTH(psGTH);</span>
+<span class="lineNum">     499 </span><span class="lineCov">        784 :     VSIFSeekL( psGTH-&gt;psShared-&gt;fpL, 0, SEEK_SET );</span>
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span>            :     const char* mode = 
+<span class="lineNum">     502 </span><span class="lineCov">       1128 :         psGTH-&gt;psShared-&gt;bReadOnly &amp;&amp; psGTH-&gt;psShared-&gt;bLazyStrileLoading ? &quot;rDO&quot; :</span>
+<span class="lineNum">     503 </span>            :         psGTH-&gt;psShared-&gt;bReadOnly ? &quot;r&quot; :
+<span class="lineNum">     504 </span><span class="lineCov">       1224 :         psGTH-&gt;psShared-&gt;bLazyStrileLoading ? &quot;r+D&quot; : &quot;r+&quot;;</span>
+<span class="lineNum">     505 </span><span class="lineCov">        784 :     return VSI_TIFFOpen_common(psGTH, mode);</span>
+<span class="lineNum">     506 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

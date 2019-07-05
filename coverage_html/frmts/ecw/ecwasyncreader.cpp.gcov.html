@@ -1,0 +1,518 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/ecw/ecwasyncreader.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/ecw</a> - ecwasyncreader.cpp<span style="font-size: 80%;"> (source / <a href="ecwasyncreader.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">1</td>
+            <td class="headerCovTableEntry">1</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL
+<span class="lineNum">       4 </span>            :  * Purpose:  ECWAsyncReader implementation
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2011, Frank Warmerdam &lt;warmerdam@pobox.com&gt;
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : // ncsjpcbuffer.h needs the min and max macros.
+<span class="lineNum">      31 </span>            : #undef NOMINMAX
+<span class="lineNum">      32 </span>            : 
+<a name="33"><span class="lineNum">      33 </span>            : #include &quot;gdal_ecw.h&quot;</a>
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span><span class="lineCov">       2976 : CPL_CVSID(&quot;$Id$&quot;)</span>
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : #if defined(FRMT_ecw) &amp;&amp; (ECWSDK_VERSION &gt;= 40)
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : /************************************************************************/
+<span class="lineNum">      40 </span>            : /*                          BeginAsyncReader()                          */
+<span class="lineNum">      41 </span>            : /************************************************************************/
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : GDALAsyncReader*
+<span class="lineNum">      44 </span>            : ECWDataset::BeginAsyncReader( int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">      45 </span>            :                               void *pBuf, int nBufXSize, int nBufYSize,
+<span class="lineNum">      46 </span>            :                               GDALDataType eBufType,
+<span class="lineNum">      47 </span>            :                               int nBandCount, int* panBandMap,
+<span class="lineNum">      48 </span>            :                               int nPixelSpace, int nLineSpace, int nBandSpace,
+<span class="lineNum">      49 </span>            :                               char **papszOptions)
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : {
+<span class="lineNum">      52 </span>            :     int   i;
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      55 </span>            : /*      Provide default packing if needed.                              */
+<span class="lineNum">      56 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      57 </span>            :     if( nPixelSpace == 0 )
+<span class="lineNum">      58 </span>            :         nPixelSpace = GDALGetDataTypeSize(eBufType) / 8;
+<span class="lineNum">      59 </span>            :     if( nLineSpace == 0 )
+<span class="lineNum">      60 </span>            :         nLineSpace = nPixelSpace * nBufXSize;
+<span class="lineNum">      61 </span>            :     if( nBandSpace == 0 )
+<span class="lineNum">      62 </span>            :         nBandSpace = nLineSpace * nBufYSize;
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      65 </span>            : /*      Do a bit of validation.                                         */
+<span class="lineNum">      66 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      67 </span>            :     if( nXSize &lt; 1 || nYSize &lt; 1 || nBufXSize &lt; 1 || nBufYSize &lt; 1 )
+<span class="lineNum">      68 </span>            :     {
+<span class="lineNum">      69 </span>            :         CPLDebug( &quot;GDAL&quot;,
+<span class="lineNum">      70 </span>            :                   &quot;BeginAsyncReader() skipped for odd window or buffer size.\n&quot;
+<span class="lineNum">      71 </span>            :                   &quot;  Window = (%d,%d)x%dx%d\n&quot;
+<span class="lineNum">      72 </span>            :                   &quot;  Buffer = %dx%d\n&quot;,
+<span class="lineNum">      73 </span>            :                   nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">      74 </span>            :                   nBufXSize, nBufYSize );
+<span class="lineNum">      75 </span>            :         return nullptr;
+<span class="lineNum">      76 </span>            :     }
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            :     if( nXOff &lt; 0 || nXOff &gt; INT_MAX - nXSize || nXOff + nXSize &gt; nRasterXSize
+<span class="lineNum">      79 </span>            :         || nYOff &lt; 0 || nYOff &gt; INT_MAX - nYSize || nYOff + nYSize &gt; nRasterYSize )
+<span class="lineNum">      80 </span>            :     {
+<span class="lineNum">      81 </span>            :         ReportError( CE_Failure, CPLE_IllegalArg,
+<span class="lineNum">      82 </span>            :                   &quot;Access window out of range in RasterIO().  Requested\n&quot;
+<span class="lineNum">      83 </span>            :                   &quot;(%d,%d) of size %dx%d on raster of %dx%d.&quot;,
+<span class="lineNum">      84 </span>            :                   nXOff, nYOff, nXSize, nYSize, nRasterXSize, nRasterYSize );
+<span class="lineNum">      85 </span>            :         return nullptr;
+<span class="lineNum">      86 </span>            :     }
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span>            :     if( nBandCount &lt;= 0 || nBandCount &gt; nBands )
+<span class="lineNum">      89 </span>            :     {
+<span class="lineNum">      90 </span>            :         ReportError( CE_Failure, CPLE_IllegalArg, &quot;Invalid band count&quot; );
+<span class="lineNum">      91 </span>            :         return nullptr;
+<span class="lineNum">      92 </span>            :     }
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span>            :     if( panBandMap != nullptr )
+<span class="lineNum">      95 </span>            :     {
+<span class="lineNum">      96 </span>            :         for( i = 0; i &lt; nBandCount; i++ )
+<span class="lineNum">      97 </span>            :         {
+<span class="lineNum">      98 </span>            :             if( panBandMap[i] &lt; 1 || panBandMap[i] &gt; nBands )
+<span class="lineNum">      99 </span>            :             {
+<span class="lineNum">     100 </span>            :                 ReportError( CE_Failure, CPLE_IllegalArg,
+<span class="lineNum">     101 </span>            :                       &quot;panBandMap[%d] = %d, this band does not exist on dataset.&quot;,
+<span class="lineNum">     102 </span>            :                       i, panBandMap[i] );
+<span class="lineNum">     103 </span>            :                 return nullptr;
+<span class="lineNum">     104 </span>            :             }
+<span class="lineNum">     105 </span>            :         }
+<span class="lineNum">     106 </span>            :     }
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     109 </span>            : /*      Create the corresponding async reader.                          */
+<span class="lineNum">     110 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     111 </span>            :     ECWAsyncReader *poReader = new ECWAsyncReader();
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span>            :     poReader-&gt;poDS = this;
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            :     poReader-&gt;nXOff = nXOff;
+<span class="lineNum">     116 </span>            :     poReader-&gt;nYOff = nYOff;
+<span class="lineNum">     117 </span>            :     poReader-&gt;nXSize = nXSize;
+<span class="lineNum">     118 </span>            :     poReader-&gt;nYSize = nYSize;
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span>            :     poReader-&gt;pBuf = pBuf;
+<span class="lineNum">     121 </span>            :     poReader-&gt;nBufXSize = nBufXSize;
+<span class="lineNum">     122 </span>            :     poReader-&gt;nBufYSize = nBufYSize;
+<span class="lineNum">     123 </span>            :     poReader-&gt;eBufType = eBufType;
+<span class="lineNum">     124 </span>            :     poReader-&gt;nBandCount = nBandCount;
+<span class="lineNum">     125 </span>            :     poReader-&gt;panBandMap = (int *) CPLCalloc(sizeof(int),nBandCount);
+<span class="lineNum">     126 </span>            :     if( panBandMap != nullptr )
+<span class="lineNum">     127 </span>            :     {
+<span class="lineNum">     128 </span>            :         memcpy( poReader-&gt;panBandMap, panBandMap, sizeof(int) * nBandCount );
+<span class="lineNum">     129 </span>            :     }
+<span class="lineNum">     130 </span>            :     else
+<span class="lineNum">     131 </span>            :     {
+<span class="lineNum">     132 </span>            :         for( i = 0; i &lt; nBandCount; i++ )
+<span class="lineNum">     133 </span>            :             poReader-&gt;panBandMap[i] = i + 1;
+<span class="lineNum">     134 </span>            :     }
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            :     poReader-&gt;nPixelSpace = nPixelSpace;
+<span class="lineNum">     137 </span>            :     poReader-&gt;nLineSpace = nLineSpace;
+<span class="lineNum">     138 </span>            :     poReader-&gt;nBandSpace = nBandSpace;
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     141 </span>            : /*      Create a new view for this request.                             */
+<span class="lineNum">     142 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     143 </span>            :     poReader-&gt;poFileView = OpenFileView( GetDescription(), true,
+<span class="lineNum">     144 </span>            :                                          poReader-&gt;bUsingCustomStream );
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span>            :     if( poReader-&gt;poFileView == nullptr )
+<span class="lineNum">     147 </span>            :     {
+<span class="lineNum">     148 </span>            :         delete poReader;
+<span class="lineNum">     149 </span>            :         return nullptr;
+<span class="lineNum">     150 </span>            :     }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            :     poReader-&gt;poFileView-&gt;SetClientData( poReader );
+<span class="lineNum">     153 </span>            :     poReader-&gt;poFileView-&gt;SetRefreshCallback( ECWAsyncReader::RefreshCB );
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     156 </span>            : /*      Issue a corresponding SetView command.                          */
+<span class="lineNum">     157 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     158 </span>            :     std::vector&lt;UINT32&gt; anBandIndices;
+<span class="lineNum">     159 </span>            :     NCSError     eNCSErr;
+<span class="lineNum">     160 </span>            :     CNCSError    oErr;
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            :     for( i = 0; i &lt; nBandCount; i++ )
+<span class="lineNum">     163 </span>            :         anBandIndices.push_back( poReader-&gt;panBandMap[i] - 1 );
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            :     oErr = poReader-&gt;poFileView-&gt;SetView( nBandCount, &amp;(anBandIndices[0]),
+<span class="lineNum">     166 </span>            :                                           nXOff, nYOff,
+<span class="lineNum">     167 </span>            :                                           nXOff + nXSize - 1,
+<span class="lineNum">     168 </span>            :                                           nYOff + nYSize - 1,
+<span class="lineNum">     169 </span>            :                                           nBufXSize, nBufYSize );
+<span class="lineNum">     170 </span>            :     eNCSErr = oErr.GetErrorNumber();
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span>            :     if( eNCSErr != NCS_SUCCESS )
+<span class="lineNum">     173 </span>            :     {
+<span class="lineNum">     174 </span>            :         delete poReader;
+<span class="lineNum">     175 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     176 </span>            :                   &quot;%s&quot;, NCSGetErrorText(eNCSErr) );
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            :         return nullptr;
+<span class="lineNum">     179 </span>            :     }
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span>            :     return poReader;
+<span class="lineNum">     182 </span>            : }
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            : /************************************************************************/
+<span class="lineNum">     185 </span>            : /*                           EndAsyncReader()                           */
+<span class="lineNum">     186 </span>            : /************************************************************************/
+<span class="lineNum">     187 </span>            : void ECWDataset::EndAsyncReader(GDALAsyncReader *poReader)
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span>            : {
+<span class="lineNum">     190 </span>            :     delete poReader;
+<span class="lineNum">     191 </span>            : }
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span>            : /************************************************************************/
+<span class="lineNum">     194 </span>            : /*                           ECWAsyncReader()                           */
+<span class="lineNum">     195 </span>            : /************************************************************************/
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span>            : ECWAsyncReader::ECWAsyncReader()
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span>            : {
+<span class="lineNum">     200 </span>            :     hMutex = CPLCreateMutex();
+<span class="lineNum">     201 </span>            :     CPLReleaseMutex( hMutex );
+<span class="lineNum">     202 </span>            : }
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span>            : /************************************************************************/
+<span class="lineNum">     205 </span>            : /*                          ~ECWAsyncReader()                           */
+<span class="lineNum">     206 </span>            : /************************************************************************/
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span>            : ECWAsyncReader::~ECWAsyncReader()
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            : {
+<span class="lineNum">     211 </span>            :     {
+<span class="lineNum">     212 </span>            :         CPLMutexHolderD( &amp;hMutex );
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            :         // cancel?
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            :         delete poFileView;
+<span class="lineNum">     217 </span>            :         // we should also consider cleaning up the io stream if needed.
+<span class="lineNum">     218 </span>            :     }
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            :     CPLFree(panBandMap);
+<span class="lineNum">     221 </span>            :     panBandMap = nullptr;
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span>            :     CPLDestroyMutex( hMutex );
+<span class="lineNum">     224 </span>            :     hMutex = nullptr;
+<span class="lineNum">     225 </span>            : }
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            : /************************************************************************/
+<span class="lineNum">     228 </span>            : /*                             RefreshCB()                              */
+<span class="lineNum">     229 </span>            : /*                                                                      */
+<span class="lineNum">     230 </span>            : /*      This static method is called by the ECW SDK to notify us        */
+<span class="lineNum">     231 </span>            : /*      that there is new data ready to refresh from.  We just mark     */
+<span class="lineNum">     232 </span>            : /*      the async reader as ready for an update.  We fetch the data     */
+<span class="lineNum">     233 </span>            : /*      and push into into the buffer the application uses.  We lock    */
+<span class="lineNum">     234 </span>            : /*      this async reader's mutex for this whole operation to avoid     */
+<span class="lineNum">     235 </span>            : /*      a conflict with the main application.                           */
+<span class="lineNum">     236 </span>            : /************************************************************************/
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span>            : NCSEcwReadStatus ECWAsyncReader::RefreshCB( NCSFileView *pFileView )
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            : {
+<span class="lineNum">     241 </span>            :     NCSFileViewSetInfo *psVSI = nullptr;
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            :     NCScbmGetViewInfo( pFileView, &amp;psVSI );
+<span class="lineNum">     244 </span>            :     if( psVSI != nullptr )
+<span class="lineNum">     245 </span>            :     {
+<span class="lineNum">     246 </span>            :         CPLDebug( &quot;ECW&quot;, &quot;RefreshCB(): BlockCounts=%d/%d/%d/%d&quot;,
+<span class="lineNum">     247 </span>            :                   psVSI-&gt;nBlocksAvailableAtSetView,
+<span class="lineNum">     248 </span>            :                   psVSI-&gt;nBlocksAvailable,
+<span class="lineNum">     249 </span>            :                   psVSI-&gt;nMissedBlocksDuringRead,
+<span class="lineNum">     250 </span>            :                   psVSI-&gt;nBlocksInView );
+<span class="lineNum">     251 </span>            :     }
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     254 </span>            : /*      Identify the reader we are responding on behalf of.             */
+<span class="lineNum">     255 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     256 </span>            :     CNCSJP2FileView *poFileView = (CNCSJP2FileView *) pFileView;
+<span class="lineNum">     257 </span>            :     ECWAsyncReader *poReader = (ECWAsyncReader *)poFileView-&gt;GetClientData();
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     260 </span>            : /*      Acquire the async reader mutex.  Currently we make no           */
+<span class="lineNum">     261 </span>            : /*      arrangements for failure to acquire it.                         */
+<span class="lineNum">     262 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     263 </span>            :     {
+<span class="lineNum">     264 </span>            :         CPLMutexHolderD( &amp;(poReader-&gt;hMutex) );
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     267 </span>            : /*      Mark the buffer as updated unless we are already complete.      */
+<span class="lineNum">     268 </span>            : /*      It seems the Update callback keeps getting called even when     */
+<span class="lineNum">     269 </span>            : /*      no new data has arrived after completion so we don't want to    */
+<span class="lineNum">     270 </span>            : /*      trigger new work elsewhere in that case.                        */
+<span class="lineNum">     271 </span>            : /*                                                                      */
+<span class="lineNum">     272 </span>            : /*      Also record whether we are now complete.                        */
+<span class="lineNum">     273 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     274 </span>            :         if( !poReader-&gt;bComplete )
+<span class="lineNum">     275 </span>            :             poReader-&gt;bUpdateReady = TRUE;
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            :         if( psVSI != nullptr &amp;&amp;
+<span class="lineNum">     278 </span>            :             psVSI-&gt;nBlocksAvailable == psVSI-&gt;nBlocksInView )
+<span class="lineNum">     279 </span>            :             poReader-&gt;bComplete = TRUE;
+<span class="lineNum">     280 </span>            :     }
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span>            :     /* Call CPLCleanupTLS explicitly since this thread isn't managed */
+<span class="lineNum">     283 </span>            :     /* by CPL. This will free the resources taken by the above CPLDebug */
+<span class="lineNum">     284 </span>            :     if( poReader-&gt;bComplete )
+<span class="lineNum">     285 </span>            :         CPLCleanupTLS();
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            :     return NCSECW_READ_OK;
+<span class="lineNum">     288 </span>            : }
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span>            : /************************************************************************/
+<span class="lineNum">     291 </span>            : /*                            ReadToBuffer()                            */
+<span class="lineNum">     292 </span>            : /************************************************************************/
+<span class="lineNum">     293 </span>            : NCSEcwReadStatus ECWAsyncReader::ReadToBuffer()
+<span class="lineNum">     294 </span>            : {
+<span class="lineNum">     295 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     296 </span>            : /*      Setup working scanline, and the pointers into it.               */
+<span class="lineNum">     297 </span>            : /*                                                                      */
+<span class="lineNum">     298 </span>            : /*      Should we try and optimize some cases that we could read        */
+<span class="lineNum">     299 </span>            : /*      directly into the application buffer?  Perhaps in the           */
+<span class="lineNum">     300 </span>            : /*      future.                                                         */
+<span class="lineNum">     301 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     302 </span>            :     ECWDataset *poECWDS = (ECWDataset *) poDS;
+<span class="lineNum">     303 </span>            :     int i;
+<span class="lineNum">     304 </span>            :     int nDataTypeSize = (GDALGetDataTypeSize(poECWDS-&gt;eRasterDataType) / 8);
+<span class="lineNum">     305 </span>            :     GByte *pabyBILScanline = (GByte *)
+<span class="lineNum">     306 </span>            :         CPLMalloc(nBufXSize * nDataTypeSize * nBandCount);
+<span class="lineNum">     307 </span>            :     GByte **papabyBIL = (GByte**)CPLMalloc(nBandCount*sizeof(void*));
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span>            :     for( i = 0; i &lt; nBandCount; i++ )
+<span class="lineNum">     310 </span>            :         papabyBIL[i] = pabyBILScanline
+<span class="lineNum">     311 </span>            :             + i * nBufXSize * nDataTypeSize;
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     314 </span>            : /*      Read back the imagery into the buffer.                          */
+<span class="lineNum">     315 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     316 </span>            :     for( int iScanline = 0; iScanline &lt; nBufYSize; iScanline++ )
+<span class="lineNum">     317 </span>            :     {
+<span class="lineNum">     318 </span>            :         NCSEcwReadStatus  eRStatus;
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span>            :         eRStatus =
+<span class="lineNum">     321 </span>            :             poFileView-&gt;ReadLineBIL( poECWDS-&gt;eNCSRequestDataType,
+<span class="lineNum">     322 </span>            :                                                (UINT16) nBandCount,
+<span class="lineNum">     323 </span>            :                                                (void **) papabyBIL );
+<span class="lineNum">     324 </span>            :         if( eRStatus != NCSECW_READ_OK )
+<span class="lineNum">     325 </span>            :         {
+<span class="lineNum">     326 </span>            :             CPLFree( papabyBIL );
+<span class="lineNum">     327 </span>            :             CPLFree( pabyBILScanline );
+<span class="lineNum">     328 </span>            :             CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     329 </span>            :                       &quot;NCScbmReadViewLineBIL failed.&quot; );
+<span class="lineNum">     330 </span>            :             return eRStatus;
+<span class="lineNum">     331 </span>            :         }
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            :         for( i = 0; i &lt; nBandCount; i++ )
+<span class="lineNum">     334 </span>            :         {
+<span class="lineNum">     335 </span>            :             GDALCopyWords(
+<span class="lineNum">     336 </span>            :                 pabyBILScanline + i * nDataTypeSize * nBufXSize,
+<span class="lineNum">     337 </span>            :                 poECWDS-&gt;eRasterDataType, nDataTypeSize,
+<span class="lineNum">     338 </span>            :                 ((GByte *) pBuf)
+<span class="lineNum">     339 </span>            :                 + nLineSpace * iScanline
+<span class="lineNum">     340 </span>            :                 + nBandSpace * i,
+<span class="lineNum">     341 </span>            :                 eBufType,
+<span class="lineNum">     342 </span>            :                 nPixelSpace,
+<span class="lineNum">     343 </span>            :                 nBufXSize );
+<span class="lineNum">     344 </span>            :         }
+<span class="lineNum">     345 </span>            :     }
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span>            :     CPLFree( pabyBILScanline );
+<span class="lineNum">     348 </span>            :     CPLFree( papabyBIL );
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span>            :     return NCSECW_READ_OK;
+<span class="lineNum">     351 </span>            : }
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            : /************************************************************************/
+<span class="lineNum">     354 </span>            : /*                        GetNextUpdatedRegion()                        */
+<span class="lineNum">     355 </span>            : /************************************************************************/
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span>            : GDALAsyncStatusType
+<span class="lineNum">     358 </span>            : ECWAsyncReader::GetNextUpdatedRegion( double dfTimeout,
+<span class="lineNum">     359 </span>            :                                       int* pnXBufOff, int* pnYBufOff,
+<span class="lineNum">     360 </span>            :                                       int* pnXBufSize, int* pnYBufSize )
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span>            : {
+<span class="lineNum">     363 </span>            :     CPLDebug( &quot;ECW&quot;, &quot;GetNextUpdatedRegion()&quot; );
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     366 </span>            : /*      We always mark the whole raster as updated since the ECW SDK    */
+<span class="lineNum">     367 </span>            : /*      does not have a concept of partial update notifications.        */
+<span class="lineNum">     368 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     369 </span>            :     *pnXBufOff = 0;
+<span class="lineNum">     370 </span>            :     *pnYBufOff = 0;
+<span class="lineNum">     371 </span>            :     *pnXBufSize = nBufXSize;
+<span class="lineNum">     372 </span>            :     *pnYBufSize = nBufYSize;
+<span class="lineNum">     373 </span>            : 
+<span class="lineNum">     374 </span>            :     if( bComplete &amp;&amp; !bUpdateReady )
+<span class="lineNum">     375 </span>            :     {
+<span class="lineNum">     376 </span>            :         CPLDebug( &quot;ECW&quot;, &quot;return GARIO_COMPLETE&quot; );
+<span class="lineNum">     377 </span>            :         return GARIO_COMPLETE;
+<span class="lineNum">     378 </span>            :     }
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     381 </span>            : /*      Wait till our timeout, or until we are notified there is        */
+<span class="lineNum">     382 </span>            : /*      data ready.  We are trusting the CPLSleep() to be pretty        */
+<span class="lineNum">     383 </span>            : /*      accurate instead of keeping track of time elapsed ourselves     */
+<span class="lineNum">     384 </span>            : /*      - this is not necessarily a good approach.                      */
+<span class="lineNum">     385 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     386 </span>            :     if( dfTimeout &lt; 0.0 )
+<span class="lineNum">     387 </span>            :         dfTimeout = 100000.0;
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span>            :     while( !bUpdateReady &amp;&amp; dfTimeout &gt; 0.0 )
+<span class="lineNum">     390 </span>            :     {
+<span class="lineNum">     391 </span>            :         CPLSleep( MIN(0.1, dfTimeout) );
+<span class="lineNum">     392 </span>            :         dfTimeout -= 0.1;
+<span class="lineNum">     393 </span>            :         CPLDebug( &quot;ECW&quot;, &quot;wait...&quot; );
+<span class="lineNum">     394 </span>            :     }
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span>            :     if( !bUpdateReady )
+<span class="lineNum">     397 </span>            :     {
+<span class="lineNum">     398 </span>            :         CPLDebug( &quot;ECW&quot;, &quot;return GARIO_PENDING&quot; );
+<span class="lineNum">     399 </span>            :         return GARIO_PENDING;
+<span class="lineNum">     400 </span>            :     }
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span>            :     bUpdateReady = FALSE;
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     405 </span>            : /*      Acquire Mutex                                                   */
+<span class="lineNum">     406 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     407 </span>            :     if( !CPLAcquireMutex( hMutex, dfTimeout ) )
+<span class="lineNum">     408 </span>            :     {
+<span class="lineNum">     409 </span>            :         CPLDebug( &quot;ECW&quot;, &quot;return GARIO_PENDING&quot; );
+<span class="lineNum">     410 </span>            :         return GARIO_PENDING;
+<span class="lineNum">     411 </span>            :     }
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     414 </span>            : /*      Actually decode the imagery into our buffer.                    */
+<span class="lineNum">     415 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     416 </span>            :     NCSEcwReadStatus  eRStatus = ReadToBuffer();
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span>            :     if( eRStatus != NCSECW_READ_OK )
+<span class="lineNum">     419 </span>            :     {
+<span class="lineNum">     420 </span>            :         CPLReleaseMutex( hMutex );
+<span class="lineNum">     421 </span>            :         return GARIO_ERROR;
+<span class="lineNum">     422 </span>            :     }
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     425 </span>            : /*      Return indication of complete or just buffer updateded.         */
+<span class="lineNum">     426 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span>            :     if( bComplete &amp;&amp; !bUpdateReady )
+<span class="lineNum">     429 </span>            :     {
+<span class="lineNum">     430 </span>            :         CPLReleaseMutex( hMutex );
+<span class="lineNum">     431 </span>            :         CPLDebug( &quot;ECW&quot;, &quot;return GARIO_COMPLETE&quot; );
+<span class="lineNum">     432 </span>            :         return GARIO_COMPLETE;
+<span class="lineNum">     433 </span>            :     }
+<span class="lineNum">     434 </span>            :     else
+<span class="lineNum">     435 </span>            :     {
+<span class="lineNum">     436 </span>            :         CPLReleaseMutex( hMutex );
+<span class="lineNum">     437 </span>            :         CPLDebug( &quot;ECW&quot;, &quot;return GARIO_UPDATE&quot; );
+<span class="lineNum">     438 </span>            :         return GARIO_UPDATE;
+<span class="lineNum">     439 </span>            :     }
+<span class="lineNum">     440 </span>            : }
+<span class="lineNum">     441 </span>            : 
+<span class="lineNum">     442 </span>            : #endif /* def FRMT_ecw */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

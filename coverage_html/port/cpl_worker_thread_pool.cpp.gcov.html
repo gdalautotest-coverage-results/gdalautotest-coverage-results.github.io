@@ -1,0 +1,623 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_worker_thread_pool.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_worker_thread_pool.cpp<span style="font-size: 80%;"> (source / <a href="cpl_worker_thread_pool.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">182</td>
+            <td class="headerCovTableEntry">220</td>
+            <td class="headerCovTableEntryMed">82.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /**********************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  CPL - Common Portability Library
+<span class="lineNum">       4 </span>            :  * Purpose:  CPL worker thread pool
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys dot com&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  **********************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2015, Even Rouault, &lt;even dot rouault at spatialys dot com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+<span class="lineNum">      21 </span>            :  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;cpl_worker_thread_pool.h&quot;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      33 </span>            : #include &lt;memory&gt;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      37 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : /************************************************************************/
+<span class="lineNum">      43 </span>            : /*                         CPLWorkerThreadPool()                        */
+<span class="lineNum">      44 </span>            : /************************************************************************/
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : /** Instantiate a new pool of worker threads.
+<span class="lineNum">      47 </span>            :  *
+<span class="lineNum">      48 </span>            :  * The pool is in an uninitialized state after this call. The Setup() method
+<a name="49"><span class="lineNum">      49 </span>            :  * must be called.</a>
+<span class="lineNum">      50 </span>            :  */
+<span class="lineNum">      51 </span><span class="lineCov">        216 : CPLWorkerThreadPool::CPLWorkerThreadPool() :</span>
+<span class="lineNum">      52 </span><span class="lineCov">        216 :     hMutex( CPLCreateMutexEx(CPL_MUTEX_REGULAR) )</span>
+<span class="lineNum">      53 </span>            : {
+<span class="lineNum">      54 </span><span class="lineCov">        216 :     CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">      55 </span><span class="lineCov">        216 : }</span>
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : /************************************************************************/
+<span class="lineNum">      58 </span>            : /*                          ~CPLWorkerThreadPool()                      */
+<span class="lineNum">      59 </span>            : /************************************************************************/
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            : /** Destroys a pool of worker threads.
+<span class="lineNum">      62 </span>            :  *
+<a name="63"><span class="lineNum">      63 </span>            :  * Any still pending job will be completed before the destructor returns.</a>
+<span class="lineNum">      64 </span>            :  */
+<span class="lineNum">      65 </span><span class="lineCov">        430 : CPLWorkerThreadPool::~CPLWorkerThreadPool()</span>
+<span class="lineNum">      66 </span>            : {
+<span class="lineNum">      67 </span><span class="lineCov">        215 :     if( hCond )</span>
+<span class="lineNum">      68 </span>            :     {
+<span class="lineNum">      69 </span><span class="lineCov">        166 :         WaitCompletion();</span>
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span><span class="lineCov">        166 :         CPLAcquireMutex(hMutex, 1000.0);</span>
+<span class="lineNum">      72 </span><span class="lineCov">        166 :         eState = CPLWTS_STOP;</span>
+<span class="lineNum">      73 </span><span class="lineCov">        166 :         CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span><span class="lineCov">        506 :         for(size_t i=0;i&lt;aWT.size();i++)</span>
+<span class="lineNum">      76 </span>            :         {
+<span class="lineNum">      77 </span><span class="lineCov">        340 :             CPLAcquireMutex(aWT[i].hMutex, 1000.0);</span>
+<span class="lineNum">      78 </span><span class="lineCov">        340 :             CPLCondSignal(aWT[i].hCond);</span>
+<span class="lineNum">      79 </span><span class="lineCov">        340 :             CPLReleaseMutex(aWT[i].hMutex);</span>
+<span class="lineNum">      80 </span><span class="lineCov">        340 :             CPLJoinThread(aWT[i].hThread);</span>
+<span class="lineNum">      81 </span><span class="lineCov">        340 :             CPLDestroyCond(aWT[i].hCond);</span>
+<span class="lineNum">      82 </span><span class="lineCov">        340 :             CPLDestroyMutex(aWT[i].hMutex);</span>
+<span class="lineNum">      83 </span>            :         }
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span><span class="lineCov">        166 :         CPLListDestroy(psWaitingWorkerThreadsList);</span>
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span><span class="lineCov">        166 :         CPLDestroyCond(hCond);</span>
+<span class="lineNum">      88 </span>            :     }
+<span class="lineNum">      89 </span><span class="lineCov">        215 :     CPLDestroyMutex(hMutex);</span>
+<span class="lineNum">      90 </span><span class="lineCov">        215 : }</span>
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            : /************************************************************************/
+<span class="lineNum">      93 </span>            : /*                       WorkerThreadFunction()                         */
+<a name="94"><span class="lineNum">      94 </span>            : /************************************************************************/</a>
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span><span class="lineCov">        342 : void CPLWorkerThreadPool::WorkerThreadFunction(void* user_data)</span>
+<span class="lineNum">      97 </span>            : {
+<span class="lineNum">      98 </span><span class="lineCov">        342 :     CPLWorkerThread* psWT = static_cast&lt;CPLWorkerThread*&gt;(user_data);</span>
+<span class="lineNum">      99 </span><span class="lineCov">        342 :     CPLWorkerThreadPool* poTP = psWT-&gt;poTP;</span>
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span><span class="lineCov">        342 :     if( psWT-&gt;pfnInitFunc )</span>
+<span class="lineNum">     102 </span><span class="lineCov">          6 :         psWT-&gt;pfnInitFunc( psWT-&gt;pInitData );</span>
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            :     while( true )
+<span class="lineNum">     105 </span>            :     {
+<span class="lineNum">     106 </span><span class="lineCov">       4936 :         CPLWorkerThreadJob* psJob = poTP-&gt;GetNextJob(psWT);</span>
+<span class="lineNum">     107 </span><span class="lineCov">       4929 :         if( psJob == nullptr )</span>
+<span class="lineNum">     108 </span><span class="lineCov">        340 :             break;</span>
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span><span class="lineCov">       4589 :         if( psJob-&gt;pfnFunc )</span>
+<span class="lineNum">     111 </span>            :         {
+<span class="lineNum">     112 </span><span class="lineCov">       4589 :             psJob-&gt;pfnFunc(psJob-&gt;pData);</span>
+<span class="lineNum">     113 </span>            :         }
+<span class="lineNum">     114 </span><span class="lineCov">       4587 :         CPLFree(psJob);</span>
+<span class="lineNum">     115 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     116 </span>            :         CPLDebug(&quot;JOB&quot;, &quot;%p finished a job&quot;, psWT);
+<span class="lineNum">     117 </span>            : #endif
+<span class="lineNum">     118 </span><span class="lineCov">       4594 :         poTP-&gt;DeclareJobFinished();</span>
+<span class="lineNum">     119 </span><span class="lineCov">       4594 :     }</span>
+<span class="lineNum">     120 </span><span class="lineCov">        340 : }</span>
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            : /************************************************************************/
+<span class="lineNum">     123 </span>            : /*                             SubmitJob()                              */
+<span class="lineNum">     124 </span>            : /************************************************************************/
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            : /** Queue a new job.
+<span class="lineNum">     127 </span>            :  *
+<span class="lineNum">     128 </span>            :  * @param pfnFunc Function to run for the job.
+<span class="lineNum">     129 </span>            :  * @param pData User data to pass to the job function.
+<a name="130"><span class="lineNum">     130 </span>            :  * @return true in case of success.</a>
+<span class="lineNum">     131 </span>            :  */
+<span class="lineNum">     132 </span><span class="lineCov">       3636 : bool CPLWorkerThreadPool::SubmitJob( CPLThreadFunc pfnFunc, void* pData )</span>
+<span class="lineNum">     133 </span>            : {
+<span class="lineNum">     134 </span><span class="lineCov">       3636 :     CPLAssert( !aWT.empty() );</span>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            :     CPLWorkerThreadJob* psJob = static_cast&lt;CPLWorkerThreadJob *&gt;(
+<span class="lineNum">     137 </span><span class="lineCov">       3636 :         VSI_MALLOC_VERBOSE(sizeof(CPLWorkerThreadJob)));</span>
+<span class="lineNum">     138 </span><span class="lineCov">       3636 :     if( psJob == nullptr )</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     140 </span><span class="lineCov">       3636 :     psJob-&gt;pfnFunc = pfnFunc;</span>
+<span class="lineNum">     141 </span><span class="lineCov">       3636 :     psJob-&gt;pData = pData;</span>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            :     CPLList* psItem =
+<span class="lineNum">     144 </span><span class="lineCov">       3636 :         static_cast&lt;CPLList *&gt;(VSI_MALLOC_VERBOSE(sizeof(CPLList)));</span>
+<span class="lineNum">     145 </span><span class="lineCov">       3636 :     if( psItem == nullptr )</span>
+<span class="lineNum">     146 </span>            :     {
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :         VSIFree(psJob);</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     149 </span>            :     }
+<span class="lineNum">     150 </span><span class="lineCov">       3636 :     psItem-&gt;pData = psJob;</span>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">       3636 :     CPLAcquireMutex(hMutex, 1000.0);</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineCov">       3636 :     psItem-&gt;psNext = psJobQueue;</span>
+<span class="lineNum">     155 </span><span class="lineCov">       3636 :     psJobQueue = psItem;</span>
+<span class="lineNum">     156 </span><span class="lineCov">       3636 :     nPendingJobs++;</span>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineCov">       3636 :     if( psWaitingWorkerThreadsList )</span>
+<span class="lineNum">     159 </span>            :     {
+<span class="lineNum">     160 </span>            :         CPLWorkerThread* psWorkerThread =
+<span class="lineNum">     161 </span><span class="lineCov">        641 :             static_cast&lt;CPLWorkerThread *&gt;(psWaitingWorkerThreadsList-&gt;pData);</span>
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span><span class="lineCov">        641 :         CPLAssert( psWorkerThread-&gt;bMarkedAsWaiting );</span>
+<span class="lineNum">     164 </span><span class="lineCov">        641 :         psWorkerThread-&gt;bMarkedAsWaiting = FALSE;</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineCov">        641 :         CPLList* psNext = psWaitingWorkerThreadsList-&gt;psNext;</span>
+<span class="lineNum">     167 </span><span class="lineCov">        641 :         CPLList* psToFree = psWaitingWorkerThreadsList;</span>
+<span class="lineNum">     168 </span><span class="lineCov">        641 :         psWaitingWorkerThreadsList = psNext;</span>
+<span class="lineNum">     169 </span><span class="lineCov">        641 :         nWaitingWorkerThreads--;</span>
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span>            :         // CPLAssert(
+<span class="lineNum">     172 </span>            :         //   CPLListCount(psWaitingWorkerThreadsList) == nWaitingWorkerThreads);
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     175 </span>            :         CPLDebug(&quot;JOB&quot;, &quot;Waking up %p&quot;, psWorkerThread);
+<span class="lineNum">     176 </span>            : #endif
+<span class="lineNum">     177 </span><span class="lineCov">        641 :         CPLAcquireMutex(psWorkerThread-&gt;hMutex, 1000.0);</span>
+<span class="lineNum">     178 </span><span class="lineCov">        641 :         CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     179 </span><span class="lineCov">        641 :         CPLCondSignal(psWorkerThread-&gt;hCond);</span>
+<span class="lineNum">     180 </span><span class="lineCov">        641 :         CPLReleaseMutex(psWorkerThread-&gt;hMutex);</span>
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span><span class="lineCov">        641 :         CPLFree(psToFree);</span>
+<span class="lineNum">     183 </span>            :     }
+<span class="lineNum">     184 </span>            :     else
+<span class="lineNum">     185 </span>            :     {
+<span class="lineNum">     186 </span><span class="lineCov">       2995 :         CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     187 </span>            :     }
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span><span class="lineCov">       3636 :     return true;</span>
+<span class="lineNum">     190 </span>            : }
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            : /************************************************************************/
+<span class="lineNum">     193 </span>            : /*                             SubmitJobs()                              */
+<span class="lineNum">     194 </span>            : /************************************************************************/
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            : /** Queue several jobs
+<span class="lineNum">     197 </span>            :  *
+<span class="lineNum">     198 </span>            :  * @param pfnFunc Function to run for the job.
+<span class="lineNum">     199 </span>            :  * @param apData User data instances to pass to the job function.
+<a name="200"><span class="lineNum">     200 </span>            :  * @return true in case of success.</a>
+<span class="lineNum">     201 </span>            :  */
+<span class="lineNum">     202 </span><span class="lineCov">        509 : bool CPLWorkerThreadPool::SubmitJobs(CPLThreadFunc pfnFunc,</span>
+<span class="lineNum">     203 </span>            :                                      const std::vector&lt;void*&gt;&amp; apData)
+<span class="lineNum">     204 </span>            : {
+<span class="lineNum">     205 </span><span class="lineCov">        509 :     CPLAssert( !aWT.empty() );</span>
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span><span class="lineCov">        509 :     CPLAcquireMutex(hMutex, 1000.0);</span>
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineCov">        509 :     CPLList* psJobQueueInit = psJobQueue;</span>
+<span class="lineNum">     210 </span><span class="lineCov">        509 :     bool bRet = true;</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineCov">       1467 :     for(size_t i=0;i&lt;apData.size();i++)</span>
+<span class="lineNum">     213 </span>            :     {
+<span class="lineNum">     214 </span>            :         CPLWorkerThreadJob* psJob = static_cast&lt;CPLWorkerThreadJob*&gt;(
+<span class="lineNum">     215 </span><span class="lineCov">        958 :             VSI_MALLOC_VERBOSE(sizeof(CPLWorkerThreadJob)));</span>
+<span class="lineNum">     216 </span><span class="lineCov">        958 :         if( psJob == nullptr )</span>
+<span class="lineNum">     217 </span>            :         {
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :             bRet = false;</span>
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     220 </span>            :         }
+<span class="lineNum">     221 </span><span class="lineCov">        958 :         psJob-&gt;pfnFunc = pfnFunc;</span>
+<span class="lineNum">     222 </span><span class="lineCov">        958 :         psJob-&gt;pData = apData[i];</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            :         CPLList* psItem =
+<span class="lineNum">     225 </span><span class="lineCov">        958 :             static_cast&lt;CPLList *&gt;(VSI_MALLOC_VERBOSE(sizeof(CPLList)));</span>
+<span class="lineNum">     226 </span><span class="lineCov">        958 :         if( psItem == nullptr )</span>
+<span class="lineNum">     227 </span>            :         {
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :             VSIFree(psJob);</span>
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :             bRet = false;</span>
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     231 </span>            :         }
+<span class="lineNum">     232 </span><span class="lineCov">        958 :         psItem-&gt;pData = psJob;</span>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineCov">        958 :         psItem-&gt;psNext = psJobQueue;</span>
+<span class="lineNum">     235 </span><span class="lineCov">        958 :         psJobQueue = psItem;</span>
+<span class="lineNum">     236 </span><span class="lineCov">        958 :         nPendingJobs++;</span>
+<span class="lineNum">     237 </span>            :     }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span><span class="lineCov">        509 :     if( !bRet )</span>
+<span class="lineNum">     240 </span>            :     {
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :         for( CPLList* psIter = psJobQueue; psIter != psJobQueueInit; )</span>
+<span class="lineNum">     242 </span>            :         {
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :             CPLList* psNext = psIter-&gt;psNext;</span>
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :             VSIFree(psIter-&gt;pData);</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :             VSIFree(psIter);</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :             nPendingJobs--;</span>
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :             psIter = psNext;</span>
+<span class="lineNum">     248 </span>            :         }
+<span class="lineNum">     249 </span>            :     }
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineCov">        509 :     CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span><span class="lineCov">        509 :     if( !bRet )</span>
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineCov">       1467 :     for(size_t i=0;i&lt;apData.size();i++)</span>
+<span class="lineNum">     257 </span>            :     {
+<span class="lineNum">     258 </span><span class="lineCov">        958 :         CPLAcquireMutex(hMutex, 1000.0);</span>
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span><span class="lineCov">        958 :         if( psWaitingWorkerThreadsList &amp;&amp; psJobQueue )</span>
+<span class="lineNum">     261 </span>            :         {
+<span class="lineNum">     262 </span>            :             CPLWorkerThread* psWorkerThread;
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span><span class="lineCov">        958 :             psWorkerThread = static_cast&lt;CPLWorkerThread*&gt;(psWaitingWorkerThreadsList-&gt;pData);</span>
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span><span class="lineCov">        958 :             CPLAssert( psWorkerThread-&gt;bMarkedAsWaiting );</span>
+<span class="lineNum">     267 </span><span class="lineCov">        958 :             psWorkerThread-&gt;bMarkedAsWaiting = FALSE;</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineCov">        958 :             CPLList* psNext = psWaitingWorkerThreadsList-&gt;psNext;</span>
+<span class="lineNum">     270 </span><span class="lineCov">        958 :             CPLList* psToFree = psWaitingWorkerThreadsList;</span>
+<span class="lineNum">     271 </span><span class="lineCov">        958 :             psWaitingWorkerThreadsList = psNext;</span>
+<span class="lineNum">     272 </span><span class="lineCov">        958 :             nWaitingWorkerThreads--;</span>
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            :             // CPLAssert(
+<span class="lineNum">     275 </span>            :             //    CPLListCount(psWaitingWorkerThreadsList) ==
+<span class="lineNum">     276 </span>            :             //    nWaitingWorkerThreads);
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     279 </span>            :             CPLDebug(&quot;JOB&quot;, &quot;Waking up %p&quot;, psWorkerThread);
+<span class="lineNum">     280 </span>            : #endif
+<span class="lineNum">     281 </span><span class="lineCov">        958 :             CPLAcquireMutex(psWorkerThread-&gt;hMutex, 1000.0);</span>
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span>            :             // CPLAssert(psWorkerThread-&gt;psNextJob == nullptr);
+<span class="lineNum">     284 </span>            :             // psWorkerThread-&gt;psNextJob =
+<span class="lineNum">     285 </span>            :             //     (CPLWorkerThreadJob*)psJobQueue-&gt;pData;
+<span class="lineNum">     286 </span>            :             // psNext = psJobQueue-&gt;psNext;
+<span class="lineNum">     287 </span>            :             // CPLFree(psJobQueue);
+<span class="lineNum">     288 </span>            :             // psJobQueue = psNext;
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineCov">        958 :             CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     291 </span><span class="lineCov">        958 :             CPLCondSignal(psWorkerThread-&gt;hCond);</span>
+<span class="lineNum">     292 </span><span class="lineCov">        958 :             CPLReleaseMutex(psWorkerThread-&gt;hMutex);</span>
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span><span class="lineCov">        958 :             CPLFree(psToFree);</span>
+<span class="lineNum">     295 </span>            :         }
+<span class="lineNum">     296 </span>            :         else
+<span class="lineNum">     297 </span>            :         {
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :             CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     300 </span>            :         }
+<span class="lineNum">     301 </span>            :     }
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span><span class="lineCov">        509 :     return true;</span>
+<span class="lineNum">     304 </span>            : }
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            : /************************************************************************/
+<span class="lineNum">     307 </span>            : /*                            WaitCompletion()                          */
+<span class="lineNum">     308 </span>            : /************************************************************************/
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span>            : /** Wait for completion of part or whole jobs.
+<span class="lineNum">     311 </span>            :  *
+<span class="lineNum">     312 </span>            :  * @param nMaxRemainingJobs Maximum number of pendings jobs that are allowed
+<span class="lineNum">     313 </span>            :  *                          in the queue after this method has completed. Might be
+<a name="314"><span class="lineNum">     314 </span>            :  *                          0 to wait for all jobs.</a>
+<span class="lineNum">     315 </span>            :  */
+<span class="lineNum">     316 </span><span class="lineCov">       3610 : void CPLWorkerThreadPool::WaitCompletion(int nMaxRemainingJobs)</span>
+<span class="lineNum">     317 </span>            : {
+<span class="lineNum">     318 </span><span class="lineCov">       3610 :     if( nMaxRemainingJobs &lt; 0 )</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :         nMaxRemainingJobs = 0;</span>
+<span class="lineNum">     320 </span><span class="lineCov">       3610 :     CPLAcquireMutex(hMutex, 1000.0);</span>
+<span class="lineNum">     321 </span>            :     while( true )
+<span class="lineNum">     322 </span>            :     {
+<span class="lineNum">     323 </span><span class="lineCov">       6277 :         int nPendingJobsLocal = nPendingJobs;</span>
+<span class="lineNum">     324 </span><span class="lineCov">       6277 :         if( nPendingJobsLocal &gt; nMaxRemainingJobs )</span>
+<span class="lineNum">     325 </span><span class="lineCov">       2667 :             CPLCondWait(hCond, hMutex);</span>
+<span class="lineNum">     326 </span><span class="lineCov">       6277 :         if( nPendingJobsLocal &lt;= nMaxRemainingJobs )</span>
+<span class="lineNum">     327 </span><span class="lineCov">       3610 :             break;</span>
+<span class="lineNum">     328 </span>            :     }
+<span class="lineNum">     329 </span><span class="lineCov">       2667 :     CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     330 </span><span class="lineCov">       3610 : }</span>
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span>            : /************************************************************************/
+<span class="lineNum">     333 </span>            : /*                            WaitEvent()                               */
+<span class="lineNum">     334 </span>            : /************************************************************************/
+<span class="lineNum">     335 </span>            : 
+<a name="336"><span class="lineNum">     336 </span>            : /** Wait for completion of at least one job, if there are any remaining</a>
+<span class="lineNum">     337 </span>            :  */
+<span class="lineNum">     338 </span><span class="lineCov">        677 : void CPLWorkerThreadPool::WaitEvent()</span>
+<span class="lineNum">     339 </span>            : {
+<span class="lineNum">     340 </span><span class="lineCov">        677 :     CPLAcquireMutex(hMutex, 1000.0);</span>
+<span class="lineNum">     341 </span>            :     while( true )
+<span class="lineNum">     342 </span>            :     {
+<span class="lineNum">     343 </span><span class="lineCov">        748 :         int nPendingJobsLocal = nPendingJobs;</span>
+<span class="lineNum">     344 </span><span class="lineCov">        748 :         if( nPendingJobsLocal == 0 )</span>
+<span class="lineNum">     345 </span>            :         {
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     347 </span>            :         }
+<span class="lineNum">     348 </span><span class="lineCov">        748 :         CPLCondWait(hCond, hMutex);</span>
+<span class="lineNum">     349 </span><span class="lineCov">        748 :         if( nPendingJobs &lt; nPendingJobsLocal )</span>
+<span class="lineNum">     350 </span>            :         {
+<span class="lineNum">     351 </span><span class="lineCov">        677 :             break;</span>
+<span class="lineNum">     352 </span>            :         }
+<span class="lineNum">     353 </span>            :     }
+<span class="lineNum">     354 </span><span class="lineCov">         71 :     CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     355 </span><span class="lineCov">        677 : }</span>
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span>            : /************************************************************************/
+<span class="lineNum">     358 </span>            : /*                                Setup()                               */
+<span class="lineNum">     359 </span>            : /************************************************************************/
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span>            : /** Setup the pool.
+<span class="lineNum">     362 </span>            :  *
+<span class="lineNum">     363 </span>            :  * @param nThreads Number of threads to launch
+<span class="lineNum">     364 </span>            :  * @param pfnInitFunc Initialization function to run in each thread. May be NULL
+<span class="lineNum">     365 </span>            :  * @param pasInitData Array of initialization data. Its length must be nThreads,
+<span class="lineNum">     366 </span>            :  *                    or it should be NULL.
+<a name="367"><span class="lineNum">     367 </span>            :  * @return true if initialization was successful.</a>
+<span class="lineNum">     368 </span>            :  */
+<span class="lineNum">     369 </span><span class="lineCov">        164 : bool CPLWorkerThreadPool::Setup(int nThreads,</span>
+<span class="lineNum">     370 </span>            :                             CPLThreadFunc pfnInitFunc,
+<span class="lineNum">     371 </span>            :                             void** pasInitData)
+<span class="lineNum">     372 </span>            : {
+<span class="lineNum">     373 </span><span class="lineCov">        164 :     return Setup(nThreads, pfnInitFunc, pasInitData, true);</span>
+<span class="lineNum">     374 </span>            : }
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span>            : /** Setup the pool.
+<span class="lineNum">     377 </span>            :  *
+<span class="lineNum">     378 </span>            :  * @param nThreads Number of threads to launch
+<span class="lineNum">     379 </span>            :  * @param pfnInitFunc Initialization function to run in each thread. May be NULL
+<span class="lineNum">     380 </span>            :  * @param pasInitData Array of initialization data. Its length must be nThreads,
+<span class="lineNum">     381 </span>            :  *                    or it should be NULL.
+<span class="lineNum">     382 </span>            :  * @param bWaitallStarted Whether to wait for all threads to be fully started.
+<a name="383"><span class="lineNum">     383 </span>            :  * @return true if initialization was successful.</a>
+<span class="lineNum">     384 </span>            :  */
+<span class="lineNum">     385 </span><span class="lineCov">        167 : bool CPLWorkerThreadPool::Setup(int nThreads,</span>
+<span class="lineNum">     386 </span>            :                             CPLThreadFunc pfnInitFunc,
+<span class="lineNum">     387 </span>            :                             void** pasInitData,
+<span class="lineNum">     388 </span>            :                             bool bWaitallStarted)
+<span class="lineNum">     389 </span>            : {
+<span class="lineNum">     390 </span><span class="lineCov">        167 :     CPLAssert( nThreads &gt; 0 );</span>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineCov">        167 :     hCond = CPLCreateCond();</span>
+<span class="lineNum">     393 </span><span class="lineCov">        167 :     if( hCond == nullptr )</span>
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">        167 :     bool bRet = true;</span>
+<span class="lineNum">     397 </span><span class="lineCov">        167 :     aWT.resize(nThreads);</span>
+<span class="lineNum">     398 </span><span class="lineCov">        509 :     for(int i=0;i&lt;nThreads;i++)</span>
+<span class="lineNum">     399 </span>            :     {
+<span class="lineNum">     400 </span><span class="lineCov">        342 :         aWT[i].pfnInitFunc = pfnInitFunc;</span>
+<span class="lineNum">     401 </span><span class="lineCov">        342 :         aWT[i].pInitData = pasInitData ? pasInitData[i] : nullptr;</span>
+<span class="lineNum">     402 </span><span class="lineCov">        342 :         aWT[i].poTP = this;</span>
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span><span class="lineCov">        342 :         aWT[i].hMutex = CPLCreateMutexEx(CPL_MUTEX_REGULAR);</span>
+<span class="lineNum">     405 </span><span class="lineCov">        342 :         if( aWT[i].hMutex == nullptr )</span>
+<span class="lineNum">     406 </span>            :         {
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :             nThreads = i;</span>
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :             aWT.resize(nThreads);</span>
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :             bRet = false;</span>
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     411 </span>            :         }
+<span class="lineNum">     412 </span><span class="lineCov">        342 :         CPLReleaseMutex(aWT[i].hMutex);</span>
+<span class="lineNum">     413 </span><span class="lineCov">        342 :         aWT[i].hCond = CPLCreateCond();</span>
+<span class="lineNum">     414 </span><span class="lineCov">        342 :         if( aWT[i].hCond == nullptr )</span>
+<span class="lineNum">     415 </span>            :         {
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :             CPLDestroyMutex(aWT[i].hMutex);</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :             nThreads = i;</span>
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :             aWT.resize(nThreads);</span>
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :             bRet = false;</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     421 </span>            :         }
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span><span class="lineCov">        342 :         aWT[i].bMarkedAsWaiting = FALSE;</span>
+<span class="lineNum">     424 </span>            :         // aWT[i].psNextJob = nullptr;
+<span class="lineNum">     425 </span>            : 
+<span class="lineNum">     426 </span><span class="lineCov">        342 :         aWT[i].hThread =</span>
+<span class="lineNum">     427 </span><span class="lineCov">        342 :             CPLCreateJoinableThread(WorkerThreadFunction, &amp;(aWT[i]));</span>
+<span class="lineNum">     428 </span><span class="lineCov">        342 :         if( aWT[i].hThread == nullptr )</span>
+<span class="lineNum">     429 </span>            :         {
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :             nThreads = i;</span>
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :             aWT.resize(nThreads);</span>
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :             bRet = false;</span>
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     434 </span>            :         }
+<span class="lineNum">     435 </span>            :     }
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span><span class="lineCov">        167 :     if( bWaitallStarted )</span>
+<span class="lineNum">     438 </span>            :     {
+<span class="lineNum">     439 </span>            :         // Wait all threads to be started
+<span class="lineNum">     440 </span>            :         while( true )
+<span class="lineNum">     441 </span>            :         {
+<span class="lineNum">     442 </span><span class="lineCov">        406 :             CPLAcquireMutex(hMutex, 1000.0);</span>
+<span class="lineNum">     443 </span><span class="lineCov">        406 :             int nWaitingWorkerThreadsLocal = nWaitingWorkerThreads;</span>
+<span class="lineNum">     444 </span><span class="lineCov">        406 :             if( nWaitingWorkerThreadsLocal &lt; nThreads )</span>
+<span class="lineNum">     445 </span><span class="lineCov">        242 :                 CPLCondWait(hCond, hMutex);</span>
+<span class="lineNum">     446 </span><span class="lineCov">        406 :             CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     447 </span><span class="lineCov">        406 :             if( nWaitingWorkerThreadsLocal == nThreads )</span>
+<span class="lineNum">     448 </span><span class="lineCov">        164 :                 break;</span>
+<span class="lineNum">     449 </span><span class="lineCov">        242 :         }</span>
+<span class="lineNum">     450 </span>            :     }
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span><span class="lineCov">        167 :     if( eState == CPLWTS_ERROR )</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :         bRet = false;</span>
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span><span class="lineCov">        167 :     return bRet;</span>
+<span class="lineNum">     456 </span>            : }
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            : /************************************************************************/
+<span class="lineNum">     459 </span>            : /*                          DeclareJobFinished()                        */
+<a name="460"><span class="lineNum">     460 </span>            : /************************************************************************/</a>
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span><span class="lineCov">       4587 : void CPLWorkerThreadPool::DeclareJobFinished()</span>
+<span class="lineNum">     463 </span>            : {
+<span class="lineNum">     464 </span><span class="lineCov">       4587 :     CPLAcquireMutex(hMutex, 1000.0);</span>
+<span class="lineNum">     465 </span><span class="lineCov">       4594 :     nPendingJobs--;</span>
+<span class="lineNum">     466 </span><span class="lineCov">       4594 :     CPLCondSignal(hCond);</span>
+<span class="lineNum">     467 </span><span class="lineCov">       4594 :     CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     468 </span><span class="lineCov">       4594 : }</span>
+<span class="lineNum">     469 </span>            : 
+<span class="lineNum">     470 </span>            : /************************************************************************/
+<span class="lineNum">     471 </span>            : /*                             GetNextJob()                             */
+<span class="lineNum">     472 </span>            : /************************************************************************/
+<a name="473"><span class="lineNum">     473 </span>            : </a>
+<span class="lineNum">     474 </span>            : CPLWorkerThreadJob *
+<span class="lineNum">     475 </span><span class="lineCov">       6874 : CPLWorkerThreadPool::GetNextJob( CPLWorkerThread* psWorkerThread )</span>
+<span class="lineNum">     476 </span>            : {
+<span class="lineNum">     477 </span>            :     while(true)
+<span class="lineNum">     478 </span>            :     {
+<span class="lineNum">     479 </span><span class="lineCov">       6874 :         CPLAcquireMutex(hMutex, 1000.0);</span>
+<span class="lineNum">     480 </span><span class="lineCov">       6874 :         if( eState == CPLWTS_STOP )</span>
+<span class="lineNum">     481 </span>            :         {
+<span class="lineNum">     482 </span><span class="lineCov">        340 :             CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     483 </span><span class="lineCov">        340 :             return nullptr;</span>
+<span class="lineNum">     484 </span>            :         }
+<span class="lineNum">     485 </span><span class="lineCov">       6534 :         CPLList* psTopJobIter = psJobQueue;</span>
+<span class="lineNum">     486 </span><span class="lineCov">       6534 :         if( psTopJobIter )</span>
+<span class="lineNum">     487 </span>            :         {
+<span class="lineNum">     488 </span><span class="lineCov">       4594 :             psJobQueue = psTopJobIter-&gt;psNext;</span>
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     491 </span>            :             CPLDebug(&quot;JOB&quot;, &quot;%p got a job&quot;, psWorkerThread);
+<span class="lineNum">     492 </span>            : #endif
+<span class="lineNum">     493 </span>            :             CPLWorkerThreadJob* psJob =
+<span class="lineNum">     494 </span><span class="lineCov">       4594 :                 static_cast&lt;CPLWorkerThreadJob*&gt;(psTopJobIter-&gt;pData);</span>
+<span class="lineNum">     495 </span><span class="lineCov">       4594 :             CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     496 </span><span class="lineCov">       4593 :             CPLFree(psTopJobIter);</span>
+<span class="lineNum">     497 </span><span class="lineCov">       4593 :             return psJob;</span>
+<span class="lineNum">     498 </span>            :         }
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span><span class="lineCov">       1940 :         if( !psWorkerThread-&gt;bMarkedAsWaiting )</span>
+<span class="lineNum">     501 </span>            :         {
+<span class="lineNum">     502 </span><span class="lineCov">       1940 :             psWorkerThread-&gt;bMarkedAsWaiting = TRUE;</span>
+<span class="lineNum">     503 </span><span class="lineCov">       1940 :             nWaitingWorkerThreads++;</span>
+<span class="lineNum">     504 </span><span class="lineCov">       1940 :             CPLAssert(nWaitingWorkerThreads &lt;= static_cast&lt;int&gt;(aWT.size()));</span>
+<span class="lineNum">     505 </span>            : 
+<span class="lineNum">     506 </span>            :             CPLList* psItem =
+<span class="lineNum">     507 </span><span class="lineCov">       1940 :                 static_cast&lt;CPLList *&gt;(VSI_MALLOC_VERBOSE(sizeof(CPLList)));</span>
+<span class="lineNum">     508 </span><span class="lineCov">       1940 :             if( psItem == nullptr )</span>
+<span class="lineNum">     509 </span>            :             {
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :                 eState = CPLWTS_ERROR;</span>
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :                 CPLCondSignal(hCond);</span>
+<span class="lineNum">     512 </span>            : 
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :                 CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     515 </span>            :             }
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span><span class="lineCov">       1940 :             psItem-&gt;pData = psWorkerThread;</span>
+<span class="lineNum">     518 </span><span class="lineCov">       1940 :             psItem-&gt;psNext = psWaitingWorkerThreadsList;</span>
+<span class="lineNum">     519 </span><span class="lineCov">       1940 :             psWaitingWorkerThreadsList = psItem;</span>
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     522 </span>            :             CPLAssert(CPLListCount(psWaitingWorkerThreadsList) ==
+<span class="lineNum">     523 </span>            :                       nWaitingWorkerThreads);
+<span class="lineNum">     524 </span>            : #endif
+<span class="lineNum">     525 </span>            :         }
+<span class="lineNum">     526 </span>            : 
+<span class="lineNum">     527 </span><span class="lineCov">       1940 :         CPLCondSignal(hCond);</span>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineCov">       1940 :         CPLAcquireMutex(psWorkerThread-&gt;hMutex, 1000.0);</span>
+<span class="lineNum">     530 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     531 </span>            :         CPLDebug(&quot;JOB&quot;, &quot;%p sleeping&quot;, psWorkerThread);
+<span class="lineNum">     532 </span>            : #endif
+<span class="lineNum">     533 </span><span class="lineCov">       1940 :         CPLReleaseMutex(hMutex);</span>
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span><span class="lineCov">       1940 :         CPLCondWait( psWorkerThread-&gt;hCond, psWorkerThread-&gt;hMutex );</span>
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span>            :         // TODO(rouault): Explain or delete.
+<span class="lineNum">     538 </span>            :         // CPLWorkerThreadJob* psJob = psWorkerThread-&gt;psNextJob;
+<span class="lineNum">     539 </span>            :         // psWorkerThread-&gt;psNextJob = nullptr;
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span><span class="lineCov">       1937 :         CPLReleaseMutex(psWorkerThread-&gt;hMutex);</span>
+<span class="lineNum">     542 </span>            : 
+<span class="lineNum">     543 </span>            :         // TODO(rouault): Explain or delete.
+<span class="lineNum">     544 </span>            :         // if( psJob )
+<span class="lineNum">     545 </span>            :         //    return psJob;
+<span class="lineNum">     546 </span><span class="lineCov">       1938 :     }</span>
+<span class="lineNum">     547 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

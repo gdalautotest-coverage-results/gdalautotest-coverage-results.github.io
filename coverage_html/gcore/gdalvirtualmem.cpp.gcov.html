@@ -1,0 +1,1761 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - gcore/gdalvirtualmem.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">gcore</a> - gdalvirtualmem.cpp<span style="font-size: 80%;"> (source / <a href="gdalvirtualmem.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">326</td>
+            <td class="headerCovTableEntry">405</td>
+            <td class="headerCovTableEntryMed">80.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">25</td>
+            <td class="headerCovTableEntry">27</td>
+            <td class="headerCovTableEntryHi">92.6 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /**********************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Name:     gdalvirtualmem.cpp
+<span class="lineNum">       4 </span>            :  * Project:  GDAL
+<span class="lineNum">       5 </span>            :  * Purpose:  Dataset and rasterband exposed as a virtual memory mapping.
+<span class="lineNum">       6 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  **********************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2014, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+<span class="lineNum">      22 </span>            :  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      35 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;cpl_virtualmem.h&quot;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : // To be changed if we go to 64-bit RasterIO coordinates and spacing.
+<span class="lineNum">      44 </span>            : using coord_type = int;
+<span class="lineNum">      45 </span>            : using spacing_type = int;
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : /************************************************************************/
+<span class="lineNum">      48 </span>            : /*                            GDALVirtualMem                            */
+<span class="lineNum">      49 </span>            : /************************************************************************/
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : class GDALVirtualMem
+<span class="lineNum">      52 </span>            : {
+<span class="lineNum">      53 </span>            :     GDALDatasetH hDS = nullptr;
+<span class="lineNum">      54 </span>            :     GDALRasterBandH hBand = nullptr;
+<span class="lineNum">      55 </span>            :     coord_type nXOff = 0;
+<span class="lineNum">      56 </span>            :     coord_type nYOff = 0;
+<span class="lineNum">      57 </span>            :     // int nXSize;
+<span class="lineNum">      58 </span>            :     // int nYSize;
+<span class="lineNum">      59 </span>            :     coord_type nBufXSize = 0;
+<span class="lineNum">      60 </span>            :     coord_type nBufYSize = 0;
+<span class="lineNum">      61 </span>            :     GDALDataType eBufType = GDT_Byte;
+<span class="lineNum">      62 </span>            :     int nBandCount = 0;
+<span class="lineNum">      63 </span>            :     int* panBandMap = nullptr;
+<span class="lineNum">      64 </span>            :     int nPixelSpace = 0;
+<span class="lineNum">      65 </span>            :     GIntBig nLineSpace = 0;
+<span class="lineNum">      66 </span>            :     GIntBig nBandSpace = 0;
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :     bool bIsCompact = false;
+<a name="69"><span class="lineNum">      69 </span>            :     bool bIsBandSequential = false;</a>
+<a name="70"><span class="lineNum">      70 </span>            : </a>
+<span class="lineNum">      71 </span><span class="lineCov">         48 :     bool IsCompact() const { return bIsCompact; }</span>
+<span class="lineNum">      72 </span><span class="lineCov">        116 :     bool IsBandSequential() const { return bIsBandSequential; }</span>
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            :     void GetXYBand( size_t nOffset, coord_type&amp; x, coord_type&amp; y,
+<span class="lineNum">      75 </span>            :                     int&amp; band ) const;
+<span class="lineNum">      76 </span>            :     size_t GetOffset( const coord_type&amp; x, const coord_type&amp; y, int band ) const;
+<span class="lineNum">      77 </span>            :     bool GotoNextPixel( coord_type&amp; x, coord_type&amp; y, int&amp; band ) const;
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span>            :     void DoIOBandSequential( GDALRWFlag eRWFlag, size_t nOffset,
+<span class="lineNum">      80 </span>            :                              void* pPage, size_t nBytes ) const;
+<span class="lineNum">      81 </span>            :     void DoIOPixelInterleaved( GDALRWFlag eRWFlag, size_t nOffset,
+<span class="lineNum">      82 </span>            :                                void* pPage, size_t nBytes ) const;
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            :     CPL_DISALLOW_COPY_ASSIGN(GDALVirtualMem)
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            : public:
+<span class="lineNum">      87 </span>            :              GDALVirtualMem( GDALDatasetH hDS,
+<span class="lineNum">      88 </span>            :                              GDALRasterBandH hBand,
+<span class="lineNum">      89 </span>            :                              const coord_type&amp; nXOff,
+<span class="lineNum">      90 </span>            :                              const coord_type&amp; nYOff,
+<span class="lineNum">      91 </span>            :                              const coord_type&amp; nXSize,
+<span class="lineNum">      92 </span>            :                              const coord_type&amp; nYSize,
+<span class="lineNum">      93 </span>            :                              const coord_type&amp; nBufXSize,
+<span class="lineNum">      94 </span>            :                              const coord_type&amp; nBufYSize,
+<span class="lineNum">      95 </span>            :                              GDALDataType eBufType,
+<span class="lineNum">      96 </span>            :                              int nBandCount, const int* panBandMapIn,
+<span class="lineNum">      97 </span>            :                              int nPixelSpace,
+<span class="lineNum">      98 </span>            :                              GIntBig nLineSpace,
+<span class="lineNum">      99 </span>            :                              GIntBig nBandSpace );
+<span class="lineNum">     100 </span>            :             ~GDALVirtualMem();
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            :     static void FillCacheBandSequential( CPLVirtualMem* ctxt,  size_t nOffset,
+<span class="lineNum">     103 </span>            :                                          void* pPageToFill,
+<span class="lineNum">     104 </span>            :                                          size_t nToFill, void* pUserData );
+<span class="lineNum">     105 </span>            :     static void SaveFromCacheBandSequential( CPLVirtualMem* ctxt,
+<span class="lineNum">     106 </span>            :                                              size_t nOffset,
+<span class="lineNum">     107 </span>            :                                              const void* pPageToBeEvicted,
+<span class="lineNum">     108 </span>            :                                              size_t nToEvicted,
+<span class="lineNum">     109 </span>            :                                              void* pUserData );
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            :     static void FillCachePixelInterleaved( CPLVirtualMem* ctxt, size_t nOffset,
+<span class="lineNum">     112 </span>            :                                            void* pPageToFill,
+<span class="lineNum">     113 </span>            :                                            size_t nToFill, void* pUserData );
+<span class="lineNum">     114 </span>            :     static void SaveFromCachePixelInterleaved( CPLVirtualMem* ctxt,
+<span class="lineNum">     115 </span>            :                                                size_t nOffset,
+<span class="lineNum">     116 </span>            :                                                const void* pPageToBeEvicted,
+<span class="lineNum">     117 </span>            :                                                size_t nToEvicted,
+<span class="lineNum">     118 </span>            :                                                void* pUserData);
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span>            :     static void Destroy(void* pUserData);
+<span class="lineNum">     121 </span>            : };
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            : /************************************************************************/
+<span class="lineNum">     124 </span>            : /*                             GDALVirtualMem()                         */
+<a name="125"><span class="lineNum">     125 </span>            : /************************************************************************/</a>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineCov">         12 : GDALVirtualMem::GDALVirtualMem( GDALDatasetH hDSIn,</span>
+<span class="lineNum">     128 </span>            :                                 GDALRasterBandH hBandIn,
+<span class="lineNum">     129 </span>            :                                 const coord_type&amp; nXOffIn,
+<span class="lineNum">     130 </span>            :                                 const coord_type&amp; nYOffIn,
+<span class="lineNum">     131 </span>            :                                 const coord_type&amp; /* nXSize */,
+<span class="lineNum">     132 </span>            :                                 const coord_type&amp; /* nYSize */,
+<span class="lineNum">     133 </span>            :                                 const coord_type&amp; nBufXSizeIn,
+<span class="lineNum">     134 </span>            :                                 const coord_type&amp; nBufYSizeIn,
+<span class="lineNum">     135 </span>            :                                 GDALDataType eBufTypeIn,
+<span class="lineNum">     136 </span>            :                                 int nBandCountIn, const int* panBandMapIn,
+<span class="lineNum">     137 </span>            :                                 int nPixelSpaceIn,
+<span class="lineNum">     138 </span>            :                                 GIntBig nLineSpaceIn,
+<span class="lineNum">     139 </span>            :                                 GIntBig nBandSpaceIn ) :
+<span class="lineNum">     140 </span>            :     hDS(hDSIn),
+<span class="lineNum">     141 </span>            :     hBand(hBandIn),
+<span class="lineNum">     142 </span>            :     nXOff(nXOffIn),
+<span class="lineNum">     143 </span>            :     nYOff(nYOffIn),
+<span class="lineNum">     144 </span>            :     // TODO(schwehr): Why not used or removed?
+<span class="lineNum">     145 </span>            :     // nXSize(nXSize),
+<span class="lineNum">     146 </span>            :     // nYSize(nYSize),
+<span class="lineNum">     147 </span>            :     nBufXSize(nBufXSizeIn),
+<span class="lineNum">     148 </span>            :     nBufYSize(nBufYSizeIn),
+<span class="lineNum">     149 </span>            :     eBufType(eBufTypeIn),
+<span class="lineNum">     150 </span>            :     nBandCount(nBandCountIn),
+<span class="lineNum">     151 </span>            :     nPixelSpace(nPixelSpaceIn),
+<span class="lineNum">     152 </span>            :     nLineSpace(nLineSpaceIn),
+<span class="lineNum">     153 </span><span class="lineCov">         12 :     nBandSpace(nBandSpaceIn)</span>
+<span class="lineNum">     154 </span>            : {
+<span class="lineNum">     155 </span><span class="lineCov">         12 :     if( hDS != nullptr )</span>
+<span class="lineNum">     156 </span>            :     {
+<span class="lineNum">     157 </span><span class="lineCov">          3 :         panBandMap = static_cast&lt;int *&gt;( CPLMalloc(nBandCount * sizeof(int)) );</span>
+<span class="lineNum">     158 </span><span class="lineCov">          3 :         if( panBandMapIn )</span>
+<span class="lineNum">     159 </span>            :         {
+<span class="lineNum">     160 </span><span class="lineCov">          3 :             memcpy(panBandMap, panBandMapIn, nBandCount * sizeof(int));</span>
+<span class="lineNum">     161 </span>            :         }
+<span class="lineNum">     162 </span>            :         else
+<span class="lineNum">     163 </span>            :         {
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :             for( int i = 0; i &lt; nBandCount; i++ )</span>
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :                 panBandMap[i] = i + 1;</span>
+<span class="lineNum">     166 </span>            :         }
+<span class="lineNum">     167 </span>            :     }
+<span class="lineNum">     168 </span>            :     else
+<span class="lineNum">     169 </span>            :     {
+<span class="lineNum">     170 </span><span class="lineCov">          9 :         panBandMap = nullptr;</span>
+<span class="lineNum">     171 </span><span class="lineCov">          9 :         nBandCount = 1;</span>
+<span class="lineNum">     172 </span>            :     }
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span><span class="lineCov">         12 :     const int nDataTypeSize = GDALGetDataTypeSizeBytes(eBufType);</span>
+<span class="lineNum">     175 </span><span class="lineCov">         23 :     if( nPixelSpace == nDataTypeSize &amp;&amp;</span>
+<span class="lineNum">     176 </span><span class="lineCov">         22 :         nLineSpace == static_cast&lt;GIntBig&gt;(nBufXSize) * nPixelSpace &amp;&amp;</span>
+<span class="lineNum">     177 </span><span class="lineCov">         11 :         nBandSpace == nBufYSize * nLineSpace )</span>
+<span class="lineNum">     178 </span><span class="lineCov">         11 :         bIsCompact = true;</span>
+<span class="lineNum">     179 </span><span class="lineCov">          2 :     else if( nBandSpace == nDataTypeSize &amp;&amp;</span>
+<span class="lineNum">     180 </span><span class="lineCov">          2 :              nPixelSpace == nBandCount * nBandSpace &amp;&amp;</span>
+<span class="lineNum">     181 </span><span class="lineCov">          1 :              nLineSpace == static_cast&lt;GIntBig&gt;(nBufXSize) * nPixelSpace )</span>
+<span class="lineNum">     182 </span><span class="lineCov">          1 :         bIsCompact = true;</span>
+<span class="lineNum">     183 </span>            :     else
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :         bIsCompact = false;</span>
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span><span class="lineCov">         12 :     bIsBandSequential = nBandSpace &gt;= nBufYSize * nLineSpace;</span>
+<span class="lineNum">     187 </span><span class="lineCov">         12 : }</span>
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span>            : /************************************************************************/
+<span class="lineNum">     190 </span>            : /*                            ~GDALVirtualMem()                         */
+<a name="191"><span class="lineNum">     191 </span>            : /************************************************************************/</a>
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span><span class="lineCov">         12 : GDALVirtualMem::~GDALVirtualMem()</span>
+<span class="lineNum">     194 </span>            : {
+<span class="lineNum">     195 </span><span class="lineCov">         12 :     CPLFree(panBandMap);</span>
+<span class="lineNum">     196 </span><span class="lineCov">         12 : }</span>
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            : /************************************************************************/
+<span class="lineNum">     199 </span>            : /*                              GetXYBand()                             */
+<a name="200"><span class="lineNum">     200 </span>            : /************************************************************************/</a>
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span><span class="lineCov">         90 : void GDALVirtualMem::GetXYBand( size_t nOffset, coord_type&amp; x, coord_type&amp; y,</span>
+<span class="lineNum">     203 </span>            :                                 int&amp; band ) const
+<span class="lineNum">     204 </span>            : {
+<span class="lineNum">     205 </span><span class="lineCov">         90 :     if( IsBandSequential() )</span>
+<span class="lineNum">     206 </span>            :     {
+<span class="lineNum">     207 </span><span class="lineCov">         77 :         if( nBandCount == 1 )</span>
+<span class="lineNum">     208 </span><span class="lineCov">         62 :             band = 0;</span>
+<span class="lineNum">     209 </span>            :         else
+<span class="lineNum">     210 </span><span class="lineCov">         15 :             band = static_cast&lt;int&gt;(nOffset / nBandSpace);</span>
+<span class="lineNum">     211 </span><span class="lineCov">         77 :         y = static_cast&lt;coord_type&gt;((nOffset - band * nBandSpace) / nLineSpace);</span>
+<span class="lineNum">     212 </span>            :         x = static_cast&lt;coord_type&gt;(
+<span class="lineNum">     213 </span><span class="lineCov">         77 :             (nOffset - band * nBandSpace - y * nLineSpace) / nPixelSpace );</span>
+<span class="lineNum">     214 </span>            :     }
+<span class="lineNum">     215 </span>            :     else
+<span class="lineNum">     216 </span>            :     {
+<span class="lineNum">     217 </span><span class="lineCov">         13 :         y = static_cast&lt;coord_type&gt;(nOffset / nLineSpace);</span>
+<span class="lineNum">     218 </span><span class="lineCov">         13 :         x = static_cast&lt;coord_type&gt;((nOffset - y * nLineSpace) / nPixelSpace);</span>
+<span class="lineNum">     219 </span><span class="lineCov">         13 :         if( nBandCount == 1 )</span>
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :             band = 0;</span>
+<span class="lineNum">     221 </span>            :         else
+<span class="lineNum">     222 </span>            :             band = static_cast&lt;int&gt;(
+<span class="lineNum">     223 </span><span class="lineCov">         13 :                 (nOffset - y * nLineSpace - x * nPixelSpace) / nBandSpace);</span>
+<span class="lineNum">     224 </span>            :     }
+<span class="lineNum">     225 </span><span class="lineCov">         90 : }</span>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            : /************************************************************************/
+<span class="lineNum">     228 </span>            : /*                            GotoNextPixel()                           */
+<a name="229"><span class="lineNum">     229 </span>            : /************************************************************************/</a>
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span><span class="lineCov">         26 : bool GDALVirtualMem::GotoNextPixel( coord_type&amp; x, coord_type&amp; y,</span>
+<span class="lineNum">     232 </span>            :                                     int&amp; band ) const
+<span class="lineNum">     233 </span>            : {
+<span class="lineNum">     234 </span><span class="lineCov">         26 :     if( IsBandSequential() )</span>
+<span class="lineNum">     235 </span>            :     {
+<span class="lineNum">     236 </span><span class="lineCov">         19 :         ++x;</span>
+<span class="lineNum">     237 </span><span class="lineCov">         19 :         if( x == nBufXSize )</span>
+<span class="lineNum">     238 </span>            :         {
+<span class="lineNum">     239 </span><span class="lineCov">         19 :             x = 0;</span>
+<span class="lineNum">     240 </span><span class="lineCov">         19 :             ++y;</span>
+<span class="lineNum">     241 </span>            :         }
+<span class="lineNum">     242 </span><span class="lineCov">         19 :         if( y == nBufYSize )</span>
+<span class="lineNum">     243 </span>            :         {
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :             y = 0;</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :             band ++;</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :             if( band == nBandCount )</span>
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     248 </span>            :         }
+<span class="lineNum">     249 </span>            :     }
+<span class="lineNum">     250 </span>            :     else
+<span class="lineNum">     251 </span>            :     {
+<span class="lineNum">     252 </span><span class="lineCov">          7 :         band ++;</span>
+<span class="lineNum">     253 </span><span class="lineCov">          7 :         if( band == nBandCount )</span>
+<span class="lineNum">     254 </span>            :         {
+<span class="lineNum">     255 </span><span class="lineCov">          7 :             band = 0;</span>
+<span class="lineNum">     256 </span><span class="lineCov">          7 :             ++x;</span>
+<span class="lineNum">     257 </span>            :         }
+<span class="lineNum">     258 </span><span class="lineCov">          7 :         if( x == nBufXSize )</span>
+<span class="lineNum">     259 </span>            :         {
+<span class="lineNum">     260 </span><span class="lineCov">          4 :             x = 0;</span>
+<span class="lineNum">     261 </span><span class="lineCov">          4 :             ++y;</span>
+<span class="lineNum">     262 </span><span class="lineCov">          4 :             if( y == nBufYSize )</span>
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     264 </span>            :         }
+<span class="lineNum">     265 </span>            :     }
+<span class="lineNum">     266 </span><span class="lineCov">         26 :     return true;</span>
+<span class="lineNum">     267 </span>            : }
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            : /************************************************************************/
+<span class="lineNum">     270 </span>            : /*                              GetOffset()                             */
+<a name="271"><span class="lineNum">     271 </span>            : /************************************************************************/</a>
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span><span class="lineCov">        191 : size_t GDALVirtualMem::GetOffset(const coord_type&amp; x, </span>
+<span class="lineNum">     274 </span>            :                                  const coord_type&amp; y, int band) const
+<span class="lineNum">     275 </span>            : {
+<span class="lineNum">     276 </span>            :     return static_cast&lt;size_t&gt;(
+<span class="lineNum">     277 </span><span class="lineCov">        191 :         x * nPixelSpace + y * nLineSpace + band * nBandSpace);</span>
+<span class="lineNum">     278 </span>            : }
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span>            : /************************************************************************/
+<span class="lineNum">     281 </span>            : /*                          DoIOPixelInterleaved()                      */
+<a name="282"><span class="lineNum">     282 </span>            : /************************************************************************/</a>
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineCov">          9 : void GDALVirtualMem::DoIOPixelInterleaved(</span>
+<span class="lineNum">     285 </span>            :     GDALRWFlag eRWFlag, const size_t nOffset, void* pPage, size_t nBytes ) const
+<span class="lineNum">     286 </span>            : {
+<span class="lineNum">     287 </span><span class="lineCov">          9 :     coord_type x = 0;</span>
+<span class="lineNum">     288 </span><span class="lineCov">          9 :     coord_type y = 0;</span>
+<span class="lineNum">     289 </span><span class="lineCov">          9 :     int band = 0;</span>
+<span class="lineNum">     290 </span>            : 
+<span class="lineNum">     291 </span><span class="lineCov">          9 :     GetXYBand(nOffset, x, y, band);</span>
+<span class="lineNum">     292 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     293 </span>            :     fprintf(stderr, &quot;eRWFlag=%d, nOffset=%d, x=%d, y=%d, band=%d\n&quot;,/*ok*/
+<span class="lineNum">     294 </span>            :             eRWFlag, static_cast&lt;int&gt;(nOffset), x, y, band);
+<span class="lineNum">     295 </span>            : #endif
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span><span class="lineCov">          9 :     if( eRWFlag == GF_Read &amp;&amp; !IsCompact() )</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :         memset(pPage, 0, nBytes);</span>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">          9 :     if( band &gt;= nBandCount )</span>
+<span class="lineNum">     301 </span>            :     {
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :         band = nBandCount - 1;</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :         if( !GotoNextPixel(x, y, band) )</span>
+<span class="lineNum">     304 </span><span class="lineCov">          5 :             return;</span>
+<span class="lineNum">     305 </span>            :     }
+<span class="lineNum">     306 </span><span class="lineCov">          9 :     else if( x &gt;= nBufXSize )</span>
+<span class="lineNum">     307 </span>            :     {
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :         x = nBufXSize - 1;</span>
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :         band = nBandCount - 1;</span>
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :         if( !GotoNextPixel(x, y, band) )</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     312 </span>            :     }
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span><span class="lineCov">          9 :     size_t nOffsetRecompute = GetOffset(x, y, band);</span>
+<span class="lineNum">     315 </span><span class="lineCov">          9 :     CPLAssert(nOffsetRecompute &gt;= nOffset);</span>
+<span class="lineNum">     316 </span><span class="lineCov">          9 :     size_t nOffsetShift = nOffsetRecompute - nOffset;</span>
+<span class="lineNum">     317 </span><span class="lineCov">          9 :     if( nOffsetShift &gt;= nBytes )</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span>            :     // If we don't start at the first band for that given pixel, load/store
+<span class="lineNum">     321 </span>            :     // the remaining bands
+<span class="lineNum">     322 </span><span class="lineCov">          9 :     if( band &gt; 0 )</span>
+<span class="lineNum">     323 </span>            :     {
+<span class="lineNum">     324 </span><span class="lineCov">          3 :         size_t nEndOffsetEndOfPixel = GetOffset(x, y, nBandCount);</span>
+<span class="lineNum">     325 </span><span class="lineCov">          3 :         int bandEnd = nBandCount;</span>
+<span class="lineNum">     326 </span>            :         // Check that we have enough space to load/store until last band
+<span class="lineNum">     327 </span>            :         // Should be always OK unless the number of bands is really huge
+<span class="lineNum">     328 </span><span class="lineCov">          3 :         if( nEndOffsetEndOfPixel - nOffset &gt; nBytes )</span>
+<span class="lineNum">     329 </span>            :         {
+<span class="lineNum">     330 </span>            :             // Not enough space: find last possible band
+<span class="lineNum">     331 </span>            :             coord_type xEnd, yEnd;
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :             GetXYBand(nOffset + nBytes, xEnd, yEnd, bandEnd);</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :             CPLAssert(x == xEnd);</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :             CPLAssert(y == yEnd);</span>
+<span class="lineNum">     335 </span>            :         }
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span>            :         // Finish reading/writing the remaining bands for that pixel
+<span class="lineNum">     338 </span>            :         CPL_IGNORE_RET_VAL(GDALDatasetRasterIO(
+<span class="lineNum">     339 </span>            :             hDS, eRWFlag,
+<span class="lineNum">     340 </span>            :             nXOff + x, nYOff + y, 1, 1,
+<span class="lineNum">     341 </span><span class="lineCov">          3 :             static_cast&lt;char *&gt;(pPage) + nOffsetShift,</span>
+<span class="lineNum">     342 </span>            :             1, 1, eBufType,
+<span class="lineNum">     343 </span>            :             bandEnd - band, panBandMap + band,
+<span class="lineNum">     344 </span>            :             nPixelSpace,
+<span class="lineNum">     345 </span>            :             static_cast&lt;spacing_type&gt;(nLineSpace),
+<span class="lineNum">     346 </span><span class="lineCov">          6 :             static_cast&lt;spacing_type&gt;(nBandSpace) ));</span>
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span><span class="lineCov">          3 :         if( bandEnd &lt; nBandCount )</span>
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span><span class="lineCov">          3 :         band = nBandCount - 1;</span>
+<span class="lineNum">     352 </span><span class="lineCov">          3 :         if( !GotoNextPixel(x, y, band) )</span>
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     354 </span><span class="lineCov">          3 :         nOffsetRecompute = GetOffset(x, y, 0);</span>
+<span class="lineNum">     355 </span><span class="lineCov">          3 :         nOffsetShift = nOffsetRecompute - nOffset;</span>
+<span class="lineNum">     356 </span><span class="lineCov">          3 :         if( nOffsetShift &gt;= nBytes )</span>
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     358 </span>            :     }
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span>            :     // Is there enough place to store/load up to the end of current line ?
+<span class="lineNum">     361 </span><span class="lineCov">          9 :     size_t nEndOffsetEndOfLine = GetOffset(nBufXSize-1, y, nBandCount);</span>
+<span class="lineNum">     362 </span><span class="lineCov">          9 :     if( nEndOffsetEndOfLine - nOffset &gt; nBytes )</span>
+<span class="lineNum">     363 </span>            :     {
+<span class="lineNum">     364 </span>            :         // No : read/write as many pixels on this line as possible
+<span class="lineNum">     365 </span>            :         coord_type xEnd, yEnd;
+<span class="lineNum">     366 </span>            :         int bandEnd;
+<span class="lineNum">     367 </span><span class="lineCov">          4 :         GetXYBand(nOffset + nBytes, xEnd, yEnd, bandEnd);</span>
+<span class="lineNum">     368 </span><span class="lineCov">          4 :         CPLAssert(y == yEnd);</span>
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span><span class="lineCov">          4 :         if( x &lt; xEnd )</span>
+<span class="lineNum">     371 </span>            :         {
+<span class="lineNum">     372 </span>            :             CPL_IGNORE_RET_VAL(GDALDatasetRasterIO(
+<span class="lineNum">     373 </span>            :                 hDS, eRWFlag,
+<span class="lineNum">     374 </span>            :                 nXOff + x, nYOff + y, xEnd - x, 1,
+<span class="lineNum">     375 </span><span class="lineCov">          4 :                 static_cast&lt;char *&gt;(pPage) + nOffsetShift,</span>
+<span class="lineNum">     376 </span>            :                 xEnd - x, 1, eBufType,
+<span class="lineNum">     377 </span>            :                 nBandCount, panBandMap,
+<span class="lineNum">     378 </span>            :                 nPixelSpace,
+<span class="lineNum">     379 </span>            :                 static_cast&lt;spacing_type&gt;(nLineSpace),
+<span class="lineNum">     380 </span><span class="lineCov">          8 :                 static_cast&lt;spacing_type&gt;(nBandSpace) ));</span>
+<span class="lineNum">     381 </span>            :         }
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span>            :         // Are there partial bands to read/write for the last pixel ?
+<span class="lineNum">     384 </span><span class="lineCov">          4 :         if( bandEnd &gt; 0 )</span>
+<span class="lineNum">     385 </span>            :         {
+<span class="lineNum">     386 </span><span class="lineCov">          3 :             x = xEnd;</span>
+<span class="lineNum">     387 </span><span class="lineCov">          3 :             nOffsetRecompute = GetOffset(x, y, 0);</span>
+<span class="lineNum">     388 </span><span class="lineCov">          3 :             nOffsetShift = nOffsetRecompute - nOffset;</span>
+<span class="lineNum">     389 </span><span class="lineCov">          3 :             if( nOffsetShift &gt;= nBytes )</span>
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :                 return;</span>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineCov">          3 :             if( bandEnd &gt;= nBandCount )</span>
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :                 bandEnd = nBandCount;</span>
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            :             CPL_IGNORE_RET_VAL(GDALDatasetRasterIO(
+<span class="lineNum">     396 </span>            :                 hDS, eRWFlag,
+<span class="lineNum">     397 </span>            :                 nXOff + x, nYOff + y, 1, 1,
+<span class="lineNum">     398 </span><span class="lineCov">          3 :                 static_cast&lt;char *&gt;(pPage) + nOffsetShift,</span>
+<span class="lineNum">     399 </span>            :                 1, 1, eBufType,
+<span class="lineNum">     400 </span>            :                 bandEnd, panBandMap,
+<span class="lineNum">     401 </span>            :                 nPixelSpace,
+<span class="lineNum">     402 </span>            :                 static_cast&lt;spacing_type&gt;(nLineSpace),
+<span class="lineNum">     403 </span><span class="lineCov">          6 :                 static_cast&lt;spacing_type&gt;(nBandSpace) ));</span>
+<span class="lineNum">     404 </span>            :         }
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span><span class="lineCov">          4 :         return;</span>
+<span class="lineNum">     407 </span>            :     }
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span>            :     // Yes, enough place to read/write until end of line
+<span class="lineNum">     410 </span><span class="lineCov">          5 :     if( x &gt; 0 || nBytes - nOffsetShift &lt; static_cast&lt;size_t&gt;(nLineSpace) )</span>
+<span class="lineNum">     411 </span>            :     {
+<span class="lineNum">     412 </span>            :         CPL_IGNORE_RET_VAL(GDALDatasetRasterIO(
+<span class="lineNum">     413 </span>            :             hDS, eRWFlag,
+<span class="lineNum">     414 </span>            :             nXOff + x, nYOff + y, nBufXSize - x, 1,
+<span class="lineNum">     415 </span><span class="lineCov">          4 :             static_cast&lt;char *&gt;(pPage) + nOffsetShift,</span>
+<span class="lineNum">     416 </span>            :             nBufXSize - x, 1, eBufType,
+<span class="lineNum">     417 </span>            :             nBandCount, panBandMap,
+<span class="lineNum">     418 </span>            :             nPixelSpace,
+<span class="lineNum">     419 </span>            :             static_cast&lt;spacing_type&gt;(nLineSpace),
+<span class="lineNum">     420 </span><span class="lineCov">          8 :             static_cast&lt;spacing_type&gt;(nBandSpace) ) );</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span>            :         // Go to beginning of next line
+<span class="lineNum">     423 </span><span class="lineCov">          4 :         x = nBufXSize - 1;</span>
+<span class="lineNum">     424 </span><span class="lineCov">          4 :         band = nBandCount - 1;</span>
+<span class="lineNum">     425 </span><span class="lineCov">          4 :         if( !GotoNextPixel(x, y, band) )</span>
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     427 </span><span class="lineCov">          4 :         nOffsetRecompute = GetOffset(x, y, 0);</span>
+<span class="lineNum">     428 </span><span class="lineCov">          4 :         nOffsetShift = nOffsetRecompute - nOffset;</span>
+<span class="lineNum">     429 </span><span class="lineCov">          4 :         if( nOffsetShift &gt;= nBytes )</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     431 </span>            :     }
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span>            :     // How many whole lines can we store/load ?
+<span class="lineNum">     434 </span><span class="lineCov">          5 :     coord_type nLineCount = static_cast&lt;coord_type&gt;((nBytes - nOffsetShift) / nLineSpace);</span>
+<span class="lineNum">     435 </span><span class="lineCov">          5 :     if( y + nLineCount &gt; nBufYSize )</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :         nLineCount = nBufYSize - y;</span>
+<span class="lineNum">     437 </span><span class="lineCov">          5 :     if( nLineCount &gt; 0 )</span>
+<span class="lineNum">     438 </span>            :     {
+<span class="lineNum">     439 </span>            :         CPL_IGNORE_RET_VAL(GDALDatasetRasterIO(
+<span class="lineNum">     440 </span>            :             hDS, eRWFlag,
+<span class="lineNum">     441 </span>            :             nXOff + 0, nYOff + y, nBufXSize, nLineCount,
+<span class="lineNum">     442 </span><span class="lineCov">          5 :             static_cast&lt;GByte *&gt;(pPage) + nOffsetShift,</span>
+<span class="lineNum">     443 </span>            :             nBufXSize, nLineCount, eBufType,
+<span class="lineNum">     444 </span>            :             nBandCount, panBandMap,
+<span class="lineNum">     445 </span>            :             nPixelSpace,
+<span class="lineNum">     446 </span>            :             static_cast&lt;spacing_type&gt;(nLineSpace),
+<span class="lineNum">     447 </span><span class="lineCov">         10 :             static_cast&lt;spacing_type&gt;(nBandSpace) ) );</span>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineCov">          5 :         y += nLineCount;</span>
+<span class="lineNum">     450 </span><span class="lineCov">          5 :         if( y == nBufYSize )</span>
+<span class="lineNum">     451 </span><span class="lineCov">          1 :             return;</span>
+<span class="lineNum">     452 </span><span class="lineCov">          4 :         nOffsetRecompute = GetOffset(x, y, 0);</span>
+<span class="lineNum">     453 </span><span class="lineCov">          4 :         nOffsetShift = nOffsetRecompute - nOffset;</span>
+<span class="lineNum">     454 </span>            :     }
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          4 :     if( nOffsetShift &lt; nBytes )</span>
+<span class="lineNum">     457 </span>            :     {
+<span class="lineNum">     458 </span>            :         DoIOPixelInterleaved(
+<span class="lineNum">     459 </span>            :             eRWFlag, nOffsetRecompute,
+<span class="lineNum">     460 </span><span class="lineCov">          4 :             static_cast&lt;char*&gt;(pPage) + nOffsetShift,</span>
+<span class="lineNum">     461 </span><span class="lineCov">          8 :             nBytes - nOffsetShift );</span>
+<span class="lineNum">     462 </span>            :     }
+<span class="lineNum">     463 </span>            : }
+<span class="lineNum">     464 </span>            : 
+<span class="lineNum">     465 </span>            : /************************************************************************/
+<span class="lineNum">     466 </span>            : /*                          DoIOPixelInterleaved()                      */
+<a name="467"><span class="lineNum">     467 </span>            : /************************************************************************/</a>
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span><span class="lineCov">         58 : void GDALVirtualMem::DoIOBandSequential(</span>
+<span class="lineNum">     470 </span>            :     GDALRWFlag eRWFlag, const size_t nOffset, void* pPage, size_t nBytes ) const
+<span class="lineNum">     471 </span>            : {
+<span class="lineNum">     472 </span><span class="lineCov">         58 :     coord_type x = 0;</span>
+<span class="lineNum">     473 </span><span class="lineCov">         58 :     coord_type y = 0;</span>
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineCov">         58 :     int band = 0;</span>
+<span class="lineNum">     476 </span><span class="lineCov">         58 :     GetXYBand(nOffset, x, y, band);</span>
+<span class="lineNum">     477 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     478 </span>            :     fprintf( stderr, &quot;eRWFlag=%d, nOffset=%d, x=%d, y=%d, band=%d\n&quot;,/*ok*/
+<span class="lineNum">     479 </span>            :              eRWFlag, static_cast&lt;int&gt;(nOffset), x, y, band );
+<span class="lineNum">     480 </span>            : #endif
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span><span class="lineCov">         58 :     if( eRWFlag == GF_Read &amp;&amp; !IsCompact() )</span>
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :         memset(pPage, 0, nBytes);</span>
+<span class="lineNum">     484 </span>            : 
+<span class="lineNum">     485 </span><span class="lineCov">         58 :     if( x &gt;= nBufXSize )</span>
+<span class="lineNum">     486 </span>            :     {
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :         x = nBufXSize - 1;</span>
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :         if( !GotoNextPixel(x, y, band) )</span>
+<span class="lineNum">     489 </span><span class="lineCov">         37 :             return;</span>
+<span class="lineNum">     490 </span>            :     }
+<span class="lineNum">     491 </span><span class="lineCov">         58 :     else if( y &gt;= nBufYSize )</span>
+<span class="lineNum">     492 </span>            :     {
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :         x = nBufXSize - 1;</span>
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :         y = nBufYSize - 1;</span>
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :         if( !GotoNextPixel(x, y, band) )</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     497 </span>            :     }
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span><span class="lineCov">         58 :     size_t nOffsetRecompute = GetOffset(x, y, band);</span>
+<span class="lineNum">     500 </span><span class="lineCov">         58 :     CPLAssert(nOffsetRecompute &gt;= nOffset);</span>
+<span class="lineNum">     501 </span><span class="lineCov">         58 :     size_t nOffsetShift = nOffsetRecompute - nOffset;</span>
+<span class="lineNum">     502 </span><span class="lineCov">         58 :     if( nOffsetShift &gt;= nBytes )</span>
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     504 </span>            : 
+<span class="lineNum">     505 </span>            :     // Is there enough place to store/load up to the end of current line?
+<span class="lineNum">     506 </span><span class="lineCov">         58 :     size_t nEndOffsetEndOfLine = GetOffset(nBufXSize, y, band);</span>
+<span class="lineNum">     507 </span><span class="lineCov">         58 :     if( nEndOffsetEndOfLine - nOffset &gt; nBytes )</span>
+<span class="lineNum">     508 </span>            :     {
+<span class="lineNum">     509 </span>            :         // No : read/write as many pixels on this line as possible
+<span class="lineNum">     510 </span>            :         coord_type xEnd, yEnd;
+<span class="lineNum">     511 </span>            :         int bandEnd;
+<span class="lineNum">     512 </span><span class="lineCov">         19 :         GetXYBand(nOffset + nBytes, xEnd, yEnd, bandEnd);</span>
+<span class="lineNum">     513 </span><span class="lineCov">         19 :         CPLAssert(y == yEnd);</span>
+<span class="lineNum">     514 </span><span class="lineCov">         19 :         CPLAssert(band == bandEnd);</span>
+<span class="lineNum">     515 </span>            :         CPL_IGNORE_RET_VAL(GDALRasterIO(
+<span class="lineNum">     516 </span><span class="lineCov">          4 :             hBand ? hBand : GDALGetRasterBand(hDS, panBandMap[band]),</span>
+<span class="lineNum">     517 </span>            :             eRWFlag,
+<span class="lineNum">     518 </span>            :             nXOff + x, nYOff + y, xEnd - x, 1,
+<span class="lineNum">     519 </span><span class="lineCov">         19 :             static_cast&lt;char *&gt;(pPage) + nOffsetShift,</span>
+<span class="lineNum">     520 </span>            :             xEnd - x, 1, eBufType,
+<span class="lineNum">     521 </span><span class="lineCov">         42 :             nPixelSpace, static_cast&lt;spacing_type&gt;(nLineSpace) ));</span>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span><span class="lineCov">         19 :         return;</span>
+<span class="lineNum">     524 </span>            :     }
+<span class="lineNum">     525 </span>            : 
+<span class="lineNum">     526 </span>            :     // Yes, enough place to read/write until end of line
+<span class="lineNum">     527 </span><span class="lineCov">         39 :     if( x &gt; 0 || nBytes - nOffsetShift &lt; static_cast&lt;size_t&gt;(nLineSpace) )</span>
+<span class="lineNum">     528 </span>            :     {
+<span class="lineNum">     529 </span>            :         CPL_IGNORE_RET_VAL(GDALRasterIO(
+<span class="lineNum">     530 </span><span class="lineCov">          4 :             hBand ? hBand : GDALGetRasterBand(hDS, panBandMap[band]),</span>
+<span class="lineNum">     531 </span>            :             eRWFlag,
+<span class="lineNum">     532 </span>            :                     nXOff + x, nYOff + y, nBufXSize - x, 1,
+<span class="lineNum">     533 </span><span class="lineCov">         19 :                     static_cast&lt;char *&gt;(pPage) + nOffsetShift,</span>
+<span class="lineNum">     534 </span>            :                     nBufXSize - x, 1, eBufType,
+<span class="lineNum">     535 </span><span class="lineCov">         42 :                     nPixelSpace, static_cast&lt;spacing_type&gt;(nLineSpace) ));</span>
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span>            :         // Go to beginning of next line
+<span class="lineNum">     538 </span><span class="lineCov">         19 :         x = nBufXSize - 1;</span>
+<span class="lineNum">     539 </span><span class="lineCov">         19 :         if( !GotoNextPixel(x, y, band) )</span>
+<span class="lineNum">     540 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     541 </span><span class="lineCov">         19 :         nOffsetRecompute = GetOffset(x, y, band);</span>
+<span class="lineNum">     542 </span><span class="lineCov">         19 :         nOffsetShift = nOffsetRecompute - nOffset;</span>
+<span class="lineNum">     543 </span><span class="lineCov">         19 :         if( nOffsetShift &gt;= nBytes )</span>
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     545 </span>            :     }
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span>            :     // How many whole lines can we store/load ?
+<span class="lineNum">     548 </span><span class="lineCov">         39 :     coord_type nLineCount = static_cast&lt;coord_type&gt;((nBytes - nOffsetShift) / nLineSpace);</span>
+<span class="lineNum">     549 </span><span class="lineCov">         39 :     if( y + nLineCount &gt; nBufYSize )</span>
+<span class="lineNum">     550 </span><span class="lineCov">          9 :         nLineCount = nBufYSize - y;</span>
+<span class="lineNum">     551 </span><span class="lineCov">         39 :     if( nLineCount &gt; 0 )</span>
+<span class="lineNum">     552 </span>            :     {
+<span class="lineNum">     553 </span>            :         CPL_IGNORE_RET_VAL(GDALRasterIO(
+<span class="lineNum">     554 </span><span class="lineCov">          9 :             hBand ? hBand : GDALGetRasterBand(hDS, panBandMap[band]),</span>
+<span class="lineNum">     555 </span>            :             eRWFlag,
+<span class="lineNum">     556 </span>            :             nXOff + 0, nYOff + y, nBufXSize, nLineCount,
+<span class="lineNum">     557 </span><span class="lineCov">         39 :             static_cast&lt;GByte *&gt;(pPage) + nOffsetShift,</span>
+<span class="lineNum">     558 </span>            :             nBufXSize, nLineCount, eBufType,
+<span class="lineNum">     559 </span>            :             nPixelSpace,
+<span class="lineNum">     560 </span><span class="lineCov">         87 :             static_cast&lt;spacing_type&gt;(nLineSpace) ) );</span>
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span><span class="lineCov">         39 :         y += nLineCount;</span>
+<span class="lineNum">     563 </span><span class="lineCov">         39 :         if( y == nBufYSize )</span>
+<span class="lineNum">     564 </span>            :         {
+<span class="lineNum">     565 </span><span class="lineCov">         20 :             y = 0;</span>
+<span class="lineNum">     566 </span><span class="lineCov">         20 :             band ++;</span>
+<span class="lineNum">     567 </span><span class="lineCov">         20 :             if( band == nBandCount )</span>
+<span class="lineNum">     568 </span><span class="lineCov">         18 :                 return;</span>
+<span class="lineNum">     569 </span>            :         }
+<span class="lineNum">     570 </span><span class="lineCov">         21 :         nOffsetRecompute = GetOffset(x, y, band);</span>
+<span class="lineNum">     571 </span><span class="lineCov">         21 :         nOffsetShift = nOffsetRecompute - nOffset;</span>
+<span class="lineNum">     572 </span>            :     }
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span><span class="lineCov">         21 :     if( nOffsetShift &lt; nBytes )</span>
+<span class="lineNum">     575 </span>            :     {
+<span class="lineNum">     576 </span>            :         DoIOBandSequential( eRWFlag, nOffsetRecompute,
+<span class="lineNum">     577 </span><span class="lineCov">         21 :                static_cast&lt;char*&gt;(pPage) + nOffsetShift, nBytes - nOffsetShift );</span>
+<span class="lineNum">     578 </span>            :     }
+<span class="lineNum">     579 </span>            : }
+<span class="lineNum">     580 </span>            : 
+<span class="lineNum">     581 </span>            : /************************************************************************/
+<span class="lineNum">     582 </span>            : /*                    FillCacheBandSequential()                        */
+<a name="583"><span class="lineNum">     583 </span>            : /************************************************************************/</a>
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span><span class="lineCov">         24 : void GDALVirtualMem::FillCacheBandSequential(</span>
+<span class="lineNum">     586 </span>            :     CPLVirtualMem*,
+<span class="lineNum">     587 </span>            :     size_t nOffset,
+<span class="lineNum">     588 </span>            :     void* pPageToFill,
+<span class="lineNum">     589 </span>            :     size_t nToFill,
+<span class="lineNum">     590 </span>            :     void* pUserData )
+<span class="lineNum">     591 </span>            : {
+<span class="lineNum">     592 </span><span class="lineCov">         24 :     const GDALVirtualMem* psParms = static_cast&lt;GDALVirtualMem *&gt;(pUserData);</span>
+<span class="lineNum">     593 </span><span class="lineCov">         24 :     psParms-&gt;DoIOBandSequential(GF_Read, nOffset, pPageToFill, nToFill);</span>
+<span class="lineNum">     594 </span><span class="lineCov">         24 : }</span>
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span>            : /************************************************************************/
+<span class="lineNum">     597 </span>            : /*                    SaveFromCacheBandSequential()                    */
+<a name="598"><span class="lineNum">     598 </span>            : /************************************************************************/</a>
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span><span class="lineCov">         13 : void GDALVirtualMem::SaveFromCacheBandSequential(</span>
+<span class="lineNum">     601 </span>            :     CPLVirtualMem*,
+<span class="lineNum">     602 </span>            :     size_t nOffset,
+<span class="lineNum">     603 </span>            :     const void* pPageToBeEvicted,
+<span class="lineNum">     604 </span>            :     size_t nToEvicted,
+<span class="lineNum">     605 </span>            :     void* pUserData )
+<span class="lineNum">     606 </span>            : {
+<span class="lineNum">     607 </span><span class="lineCov">         13 :     const GDALVirtualMem* psParms = static_cast&lt;GDALVirtualMem *&gt;(pUserData);</span>
+<span class="lineNum">     608 </span>            :     psParms-&gt;DoIOBandSequential(
+<span class="lineNum">     609 </span><span class="lineCov">         13 :         GF_Write, nOffset, const_cast&lt;void *&gt;(pPageToBeEvicted), nToEvicted);</span>
+<span class="lineNum">     610 </span><span class="lineCov">         13 : }</span>
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span>            : /************************************************************************/
+<span class="lineNum">     613 </span>            : /*                     FillCachePixelInterleaved()                      */
+<a name="614"><span class="lineNum">     614 </span>            : /************************************************************************/</a>
+<span class="lineNum">     615 </span>            : 
+<span class="lineNum">     616 </span><span class="lineCov">          5 : void GDALVirtualMem::FillCachePixelInterleaved(</span>
+<span class="lineNum">     617 </span>            :     CPLVirtualMem*,
+<span class="lineNum">     618 </span>            :     size_t nOffset,
+<span class="lineNum">     619 </span>            :     void* pPageToFill,
+<span class="lineNum">     620 </span>            :     size_t nToFill,
+<span class="lineNum">     621 </span>            :     void* pUserData )
+<span class="lineNum">     622 </span>            : {
+<span class="lineNum">     623 </span><span class="lineCov">          5 :     const GDALVirtualMem* psParms = static_cast&lt;GDALVirtualMem *&gt;(pUserData);</span>
+<span class="lineNum">     624 </span><span class="lineCov">          5 :     psParms-&gt;DoIOPixelInterleaved(GF_Read, nOffset, pPageToFill, nToFill);</span>
+<span class="lineNum">     625 </span><span class="lineCov">          5 : }</span>
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span>            : /************************************************************************/
+<span class="lineNum">     628 </span>            : /*                     SaveFromCachePixelInterleaved()                  */
+<a name="629"><span class="lineNum">     629 </span>            : /************************************************************************/</a>
+<span class="lineNum">     630 </span>            : 
+<span class="lineNum">     631 </span><span class="lineNoCov">          0 : void GDALVirtualMem::SaveFromCachePixelInterleaved(</span>
+<span class="lineNum">     632 </span>            :     CPLVirtualMem*,
+<span class="lineNum">     633 </span>            :     size_t nOffset,
+<span class="lineNum">     634 </span>            :     const void* pPageToBeEvicted,
+<span class="lineNum">     635 </span>            :     size_t nToEvicted,
+<span class="lineNum">     636 </span>            :     void* pUserData )
+<span class="lineNum">     637 </span>            : {
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :     const GDALVirtualMem* psParms = static_cast&lt;GDALVirtualMem *&gt;(pUserData);</span>
+<span class="lineNum">     639 </span>            :     psParms-&gt;DoIOPixelInterleaved(
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :         GF_Write, nOffset, const_cast&lt;void *&gt;(pPageToBeEvicted), nToEvicted);</span>
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span>            : /************************************************************************/
+<span class="lineNum">     644 </span>            : /*                                Destroy()                             */
+<a name="645"><span class="lineNum">     645 </span>            : /************************************************************************/</a>
+<span class="lineNum">     646 </span>            : 
+<span class="lineNum">     647 </span><span class="lineCov">         12 : void GDALVirtualMem::Destroy(void* pUserData)</span>
+<span class="lineNum">     648 </span>            : {
+<span class="lineNum">     649 </span><span class="lineCov">         12 :     GDALVirtualMem* psParams = static_cast&lt;GDALVirtualMem *&gt;( pUserData );</span>
+<span class="lineNum">     650 </span><span class="lineCov">         12 :     delete psParams;</span>
+<span class="lineNum">     651 </span><span class="lineCov">         12 : }</span>
+<span class="lineNum">     652 </span>            : 
+<span class="lineNum">     653 </span>            : /************************************************************************/
+<span class="lineNum">     654 </span>            : /*                      GDALCheckBandParameters()                       */
+<a name="655"><span class="lineNum">     655 </span>            : /************************************************************************/</a>
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span><span class="lineCov">          6 : static bool GDALCheckBandParameters( GDALDatasetH hDS,</span>
+<span class="lineNum">     658 </span>            :                                      int nBandCount, int* panBandMap )
+<span class="lineNum">     659 </span>            : {
+<span class="lineNum">     660 </span><span class="lineCov">          6 :     if( nBandCount == 0 )</span>
+<span class="lineNum">     661 </span>            :     {
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :         CPLError( CE_Failure, CPLE_AppDefined, &quot;nBandCount == 0&quot; );</span>
+<span class="lineNum">     663 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     664 </span>            :     }
+<span class="lineNum">     665 </span>            : 
+<span class="lineNum">     666 </span><span class="lineCov">          6 :     if( panBandMap != nullptr )</span>
+<span class="lineNum">     667 </span>            :     {
+<span class="lineNum">     668 </span><span class="lineCov">         22 :         for( int i = 0; i &lt; nBandCount; i++ )</span>
+<span class="lineNum">     669 </span>            :         {
+<span class="lineNum">     670 </span><span class="lineCov">         16 :             if( panBandMap[i] &lt; 1 || panBandMap[i] &gt; GDALGetRasterCount(hDS) )</span>
+<span class="lineNum">     671 </span>            :             {
+<span class="lineNum">     672 </span>            :                 CPLError( CE_Failure, CPLE_AppDefined, &quot;panBandMap[%d]=%d&quot;,
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :                           i, panBandMap[i] );</span>
+<span class="lineNum">     674 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     675 </span>            :             }
+<span class="lineNum">     676 </span>            :         }
+<span class="lineNum">     677 </span>            :     }
+<span class="lineNum">     678 </span><span class="lineNoCov">          0 :     else if( nBandCount &gt; GDALGetRasterCount(hDS) )</span>
+<span class="lineNum">     679 </span>            :     {
+<span class="lineNum">     680 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     681 </span><span class="lineNoCov">          0 :                  &quot;nBandCount &gt; GDALGetRasterCount(hDS)&quot; );</span>
+<span class="lineNum">     682 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     683 </span>            :     }
+<span class="lineNum">     684 </span><span class="lineCov">          6 :     return true;</span>
+<span class="lineNum">     685 </span>            : }
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span>            : /************************************************************************/
+<span class="lineNum">     688 </span>            : /*                          GDALGetVirtualMem()                         */
+<a name="689"><span class="lineNum">     689 </span>            : /************************************************************************/</a>
+<span class="lineNum">     690 </span>            : 
+<span class="lineNum">     691 </span><span class="lineCov">         12 : static CPLVirtualMem* GDALGetVirtualMem( GDALDatasetH hDS,</span>
+<span class="lineNum">     692 </span>            :                                          GDALRasterBandH hBand,
+<span class="lineNum">     693 </span>            :                                          GDALRWFlag eRWFlag,
+<span class="lineNum">     694 </span>            :                                          coord_type nXOff, coord_type nYOff,
+<span class="lineNum">     695 </span>            :                                          coord_type nXSize, coord_type nYSize,
+<span class="lineNum">     696 </span>            :                                          coord_type nBufXSize,
+<span class="lineNum">     697 </span>            :                                          coord_type nBufYSize,
+<span class="lineNum">     698 </span>            :                                          GDALDataType eBufType,
+<span class="lineNum">     699 </span>            :                                          int nBandCount, int* panBandMap,
+<span class="lineNum">     700 </span>            :                                          int nPixelSpace,
+<span class="lineNum">     701 </span>            :                                          GIntBig nLineSpace,
+<span class="lineNum">     702 </span>            :                                          GIntBig nBandSpace,
+<span class="lineNum">     703 </span>            :                                          size_t nCacheSize,
+<span class="lineNum">     704 </span>            :                                          size_t nPageSizeHint,
+<span class="lineNum">     705 </span>            :                                          int bSingleThreadUsage,
+<span class="lineNum">     706 </span>            :                                          CSLConstList /*papszOptions*/ )
+<span class="lineNum">     707 </span>            : {
+<span class="lineNum">     708 </span><span class="lineCov">         12 :     CPLVirtualMem* view = nullptr;</span>
+<span class="lineNum">     709 </span><span class="lineCov">         12 :     GDALVirtualMem* psParams = nullptr;</span>
+<span class="lineNum">     710 </span><span class="lineCov">         12 :     GUIntBig nReqMem = 0;</span>
+<span class="lineNum">     711 </span>            : 
+<span class="lineNum">     712 </span><span class="lineCov">         12 :     if( nXSize != nBufXSize || nYSize != nBufYSize )</span>
+<span class="lineNum">     713 </span>            :     {
+<span class="lineNum">     714 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     715 </span><span class="lineNoCov">          0 :                   &quot;nXSize != nBufXSize || nYSize != nBufYSize&quot; );</span>
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     717 </span>            :     }
+<span class="lineNum">     718 </span>            : 
+<span class="lineNum">     719 </span>            :     int nRasterXSize =
+<span class="lineNum">     720 </span><span class="lineCov">         12 :         hDS ? GDALGetRasterXSize(hDS) : GDALGetRasterBandXSize(hBand);</span>
+<span class="lineNum">     721 </span>            :     int nRasterYSize =
+<span class="lineNum">     722 </span><span class="lineCov">         12 :         hDS ? GDALGetRasterYSize(hDS) : GDALGetRasterBandYSize(hBand);</span>
+<span class="lineNum">     723 </span>            : 
+<span class="lineNum">     724 </span><span class="lineCov">         24 :     if( nXOff &lt; 0 || nYOff &lt; 0 ||</span>
+<span class="lineNum">     725 </span><span class="lineCov">         36 :         nXSize == 0 || nYSize == 0 ||</span>
+<span class="lineNum">     726 </span><span class="lineCov">         36 :         nBufXSize &lt; 0 || nBufYSize &lt; 0 ||</span>
+<span class="lineNum">     727 </span><span class="lineCov">         24 :         nXOff + nXSize &gt; nRasterXSize ||</span>
+<span class="lineNum">     728 </span><span class="lineCov">         12 :         nYOff + nYSize &gt; nRasterYSize )</span>
+<span class="lineNum">     729 </span>            :     {
+<span class="lineNum">     730 </span><span class="lineNoCov">          0 :         CPLError( CE_Failure, CPLE_AppDefined, &quot;Invalid window request&quot; );</span>
+<span class="lineNum">     731 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     732 </span>            :     }
+<span class="lineNum">     733 </span>            : 
+<span class="lineNum">     734 </span><span class="lineCov">         12 :     if( nPixelSpace &lt; 0 || nLineSpace &lt; 0 || nBandSpace &lt; 0)</span>
+<span class="lineNum">     735 </span>            :     {
+<span class="lineNum">     736 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :                   &quot;nPixelSpace &lt; 0 || nLineSpace &lt; 0 || nBandSpace &lt; 0&quot; );</span>
+<span class="lineNum">     738 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     739 </span>            :     }
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span><span class="lineCov">         12 :     if( hDS != nullptr &amp;&amp; !GDALCheckBandParameters(hDS, nBandCount, panBandMap ) )</span>
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     743 </span>            : 
+<span class="lineNum">     744 </span><span class="lineCov">         12 :     const int nDataTypeSize = GDALGetDataTypeSizeBytes(eBufType);</span>
+<span class="lineNum">     745 </span><span class="lineCov">         12 :     if( nPixelSpace == 0 )</span>
+<span class="lineNum">     746 </span><span class="lineCov">          3 :         nPixelSpace = nDataTypeSize;</span>
+<span class="lineNum">     747 </span><span class="lineCov">         12 :     if( nLineSpace == 0 )</span>
+<span class="lineNum">     748 </span><span class="lineCov">          4 :         nLineSpace = static_cast&lt;GIntBig&gt;(nBufXSize) * nPixelSpace;</span>
+<span class="lineNum">     749 </span><span class="lineCov">         12 :     if( nBandSpace == 0 )</span>
+<span class="lineNum">     750 </span><span class="lineCov">         11 :         nBandSpace = static_cast&lt;GIntBig&gt;(nBufYSize) * nLineSpace;</span>
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span>            :     // OFFSET = offset(x,y,band) = x * nPixelSpace + y * nLineSpace + band *
+<span class="lineNum">     753 </span>            :     // nBandSpace where 0 &lt;= x &lt; nBufXSize and 0 &lt;= y &lt; nBufYSize and 0 &lt;= band
+<span class="lineNum">     754 </span>            :     // &lt; nBandCount if nPixelSpace, nLineSpace and nBandSpace can have arbitrary
+<span class="lineNum">     755 </span>            :     // values, there is no way of finding a unique(x,y,band) solution. We need
+<span class="lineNum">     756 </span>            :     // to restrict the space of possibilities strongly.
+<span class="lineNum">     757 </span>            :     // if nBandSpace &gt;= nBufYSize * nLineSpace and
+<span class="lineNum">     758 </span>            :     //   nLineSpace &gt;= nBufXSize * nPixelSpace,           INTERLEAVE = BAND
+<span class="lineNum">     759 </span>            :     //      band = OFFSET / nBandSpace
+<span class="lineNum">     760 </span>            :     //      y = (OFFSET - band * nBandSpace) / nLineSpace
+<span class="lineNum">     761 </span>            :     //      x = (OFFSET - band * nBandSpace - y * nLineSpace) / nPixelSpace
+<span class="lineNum">     762 </span>            :     // else if nPixelSpace &gt;= nBandCount * nBandSpace and
+<span class="lineNum">     763 </span>            :     //   nLineSpace &gt;= nBufXSize * nPixelSpace,    INTERLEAVE = PIXEL
+<span class="lineNum">     764 </span>            :     //      y = OFFSET / nLineSpace
+<span class="lineNum">     765 </span>            :     //      x = (OFFSET - y * nLineSpace) / nPixelSpace
+<span class="lineNum">     766 </span>            :     //      band = (OFFSET - y * nLineSpace - x * nPixelSpace) / nBandSpace
+<span class="lineNum">     767 </span>            : 
+<span class="lineNum">     768 </span><span class="lineCov">         24 :     if( nDataTypeSize == 0 || /* to please Coverity. not needed */</span>
+<span class="lineNum">     769 </span><span class="lineCov">         24 :         nLineSpace &lt; static_cast&lt;GIntBig&gt;(nBufXSize) * nPixelSpace ||</span>
+<span class="lineNum">     770 </span><span class="lineCov">          2 :         (nBandCount &gt; 1 &amp;&amp;</span>
+<span class="lineNum">     771 </span><span class="lineCov">          4 :         (nBandSpace == nPixelSpace ||</span>
+<span class="lineNum">     772 </span><span class="lineCov">          3 :         (nBandSpace &lt; nPixelSpace &amp;&amp;</span>
+<span class="lineNum">     773 </span><span class="lineCov">          2 :          (nBandSpace &lt; nDataTypeSize ||</span>
+<span class="lineNum">     774 </span><span class="lineCov">          3 :           nPixelSpace &lt; nBandCount * nBandSpace)) ||</span>
+<span class="lineNum">     775 </span><span class="lineCov">          3 :         (nBandSpace &gt; nPixelSpace &amp;&amp;</span>
+<span class="lineNum">     776 </span><span class="lineCov">          1 :          (nPixelSpace &lt; nDataTypeSize ||</span>
+<span class="lineNum">     777 </span><span class="lineCov">          1 :           nBandSpace &lt; nBufYSize * nLineSpace)))) )</span>
+<span class="lineNum">     778 </span>            :     {
+<span class="lineNum">     779 </span>            :         CPLError(
+<span class="lineNum">     780 </span>            :             CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     781 </span><span class="lineNoCov">          0 :             &quot;Only pixel interleaving or band interleaving are supported&quot; );</span>
+<span class="lineNum">     782 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     783 </span>            :     }
+<span class="lineNum">     784 </span>            : 
+<span class="lineNum">     785 </span>            :     /* Avoid odd spacings that would complicate I/O operations */
+<span class="lineNum">     786 </span>            :     /* Ensuring they are multiple of nDataTypeSize should be fine, because */
+<span class="lineNum">     787 </span>            :     /* the page size is a power of 2 that is also a multiple of nDataTypeSize */
+<span class="lineNum">     788 </span><span class="lineCov">         24 :     if( (nPixelSpace % nDataTypeSize) != 0 ||</span>
+<span class="lineNum">     789 </span><span class="lineCov">         24 :         (nLineSpace % nDataTypeSize) != 0 ||</span>
+<span class="lineNum">     790 </span><span class="lineCov">         12 :         (nBandSpace % nDataTypeSize) != 0 )</span>
+<span class="lineNum">     791 </span>            :     {
+<span class="lineNum">     792 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :                   &quot;Unsupported spacing&quot; );</span>
+<span class="lineNum">     794 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     795 </span>            :     }
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span><span class="lineCov">         12 :     bool bIsBandSequential = nBandSpace &gt;= nBufYSize * nLineSpace;</span>
+<span class="lineNum">     798 </span><span class="lineCov">         12 :     if( bIsBandSequential )</span>
+<span class="lineNum">     799 </span><span class="lineCov">         11 :         nReqMem = nBandCount * nBandSpace;</span>
+<span class="lineNum">     800 </span>            :     else
+<span class="lineNum">     801 </span><span class="lineCov">          1 :         nReqMem = nBufYSize * nLineSpace;</span>
+<span class="lineNum">     802 </span>            :     if( nReqMem != static_cast&lt;GUIntBig&gt;(static_cast&lt;size_t&gt;(nReqMem)) )
+<span class="lineNum">     803 </span>            :     {
+<span class="lineNum">     804 </span>            :         CPLError( CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">     805 </span>            :                   &quot;Cannot reserve &quot; CPL_FRMT_GUIB &quot; bytes&quot;, nReqMem );
+<span class="lineNum">     806 </span>            :         return nullptr;
+<span class="lineNum">     807 </span>            :     }
+<span class="lineNum">     808 </span>            : 
+<span class="lineNum">     809 </span>            :     psParams = new GDALVirtualMem( hDS, hBand, nXOff, nYOff,
+<span class="lineNum">     810 </span>            :                                    nXSize, nYSize,
+<span class="lineNum">     811 </span>            :                                    nBufXSize, nBufYSize,
+<span class="lineNum">     812 </span>            :                                    eBufType,
+<span class="lineNum">     813 </span>            :                                    nBandCount, panBandMap,
+<span class="lineNum">     814 </span>            :                                    nPixelSpace,
+<span class="lineNum">     815 </span>            :                                    nLineSpace,
+<span class="lineNum">     816 </span><span class="lineCov">         12 :                                    nBandSpace );</span>
+<span class="lineNum">     817 </span>            : 
+<span class="lineNum">     818 </span>            :     view = CPLVirtualMemNew(
+<span class="lineNum">     819 </span>            :         static_cast&lt;size_t&gt;(nReqMem),
+<span class="lineNum">     820 </span>            :         nCacheSize,
+<span class="lineNum">     821 </span>            :         nPageSizeHint,
+<span class="lineNum">     822 </span>            :         bSingleThreadUsage,
+<span class="lineNum">     823 </span>            :         eRWFlag == GF_Read ?
+<span class="lineNum">     824 </span>            :         VIRTUALMEM_READONLY_ENFORCED : VIRTUALMEM_READWRITE,
+<span class="lineNum">     825 </span>            :         bIsBandSequential ? GDALVirtualMem::FillCacheBandSequential :
+<span class="lineNum">     826 </span>            :                             GDALVirtualMem::FillCachePixelInterleaved,
+<span class="lineNum">     827 </span>            :         bIsBandSequential ? GDALVirtualMem::SaveFromCacheBandSequential :
+<span class="lineNum">     828 </span>            :                             GDALVirtualMem::SaveFromCachePixelInterleaved,
+<span class="lineNum">     829 </span>            :         GDALVirtualMem::Destroy,
+<span class="lineNum">     830 </span><span class="lineCov">         12 :         psParams );</span>
+<span class="lineNum">     831 </span>            : 
+<span class="lineNum">     832 </span><span class="lineCov">         12 :     if( view == nullptr )</span>
+<span class="lineNum">     833 </span>            :     {
+<span class="lineNum">     834 </span><span class="lineNoCov">          0 :         delete psParams;</span>
+<span class="lineNum">     835 </span>            :     }
+<span class="lineNum">     836 </span>            : 
+<span class="lineNum">     837 </span><span class="lineCov">         12 :     return view;</span>
+<span class="lineNum">     838 </span>            : }
+<span class="lineNum">     839 </span>            : 
+<span class="lineNum">     840 </span>            : /************************************************************************/
+<span class="lineNum">     841 </span>            : /*                       GDALDatasetGetVirtualMem()                     */
+<span class="lineNum">     842 </span>            : /************************************************************************/
+<span class="lineNum">     843 </span>            : 
+<span class="lineNum">     844 </span>            : /** Create a CPLVirtualMem object from a GDAL dataset object.
+<span class="lineNum">     845 </span>            :  *
+<span class="lineNum">     846 </span>            :  * Only supported on Linux for now.
+<span class="lineNum">     847 </span>            :  *
+<span class="lineNum">     848 </span>            :  * This method allows creating a virtual memory object for a region of one
+<span class="lineNum">     849 </span>            :  * or more GDALRasterBands from  this dataset. The content of the virtual
+<span class="lineNum">     850 </span>            :  * memory object is automatically filled from dataset content when a virtual
+<span class="lineNum">     851 </span>            :  * memory page is first accessed, and it is released (or flushed in case of a
+<span class="lineNum">     852 </span>            :  * &quot;dirty&quot; page) when the cache size limit has been reached.
+<span class="lineNum">     853 </span>            :  *
+<span class="lineNum">     854 </span>            :  * The pointer to access the virtual memory object is obtained with
+<span class="lineNum">     855 </span>            :  * CPLVirtualMemGetAddr(). It remains valid until CPLVirtualMemFree() is called.
+<span class="lineNum">     856 </span>            :  * CPLVirtualMemFree() must be called before the dataset object is destroyed.
+<span class="lineNum">     857 </span>            :  *
+<span class="lineNum">     858 </span>            :  * If p is such a pointer and base_type the C type matching eBufType, for
+<span class="lineNum">     859 </span>            :  * default values of spacing parameters, the element of image coordinates (x, y)
+<span class="lineNum">     860 </span>            :  * (relative to xOff, yOff) for band b can be accessed with
+<span class="lineNum">     861 </span>            :  * ((base_type*)p)[x + y * nBufXSize + (b-1)*nBufXSize*nBufYSize].
+<span class="lineNum">     862 </span>            :  *
+<span class="lineNum">     863 </span>            :  * Note that the mechanism used to transparently fill memory pages when they are
+<span class="lineNum">     864 </span>            :  * accessed is the same (but in a controlled way) than what occurs when a memory
+<span class="lineNum">     865 </span>            :  * error occurs in a program. Debugging software will generally interrupt
+<span class="lineNum">     866 </span>            :  * program execution when that happens. If needed, CPLVirtualMemPin() can be
+<span class="lineNum">     867 </span>            :  * used to avoid that by ensuring memory pages are allocated before being
+<span class="lineNum">     868 </span>            :  * accessed.
+<span class="lineNum">     869 </span>            :  *
+<span class="lineNum">     870 </span>            :  * The size of the region that can be mapped as a virtual memory object depends
+<span class="lineNum">     871 </span>            :  * on hardware and operating system limitations.
+<span class="lineNum">     872 </span>            :  * On Linux AMD64 platforms, the maximum value is 128 TB.
+<span class="lineNum">     873 </span>            :  * On Linux x86 platforms, the maximum value is 2 GB.
+<span class="lineNum">     874 </span>            :  *
+<span class="lineNum">     875 </span>            :  * Data type translation is automatically done if the data type
+<span class="lineNum">     876 </span>            :  * (eBufType) of the buffer is different than
+<span class="lineNum">     877 </span>            :  * that of the GDALRasterBand.
+<span class="lineNum">     878 </span>            :  *
+<span class="lineNum">     879 </span>            :  * Image decimation / replication is currently not supported, i.e. if the
+<span class="lineNum">     880 </span>            :  * size of the region being accessed (nXSize x nYSize) is different from the
+<span class="lineNum">     881 </span>            :  * buffer size (nBufXSize x nBufYSize).
+<span class="lineNum">     882 </span>            :  *
+<span class="lineNum">     883 </span>            :  * The nPixelSpace, nLineSpace and nBandSpace parameters allow reading into or
+<span class="lineNum">     884 </span>            :  * writing from various organization of buffers. Arbitrary values for the
+<span class="lineNum">     885 </span>            :  * spacing parameters are not supported. Those values must be multiple of the
+<span class="lineNum">     886 </span>            :  * size of thebuffer data type, and must be either band sequential
+<span class="lineNum">     887 </span>            :  * organization (typically nPixelSpace = GDALGetDataTypeSizeBytes(eBufType),
+<span class="lineNum">     888 </span>            :  * nLineSpace = nPixelSpace * nBufXSize,
+<span class="lineNum">     889 </span>            :  * nBandSpace = nLineSpace * nBufYSize), or pixel-interleaved organization
+<span class="lineNum">     890 </span>            :  * (typically nPixelSpace = nBandSpace * nBandCount,
+<span class="lineNum">     891 </span>            :  * nLineSpace = nPixelSpace * nBufXSize,
+<span class="lineNum">     892 </span>            :  * nBandSpace = GDALGetDataTypeSizeBytes(eBufType))
+<span class="lineNum">     893 </span>            :  *
+<span class="lineNum">     894 </span>            :  * @param hDS Dataset object
+<span class="lineNum">     895 </span>            :  *
+<span class="lineNum">     896 </span>            :  * @param eRWFlag Either GF_Read to read a region of data, or GF_Write to
+<span class="lineNum">     897 </span>            :  * write a region of data.
+<span class="lineNum">     898 </span>            :  *
+<span class="lineNum">     899 </span>            :  * @param nXOff The pixel offset to the top left corner of the region
+<span class="lineNum">     900 </span>            :  * of the band to be accessed.  This would be zero to start from the left side.
+<span class="lineNum">     901 </span>            :  *
+<span class="lineNum">     902 </span>            :  * @param nYOff The line offset to the top left corner of the region
+<span class="lineNum">     903 </span>            :  * of the band to be accessed.  This would be zero to start from the top.
+<span class="lineNum">     904 </span>            :  *
+<span class="lineNum">     905 </span>            :  * @param nXSize The width of the region of the band to be accessed in pixels.
+<span class="lineNum">     906 </span>            :  *
+<span class="lineNum">     907 </span>            :  * @param nYSize The height of the region of the band to be accessed in lines.
+<span class="lineNum">     908 </span>            :  *
+<span class="lineNum">     909 </span>            :  * @param nBufXSize the width of the buffer image into which the desired region
+<span class="lineNum">     910 </span>            :  * is to be read, or from which it is to be written.
+<span class="lineNum">     911 </span>            :  *
+<span class="lineNum">     912 </span>            :  * @param nBufYSize the height of the buffer image into which the desired
+<span class="lineNum">     913 </span>            :  * region is to be read, or from which it is to be written.
+<span class="lineNum">     914 </span>            :  *
+<span class="lineNum">     915 </span>            :  * @param eBufType the type of the pixel values in the data buffer. The
+<span class="lineNum">     916 </span>            :  * pixel values will automatically be translated to/from the GDALRasterBand
+<span class="lineNum">     917 </span>            :  * data type as needed.
+<span class="lineNum">     918 </span>            :  *
+<span class="lineNum">     919 </span>            :  * @param nBandCount the number of bands being read or written.
+<span class="lineNum">     920 </span>            :  *
+<span class="lineNum">     921 </span>            :  * @param panBandMap the list of nBandCount band numbers being read/written.
+<span class="lineNum">     922 </span>            :  * Note band numbers are 1 based. This may be NULL to select the first
+<span class="lineNum">     923 </span>            :  * nBandCount bands.
+<span class="lineNum">     924 </span>            :  *
+<span class="lineNum">     925 </span>            :  * @param nPixelSpace The byte offset from the start of one pixel value in
+<span class="lineNum">     926 </span>            :  * the buffer to the start of the next pixel value within a scanline. If
+<span class="lineNum">     927 </span>            :  * defaulted (0) the size of the datatype eBufType is used.
+<span class="lineNum">     928 </span>            :  *
+<span class="lineNum">     929 </span>            :  * @param nLineSpace The byte offset from the start of one scanline in
+<span class="lineNum">     930 </span>            :  * the buffer to the start of the next. If defaulted (0) the size of the
+<span class="lineNum">     931 </span>            :  * datatype eBufType * nBufXSize is used.
+<span class="lineNum">     932 </span>            :  *
+<span class="lineNum">     933 </span>            :  * @param nBandSpace the byte offset from the start of one bands data to the
+<span class="lineNum">     934 </span>            :  * start of the next. If defaulted (0) the value will be
+<span class="lineNum">     935 </span>            :  * nLineSpace * nBufYSize implying band sequential organization
+<span class="lineNum">     936 </span>            :  * of the data buffer.
+<span class="lineNum">     937 </span>            :  *
+<span class="lineNum">     938 </span>            :  * @param nCacheSize   size in bytes of the maximum memory that will be really
+<span class="lineNum">     939 </span>            :  *                     allocated (must ideally fit into RAM)
+<span class="lineNum">     940 </span>            :  *
+<span class="lineNum">     941 </span>            :  * @param nPageSizeHint hint for the page size. Must be a multiple of the
+<span class="lineNum">     942 </span>            :  *                      system page size, returned by CPLGetPageSize().
+<span class="lineNum">     943 </span>            :  *                      Minimum value is generally 4096. Might be set to 0 to
+<span class="lineNum">     944 </span>            :  *                      let the function determine a default page size.
+<span class="lineNum">     945 </span>            :  *
+<span class="lineNum">     946 </span>            :  * @param bSingleThreadUsage set to TRUE if there will be no concurrent threads
+<span class="lineNum">     947 </span>            :  *                           that will access the virtual memory mapping. This
+<span class="lineNum">     948 </span>            :  *                           can optimize performance a bit. If set to FALSE,
+<span class="lineNum">     949 </span>            :  *                           CPLVirtualMemDeclareThread() must be called.
+<span class="lineNum">     950 </span>            :  *
+<span class="lineNum">     951 </span>            :  * @param papszOptions NULL terminated list of options. Unused for now.
+<span class="lineNum">     952 </span>            :  *
+<span class="lineNum">     953 </span>            :  * @return a virtual memory object that must be freed by CPLVirtualMemFree(),
+<span class="lineNum">     954 </span>            :  *         or NULL in case of failure.
+<span class="lineNum">     955 </span>            :  *
+<span class="lineNum">     956 </span>            :  * @since GDAL 1.11
+<a name="957"><span class="lineNum">     957 </span>            :  */</a>
+<span class="lineNum">     958 </span>            : 
+<span class="lineNum">     959 </span><span class="lineCov">          3 : CPLVirtualMem* GDALDatasetGetVirtualMem( GDALDatasetH hDS,</span>
+<span class="lineNum">     960 </span>            :                                          GDALRWFlag eRWFlag,
+<span class="lineNum">     961 </span>            :                                          int nXOff, int nYOff,
+<span class="lineNum">     962 </span>            :                                          int nXSize, int nYSize,
+<span class="lineNum">     963 </span>            :                                          int nBufXSize, int nBufYSize,
+<span class="lineNum">     964 </span>            :                                          GDALDataType eBufType,
+<span class="lineNum">     965 </span>            :                                          int nBandCount, int* panBandMap,
+<span class="lineNum">     966 </span>            :                                          int nPixelSpace,
+<span class="lineNum">     967 </span>            :                                          GIntBig nLineSpace,
+<span class="lineNum">     968 </span>            :                                          GIntBig nBandSpace,
+<span class="lineNum">     969 </span>            :                                          size_t nCacheSize,
+<span class="lineNum">     970 </span>            :                                          size_t nPageSizeHint,
+<span class="lineNum">     971 </span>            :                                          int bSingleThreadUsage,
+<span class="lineNum">     972 </span>            :                                          CSLConstList papszOptions )
+<span class="lineNum">     973 </span>            : {
+<span class="lineNum">     974 </span>            :     return GDALGetVirtualMem( hDS, nullptr, eRWFlag, nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">     975 </span>            :                               nBufXSize, nBufYSize, eBufType,
+<span class="lineNum">     976 </span>            :                               nBandCount, panBandMap,
+<span class="lineNum">     977 </span>            :                               nPixelSpace, nLineSpace, nBandSpace,
+<span class="lineNum">     978 </span>            :                               nCacheSize, nPageSizeHint, bSingleThreadUsage,
+<span class="lineNum">     979 </span><span class="lineCov">          3 :                               papszOptions );</span>
+<span class="lineNum">     980 </span>            : }
+<span class="lineNum">     981 </span>            : 
+<span class="lineNum">     982 </span>            : /************************************************************************/
+<span class="lineNum">     983 </span>            : /*                     GDALRasterBandGetVirtualMem()                    */
+<span class="lineNum">     984 </span>            : /************************************************************************/
+<span class="lineNum">     985 </span>            : 
+<span class="lineNum">     986 </span>            : /** Create a CPLVirtualMem object from a GDAL raster band object.
+<span class="lineNum">     987 </span>            :  *
+<span class="lineNum">     988 </span>            :  * Only supported on Linux for now.
+<span class="lineNum">     989 </span>            :  *
+<span class="lineNum">     990 </span>            :  * This method allows creating a virtual memory object for a region of a
+<span class="lineNum">     991 </span>            :  * GDALRasterBand. The content of the virtual
+<span class="lineNum">     992 </span>            :  * memory object is automatically filled from dataset content when a virtual
+<span class="lineNum">     993 </span>            :  * memory page is first accessed, and it is released (or flushed in case of a
+<span class="lineNum">     994 </span>            :  * &quot;dirty&quot; page) when the cache size limit has been reached.
+<span class="lineNum">     995 </span>            :  *
+<span class="lineNum">     996 </span>            :  * The pointer to access the virtual memory object is obtained with
+<span class="lineNum">     997 </span>            :  * CPLVirtualMemGetAddr(). It remains valid until CPLVirtualMemFree() is called.
+<span class="lineNum">     998 </span>            :  * CPLVirtualMemFree() must be called before the raster band object is
+<span class="lineNum">     999 </span>            :  * destroyed.
+<span class="lineNum">    1000 </span>            :  *
+<span class="lineNum">    1001 </span>            :  * If p is such a pointer and base_type the C type matching eBufType, for
+<span class="lineNum">    1002 </span>            :  * values of spacing parameters, the element of image coordinates (x, y)
+<span class="lineNum">    1003 </span>            :  * default (relative to xOff, yOff) can be accessed with
+<span class="lineNum">    1004 </span>            :  * ((base_type*)p)[x + y * nBufXSize].
+<span class="lineNum">    1005 </span>            :  *
+<span class="lineNum">    1006 </span>            :  * Note that the mechanism used to transparently fill memory pages when they are
+<span class="lineNum">    1007 </span>            :  * accessed is the same (but in a controlled way) than what occurs when a memory
+<span class="lineNum">    1008 </span>            :  * error occurs in a program. Debugging software will generally interrupt
+<span class="lineNum">    1009 </span>            :  * program execution when that happens. If needed, CPLVirtualMemPin() can be
+<span class="lineNum">    1010 </span>            :  * used to avoid that by ensuring memory pages are allocated before being
+<span class="lineNum">    1011 </span>            :  * accessed.
+<span class="lineNum">    1012 </span>            :  *
+<span class="lineNum">    1013 </span>            :  * The size of the region that can be mapped as a virtual memory object depends
+<span class="lineNum">    1014 </span>            :  * on hardware and operating system limitations.
+<span class="lineNum">    1015 </span>            :  * On Linux AMD64 platforms, the maximum value is 128 TB.
+<span class="lineNum">    1016 </span>            :  * On Linux x86 platforms, the maximum value is 2 GB.
+<span class="lineNum">    1017 </span>            :  *
+<span class="lineNum">    1018 </span>            :  * Data type translation is automatically done if the data type
+<span class="lineNum">    1019 </span>            :  * (eBufType) of the buffer is different than
+<span class="lineNum">    1020 </span>            :  * that of the GDALRasterBand.
+<span class="lineNum">    1021 </span>            :  *
+<span class="lineNum">    1022 </span>            :  * Image decimation / replication is currently not supported, i.e. if the
+<span class="lineNum">    1023 </span>            :  * size of the region being accessed (nXSize x nYSize) is different from the
+<span class="lineNum">    1024 </span>            :  * buffer size (nBufXSize x nBufYSize).
+<span class="lineNum">    1025 </span>            :  *
+<span class="lineNum">    1026 </span>            :  * The nPixelSpace and nLineSpace parameters allow reading into or
+<span class="lineNum">    1027 </span>            :  * writing from various organization of buffers. Arbitrary values for the
+<span class="lineNum">    1028 </span>            :  * spacing parameters are not supported. Those values must be multiple of the
+<span class="lineNum">    1029 </span>            :  * size of the buffer data type and must be such that nLineSpace &gt;=
+<span class="lineNum">    1030 </span>            :  * nPixelSpace * nBufXSize.
+<span class="lineNum">    1031 </span>            :  *
+<span class="lineNum">    1032 </span>            :  * @param hBand Rasterband object
+<span class="lineNum">    1033 </span>            :  *
+<span class="lineNum">    1034 </span>            :  * @param eRWFlag Either GF_Read to read a region of data, or GF_Write to
+<span class="lineNum">    1035 </span>            :  * write a region of data.
+<span class="lineNum">    1036 </span>            :  *
+<span class="lineNum">    1037 </span>            :  * @param nXOff The pixel offset to the top left corner of the region
+<span class="lineNum">    1038 </span>            :  * of the band to be accessed.  This would be zero to start from the left side.
+<span class="lineNum">    1039 </span>            :  *
+<span class="lineNum">    1040 </span>            :  * @param nYOff The line offset to the top left corner of the region
+<span class="lineNum">    1041 </span>            :  * of the band to be accessed.  This would be zero to start from the top.
+<span class="lineNum">    1042 </span>            :  *
+<span class="lineNum">    1043 </span>            :  * @param nXSize The width of the region of the band to be accessed in pixels.
+<span class="lineNum">    1044 </span>            :  *
+<span class="lineNum">    1045 </span>            :  * @param nYSize The height of the region of the band to be accessed in lines.
+<span class="lineNum">    1046 </span>            :  *
+<span class="lineNum">    1047 </span>            :  * @param nBufXSize the width of the buffer image into which the desired region
+<span class="lineNum">    1048 </span>            :  * is to be read, or from which it is to be written.
+<span class="lineNum">    1049 </span>            :  *
+<span class="lineNum">    1050 </span>            :  * @param nBufYSize the height of the buffer image into which the desired
+<span class="lineNum">    1051 </span>            :  * region is to be read, or from which it is to be written.
+<span class="lineNum">    1052 </span>            :  *
+<span class="lineNum">    1053 </span>            :  * @param eBufType the type of the pixel values in the data buffer. The
+<span class="lineNum">    1054 </span>            :  * pixel values will automatically be translated to/from the GDALRasterBand
+<span class="lineNum">    1055 </span>            :  * data type as needed.
+<span class="lineNum">    1056 </span>            :  *
+<span class="lineNum">    1057 </span>            :  * @param nPixelSpace The byte offset from the start of one pixel value in the
+<span class="lineNum">    1058 </span>            :  * buffer to the start of the next pixel value within a scanline. If defaulted
+<span class="lineNum">    1059 </span>            :  * (0) the size of the datatype eBufType is used.
+<span class="lineNum">    1060 </span>            :  *
+<span class="lineNum">    1061 </span>            :  * @param nLineSpace The byte offset from the start of one scanline in the
+<span class="lineNum">    1062 </span>            :  * buffer to the start of the next. If defaulted (0) the size of the datatype
+<span class="lineNum">    1063 </span>            :  * eBufType * nBufXSize is used.
+<span class="lineNum">    1064 </span>            :  *
+<span class="lineNum">    1065 </span>            :  * @param nCacheSize   size in bytes of the maximum memory that will be really
+<span class="lineNum">    1066 </span>            :  *                     allocated (must ideally fit into RAM)
+<span class="lineNum">    1067 </span>            :  *
+<span class="lineNum">    1068 </span>            :  * @param nPageSizeHint hint for the page size. Must be a multiple of the
+<span class="lineNum">    1069 </span>            :  *                      system page size, returned by CPLGetPageSize().
+<span class="lineNum">    1070 </span>            :  *                      Minimum value is generally 4096. Might be set to 0 to
+<span class="lineNum">    1071 </span>            :  *                      let the function determine a default page size.
+<span class="lineNum">    1072 </span>            :  *
+<span class="lineNum">    1073 </span>            :  * @param bSingleThreadUsage set to TRUE if there will be no concurrent threads
+<span class="lineNum">    1074 </span>            :  *                           that will access the virtual memory mapping. This
+<span class="lineNum">    1075 </span>            :  *                           can optimize performance a bit. If set to FALSE,
+<span class="lineNum">    1076 </span>            :  *                           CPLVirtualMemDeclareThread() must be called.
+<span class="lineNum">    1077 </span>            :  *
+<span class="lineNum">    1078 </span>            :  * @param papszOptions NULL terminated list of options. Unused for now.
+<span class="lineNum">    1079 </span>            :  *
+<span class="lineNum">    1080 </span>            :  * @return a virtual memory object that must be freed by CPLVirtualMemFree(),
+<span class="lineNum">    1081 </span>            :  *         or NULL in case of failure.
+<span class="lineNum">    1082 </span>            :  *
+<span class="lineNum">    1083 </span>            :  * @since GDAL 1.11
+<a name="1084"><span class="lineNum">    1084 </span>            :  */</a>
+<span class="lineNum">    1085 </span>            : 
+<span class="lineNum">    1086 </span><span class="lineCov">          9 : CPLVirtualMem* GDALRasterBandGetVirtualMem( GDALRasterBandH hBand,</span>
+<span class="lineNum">    1087 </span>            :                                             GDALRWFlag eRWFlag,
+<span class="lineNum">    1088 </span>            :                                             int nXOff, int nYOff,
+<span class="lineNum">    1089 </span>            :                                             int nXSize, int nYSize,
+<span class="lineNum">    1090 </span>            :                                             int nBufXSize, int nBufYSize,
+<span class="lineNum">    1091 </span>            :                                             GDALDataType eBufType,
+<span class="lineNum">    1092 </span>            :                                             int nPixelSpace,
+<span class="lineNum">    1093 </span>            :                                             GIntBig nLineSpace,
+<span class="lineNum">    1094 </span>            :                                             size_t nCacheSize,
+<span class="lineNum">    1095 </span>            :                                             size_t nPageSizeHint,
+<span class="lineNum">    1096 </span>            :                                             int bSingleThreadUsage,
+<span class="lineNum">    1097 </span>            :                                             CSLConstList papszOptions )
+<span class="lineNum">    1098 </span>            : {
+<span class="lineNum">    1099 </span>            :     return GDALGetVirtualMem( nullptr, hBand, eRWFlag, nXOff, nYOff,
+<span class="lineNum">    1100 </span>            :                               nXSize, nYSize,
+<span class="lineNum">    1101 </span>            :                               nBufXSize, nBufYSize, eBufType,
+<span class="lineNum">    1102 </span>            :                               1, nullptr,
+<span class="lineNum">    1103 </span>            :                               nPixelSpace, nLineSpace, 0,
+<span class="lineNum">    1104 </span>            :                               nCacheSize, nPageSizeHint, bSingleThreadUsage,
+<span class="lineNum">    1105 </span><span class="lineCov">          9 :                               papszOptions );</span>
+<span class="lineNum">    1106 </span>            : }
+<span class="lineNum">    1107 </span>            : 
+<span class="lineNum">    1108 </span>            : /************************************************************************/
+<span class="lineNum">    1109 </span>            : /*                        GDALTiledVirtualMem                           */
+<span class="lineNum">    1110 </span>            : /************************************************************************/
+<span class="lineNum">    1111 </span>            : 
+<span class="lineNum">    1112 </span>            : class GDALTiledVirtualMem
+<span class="lineNum">    1113 </span>            : {
+<span class="lineNum">    1114 </span>            :     GDALDatasetH hDS = nullptr;
+<span class="lineNum">    1115 </span>            :     GDALRasterBandH hBand = nullptr;
+<span class="lineNum">    1116 </span>            :     int nXOff = 0;
+<span class="lineNum">    1117 </span>            :     int nYOff = 0;
+<span class="lineNum">    1118 </span>            :     int nXSize = 0;
+<span class="lineNum">    1119 </span>            :     int nYSize = 0;
+<span class="lineNum">    1120 </span>            :     int nTileXSize = 0;
+<span class="lineNum">    1121 </span>            :     int nTileYSize = 0;
+<span class="lineNum">    1122 </span>            :     GDALDataType eBufType = GDT_Byte;
+<span class="lineNum">    1123 </span>            :     int nBandCount = 0;
+<span class="lineNum">    1124 </span>            :     int* panBandMap = nullptr;
+<span class="lineNum">    1125 </span>            :     GDALTileOrganization eTileOrganization = GTO_TIP;
+<span class="lineNum">    1126 </span>            : 
+<span class="lineNum">    1127 </span>            :     void DoIO( GDALRWFlag eRWFlag, size_t nOffset,
+<span class="lineNum">    1128 </span>            :                void* pPage, size_t nBytes ) const;
+<span class="lineNum">    1129 </span>            : 
+<span class="lineNum">    1130 </span>            :     CPL_DISALLOW_COPY_ASSIGN(GDALTiledVirtualMem)
+<span class="lineNum">    1131 </span>            : 
+<span class="lineNum">    1132 </span>            : public:
+<span class="lineNum">    1133 </span>            :              GDALTiledVirtualMem( GDALDatasetH hDS,
+<span class="lineNum">    1134 </span>            :                                   GDALRasterBandH hBand,
+<span class="lineNum">    1135 </span>            :                                   int nXOff, int nYOff,
+<span class="lineNum">    1136 </span>            :                                   int nXSize, int nYSize,
+<span class="lineNum">    1137 </span>            :                                   int nTileXSize, int nTileYSize,
+<span class="lineNum">    1138 </span>            :                                   GDALDataType eBufType,
+<span class="lineNum">    1139 </span>            :                                   int nBandCount, const int* panBandMapIn,
+<span class="lineNum">    1140 </span>            :                                   GDALTileOrganization eTileOrganization );
+<span class="lineNum">    1141 </span>            :             ~GDALTiledVirtualMem();
+<span class="lineNum">    1142 </span>            : 
+<span class="lineNum">    1143 </span>            :     static void FillCache( CPLVirtualMem* ctxt,  size_t nOffset,
+<span class="lineNum">    1144 </span>            :                            void* pPageToFill,
+<span class="lineNum">    1145 </span>            :                            size_t nPageSize, void* pUserData );
+<span class="lineNum">    1146 </span>            :     static void SaveFromCache( CPLVirtualMem* ctxt,  size_t nOffset,
+<span class="lineNum">    1147 </span>            :                                const void* pPageToBeEvicted,
+<span class="lineNum">    1148 </span>            :                                size_t nToEvicted, void* pUserData );
+<span class="lineNum">    1149 </span>            : 
+<span class="lineNum">    1150 </span>            :     static void Destroy( void* pUserData );
+<span class="lineNum">    1151 </span>            : };
+<span class="lineNum">    1152 </span>            : 
+<span class="lineNum">    1153 </span>            : /************************************************************************/
+<span class="lineNum">    1154 </span>            : /*                        GDALTiledVirtualMem()                         */
+<a name="1155"><span class="lineNum">    1155 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1156 </span>            : 
+<span class="lineNum">    1157 </span><span class="lineCov">          4 : GDALTiledVirtualMem::GDALTiledVirtualMem(</span>
+<span class="lineNum">    1158 </span>            :     GDALDatasetH hDSIn,
+<span class="lineNum">    1159 </span>            :     GDALRasterBandH hBandIn,
+<span class="lineNum">    1160 </span>            :     int nXOffIn, int nYOffIn,
+<span class="lineNum">    1161 </span>            :     int nXSizeIn, int nYSizeIn,
+<span class="lineNum">    1162 </span>            :     int nTileXSizeIn, int nTileYSizeIn,
+<span class="lineNum">    1163 </span>            :     GDALDataType eBufTypeIn,
+<span class="lineNum">    1164 </span>            :     int nBandCountIn, const int* panBandMapIn,
+<span class="lineNum">    1165 </span>            :     GDALTileOrganization eTileOrganizationIn ) :
+<span class="lineNum">    1166 </span>            :     hDS(hDSIn),
+<span class="lineNum">    1167 </span>            :     hBand(hBandIn),
+<span class="lineNum">    1168 </span>            :     nXOff(nXOffIn),
+<span class="lineNum">    1169 </span>            :     nYOff(nYOffIn),
+<span class="lineNum">    1170 </span>            :     nXSize(nXSizeIn),
+<span class="lineNum">    1171 </span>            :     nYSize(nYSizeIn),
+<span class="lineNum">    1172 </span>            :     nTileXSize(nTileXSizeIn),
+<span class="lineNum">    1173 </span>            :     nTileYSize(nTileYSizeIn),
+<span class="lineNum">    1174 </span>            :     eBufType(eBufTypeIn),
+<span class="lineNum">    1175 </span>            :     nBandCount(nBandCountIn),
+<span class="lineNum">    1176 </span><span class="lineCov">          4 :     eTileOrganization(eTileOrganizationIn)</span>
+<span class="lineNum">    1177 </span>            : {
+<span class="lineNum">    1178 </span><span class="lineCov">          4 :     if( hDS != nullptr )</span>
+<span class="lineNum">    1179 </span>            :     {
+<span class="lineNum">    1180 </span><span class="lineCov">          3 :         panBandMap = static_cast&lt;int*&gt;(CPLMalloc(nBandCount * sizeof(int)));</span>
+<span class="lineNum">    1181 </span><span class="lineCov">          3 :         if( panBandMapIn )</span>
+<span class="lineNum">    1182 </span>            :         {
+<span class="lineNum">    1183 </span><span class="lineCov">          3 :             memcpy(panBandMap, panBandMapIn, nBandCount * sizeof(int));</span>
+<span class="lineNum">    1184 </span>            :         }
+<span class="lineNum">    1185 </span>            :         else
+<span class="lineNum">    1186 </span>            :         {
+<span class="lineNum">    1187 </span><span class="lineNoCov">          0 :             for(int i = 0; i &lt; nBandCount; i++ )</span>
+<span class="lineNum">    1188 </span><span class="lineNoCov">          0 :                 panBandMap[i] = i + 1;</span>
+<span class="lineNum">    1189 </span>            :         }
+<span class="lineNum">    1190 </span>            :     }
+<span class="lineNum">    1191 </span>            :     else
+<span class="lineNum">    1192 </span>            :     {
+<span class="lineNum">    1193 </span><span class="lineCov">          1 :         panBandMap = nullptr;</span>
+<span class="lineNum">    1194 </span><span class="lineCov">          1 :         nBandCount = 1;</span>
+<span class="lineNum">    1195 </span>            :     }
+<span class="lineNum">    1196 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">    1197 </span>            : 
+<span class="lineNum">    1198 </span>            : /************************************************************************/
+<span class="lineNum">    1199 </span>            : /*                       ~GDALTiledVirtualMem()                         */
+<a name="1200"><span class="lineNum">    1200 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1201 </span>            : 
+<span class="lineNum">    1202 </span><span class="lineCov">          4 : GDALTiledVirtualMem::~GDALTiledVirtualMem()</span>
+<span class="lineNum">    1203 </span>            : {
+<span class="lineNum">    1204 </span><span class="lineCov">          4 :     CPLFree(panBandMap);</span>
+<span class="lineNum">    1205 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">    1206 </span>            : 
+<span class="lineNum">    1207 </span>            : /************************************************************************/
+<span class="lineNum">    1208 </span>            : /*                                DoIO()                                */
+<a name="1209"><span class="lineNum">    1209 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1210 </span>            : 
+<span class="lineNum">    1211 </span><span class="lineCov">         48 : void GDALTiledVirtualMem::DoIO( GDALRWFlag eRWFlag, size_t nOffset,</span>
+<span class="lineNum">    1212 </span>            :                                 void* pPage, size_t nBytes ) const
+<span class="lineNum">    1213 </span>            : {
+<span class="lineNum">    1214 </span><span class="lineCov">         48 :     const int nDataTypeSize = GDALGetDataTypeSizeBytes(eBufType);</span>
+<span class="lineNum">    1215 </span><span class="lineCov">         48 :     int nTilesPerRow = (nXSize + nTileXSize - 1) / nTileXSize;</span>
+<span class="lineNum">    1216 </span><span class="lineCov">         48 :     int nTilesPerCol = (nYSize + nTileYSize - 1) / nTileYSize;</span>
+<span class="lineNum">    1217 </span><span class="lineCov">         48 :     size_t nPageSize = nTileXSize * nTileYSize * nDataTypeSize;</span>
+<span class="lineNum">    1218 </span><span class="lineCov">         48 :     if( eTileOrganization != GTO_BSQ )</span>
+<span class="lineNum">    1219 </span><span class="lineCov">         16 :         nPageSize *= nBandCount;</span>
+<span class="lineNum">    1220 </span><span class="lineCov">         48 :     CPLAssert((nOffset % nPageSize) == 0);</span>
+<span class="lineNum">    1221 </span><span class="lineCov">         48 :     CPLAssert(nBytes == nPageSize);</span>
+<span class="lineNum">    1222 </span><span class="lineCov">         48 :     size_t nTile = 0;</span>
+<span class="lineNum">    1223 </span><span class="lineCov">         48 :     int band = 0;</span>
+<span class="lineNum">    1224 </span><span class="lineCov">         48 :     int nPixelSpace = 0;</span>
+<span class="lineNum">    1225 </span><span class="lineCov">         48 :     int nLineSpace = 0;</span>
+<span class="lineNum">    1226 </span><span class="lineCov">         48 :     int nBandSpace = 0;</span>
+<span class="lineNum">    1227 </span><span class="lineCov">         48 :     if( eTileOrganization == GTO_TIP )</span>
+<span class="lineNum">    1228 </span>            :     {
+<span class="lineNum">    1229 </span><span class="lineCov">          8 :         nTile = nOffset / nPageSize;</span>
+<span class="lineNum">    1230 </span><span class="lineCov">          8 :         band = 0;</span>
+<span class="lineNum">    1231 </span><span class="lineCov">          8 :         nPixelSpace = nDataTypeSize * nBandCount;</span>
+<span class="lineNum">    1232 </span><span class="lineCov">          8 :         nLineSpace = nPixelSpace * nTileXSize;</span>
+<span class="lineNum">    1233 </span><span class="lineCov">          8 :         nBandSpace = nDataTypeSize;</span>
+<span class="lineNum">    1234 </span>            :     }
+<span class="lineNum">    1235 </span><span class="lineCov">         40 :     else if( eTileOrganization == GTO_BIT )</span>
+<span class="lineNum">    1236 </span>            :     {
+<span class="lineNum">    1237 </span><span class="lineCov">          8 :         nTile = nOffset / nPageSize;</span>
+<span class="lineNum">    1238 </span><span class="lineCov">          8 :         band = 0;</span>
+<span class="lineNum">    1239 </span><span class="lineCov">          8 :         nPixelSpace = nDataTypeSize;</span>
+<span class="lineNum">    1240 </span><span class="lineCov">          8 :         nLineSpace = nPixelSpace * nTileXSize;</span>
+<span class="lineNum">    1241 </span><span class="lineCov">          8 :         nBandSpace = nLineSpace * nTileYSize;</span>
+<span class="lineNum">    1242 </span>            :     }
+<span class="lineNum">    1243 </span>            :     else
+<span class="lineNum">    1244 </span>            :     {
+<span class="lineNum">    1245 </span>            :         // offset = nPageSize * (band * nTilesPerRow * nTilesPerCol + nTile)
+<span class="lineNum">    1246 </span>            :         band = static_cast&lt;int&gt;(
+<span class="lineNum">    1247 </span><span class="lineCov">         32 :             nOffset / (nPageSize * nTilesPerRow * nTilesPerCol));</span>
+<span class="lineNum">    1248 </span><span class="lineCov">         32 :         nTile = nOffset / nPageSize - band * nTilesPerRow * nTilesPerCol;</span>
+<span class="lineNum">    1249 </span><span class="lineCov">         32 :         nPixelSpace = nDataTypeSize;</span>
+<span class="lineNum">    1250 </span><span class="lineCov">         32 :         nLineSpace = nPixelSpace * nTileXSize;</span>
+<span class="lineNum">    1251 </span><span class="lineCov">         32 :         nBandSpace = 0;</span>
+<span class="lineNum">    1252 </span><span class="lineCov">         32 :         band ++;</span>
+<span class="lineNum">    1253 </span>            :     }
+<span class="lineNum">    1254 </span><span class="lineCov">         48 :     size_t nYTile = nTile / nTilesPerRow;</span>
+<span class="lineNum">    1255 </span><span class="lineCov">         48 :     size_t nXTile = nTile - nYTile * nTilesPerRow;</span>
+<span class="lineNum">    1256 </span>            : 
+<span class="lineNum">    1257 </span>            :     int nReqXSize = std::min( nTileXSize,
+<span class="lineNum">    1258 </span><span class="lineCov">         48 :                               nXSize - static_cast&lt;int&gt;(nXTile * nTileXSize) );</span>
+<span class="lineNum">    1259 </span>            :     int nReqYSize = std::min( nTileYSize,
+<span class="lineNum">    1260 </span><span class="lineCov">         48 :                               nYSize - static_cast&lt;int&gt;(nYTile * nTileYSize) );</span>
+<span class="lineNum">    1261 </span><span class="lineCov">         84 :     if( eRWFlag == GF_Read &amp;&amp; (nReqXSize &lt; nTileXSize ||</span>
+<span class="lineNum">    1262 </span><span class="lineCov">         36 :                                nReqYSize &lt; nTileYSize) )</span>
+<span class="lineNum">    1263 </span><span class="lineCov">         12 :         memset(pPage, 0, nBytes);</span>
+<span class="lineNum">    1264 </span><span class="lineCov">         48 :     if( hDS != nullptr )</span>
+<span class="lineNum">    1265 </span>            :     {
+<span class="lineNum">    1266 </span>            :         CPL_IGNORE_RET_VAL(GDALDatasetRasterIO(
+<span class="lineNum">    1267 </span>            :             hDS, eRWFlag,
+<span class="lineNum">    1268 </span>            :             static_cast&lt;int&gt;(nXOff + nXTile * nTileXSize),
+<span class="lineNum">    1269 </span>            :             static_cast&lt;int&gt;(nYOff + nYTile * nTileYSize),
+<span class="lineNum">    1270 </span>            :             nReqXSize, nReqYSize,
+<span class="lineNum">    1271 </span>            :             pPage,
+<span class="lineNum">    1272 </span>            :             nReqXSize, nReqYSize,
+<span class="lineNum">    1273 </span>            :             eBufType,
+<span class="lineNum">    1274 </span><span class="lineCov">         40 :             eTileOrganization != GTO_BSQ ? nBandCount : 1,</span>
+<span class="lineNum">    1275 </span><span class="lineCov">         40 :             eTileOrganization != GTO_BSQ ? panBandMap : &amp;band,</span>
+<span class="lineNum">    1276 </span><span class="lineCov">         80 :             nPixelSpace, nLineSpace, nBandSpace ));</span>
+<span class="lineNum">    1277 </span>            :     }
+<span class="lineNum">    1278 </span>            :     else
+<span class="lineNum">    1279 </span>            :     {
+<span class="lineNum">    1280 </span>            :         CPL_IGNORE_RET_VAL( GDALRasterIO(
+<span class="lineNum">    1281 </span>            :             hBand, eRWFlag,
+<span class="lineNum">    1282 </span>            :             static_cast&lt;int&gt;(nXOff + nXTile * nTileXSize),
+<span class="lineNum">    1283 </span>            :             static_cast&lt;int&gt;(nYOff + nYTile * nTileYSize),
+<span class="lineNum">    1284 </span>            :             nReqXSize, nReqYSize,
+<span class="lineNum">    1285 </span>            :             pPage,
+<span class="lineNum">    1286 </span>            :             nReqXSize, nReqYSize,
+<span class="lineNum">    1287 </span>            :             eBufType,
+<span class="lineNum">    1288 </span><span class="lineCov">          8 :             nPixelSpace, nLineSpace ) );</span>
+<span class="lineNum">    1289 </span>            :     }
+<span class="lineNum">    1290 </span><span class="lineCov">         48 : }</span>
+<span class="lineNum">    1291 </span>            : 
+<span class="lineNum">    1292 </span>            : /************************************************************************/
+<span class="lineNum">    1293 </span>            : /*                           FillCache()                                */
+<a name="1294"><span class="lineNum">    1294 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1295 </span>            : 
+<span class="lineNum">    1296 </span><span class="lineCov">         48 : void GDALTiledVirtualMem::FillCache( CPLVirtualMem*,</span>
+<span class="lineNum">    1297 </span>            :                                      size_t nOffset,
+<span class="lineNum">    1298 </span>            :                                      void* pPageToFill,
+<span class="lineNum">    1299 </span>            :                                      size_t nToFill,
+<span class="lineNum">    1300 </span>            :                                      void* pUserData)
+<span class="lineNum">    1301 </span>            : {
+<span class="lineNum">    1302 </span>            :     const GDALTiledVirtualMem* psParms =
+<span class="lineNum">    1303 </span><span class="lineCov">         48 :         static_cast&lt;GDALTiledVirtualMem *&gt;( pUserData );</span>
+<span class="lineNum">    1304 </span><span class="lineCov">         48 :     psParms-&gt;DoIO(GF_Read, nOffset, pPageToFill, nToFill);</span>
+<span class="lineNum">    1305 </span><span class="lineCov">         48 : }</span>
+<span class="lineNum">    1306 </span>            : 
+<span class="lineNum">    1307 </span>            : /************************************************************************/
+<span class="lineNum">    1308 </span>            : /*                          SaveFromCache()                             */
+<a name="1309"><span class="lineNum">    1309 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1310 </span>            : 
+<span class="lineNum">    1311 </span><span class="lineNoCov">          0 : void GDALTiledVirtualMem::SaveFromCache( CPLVirtualMem*,</span>
+<span class="lineNum">    1312 </span>            :                                          size_t nOffset,
+<span class="lineNum">    1313 </span>            :                                          const void* pPageToBeEvicted,
+<span class="lineNum">    1314 </span>            :                                          size_t nToEvicted, void* pUserData)
+<span class="lineNum">    1315 </span>            : {
+<span class="lineNum">    1316 </span>            :     const GDALTiledVirtualMem* psParms =
+<span class="lineNum">    1317 </span><span class="lineNoCov">          0 :         static_cast&lt;GDALTiledVirtualMem *&gt;( pUserData );</span>
+<span class="lineNum">    1318 </span>            :     psParms-&gt;DoIO( GF_Write, nOffset,
+<span class="lineNum">    1319 </span>            :                    const_cast&lt;void *&gt;(pPageToBeEvicted),
+<span class="lineNum">    1320 </span><span class="lineNoCov">          0 :                    nToEvicted );</span>
+<span class="lineNum">    1321 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">    1322 </span>            : 
+<span class="lineNum">    1323 </span>            : /************************************************************************/
+<span class="lineNum">    1324 </span>            : /*                                Destroy()                             */
+<a name="1325"><span class="lineNum">    1325 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1326 </span>            : 
+<span class="lineNum">    1327 </span><span class="lineCov">          4 : void GDALTiledVirtualMem::Destroy( void* pUserData )</span>
+<span class="lineNum">    1328 </span>            : {
+<span class="lineNum">    1329 </span>            :     GDALTiledVirtualMem* psParams =
+<span class="lineNum">    1330 </span><span class="lineCov">          4 :         static_cast&lt;GDALTiledVirtualMem*&gt;( pUserData );</span>
+<span class="lineNum">    1331 </span><span class="lineCov">          4 :     delete psParams;</span>
+<span class="lineNum">    1332 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">    1333 </span>            : 
+<span class="lineNum">    1334 </span>            : /************************************************************************/
+<span class="lineNum">    1335 </span>            : /*                      GDALGetTiledVirtualMem()                        */
+<a name="1336"><span class="lineNum">    1336 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1337 </span>            : 
+<span class="lineNum">    1338 </span><span class="lineCov">          4 : static CPLVirtualMem* GDALGetTiledVirtualMem(</span>
+<span class="lineNum">    1339 </span>            :     GDALDatasetH hDS,
+<span class="lineNum">    1340 </span>            :     GDALRasterBandH hBand,
+<span class="lineNum">    1341 </span>            :     GDALRWFlag eRWFlag,
+<span class="lineNum">    1342 </span>            :     int nXOff, int nYOff,
+<span class="lineNum">    1343 </span>            :     int nXSize, int nYSize,
+<span class="lineNum">    1344 </span>            :     int nTileXSize, int nTileYSize,
+<span class="lineNum">    1345 </span>            :     GDALDataType eBufType,
+<span class="lineNum">    1346 </span>            :     int nBandCount, int* panBandMap,
+<span class="lineNum">    1347 </span>            :     GDALTileOrganization eTileOrganization,
+<span class="lineNum">    1348 </span>            :     size_t nCacheSize,
+<span class="lineNum">    1349 </span>            :     int bSingleThreadUsage,
+<span class="lineNum">    1350 </span>            :     CSLConstList /* papszOptions */ )
+<span class="lineNum">    1351 </span>            : {
+<span class="lineNum">    1352 </span>            :     CPLVirtualMem* view;
+<span class="lineNum">    1353 </span>            :     GDALTiledVirtualMem* psParams;
+<span class="lineNum">    1354 </span>            : 
+<span class="lineNum">    1355 </span><span class="lineCov">          4 :     size_t nPageSize = CPLGetPageSize();</span>
+<span class="lineNum">    1356 </span><span class="lineCov">          4 :     if( nPageSize == 0 )</span>
+<span class="lineNum">    1357 </span>            :     {
+<span class="lineNum">    1358 </span>            :         CPLError(
+<span class="lineNum">    1359 </span>            :             CE_Failure, CPLE_NotSupported,
+<span class="lineNum">    1360 </span>            :             &quot;GDALGetTiledVirtualMem() unsupported on this &quot;
+<span class="lineNum">    1361 </span><span class="lineNoCov">          0 :             &quot;operating system / configuration&quot; );</span>
+<span class="lineNum">    1362 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1363 </span>            :     }
+<span class="lineNum">    1364 </span>            : 
+<span class="lineNum">    1365 </span>            :     int nRasterXSize =
+<span class="lineNum">    1366 </span><span class="lineCov">          4 :         hDS ? GDALGetRasterXSize(hDS) : GDALGetRasterBandXSize(hBand);</span>
+<span class="lineNum">    1367 </span>            :     int nRasterYSize =
+<span class="lineNum">    1368 </span><span class="lineCov">          4 :         hDS ? GDALGetRasterYSize(hDS) : GDALGetRasterBandYSize(hBand);</span>
+<span class="lineNum">    1369 </span>            : 
+<span class="lineNum">    1370 </span><span class="lineCov">          4 :     if( nXOff &lt; 0 || nYOff &lt; 0 ||</span>
+<span class="lineNum">    1371 </span><span class="lineCov">          8 :         nTileXSize &lt;= 0 || nTileYSize &lt;= 0 ||</span>
+<span class="lineNum">    1372 </span><span class="lineCov">          8 :         nXOff + nXSize &gt; nRasterXSize ||</span>
+<span class="lineNum">    1373 </span><span class="lineCov">          4 :         nYOff + nYSize &gt; nRasterYSize )</span>
+<span class="lineNum">    1374 </span>            :     {
+<span class="lineNum">    1375 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Invalid window request&quot;);</span>
+<span class="lineNum">    1376 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1377 </span>            :     }
+<span class="lineNum">    1378 </span>            : 
+<span class="lineNum">    1379 </span><span class="lineCov">          4 :     if( hDS != nullptr &amp;&amp; !GDALCheckBandParameters(hDS, nBandCount, panBandMap ) )</span>
+<span class="lineNum">    1380 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1381 </span>            : 
+<span class="lineNum">    1382 </span><span class="lineCov">          4 :     const int nDataTypeSize = GDALGetDataTypeSizeBytes(eBufType);</span>
+<span class="lineNum">    1383 </span><span class="lineCov">          4 :     int nTilesPerRow = (nXSize + nTileXSize - 1) / nTileXSize;</span>
+<span class="lineNum">    1384 </span><span class="lineCov">          4 :     int nTilesPerCol = (nYSize + nTileYSize - 1) / nTileYSize;</span>
+<span class="lineNum">    1385 </span><span class="lineCov">          4 :     GUIntBig nReqMem = static_cast&lt;GUIntBig&gt;(nTilesPerRow) * nTilesPerCol *</span>
+<span class="lineNum">    1386 </span><span class="lineCov">          4 :                         nTileXSize * nTileYSize * nBandCount * nDataTypeSize;</span>
+<span class="lineNum">    1387 </span>            :     if( nReqMem != static_cast&lt;GUIntBig&gt;(static_cast&lt;size_t&gt;(nReqMem)) )
+<span class="lineNum">    1388 </span>            :     {
+<span class="lineNum">    1389 </span>            :         CPLError( CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">    1390 </span>            :                   &quot;Cannot reserve &quot; CPL_FRMT_GUIB &quot; bytes&quot;, nReqMem );
+<span class="lineNum">    1391 </span>            :         return nullptr;
+<span class="lineNum">    1392 </span>            :     }
+<span class="lineNum">    1393 </span>            : 
+<span class="lineNum">    1394 </span><span class="lineCov">          4 :     size_t nPageSizeHint = nTileXSize * nTileYSize * nDataTypeSize;</span>
+<span class="lineNum">    1395 </span><span class="lineCov">          4 :     if( eTileOrganization != GTO_BSQ )</span>
+<span class="lineNum">    1396 </span><span class="lineCov">          2 :         nPageSizeHint *= nBandCount;</span>
+<span class="lineNum">    1397 </span><span class="lineCov">          4 :     if( (nPageSizeHint % nPageSize) != 0 )</span>
+<span class="lineNum">    1398 </span>            :     {
+<span class="lineNum">    1399 </span>            :         CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1400 </span><span class="lineNoCov">          0 :                   &quot;Tile dimensions incompatible with page size&quot;);</span>
+<span class="lineNum">    1401 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1402 </span>            :     }
+<span class="lineNum">    1403 </span>            : 
+<span class="lineNum">    1404 </span>            :     psParams = new GDALTiledVirtualMem( hDS, hBand, nXOff, nYOff,
+<span class="lineNum">    1405 </span>            :                                         nXSize, nYSize,
+<span class="lineNum">    1406 </span>            :                                         nTileXSize, nTileYSize,
+<span class="lineNum">    1407 </span>            :                                         eBufType,
+<span class="lineNum">    1408 </span>            :                                         nBandCount, panBandMap,
+<span class="lineNum">    1409 </span><span class="lineCov">          4 :                                         eTileOrganization );</span>
+<span class="lineNum">    1410 </span>            : 
+<span class="lineNum">    1411 </span>            :     view = CPLVirtualMemNew(
+<span class="lineNum">    1412 </span>            :         static_cast&lt;size_t&gt;(nReqMem),
+<span class="lineNum">    1413 </span>            :         nCacheSize,
+<span class="lineNum">    1414 </span>            :         nPageSizeHint,
+<span class="lineNum">    1415 </span>            :         bSingleThreadUsage,
+<span class="lineNum">    1416 </span>            :         eRWFlag == GF_Read ?
+<span class="lineNum">    1417 </span>            :         VIRTUALMEM_READONLY_ENFORCED : VIRTUALMEM_READWRITE,
+<span class="lineNum">    1418 </span>            :         GDALTiledVirtualMem::FillCache,
+<span class="lineNum">    1419 </span>            :         GDALTiledVirtualMem::SaveFromCache,
+<span class="lineNum">    1420 </span>            :         GDALTiledVirtualMem::Destroy,
+<span class="lineNum">    1421 </span><span class="lineCov">          4 :         psParams );</span>
+<span class="lineNum">    1422 </span>            : 
+<span class="lineNum">    1423 </span><span class="lineCov">          4 :     if( view == nullptr )</span>
+<span class="lineNum">    1424 </span>            :     {
+<span class="lineNum">    1425 </span><span class="lineNoCov">          0 :         delete psParams;</span>
+<span class="lineNum">    1426 </span>            :     }
+<span class="lineNum">    1427 </span><span class="lineCov">          4 :     else if( CPLVirtualMemGetPageSize(view) != nPageSizeHint )</span>
+<span class="lineNum">    1428 </span>            :     {
+<span class="lineNum">    1429 </span>            :         CPLError(
+<span class="lineNum">    1430 </span>            :             CE_Failure, CPLE_AppDefined,
+<span class="lineNum">    1431 </span>            :             &quot;Did not get expected page size : %d vs %d&quot;,
+<span class="lineNum">    1432 </span><span class="lineNoCov">          0 :             static_cast&lt;int&gt;(CPLVirtualMemGetPageSize(view)),</span>
+<span class="lineNum">    1433 </span><span class="lineNoCov">          0 :             static_cast&lt;int&gt;(nPageSizeHint) );</span>
+<span class="lineNum">    1434 </span><span class="lineNoCov">          0 :         CPLVirtualMemFree(view);</span>
+<span class="lineNum">    1435 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1436 </span>            :     }
+<span class="lineNum">    1437 </span>            : 
+<span class="lineNum">    1438 </span><span class="lineCov">          4 :     return view;</span>
+<span class="lineNum">    1439 </span>            : }
+<span class="lineNum">    1440 </span>            : 
+<span class="lineNum">    1441 </span>            : /************************************************************************/
+<span class="lineNum">    1442 </span>            : /*                   GDALDatasetGetTiledVirtualMem()                    */
+<span class="lineNum">    1443 </span>            : /************************************************************************/
+<span class="lineNum">    1444 </span>            : 
+<span class="lineNum">    1445 </span>            : /** Create a CPLVirtualMem object from a GDAL dataset object, with tiling
+<span class="lineNum">    1446 </span>            :  * organization
+<span class="lineNum">    1447 </span>            :  *
+<span class="lineNum">    1448 </span>            :  * Only supported on Linux for now.
+<span class="lineNum">    1449 </span>            :  *
+<span class="lineNum">    1450 </span>            :  * This method allows creating a virtual memory object for a region of one
+<span class="lineNum">    1451 </span>            :  * or more GDALRasterBands from  this dataset. The content of the virtual
+<span class="lineNum">    1452 </span>            :  * memory object is automatically filled from dataset content when a virtual
+<span class="lineNum">    1453 </span>            :  * memory page is first accessed, and it is released (or flushed in case of a
+<span class="lineNum">    1454 </span>            :  * &quot;dirty&quot; page) when the cache size limit has been reached.
+<span class="lineNum">    1455 </span>            :  *
+<span class="lineNum">    1456 </span>            :  * Contrary to GDALDatasetGetVirtualMem(), pixels will be organized by tiles
+<span class="lineNum">    1457 </span>            :  * instead of scanlines. Different ways of organizing pixel within/across tiles
+<span class="lineNum">    1458 </span>            :  * can be selected with the eTileOrganization parameter.
+<span class="lineNum">    1459 </span>            :  *
+<span class="lineNum">    1460 </span>            :  * If nXSize is not a multiple of nTileXSize or nYSize is not a multiple of
+<span class="lineNum">    1461 </span>            :  * nTileYSize, partial tiles will exists at the right and/or bottom of the
+<span class="lineNum">    1462 </span>            :  * region of interest. Those partial tiles will also have nTileXSize *
+<span class="lineNum">    1463 </span>            :  * nTileYSize dimension, with padding pixels.
+<span class="lineNum">    1464 </span>            :  *
+<span class="lineNum">    1465 </span>            :  * The pointer to access the virtual memory object is obtained with
+<span class="lineNum">    1466 </span>            :  * CPLVirtualMemGetAddr(). It remains valid until CPLVirtualMemFree() is called.
+<span class="lineNum">    1467 </span>            :  * CPLVirtualMemFree() must be called before the dataset object is destroyed.
+<span class="lineNum">    1468 </span>            :  *
+<span class="lineNum">    1469 </span>            :  * If p is such a pointer and base_type the C type matching eBufType, for
+<span class="lineNum">    1470 </span>            :  * default values of spacing parameters, the element of image coordinates (x, y)
+<span class="lineNum">    1471 </span>            :  * (relative to xOff, yOff) for band b can be accessed with:
+<span class="lineNum">    1472 </span>            :  *  - for eTileOrganization = GTO_TIP,
+<span class="lineNum">    1473 </span>            :  *        ((base_type*)p)[tile_number(x,y)*nBandCount*tile_size +
+<span class="lineNum">    1474 </span>            :  *                        offset_in_tile(x,y)*nBandCount + (b-1)].
+<span class="lineNum">    1475 </span>            :  *  - for eTileOrganization = GTO_BIT,
+<span class="lineNum">    1476 </span>            :  *        ((base_type*)p)[(tile_number(x,y)*nBandCount +
+<span class="lineNum">    1477 </span>            :  *                        (b-1)) * tile_size + offset_in_tile(x,y)].
+<span class="lineNum">    1478 </span>            :  *  - for eTileOrganization = GTO_BSQ,
+<span class="lineNum">    1479 </span>            :  *        ((base_type*)p)[(tile_number(x,y) +
+<span class="lineNum">    1480 </span>            :  *                        (b-1)*nTilesCount) * tile_size + offset_in_tile(x,y)].
+<span class="lineNum">    1481 </span>            :  *
+<span class="lineNum">    1482 </span>            :  * where nTilesPerRow = ceil(nXSize / nTileXSize)
+<span class="lineNum">    1483 </span>            :  *       nTilesPerCol = ceil(nYSize / nTileYSize)
+<span class="lineNum">    1484 </span>            :  *       nTilesCount = nTilesPerRow * nTilesPerCol
+<span class="lineNum">    1485 </span>            :  *       tile_number(x,y) = (y / nTileYSize) * nTilesPerRow + (x / nTileXSize)
+<span class="lineNum">    1486 </span>            :  *       offset_in_tile(x,y) = (y % nTileYSize) * nTileXSize  + (x % nTileXSize)
+<span class="lineNum">    1487 </span>            :  *       tile_size = nTileXSize * nTileYSize
+<span class="lineNum">    1488 </span>            :  *
+<span class="lineNum">    1489 </span>            :  * Note that for a single band request, all tile organizations are equivalent.
+<span class="lineNum">    1490 </span>            :  *
+<span class="lineNum">    1491 </span>            :  * Note that the mechanism used to transparently fill memory pages when they are
+<span class="lineNum">    1492 </span>            :  * accessed is the same (but in a controlled way) than what occurs when a memory
+<span class="lineNum">    1493 </span>            :  * error occurs in a program. Debugging software will generally interrupt
+<span class="lineNum">    1494 </span>            :  * program execution when that happens. If needed, CPLVirtualMemPin() can be
+<span class="lineNum">    1495 </span>            :  * used to avoid that by ensuring memory pages are allocated before being
+<span class="lineNum">    1496 </span>            :  * accessed.
+<span class="lineNum">    1497 </span>            :  *
+<span class="lineNum">    1498 </span>            :  * The size of the region that can be mapped as a virtual memory object depends
+<span class="lineNum">    1499 </span>            :  * on hardware and operating system limitations.
+<span class="lineNum">    1500 </span>            :  * On Linux AMD64 platforms, the maximum value is 128 TB.
+<span class="lineNum">    1501 </span>            :  * On Linux x86 platforms, the maximum value is 2 GB.
+<span class="lineNum">    1502 </span>            :  *
+<span class="lineNum">    1503 </span>            :  * Data type translation is automatically done if the data type
+<span class="lineNum">    1504 </span>            :  * (eBufType) of the buffer is different than
+<span class="lineNum">    1505 </span>            :  * that of the GDALRasterBand.
+<span class="lineNum">    1506 </span>            :  *
+<span class="lineNum">    1507 </span>            :  * @param hDS Dataset object
+<span class="lineNum">    1508 </span>            :  *
+<span class="lineNum">    1509 </span>            :  * @param eRWFlag Either GF_Read to read a region of data, or GF_Write to
+<span class="lineNum">    1510 </span>            :  * write a region of data.
+<span class="lineNum">    1511 </span>            :  *
+<span class="lineNum">    1512 </span>            :  * @param nXOff The pixel offset to the top left corner of the region
+<span class="lineNum">    1513 </span>            :  * of the band to be accessed.  This would be zero to start from the left side.
+<span class="lineNum">    1514 </span>            :  *
+<span class="lineNum">    1515 </span>            :  * @param nYOff The line offset to the top left corner of the region
+<span class="lineNum">    1516 </span>            :  * of the band to be accessed.  This would be zero to start from the top.
+<span class="lineNum">    1517 </span>            :  *
+<span class="lineNum">    1518 </span>            :  * @param nXSize The width of the region of the band to be accessed in pixels.
+<span class="lineNum">    1519 </span>            :  *
+<span class="lineNum">    1520 </span>            :  * @param nYSize The height of the region of the band to be accessed in lines.
+<span class="lineNum">    1521 </span>            :  *
+<span class="lineNum">    1522 </span>            :  * @param nTileXSize the width of the tiles.
+<span class="lineNum">    1523 </span>            :  *
+<span class="lineNum">    1524 </span>            :  * @param nTileYSize the height of the tiles.
+<span class="lineNum">    1525 </span>            :  *
+<span class="lineNum">    1526 </span>            :  * @param eBufType the type of the pixel values in the data buffer. The
+<span class="lineNum">    1527 </span>            :  * pixel values will automatically be translated to/from the GDALRasterBand
+<span class="lineNum">    1528 </span>            :  * data type as needed.
+<span class="lineNum">    1529 </span>            :  *
+<span class="lineNum">    1530 </span>            :  * @param nBandCount the number of bands being read or written.
+<span class="lineNum">    1531 </span>            :  *
+<span class="lineNum">    1532 </span>            :  * @param panBandMap the list of nBandCount band numbers being read/written.
+<span class="lineNum">    1533 </span>            :  * Note band numbers are 1 based. This may be NULL to select the first
+<span class="lineNum">    1534 </span>            :  * nBandCount bands.
+<span class="lineNum">    1535 </span>            :  *
+<span class="lineNum">    1536 </span>            :  * @param eTileOrganization tile organization.
+<span class="lineNum">    1537 </span>            :  *
+<span class="lineNum">    1538 </span>            :  * @param nCacheSize   size in bytes of the maximum memory that will be really
+<span class="lineNum">    1539 </span>            :  *                     allocated (must ideally fit into RAM)
+<span class="lineNum">    1540 </span>            :  *
+<span class="lineNum">    1541 </span>            :  * @param bSingleThreadUsage set to TRUE if there will be no concurrent threads
+<span class="lineNum">    1542 </span>            :  *                           that will access the virtual memory mapping. This
+<span class="lineNum">    1543 </span>            :  *                           can optimize performance a bit. If set to FALSE,
+<span class="lineNum">    1544 </span>            :  *                           CPLVirtualMemDeclareThread() must be called.
+<span class="lineNum">    1545 </span>            :  *
+<span class="lineNum">    1546 </span>            :  * @param papszOptions NULL terminated list of options. Unused for now.
+<span class="lineNum">    1547 </span>            :  *
+<span class="lineNum">    1548 </span>            :  * @return a virtual memory object that must be freed by CPLVirtualMemFree(),
+<span class="lineNum">    1549 </span>            :  *         or NULL in case of failure.
+<span class="lineNum">    1550 </span>            :  *
+<span class="lineNum">    1551 </span>            :  * @since GDAL 1.11
+<a name="1552"><span class="lineNum">    1552 </span>            :  */</a>
+<span class="lineNum">    1553 </span>            : 
+<span class="lineNum">    1554 </span><span class="lineCov">          3 : CPLVirtualMem* GDALDatasetGetTiledVirtualMem(</span>
+<span class="lineNum">    1555 </span>            :     GDALDatasetH hDS,
+<span class="lineNum">    1556 </span>            :     GDALRWFlag eRWFlag,
+<span class="lineNum">    1557 </span>            :     int nXOff, int nYOff,
+<span class="lineNum">    1558 </span>            :     int nXSize, int nYSize,
+<span class="lineNum">    1559 </span>            :     int nTileXSize, int nTileYSize,
+<span class="lineNum">    1560 </span>            :     GDALDataType eBufType,
+<span class="lineNum">    1561 </span>            :     int nBandCount, int* panBandMap,
+<span class="lineNum">    1562 </span>            :     GDALTileOrganization eTileOrganization,
+<span class="lineNum">    1563 </span>            :     size_t nCacheSize,
+<span class="lineNum">    1564 </span>            :     int bSingleThreadUsage,
+<span class="lineNum">    1565 </span>            :     CSLConstList papszOptions )
+<span class="lineNum">    1566 </span>            : {
+<span class="lineNum">    1567 </span>            :     return GDALGetTiledVirtualMem( hDS, nullptr, eRWFlag, nXOff, nYOff,
+<span class="lineNum">    1568 </span>            :                                    nXSize, nYSize, nTileXSize, nTileYSize,
+<span class="lineNum">    1569 </span>            :                                    eBufType, nBandCount, panBandMap,
+<span class="lineNum">    1570 </span>            :                                    eTileOrganization,
+<span class="lineNum">    1571 </span>            :                                    nCacheSize, bSingleThreadUsage,
+<span class="lineNum">    1572 </span><span class="lineCov">          3 :                                    papszOptions );</span>
+<span class="lineNum">    1573 </span>            : }
+<span class="lineNum">    1574 </span>            : 
+<span class="lineNum">    1575 </span>            : /************************************************************************/
+<span class="lineNum">    1576 </span>            : /*                   GDALRasterBandGetTiledVirtualMem()                 */
+<span class="lineNum">    1577 </span>            : /************************************************************************/
+<span class="lineNum">    1578 </span>            : 
+<span class="lineNum">    1579 </span>            : /** Create a CPLVirtualMem object from a GDAL rasterband object, with tiling
+<span class="lineNum">    1580 </span>            :  * organization
+<span class="lineNum">    1581 </span>            :  *
+<span class="lineNum">    1582 </span>            :  * Only supported on Linux for now.
+<span class="lineNum">    1583 </span>            :  *
+<span class="lineNum">    1584 </span>            :  * This method allows creating a virtual memory object for a region of one
+<span class="lineNum">    1585 </span>            :  * GDALRasterBand. The content of the virtual
+<span class="lineNum">    1586 </span>            :  * memory object is automatically filled from dataset content when a virtual
+<span class="lineNum">    1587 </span>            :  * memory page is first accessed, and it is released (or flushed in case of a
+<span class="lineNum">    1588 </span>            :  * &quot;dirty&quot; page) when the cache size limit has been reached.
+<span class="lineNum">    1589 </span>            :  *
+<span class="lineNum">    1590 </span>            :  * Contrary to GDALDatasetGetVirtualMem(), pixels will be organized by tiles
+<span class="lineNum">    1591 </span>            :  * instead of scanlines.
+<span class="lineNum">    1592 </span>            :  *
+<span class="lineNum">    1593 </span>            :  * If nXSize is not a multiple of nTileXSize or nYSize is not a multiple of
+<span class="lineNum">    1594 </span>            :  * nTileYSize, partial tiles will exists at the right and/or bottom of the
+<span class="lineNum">    1595 </span>            :  * region of interest. Those partial tiles will also have nTileXSize *
+<span class="lineNum">    1596 </span>            :  * nTileYSize dimension, with padding pixels.
+<span class="lineNum">    1597 </span>            :  *
+<span class="lineNum">    1598 </span>            :  * The pointer to access the virtual memory object is obtained with
+<span class="lineNum">    1599 </span>            :  * CPLVirtualMemGetAddr(). It remains valid until CPLVirtualMemFree() is called.
+<span class="lineNum">    1600 </span>            :  * CPLVirtualMemFree() must be called before the raster band object is
+<span class="lineNum">    1601 </span>            :  * destroyed.
+<span class="lineNum">    1602 </span>            :  *
+<span class="lineNum">    1603 </span>            :  * If p is such a pointer and base_type the C type matching eBufType, for
+<span class="lineNum">    1604 </span>            :  * default values of spacing parameters, the element of image coordinates (x, y)
+<span class="lineNum">    1605 </span>            :  * (relative to xOff, yOff) can be accessed with:
+<span class="lineNum">    1606 </span>            :  *  ((base_type*)p)[tile_number(x,y)*tile_size + offset_in_tile(x,y)].
+<span class="lineNum">    1607 </span>            :  *
+<span class="lineNum">    1608 </span>            :  * where nTilesPerRow = ceil(nXSize / nTileXSize)
+<span class="lineNum">    1609 </span>            :  *       nTilesCount = nTilesPerRow * nTilesPerCol
+<span class="lineNum">    1610 </span>            :  *       tile_number(x,y) = (y / nTileYSize) * nTilesPerRow + (x / nTileXSize)
+<span class="lineNum">    1611 </span>            :  *       offset_in_tile(x,y) = (y % nTileYSize) * nTileXSize  + (x % nTileXSize)
+<span class="lineNum">    1612 </span>            :  *       tile_size = nTileXSize * nTileYSize
+<span class="lineNum">    1613 </span>            :  *
+<span class="lineNum">    1614 </span>            :  * Note that the mechanism used to transparently fill memory pages when they are
+<span class="lineNum">    1615 </span>            :  * accessed is the same (but in a controlled way) than what occurs when a memory
+<span class="lineNum">    1616 </span>            :  * error occurs in a program. Debugging software will generally interrupt
+<span class="lineNum">    1617 </span>            :  * program execution when that happens. If needed, CPLVirtualMemPin() can be
+<span class="lineNum">    1618 </span>            :  * used to avoid that by ensuring memory pages are allocated before being
+<span class="lineNum">    1619 </span>            :  * accessed.
+<span class="lineNum">    1620 </span>            :  *
+<span class="lineNum">    1621 </span>            :  * The size of the region that can be mapped as a virtual memory object depends
+<span class="lineNum">    1622 </span>            :  * on hardware and operating system limitations.
+<span class="lineNum">    1623 </span>            :  * On Linux AMD64 platforms, the maximum value is 128 TB.
+<span class="lineNum">    1624 </span>            :  * On Linux x86 platforms, the maximum value is 2 GB.
+<span class="lineNum">    1625 </span>            :  *
+<span class="lineNum">    1626 </span>            :  * Data type translation is automatically done if the data type
+<span class="lineNum">    1627 </span>            :  * (eBufType) of the buffer is different than
+<span class="lineNum">    1628 </span>            :  * that of the GDALRasterBand.
+<span class="lineNum">    1629 </span>            :  *
+<span class="lineNum">    1630 </span>            :  * @param hBand Rasterband object
+<span class="lineNum">    1631 </span>            :  *
+<span class="lineNum">    1632 </span>            :  * @param eRWFlag Either GF_Read to read a region of data, or GF_Write to
+<span class="lineNum">    1633 </span>            :  * write a region of data.
+<span class="lineNum">    1634 </span>            :  *
+<span class="lineNum">    1635 </span>            :  * @param nXOff The pixel offset to the top left corner of the region
+<span class="lineNum">    1636 </span>            :  * of the band to be accessed.  This would be zero to start from the left side.
+<span class="lineNum">    1637 </span>            :  *
+<span class="lineNum">    1638 </span>            :  * @param nYOff The line offset to the top left corner of the region
+<span class="lineNum">    1639 </span>            :  * of the band to be accessed.  This would be zero to start from the top.
+<span class="lineNum">    1640 </span>            :  *
+<span class="lineNum">    1641 </span>            :  * @param nXSize The width of the region of the band to be accessed in pixels.
+<span class="lineNum">    1642 </span>            :  *
+<span class="lineNum">    1643 </span>            :  * @param nYSize The height of the region of the band to be accessed in lines.
+<span class="lineNum">    1644 </span>            :  *
+<span class="lineNum">    1645 </span>            :  * @param nTileXSize the width of the tiles.
+<span class="lineNum">    1646 </span>            :  *
+<span class="lineNum">    1647 </span>            :  * @param nTileYSize the height of the tiles.
+<span class="lineNum">    1648 </span>            :  *
+<span class="lineNum">    1649 </span>            :  * @param eBufType the type of the pixel values in the data buffer. The
+<span class="lineNum">    1650 </span>            :  * pixel values will automatically be translated to/from the GDALRasterBand
+<span class="lineNum">    1651 </span>            :  * data type as needed.
+<span class="lineNum">    1652 </span>            :  *
+<span class="lineNum">    1653 </span>            :  * @param nCacheSize   size in bytes of the maximum memory that will be really
+<span class="lineNum">    1654 </span>            :  *                     allocated (must ideally fit into RAM)
+<span class="lineNum">    1655 </span>            :  *
+<span class="lineNum">    1656 </span>            :  * @param bSingleThreadUsage set to TRUE if there will be no concurrent threads
+<span class="lineNum">    1657 </span>            :  *                           that will access the virtual memory mapping. This
+<span class="lineNum">    1658 </span>            :  *                           can optimize performance a bit. If set to FALSE,
+<span class="lineNum">    1659 </span>            :  *                           CPLVirtualMemDeclareThread() must be called.
+<span class="lineNum">    1660 </span>            :  *
+<span class="lineNum">    1661 </span>            :  * @param papszOptions NULL terminated list of options. Unused for now.
+<span class="lineNum">    1662 </span>            :  *
+<span class="lineNum">    1663 </span>            :  * @return a virtual memory object that must be freed by CPLVirtualMemFree(),
+<span class="lineNum">    1664 </span>            :  *         or NULL in case of failure.
+<span class="lineNum">    1665 </span>            :  *
+<span class="lineNum">    1666 </span>            :  * @since GDAL 1.11
+<a name="1667"><span class="lineNum">    1667 </span>            :  */</a>
+<span class="lineNum">    1668 </span>            : 
+<span class="lineNum">    1669 </span><span class="lineCov">          1 : CPLVirtualMem* GDALRasterBandGetTiledVirtualMem( GDALRasterBandH hBand,</span>
+<span class="lineNum">    1670 </span>            :                                                  GDALRWFlag eRWFlag,
+<span class="lineNum">    1671 </span>            :                                                  int nXOff, int nYOff,
+<span class="lineNum">    1672 </span>            :                                                  int nXSize, int nYSize,
+<span class="lineNum">    1673 </span>            :                                                  int nTileXSize, int nTileYSize,
+<span class="lineNum">    1674 </span>            :                                                  GDALDataType eBufType,
+<span class="lineNum">    1675 </span>            :                                                  size_t nCacheSize,
+<span class="lineNum">    1676 </span>            :                                                  int bSingleThreadUsage,
+<span class="lineNum">    1677 </span>            :                                                  CSLConstList papszOptions )
+<span class="lineNum">    1678 </span>            : {
+<span class="lineNum">    1679 </span>            :     return GDALGetTiledVirtualMem( nullptr, hBand, eRWFlag, nXOff, nYOff,
+<span class="lineNum">    1680 </span>            :                                    nXSize, nYSize, nTileXSize, nTileYSize,
+<span class="lineNum">    1681 </span>            :                                    eBufType, 1, nullptr,
+<span class="lineNum">    1682 </span>            :                                    GTO_BSQ,
+<span class="lineNum">    1683 </span>            :                                    nCacheSize, bSingleThreadUsage,
+<span class="lineNum">    1684 </span><span class="lineCov">          1 :                                    papszOptions );</span>
+<span class="lineNum">    1685 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

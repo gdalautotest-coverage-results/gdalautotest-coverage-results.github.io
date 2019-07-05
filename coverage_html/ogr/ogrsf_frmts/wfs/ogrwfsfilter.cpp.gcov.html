@@ -1,0 +1,898 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/wfs/ogrwfsfilter.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/wfs</a> - ogrwfsfilter.cpp<span style="font-size: 80%;"> (source / <a href="ogrwfsfilter.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">382</td>
+            <td class="headerCovTableEntry">430</td>
+            <td class="headerCovTableEntryMed">88.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntryHi">93.3 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  WFS Translator
+<span class="lineNum">       4 </span>            :  * Purpose:  Implements OGR SQL into OGC Filter translation.
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2010-2012, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;ogr_wfs.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;ogr_p.h&quot;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : typedef struct
+<span class="lineNum">      35 </span>            : {
+<span class="lineNum">      36 </span>            :     int nVersion;
+<span class="lineNum">      37 </span>            :     bool bPropertyIsNotEqualToSupported;
+<span class="lineNum">      38 </span>            :     int bOutNeedsNullCheck;
+<span class="lineNum">      39 </span>            :     OGRDataSource* poDS;
+<span class="lineNum">      40 </span>            :     OGRFeatureDefn* poFDefn;
+<span class="lineNum">      41 </span>            :     int nUniqueGeomGMLId;
+<span class="lineNum">      42 </span>            :     OGRSpatialReference* poSRS;
+<span class="lineNum">      43 </span>            :     const char* pszNSPrefix;
+<span class="lineNum">      44 </span>            : } ExprDumpFilterOptions;
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : /************************************************************************/
+<span class="lineNum">      47 </span>            : /*                WFS_ExprDumpGmlObjectIdFilter()                       */
+<a name="48"><span class="lineNum">      48 </span>            : /************************************************************************/</a>
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span><span class="lineCov">        106 : static bool WFS_ExprDumpGmlObjectIdFilter( CPLString&amp; osFilter,</span>
+<span class="lineNum">      51 </span>            :                                            const swq_expr_node* poExpr,
+<span class="lineNum">      52 </span>            :                                            int bUseFeatureId,
+<span class="lineNum">      53 </span>            :                                            int bGmlObjectIdNeedsGMLPrefix,
+<span class="lineNum">      54 </span>            :                                            int nVersion )
+<span class="lineNum">      55 </span>            : {
+<span class="lineNum">      56 </span><span class="lineCov">        212 :     if (poExpr-&gt;eNodeType == SNT_OPERATION &amp;&amp;</span>
+<span class="lineNum">      57 </span><span class="lineCov">        165 :         poExpr-&gt;nOperation == SWQ_EQ &amp;&amp;</span>
+<span class="lineNum">      58 </span><span class="lineCov">        118 :         poExpr-&gt;nSubExprCount == 2 &amp;&amp;</span>
+<span class="lineNum">      59 </span><span class="lineCov">        118 :         poExpr-&gt;papoSubExpr[0]-&gt;eNodeType == SNT_COLUMN &amp;&amp;</span>
+<span class="lineNum">      60 </span><span class="lineCov">         81 :         strcmp(poExpr-&gt;papoSubExpr[0]-&gt;string_value, &quot;gml_id&quot;) == 0 &amp;&amp;</span>
+<span class="lineNum">      61 </span><span class="lineCov">         22 :         poExpr-&gt;papoSubExpr[1]-&gt;eNodeType == SNT_CONSTANT)</span>
+<span class="lineNum">      62 </span>            :     {
+<span class="lineNum">      63 </span><span class="lineCov">         22 :         if( bUseFeatureId )</span>
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :             osFilter += &quot;&lt;FeatureId fid=\&quot;&quot;;</span>
+<span class="lineNum">      65 </span><span class="lineCov">         22 :         else if( nVersion &gt;= 200 )</span>
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :             osFilter += &quot;&lt;ResourceId rid=\&quot;&quot;;</span>
+<span class="lineNum">      67 </span><span class="lineCov">         22 :         else if( !bGmlObjectIdNeedsGMLPrefix )</span>
+<span class="lineNum">      68 </span><span class="lineCov">         22 :             osFilter += &quot;&lt;GmlObjectId id=\&quot;&quot;;</span>
+<span class="lineNum">      69 </span>            :         else
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :             osFilter += &quot;&lt;GmlObjectId gml:id=\&quot;&quot;;</span>
+<span class="lineNum">      71 </span><span class="lineCov">         44 :         if( poExpr-&gt;papoSubExpr[1]-&gt;field_type == SWQ_INTEGER ||</span>
+<span class="lineNum">      72 </span><span class="lineCov">         22 :             poExpr-&gt;papoSubExpr[1]-&gt;field_type == SWQ_INTEGER64 )</span>
+<span class="lineNum">      73 </span>            :         {
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :             osFilter += CPLSPrintf(CPL_FRMT_GIB,</span>
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :                                    poExpr-&gt;papoSubExpr[1]-&gt;int_value);</span>
+<span class="lineNum">      76 </span>            :         }
+<span class="lineNum">      77 </span><span class="lineCov">         22 :         else if( poExpr-&gt;papoSubExpr[1]-&gt;field_type == SWQ_STRING )</span>
+<span class="lineNum">      78 </span>            :         {
+<span class="lineNum">      79 </span>            :             char* pszXML =
+<span class="lineNum">      80 </span><span class="lineCov">         22 :                 CPLEscapeString(poExpr-&gt;papoSubExpr[1]-&gt;string_value,</span>
+<span class="lineNum">      81 </span><span class="lineCov">         22 :                                 -1, CPLES_XML);</span>
+<span class="lineNum">      82 </span><span class="lineCov">         22 :             osFilter += pszXML;</span>
+<span class="lineNum">      83 </span><span class="lineCov">         22 :             CPLFree(pszXML);</span>
+<span class="lineNum">      84 </span>            :         }
+<span class="lineNum">      85 </span>            :         else
+<span class="lineNum">      86 </span>            :         {
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">      88 </span>            :         }
+<span class="lineNum">      89 </span><span class="lineCov">         22 :         osFilter += &quot;\&quot;/&gt;&quot;;</span>
+<span class="lineNum">      90 </span><span class="lineCov">         22 :         return true;</span>
+<span class="lineNum">      91 </span>            :     }
+<span class="lineNum">      92 </span><span class="lineCov">        168 :     else if (poExpr-&gt;eNodeType == SNT_OPERATION &amp;&amp;</span>
+<span class="lineNum">      93 </span><span class="lineCov">        114 :              poExpr-&gt;nOperation == SWQ_OR &amp;&amp;</span>
+<span class="lineNum">      94 </span><span class="lineCov">         30 :              poExpr-&gt;nSubExprCount == 2 )</span>
+<span class="lineNum">      95 </span>            :     {
+<span class="lineNum">      96 </span>            :         return
+<span class="lineNum">      97 </span>            :           WFS_ExprDumpGmlObjectIdFilter(
+<span class="lineNum">      98 </span><span class="lineCov">         30 :               osFilter, poExpr-&gt;papoSubExpr[0],</span>
+<span class="lineNum">      99 </span><span class="lineCov">         32 :               bUseFeatureId, bGmlObjectIdNeedsGMLPrefix, nVersion) &amp;&amp;</span>
+<span class="lineNum">     100 </span>            :           WFS_ExprDumpGmlObjectIdFilter(
+<span class="lineNum">     101 </span><span class="lineCov">          2 :               osFilter, poExpr-&gt;papoSubExpr[1],</span>
+<span class="lineNum">     102 </span><span class="lineCov">         32 :               bUseFeatureId, bGmlObjectIdNeedsGMLPrefix, nVersion);</span>
+<span class="lineNum">     103 </span>            :     }
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span><span class="lineCov">         54 :     return false;</span>
+<span class="lineNum">     106 </span>            : }
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            : /************************************************************************/
+<span class="lineNum">     109 </span>            : /*                     WFS_ExprDumpRawLitteral()                        */
+<a name="110"><span class="lineNum">     110 </span>            : /************************************************************************/</a>
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span><span class="lineCov">         81 : static bool WFS_ExprDumpRawLitteral( CPLString&amp; osFilter,</span>
+<span class="lineNum">     113 </span>            :                                      const swq_expr_node* poExpr )
+<span class="lineNum">     114 </span>            : {
+<span class="lineNum">     115 </span><span class="lineCov">        128 :     if( poExpr-&gt;field_type == SWQ_INTEGER ||</span>
+<span class="lineNum">     116 </span><span class="lineCov">         47 :         poExpr-&gt;field_type == SWQ_INTEGER64 )</span>
+<span class="lineNum">     117 </span><span class="lineCov">         34 :         osFilter += CPLSPrintf(CPL_FRMT_GIB, poExpr-&gt;int_value);</span>
+<span class="lineNum">     118 </span><span class="lineCov">         47 :     else if( poExpr-&gt;field_type == SWQ_FLOAT )</span>
+<span class="lineNum">     119 </span><span class="lineCov">         34 :         osFilter += CPLSPrintf(&quot;%.16g&quot;, poExpr-&gt;float_value);</span>
+<span class="lineNum">     120 </span><span class="lineCov">         13 :     else if( poExpr-&gt;field_type == SWQ_STRING )</span>
+<span class="lineNum">     121 </span>            :     {
+<span class="lineNum">     122 </span><span class="lineCov">         13 :         char* pszXML = CPLEscapeString(poExpr-&gt;string_value, -1, CPLES_XML);</span>
+<span class="lineNum">     123 </span><span class="lineCov">         13 :         osFilter += pszXML;</span>
+<span class="lineNum">     124 </span><span class="lineCov">         13 :         CPLFree(pszXML);</span>
+<span class="lineNum">     125 </span>            :     }
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :     else if( poExpr-&gt;field_type == SWQ_TIMESTAMP )</span>
+<span class="lineNum">     127 </span>            :     {
+<span class="lineNum">     128 </span>            :         OGRField sDate;
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :         if( !OGRParseDate(poExpr-&gt;string_value, &amp;sDate, 0) )</span>
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :         char* pszDate = OGRGetXMLDateTime(&amp;sDate);</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :         osFilter += pszDate;</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :         CPLFree(pszDate);</span>
+<span class="lineNum">     134 </span>            :     }
+<span class="lineNum">     135 </span>            :     else
+<span class="lineNum">     136 </span>            :     {
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     138 </span>            :     }
+<span class="lineNum">     139 </span><span class="lineCov">         81 :     return true;</span>
+<span class="lineNum">     140 </span>            : }
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span>            : /************************************************************************/
+<span class="lineNum">     143 </span>            : /*                       WFS_ExprGetSRSName()                          */
+<a name="144"><span class="lineNum">     144 </span>            : /************************************************************************/</a>
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span><span class="lineCov">         25 : static const char* WFS_ExprGetSRSName( const swq_expr_node* poExpr,</span>
+<span class="lineNum">     147 </span>            :                                        int iSubArgIndex,
+<span class="lineNum">     148 </span>            :                                        ExprDumpFilterOptions* psOptions,
+<span class="lineNum">     149 </span>            :                                        OGRSpatialReference&amp; oSRS )
+<span class="lineNum">     150 </span>            : {
+<span class="lineNum">     151 </span><span class="lineCov">         40 :     if( poExpr-&gt;nSubExprCount == iSubArgIndex + 1 &amp;&amp;</span>
+<span class="lineNum">     152 </span><span class="lineCov">         15 :         poExpr-&gt;papoSubExpr[iSubArgIndex]-&gt;field_type == SWQ_STRING )</span>
+<span class="lineNum">     153 </span>            :     {
+<span class="lineNum">     154 </span><span class="lineCov">          6 :         if( oSRS.SetFromUserInput(poExpr-&gt;papoSubExpr[iSubArgIndex]-&gt;string_value) == OGRERR_NONE )</span>
+<span class="lineNum">     155 </span>            :         {
+<span class="lineNum">     156 </span><span class="lineCov">          6 :             return poExpr-&gt;papoSubExpr[iSubArgIndex]-&gt;string_value;</span>
+<span class="lineNum">     157 </span>            :         }
+<span class="lineNum">     158 </span>            :     }
+<span class="lineNum">     159 </span><span class="lineCov">         28 :     else if ( poExpr-&gt;nSubExprCount == iSubArgIndex + 1 &amp;&amp;</span>
+<span class="lineNum">     160 </span><span class="lineCov">          9 :               poExpr-&gt;papoSubExpr[iSubArgIndex]-&gt;field_type == SWQ_INTEGER )</span>
+<span class="lineNum">     161 </span>            :     {
+<span class="lineNum">     162 </span><span class="lineCov">          9 :         if( oSRS.importFromEPSGA((int)poExpr-&gt;papoSubExpr[iSubArgIndex]-&gt;int_value) == OGRERR_NONE )</span>
+<span class="lineNum">     163 </span>            :         {
+<span class="lineNum">     164 </span><span class="lineCov">          9 :             return CPLSPrintf(&quot;urn:ogc:def:crs:EPSG::%d&quot;, (int)poExpr-&gt;papoSubExpr[iSubArgIndex]-&gt;int_value);</span>
+<span class="lineNum">     165 </span>            :         }
+<span class="lineNum">     166 </span>            :     }
+<span class="lineNum">     167 </span><span class="lineCov">         20 :     else if( poExpr-&gt;nSubExprCount == iSubArgIndex &amp;&amp;</span>
+<span class="lineNum">     168 </span><span class="lineCov">         10 :              psOptions-&gt;poSRS != nullptr )</span>
+<span class="lineNum">     169 </span>            :     {
+<span class="lineNum">     170 </span><span class="lineCov">         30 :         if( psOptions-&gt;poSRS-&gt;GetAuthorityName(nullptr) &amp;&amp;</span>
+<span class="lineNum">     171 </span><span class="lineCov">         20 :             EQUAL(psOptions-&gt;poSRS-&gt;GetAuthorityName(nullptr), &quot;EPSG&quot;) &amp;&amp;</span>
+<span class="lineNum">     172 </span><span class="lineCov">         30 :             psOptions-&gt;poSRS-&gt;GetAuthorityCode(nullptr) &amp;&amp;</span>
+<span class="lineNum">     173 </span><span class="lineCov">         10 :             oSRS.importFromEPSGA(atoi(psOptions-&gt;poSRS-&gt;GetAuthorityCode(nullptr))) == OGRERR_NONE )</span>
+<span class="lineNum">     174 </span>            :         {
+<span class="lineNum">     175 </span><span class="lineCov">         10 :             return CPLSPrintf(&quot;urn:ogc:def:crs:EPSG::%s&quot;, psOptions-&gt;poSRS-&gt;GetAuthorityCode(nullptr));</span>
+<span class="lineNum">     176 </span>            :         }
+<span class="lineNum">     177 </span>            :     }
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     179 </span>            : }
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span>            : /************************************************************************/
+<span class="lineNum">     182 </span>            : /*                     WFS_ExprDumpAsOGCFilter()                        */
+<a name="183"><span class="lineNum">     183 </span>            : /************************************************************************/</a>
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span><span class="lineCov">        313 : static bool WFS_ExprDumpAsOGCFilter( CPLString&amp; osFilter,</span>
+<span class="lineNum">     186 </span>            :                                      const swq_expr_node* poExpr,
+<span class="lineNum">     187 </span>            :                                      int bExpectBinary,
+<span class="lineNum">     188 </span>            :                                      ExprDumpFilterOptions* psOptions )
+<span class="lineNum">     189 </span>            : {
+<span class="lineNum">     190 </span><span class="lineCov">        313 :     if( poExpr-&gt;eNodeType == SNT_COLUMN )</span>
+<span class="lineNum">     191 </span>            :     {
+<span class="lineNum">     192 </span><span class="lineCov">        123 :         if (bExpectBinary)</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            :         /* Special fields not understood by server */
+<span class="lineNum">     196 </span><span class="lineCov">        246 :         if (EQUAL(poExpr-&gt;string_value, &quot;gml_id&quot;) ||</span>
+<span class="lineNum">     197 </span><span class="lineCov">        246 :             EQUAL(poExpr-&gt;string_value, &quot;FID&quot;) ||</span>
+<span class="lineNum">     198 </span><span class="lineCov">        240 :             EQUAL(poExpr-&gt;string_value, &quot;OGR_GEOMETRY&quot;) ||</span>
+<span class="lineNum">     199 </span><span class="lineCov">        234 :             EQUAL(poExpr-&gt;string_value, &quot;OGR_GEOM_WKT&quot;) ||</span>
+<span class="lineNum">     200 </span><span class="lineCov">        234 :             EQUAL(poExpr-&gt;string_value, &quot;OGR_GEOM_AREA&quot;) ||</span>
+<span class="lineNum">     201 </span><span class="lineCov">        117 :             EQUAL(poExpr-&gt;string_value, &quot;OGR_STYLE&quot;))</span>
+<span class="lineNum">     202 </span>            :         {
+<span class="lineNum">     203 </span><span class="lineCov">          6 :             CPLDebug(&quot;WFS&quot;, &quot;Attribute refers to a OGR special field. Cannot use server-side filtering&quot;);</span>
+<span class="lineNum">     204 </span><span class="lineCov">          6 :             return false;</span>
+<span class="lineNum">     205 </span>            :         }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span><span class="lineCov">        117 :         const char* pszFieldname = nullptr;</span>
+<span class="lineNum">     208 </span><span class="lineCov">        117 :         int nIndex = 0;</span>
+<span class="lineNum">     209 </span>            :         const bool bSameTable =
+<span class="lineNum">     210 </span><span class="lineCov">        205 :             psOptions-&gt;poFDefn != nullptr &amp;&amp;</span>
+<span class="lineNum">     211 </span><span class="lineCov">         44 :             ( poExpr-&gt;table_name == nullptr ||</span>
+<span class="lineNum">     212 </span><span class="lineCov">        117 :               EQUAL(poExpr-&gt;table_name, psOptions-&gt;poFDefn-&gt;GetName()) );</span>
+<span class="lineNum">     213 </span><span class="lineCov">        117 :         if( bSameTable )</span>
+<span class="lineNum">     214 </span>            :         {
+<span class="lineNum">     215 </span><span class="lineCov">         44 :             if( (nIndex = psOptions-&gt;poFDefn-&gt;GetFieldIndex(poExpr-&gt;string_value)) &gt;= 0 )</span>
+<span class="lineNum">     216 </span>            :             {
+<span class="lineNum">     217 </span><span class="lineCov">         22 :                 pszFieldname = psOptions-&gt;poFDefn-&gt;GetFieldDefn(nIndex)-&gt;GetNameRef();</span>
+<span class="lineNum">     218 </span>            :             }
+<span class="lineNum">     219 </span><span class="lineCov">         22 :             else if( (nIndex = psOptions-&gt;poFDefn-&gt;GetGeomFieldIndex(poExpr-&gt;string_value)) &gt;= 0 )</span>
+<span class="lineNum">     220 </span>            :             {
+<span class="lineNum">     221 </span><span class="lineCov">         22 :                 pszFieldname = psOptions-&gt;poFDefn-&gt;GetGeomFieldDefn(nIndex)-&gt;GetNameRef();</span>
+<span class="lineNum">     222 </span>            :             }
+<span class="lineNum">     223 </span>            :         }
+<span class="lineNum">     224 </span><span class="lineCov">         73 :         else if( psOptions-&gt;poDS != nullptr )</span>
+<span class="lineNum">     225 </span>            :         {
+<span class="lineNum">     226 </span><span class="lineCov">         64 :             OGRLayer* poLayer = psOptions-&gt;poDS-&gt;GetLayerByName(poExpr-&gt;table_name);</span>
+<span class="lineNum">     227 </span><span class="lineCov">         64 :             if( poLayer )</span>
+<span class="lineNum">     228 </span>            :             {
+<span class="lineNum">     229 </span><span class="lineCov">         64 :                 OGRFeatureDefn* poFDefn = poLayer-&gt;GetLayerDefn();</span>
+<span class="lineNum">     230 </span><span class="lineCov">         64 :                 if( (nIndex = poFDefn-&gt;GetFieldIndex(poExpr-&gt;string_value)) &gt;= 0 )</span>
+<span class="lineNum">     231 </span>            :                 {
+<span class="lineNum">     232 </span>            :                     pszFieldname = CPLSPrintf(&quot;%s/%s&quot;,
+<span class="lineNum">     233 </span><span class="lineCov">         62 :                                               poLayer-&gt;GetName(),</span>
+<span class="lineNum">     234 </span><span class="lineCov">        124 :                                               poFDefn-&gt;GetFieldDefn(nIndex)-&gt;GetNameRef());</span>
+<span class="lineNum">     235 </span>            :                 }
+<span class="lineNum">     236 </span><span class="lineCov">          2 :                 else if( (nIndex = poFDefn-&gt;GetGeomFieldIndex(poExpr-&gt;string_value)) &gt;= 0 )</span>
+<span class="lineNum">     237 </span>            :                 {
+<span class="lineNum">     238 </span>            :                     pszFieldname = CPLSPrintf(&quot;%s/%s&quot;,
+<span class="lineNum">     239 </span><span class="lineCov">          2 :                                               poLayer-&gt;GetName(),</span>
+<span class="lineNum">     240 </span><span class="lineCov">          4 :                                               poFDefn-&gt;GetGeomFieldDefn(nIndex)-&gt;GetNameRef());</span>
+<span class="lineNum">     241 </span>            :                 }
+<span class="lineNum">     242 </span>            :             }
+<span class="lineNum">     243 </span>            :         }
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span><span class="lineCov">        117 :         if( psOptions-&gt;poFDefn == nullptr &amp;&amp; psOptions-&gt;poDS == nullptr )</span>
+<span class="lineNum">     246 </span><span class="lineCov">          9 :             pszFieldname = poExpr-&gt;string_value;</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineCov">        117 :         if( pszFieldname == nullptr )</span>
+<span class="lineNum">     249 </span>            :         {
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :             if( poExpr-&gt;table_name != nullptr )</span>
+<span class="lineNum">     251 </span>            :                 CPLDebug(&quot;WFS&quot;, &quot;Field \&quot;%s\&quot;.\&quot;%s\&quot; unknown. Cannot use server-side filtering&quot;,
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :                          poExpr-&gt;table_name, poExpr-&gt;string_value);</span>
+<span class="lineNum">     253 </span>            :             else
+<span class="lineNum">     254 </span>            :                 CPLDebug(&quot;WFS&quot;, &quot;Field \&quot;%s\&quot; unknown. Cannot use server-side filtering&quot;,
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :                          poExpr-&gt;string_value);</span>
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     257 </span>            :         }
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span><span class="lineCov">        117 :         if (psOptions-&gt;nVersion &gt;= 200)</span>
+<span class="lineNum">     260 </span><span class="lineCov">         64 :             osFilter += CPLSPrintf(&quot;&lt;%sValueReference&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     261 </span>            :         else
+<span class="lineNum">     262 </span><span class="lineCov">         53 :             osFilter += CPLSPrintf(&quot;&lt;%sPropertyName&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     263 </span><span class="lineCov">        117 :         char* pszFieldnameXML = CPLEscapeString(pszFieldname, -1, CPLES_XML);</span>
+<span class="lineNum">     264 </span><span class="lineCov">        117 :         osFilter += pszFieldnameXML;</span>
+<span class="lineNum">     265 </span><span class="lineCov">        117 :         CPLFree(pszFieldnameXML);</span>
+<span class="lineNum">     266 </span><span class="lineCov">        117 :         if (psOptions-&gt;nVersion &gt;= 200)</span>
+<span class="lineNum">     267 </span><span class="lineCov">         64 :             osFilter += CPLSPrintf(&quot;&lt;/%sValueReference&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     268 </span>            :         else
+<span class="lineNum">     269 </span><span class="lineCov">         53 :             osFilter += CPLSPrintf(&quot;&lt;/%sPropertyName&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span><span class="lineCov">        117 :         return true;</span>
+<span class="lineNum">     272 </span>            :     }
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span><span class="lineCov">        190 :     if( poExpr-&gt;eNodeType == SNT_CONSTANT )</span>
+<span class="lineNum">     275 </span>            :     {
+<span class="lineNum">     276 </span><span class="lineCov">         27 :         if (bExpectBinary)</span>
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span><span class="lineCov">         27 :         osFilter += CPLSPrintf(&quot;&lt;%sLiteral&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     280 </span><span class="lineCov">         27 :         if( !WFS_ExprDumpRawLitteral(osFilter, poExpr) )</span>
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     282 </span><span class="lineCov">         27 :         osFilter += CPLSPrintf(&quot;&lt;/%sLiteral&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineCov">         27 :         return true;</span>
+<span class="lineNum">     285 </span>            :     }
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span><span class="lineCov">        163 :     if( poExpr-&gt;eNodeType != SNT_OPERATION )</span>
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :         return false; // Should not happen.</span>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineCov">        163 :     if( poExpr-&gt;nOperation == SWQ_NOT )</span>
+<span class="lineNum">     291 </span>            :     {
+<span class="lineNum">     292 </span><span class="lineCov">          6 :         osFilter +=  CPLSPrintf(&quot;&lt;%sNot&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     293 </span><span class="lineCov">          6 :         if (!WFS_ExprDumpAsOGCFilter(osFilter, poExpr-&gt;papoSubExpr[0], TRUE, psOptions))</span>
+<span class="lineNum">     294 </span><span class="lineCov">          4 :             return false;</span>
+<span class="lineNum">     295 </span><span class="lineCov">          2 :         osFilter +=  CPLSPrintf(&quot;&lt;/%sNot&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     296 </span><span class="lineCov">          2 :         return true;</span>
+<span class="lineNum">     297 </span>            :     }
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span><span class="lineCov">        157 :     if( poExpr-&gt;nOperation == SWQ_LIKE )</span>
+<span class="lineNum">     300 </span>            :     {
+<span class="lineNum">     301 </span><span class="lineCov">          3 :         CPLString osVal;</span>
+<span class="lineNum">     302 </span><span class="lineCov">          3 :         char firstCh = 0;</span>
+<span class="lineNum">     303 </span><span class="lineCov">          3 :         if (psOptions-&gt;nVersion == 100)</span>
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 :             osFilter += CPLSPrintf(&quot;&lt;%sPropertyIsLike wildCard='*' singleChar='_' escape='!'&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     305 </span>            :         else
+<span class="lineNum">     306 </span><span class="lineCov">          3 :             osFilter += CPLSPrintf(&quot;&lt;%sPropertyIsLike wildCard='*' singleChar='_' escapeChar='!'&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     307 </span><span class="lineCov">          3 :         if (!WFS_ExprDumpAsOGCFilter(osFilter, poExpr-&gt;papoSubExpr[0], FALSE, psOptions))</span>
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     309 </span><span class="lineCov">          3 :         if (poExpr-&gt;papoSubExpr[1]-&gt;eNodeType != SNT_CONSTANT &amp;&amp;</span>
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :             poExpr-&gt;papoSubExpr[1]-&gt;field_type != SWQ_STRING)</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     312 </span><span class="lineCov">          3 :         osFilter += CPLSPrintf(&quot;&lt;%sLiteral&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            :         // Escape value according to above special characters.  For URL
+<span class="lineNum">     315 </span>            :         // compatibility reason, we remap the OGR SQL '%' wildcard into '*'.
+<span class="lineNum">     316 </span><span class="lineCov">          3 :         int i = 0;</span>
+<span class="lineNum">     317 </span><span class="lineCov">          3 :         char ch = poExpr-&gt;papoSubExpr[1]-&gt;string_value[i];</span>
+<span class="lineNum">     318 </span><span class="lineCov">          3 :         if (ch == '\'' || ch == '&quot;')</span>
+<span class="lineNum">     319 </span>            :         {
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :             firstCh = ch;</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :             i ++;</span>
+<span class="lineNum">     322 </span>            :         }
+<span class="lineNum">     323 </span><span class="lineCov">         16 :         for(;(ch = poExpr-&gt;papoSubExpr[1]-&gt;string_value[i]) != '\0';i++)</span>
+<span class="lineNum">     324 </span>            :         {
+<span class="lineNum">     325 </span><span class="lineCov">         13 :             if (ch == '%')</span>
+<span class="lineNum">     326 </span><span class="lineCov">          6 :                 osVal += &quot;*&quot;;</span>
+<span class="lineNum">     327 </span><span class="lineCov">          7 :             else if (ch == '!')</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :                 osVal += &quot;!!&quot;;</span>
+<span class="lineNum">     329 </span><span class="lineCov">          7 :             else if (ch == '*')</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :                 osVal += &quot;!*&quot;;</span>
+<span class="lineNum">     331 </span><span class="lineCov">          7 :             else if (ch == firstCh &amp;&amp; poExpr-&gt;papoSubExpr[1]-&gt;string_value[i + 1] == 0)</span>
+<span class="lineNum">     332 </span>            :                 break;
+<span class="lineNum">     333 </span>            :             else
+<span class="lineNum">     334 </span>            :             {
+<span class="lineNum">     335 </span>            :                 char ach[2];
+<span class="lineNum">     336 </span><span class="lineCov">          7 :                 ach[0] = ch;</span>
+<span class="lineNum">     337 </span><span class="lineCov">          7 :                 ach[1] = 0;</span>
+<span class="lineNum">     338 </span><span class="lineCov">          7 :                 osVal += ach;</span>
+<span class="lineNum">     339 </span>            :             }
+<span class="lineNum">     340 </span>            :         }
+<span class="lineNum">     341 </span><span class="lineCov">          3 :         char* pszXML = CPLEscapeString(osVal, -1, CPLES_XML);</span>
+<span class="lineNum">     342 </span><span class="lineCov">          3 :         osFilter += pszXML;</span>
+<span class="lineNum">     343 </span><span class="lineCov">          3 :         CPLFree(pszXML);</span>
+<span class="lineNum">     344 </span><span class="lineCov">          3 :         osFilter += CPLSPrintf(&quot;&lt;/%sLiteral&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     345 </span><span class="lineCov">          3 :         osFilter += CPLSPrintf(&quot;&lt;/%sPropertyIsLike&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     346 </span><span class="lineCov">          3 :         return true;</span>
+<span class="lineNum">     347 </span>            :     }
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span><span class="lineCov">        154 :     if( poExpr-&gt;nOperation == SWQ_ISNULL )</span>
+<span class="lineNum">     350 </span>            :     {
+<span class="lineNum">     351 </span><span class="lineCov">          6 :         osFilter += CPLSPrintf(&quot;&lt;%sPropertyIsNull&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     352 </span><span class="lineCov">          6 :         if (!WFS_ExprDumpAsOGCFilter(osFilter, poExpr-&gt;papoSubExpr[0], FALSE, psOptions))</span>
+<span class="lineNum">     353 </span><span class="lineCov">          4 :             return false;</span>
+<span class="lineNum">     354 </span><span class="lineCov">          2 :         osFilter += CPLSPrintf(&quot;&lt;/%sPropertyIsNull&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     355 </span><span class="lineCov">          2 :         psOptions-&gt;bOutNeedsNullCheck = TRUE;</span>
+<span class="lineNum">     356 </span><span class="lineCov">          2 :         return true;</span>
+<span class="lineNum">     357 </span>            :     }
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineCov">        247 :     if( poExpr-&gt;nOperation == SWQ_EQ ||</span>
+<span class="lineNum">     360 </span><span class="lineCov">        196 :         poExpr-&gt;nOperation == SWQ_NE ||</span>
+<span class="lineNum">     361 </span><span class="lineCov">        192 :         poExpr-&gt;nOperation == SWQ_LE ||</span>
+<span class="lineNum">     362 </span><span class="lineCov">        188 :         poExpr-&gt;nOperation == SWQ_LT ||</span>
+<span class="lineNum">     363 </span><span class="lineCov">        184 :         poExpr-&gt;nOperation == SWQ_GE ||</span>
+<span class="lineNum">     364 </span><span class="lineCov">         91 :         poExpr-&gt;nOperation == SWQ_GT )</span>
+<span class="lineNum">     365 </span>            :     {
+<span class="lineNum">     366 </span><span class="lineCov">         59 :         int nOperation = poExpr-&gt;nOperation;</span>
+<span class="lineNum">     367 </span><span class="lineCov">         59 :         bool bAddClosingNot = false;</span>
+<span class="lineNum">     368 </span><span class="lineCov">         59 :         if( !psOptions-&gt;bPropertyIsNotEqualToSupported &amp;&amp; nOperation == SWQ_NE )</span>
+<span class="lineNum">     369 </span>            :         {
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :             osFilter += CPLSPrintf(&quot;&lt;%sNot&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :             nOperation = SWQ_EQ;</span>
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :             bAddClosingNot = true;</span>
+<span class="lineNum">     373 </span>            :         }
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span><span class="lineCov">         59 :         const char* pszName = nullptr;</span>
+<span class="lineNum">     376 </span><span class="lineCov">         59 :         switch(nOperation)</span>
+<span class="lineNum">     377 </span>            :         {
+<span class="lineNum">     378 </span><span class="lineCov">         49 :             case SWQ_EQ:  pszName = &quot;PropertyIsEqualTo&quot;; break;</span>
+<span class="lineNum">     379 </span><span class="lineCov">          2 :             case SWQ_NE:  pszName = &quot;PropertyIsNotEqualTo&quot;; break;</span>
+<span class="lineNum">     380 </span><span class="lineCov">          2 :             case SWQ_LE:  pszName = &quot;PropertyIsLessThanOrEqualTo&quot;; break;</span>
+<span class="lineNum">     381 </span><span class="lineCov">          2 :             case SWQ_LT:  pszName = &quot;PropertyIsLessThan&quot;; break;</span>
+<span class="lineNum">     382 </span><span class="lineCov">          2 :             case SWQ_GE:  pszName = &quot;PropertyIsGreaterThanOrEqualTo&quot;; break;</span>
+<span class="lineNum">     383 </span><span class="lineCov">          2 :             case SWQ_GT:  pszName = &quot;PropertyIsGreaterThan&quot;; break;</span>
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :             default: break;</span>
+<span class="lineNum">     385 </span>            :         }
+<span class="lineNum">     386 </span><span class="lineCov">         59 :         osFilter += &quot;&lt;&quot;;</span>
+<span class="lineNum">     387 </span><span class="lineCov">         59 :         osFilter += psOptions-&gt;pszNSPrefix;</span>
+<span class="lineNum">     388 </span><span class="lineCov">         59 :         osFilter += pszName;</span>
+<span class="lineNum">     389 </span><span class="lineCov">         59 :         osFilter += &quot;&gt;&quot;;</span>
+<span class="lineNum">     390 </span><span class="lineCov">         59 :         if (!WFS_ExprDumpAsOGCFilter(osFilter, poExpr-&gt;papoSubExpr[0], FALSE, psOptions))</span>
+<span class="lineNum">     391 </span><span class="lineCov">          2 :             return false;</span>
+<span class="lineNum">     392 </span><span class="lineCov">         57 :         if (!WFS_ExprDumpAsOGCFilter(osFilter, poExpr-&gt;papoSubExpr[1], FALSE, psOptions))</span>
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     394 </span><span class="lineCov">         57 :         osFilter += &quot;&lt;/&quot;;</span>
+<span class="lineNum">     395 </span><span class="lineCov">         57 :         osFilter += psOptions-&gt;pszNSPrefix;</span>
+<span class="lineNum">     396 </span><span class="lineCov">         57 :         osFilter += pszName;</span>
+<span class="lineNum">     397 </span><span class="lineCov">         57 :         osFilter += &quot;&gt;&quot;;</span>
+<span class="lineNum">     398 </span><span class="lineCov">         57 :         if( bAddClosingNot )</span>
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :             osFilter += CPLSPrintf(&quot;&lt;/%sNot&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     400 </span><span class="lineCov">         57 :         return true;</span>
+<span class="lineNum">     401 </span>            :     }
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span><span class="lineCov">        167 :     if( poExpr-&gt;nOperation == SWQ_AND ||</span>
+<span class="lineNum">     404 </span><span class="lineCov">         78 :         poExpr-&gt;nOperation == SWQ_OR )</span>
+<span class="lineNum">     405 </span>            :     {
+<span class="lineNum">     406 </span><span class="lineCov">         39 :         const char* pszName = (poExpr-&gt;nOperation == SWQ_AND) ? &quot;And&quot; : &quot;Or&quot;;</span>
+<span class="lineNum">     407 </span><span class="lineCov">         39 :         osFilter += &quot;&lt;&quot;;</span>
+<span class="lineNum">     408 </span><span class="lineCov">         39 :         osFilter += psOptions-&gt;pszNSPrefix;</span>
+<span class="lineNum">     409 </span><span class="lineCov">         39 :         osFilter += pszName;</span>
+<span class="lineNum">     410 </span><span class="lineCov">         39 :         osFilter += &quot;&gt;&quot;;</span>
+<span class="lineNum">     411 </span><span class="lineCov">         39 :         if (!WFS_ExprDumpAsOGCFilter(osFilter, poExpr-&gt;papoSubExpr[0], TRUE, psOptions))</span>
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     413 </span><span class="lineCov">         39 :         if (!WFS_ExprDumpAsOGCFilter(osFilter, poExpr-&gt;papoSubExpr[1], TRUE, psOptions))</span>
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     415 </span><span class="lineCov">         39 :         osFilter += &quot;&lt;/&quot;;</span>
+<span class="lineNum">     416 </span><span class="lineCov">         39 :         osFilter += psOptions-&gt;pszNSPrefix;</span>
+<span class="lineNum">     417 </span><span class="lineCov">         39 :         osFilter += pszName;</span>
+<span class="lineNum">     418 </span><span class="lineCov">         39 :         osFilter += &quot;&gt;&quot;;</span>
+<span class="lineNum">     419 </span><span class="lineCov">         39 :         return true;</span>
+<span class="lineNum">     420 </span>            :     }
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineCov">        100 :     if( poExpr-&gt;nOperation == SWQ_CUSTOM_FUNC &amp;&amp;</span>
+<span class="lineNum">     423 </span><span class="lineCov">         50 :         EQUAL(poExpr-&gt;string_value, &quot;ST_MakeEnvelope&quot;) )</span>
+<span class="lineNum">     424 </span>            :     {
+<span class="lineNum">     425 </span><span class="lineCov">         13 :         OGRSpatialReference oSRS;</span>
+<span class="lineNum">     426 </span><span class="lineCov">         13 :         const char* pszSRSName = WFS_ExprGetSRSName( poExpr, 4, psOptions, oSRS );</span>
+<span class="lineNum">     427 </span><span class="lineCov">         13 :         bool bAxisSwap = false;</span>
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineCov">         13 :         osFilter += &quot;&lt;gml:Envelope&quot;;</span>
+<span class="lineNum">     430 </span><span class="lineCov">         13 :         if( pszSRSName )</span>
+<span class="lineNum">     431 </span>            :         {
+<span class="lineNum">     432 </span><span class="lineCov">         13 :             osFilter += &quot; srsName=\&quot;&quot;;</span>
+<span class="lineNum">     433 </span><span class="lineCov">         13 :             osFilter += pszSRSName;</span>
+<span class="lineNum">     434 </span><span class="lineCov">         13 :             osFilter += &quot;\&quot;&quot;;</span>
+<span class="lineNum">     435 </span><span class="lineCov">         33 :             if( !STARTS_WITH_CI(pszSRSName, &quot;EPSG:&quot;) &amp;&amp;</span>
+<span class="lineNum">     436 </span><span class="lineCov">         13 :                 (oSRS.EPSGTreatsAsLatLong() || oSRS.EPSGTreatsAsNorthingEasting()) )</span>
+<span class="lineNum">     437 </span><span class="lineCov">          9 :                 bAxisSwap = true;</span>
+<span class="lineNum">     438 </span>            :         }
+<span class="lineNum">     439 </span><span class="lineCov">         13 :         osFilter += &quot;&gt;&quot;;</span>
+<span class="lineNum">     440 </span><span class="lineCov">         13 :         osFilter += &quot;&lt;gml:lowerCorner&gt;&quot;;</span>
+<span class="lineNum">     441 </span><span class="lineCov">         13 :         if (!WFS_ExprDumpRawLitteral(osFilter, poExpr-&gt;papoSubExpr[bAxisSwap ? 1 : 0]))</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     443 </span><span class="lineCov">         13 :         osFilter += &quot; &quot;;</span>
+<span class="lineNum">     444 </span><span class="lineCov">         13 :         if (!WFS_ExprDumpRawLitteral(osFilter, poExpr-&gt;papoSubExpr[bAxisSwap ? 0 : 1]))</span>
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     446 </span><span class="lineCov">         13 :         osFilter += &quot;&lt;/gml:lowerCorner&gt;&quot;;</span>
+<span class="lineNum">     447 </span><span class="lineCov">         13 :         osFilter += &quot;&lt;gml:upperCorner&gt;&quot;;</span>
+<span class="lineNum">     448 </span><span class="lineCov">         13 :         if (!WFS_ExprDumpRawLitteral(osFilter, poExpr-&gt;papoSubExpr[bAxisSwap ? 3 : 2]))</span>
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     450 </span><span class="lineCov">         13 :         osFilter += &quot; &quot;;</span>
+<span class="lineNum">     451 </span><span class="lineCov">         13 :         if (!WFS_ExprDumpRawLitteral(osFilter, poExpr-&gt;papoSubExpr[bAxisSwap ? 2 : 3]))</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     453 </span><span class="lineCov">         13 :         osFilter += &quot;&lt;/gml:upperCorner&gt;&quot;;</span>
+<span class="lineNum">     454 </span><span class="lineCov">         13 :         osFilter += &quot;&lt;/gml:Envelope&gt;&quot;;</span>
+<span class="lineNum">     455 </span><span class="lineCov">         13 :         return true;</span>
+<span class="lineNum">     456 </span>            :     }
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span><span class="lineCov">         74 :     if( poExpr-&gt;nOperation == SWQ_CUSTOM_FUNC &amp;&amp;</span>
+<span class="lineNum">     459 </span><span class="lineCov">         37 :         EQUAL(poExpr-&gt;string_value, &quot;ST_GeomFromText&quot;) )</span>
+<span class="lineNum">     460 </span>            :     {
+<span class="lineNum">     461 </span><span class="lineCov">         12 :         OGRSpatialReference oSRS;</span>
+<span class="lineNum">     462 </span><span class="lineCov">         12 :         const char* pszSRSName = WFS_ExprGetSRSName( poExpr, 1, psOptions, oSRS );</span>
+<span class="lineNum">     463 </span><span class="lineCov">         12 :         OGRGeometry* poGeom = nullptr;</span>
+<span class="lineNum">     464 </span><span class="lineCov">         12 :         const char* pszWKT = poExpr-&gt;papoSubExpr[0]-&gt;string_value;</span>
+<span class="lineNum">     465 </span><span class="lineCov">         12 :         OGRGeometryFactory::createFromWkt(pszWKT, nullptr, &amp;poGeom);</span>
+<span class="lineNum">     466 </span><span class="lineCov">         12 :         char** papszOptions = nullptr;</span>
+<span class="lineNum">     467 </span><span class="lineCov">         12 :         papszOptions = CSLSetNameValue(papszOptions, &quot;FORMAT&quot;, &quot;GML3&quot;);</span>
+<span class="lineNum">     468 </span><span class="lineCov">         12 :         if( pszSRSName != nullptr )</span>
+<span class="lineNum">     469 </span>            :         {
+<span class="lineNum">     470 </span><span class="lineCov">         12 :             oSRS.SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">     471 </span>            : 
+<span class="lineNum">     472 </span><span class="lineCov">         12 :             if( STARTS_WITH_CI(pszSRSName, &quot;urn:ogc:def:crs:EPSG::&quot;) )</span>
+<span class="lineNum">     473 </span><span class="lineCov">          8 :                 papszOptions = CSLSetNameValue(papszOptions, &quot;GML3_LONGSRS&quot;, &quot;YES&quot;);</span>
+<span class="lineNum">     474 </span>            :             else
+<span class="lineNum">     475 </span><span class="lineCov">          4 :                 papszOptions = CSLSetNameValue(papszOptions, &quot;GML3_LONGSRS&quot;, &quot;NO&quot;);</span>
+<span class="lineNum">     476 </span>            : 
+<span class="lineNum">     477 </span><span class="lineCov">         12 :             poGeom-&gt;assignSpatialReference(&amp;oSRS);</span>
+<span class="lineNum">     478 </span>            :         }
+<span class="lineNum">     479 </span>            :         papszOptions = CSLSetNameValue(papszOptions, &quot;GMLID&quot;,
+<span class="lineNum">     480 </span><span class="lineCov">         12 :                                        CPLSPrintf(&quot;id%d&quot;, psOptions-&gt;nUniqueGeomGMLId ++));</span>
+<span class="lineNum">     481 </span><span class="lineCov">         12 :         char* pszGML = OGR_G_ExportToGMLEx( (OGRGeometryH)poGeom, papszOptions );</span>
+<span class="lineNum">     482 </span><span class="lineCov">         12 :         osFilter += pszGML;</span>
+<span class="lineNum">     483 </span><span class="lineCov">         12 :         CSLDestroy(papszOptions);</span>
+<span class="lineNum">     484 </span><span class="lineCov">         12 :         delete poGeom;</span>
+<span class="lineNum">     485 </span><span class="lineCov">         12 :         CPLFree(pszGML);</span>
+<span class="lineNum">     486 </span><span class="lineCov">         12 :         return true;</span>
+<span class="lineNum">     487 </span>            :     }
+<span class="lineNum">     488 </span>            : 
+<span class="lineNum">     489 </span><span class="lineCov">         25 :     if( poExpr-&gt;nOperation == SWQ_CUSTOM_FUNC )</span>
+<span class="lineNum">     490 </span>            :     {
+<span class="lineNum">     491 </span>            :         const char* pszName =
+<span class="lineNum">     492 </span><span class="lineCov">         25 :             EQUAL(poExpr-&gt;string_value, &quot;ST_Equals&quot;) ? &quot;Equals&quot; :</span>
+<span class="lineNum">     493 </span><span class="lineCov">         25 :             EQUAL(poExpr-&gt;string_value, &quot;ST_Disjoint&quot;) ? &quot;Disjoint&quot; :</span>
+<span class="lineNum">     494 </span><span class="lineCov">         25 :             EQUAL(poExpr-&gt;string_value, &quot;ST_Touches&quot;) ? &quot;Touches&quot; :</span>
+<span class="lineNum">     495 </span><span class="lineCov">         25 :             EQUAL(poExpr-&gt;string_value, &quot;ST_Contains&quot;) ? &quot;Contains&quot; :</span>
+<span class="lineNum">     496 </span><span class="lineCov">         25 :             EQUAL(poExpr-&gt;string_value, &quot;ST_Intersects&quot;) ? &quot;Intersects&quot; :</span>
+<span class="lineNum">     497 </span><span class="lineCov">          4 :             EQUAL(poExpr-&gt;string_value, &quot;ST_Within&quot;) ? &quot;Within&quot; :</span>
+<span class="lineNum">     498 </span><span class="lineCov">          2 :             EQUAL(poExpr-&gt;string_value, &quot;ST_Crosses&quot;) ? &quot;Crosses&quot; :</span>
+<span class="lineNum">     499 </span><span class="lineCov">          2 :             EQUAL(poExpr-&gt;string_value, &quot;ST_Overlaps&quot;) ? &quot;Overlaps&quot; :</span>
+<span class="lineNum">     500 </span><span class="lineCov">          2 :             EQUAL(poExpr-&gt;string_value, &quot;ST_DWithin&quot;) ? &quot;DWithin&quot; :</span>
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :             EQUAL(poExpr-&gt;string_value, &quot;ST_Beyond&quot;) ? &quot;Beyond&quot; :</span>
+<span class="lineNum">     502 </span><span class="lineCov">        135 :             nullptr;</span>
+<span class="lineNum">     503 </span><span class="lineCov">         25 :         if( pszName == nullptr )</span>
+<span class="lineNum">     504 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     505 </span><span class="lineCov">         25 :         osFilter += &quot;&lt;&quot;;</span>
+<span class="lineNum">     506 </span><span class="lineCov">         25 :         osFilter += psOptions-&gt;pszNSPrefix;</span>
+<span class="lineNum">     507 </span><span class="lineCov">         25 :         osFilter += pszName;</span>
+<span class="lineNum">     508 </span><span class="lineCov">         25 :         osFilter += &quot;&gt;&quot;;</span>
+<span class="lineNum">     509 </span><span class="lineCov">         75 :         for(int i=0;i&lt;2;i++)</span>
+<span class="lineNum">     510 </span>            :         {
+<span class="lineNum">     511 </span><span class="lineCov">         75 :             if( i == 1 &amp;&amp; poExpr-&gt;papoSubExpr[0]-&gt;eNodeType == SNT_COLUMN &amp;&amp;</span>
+<span class="lineNum">     512 </span><span class="lineCov">         50 :                 poExpr-&gt;papoSubExpr[1]-&gt;eNodeType == SNT_OPERATION &amp;&amp;</span>
+<span class="lineNum">     513 </span><span class="lineCov">         50 :                 poExpr-&gt;papoSubExpr[1]-&gt;nOperation == SWQ_CUSTOM_FUNC &amp;&amp;</span>
+<span class="lineNum">     514 </span><span class="lineCov">         38 :                 (EQUAL(poExpr-&gt;papoSubExpr[1]-&gt;string_value, &quot;ST_GeomFromText&quot;) ||</span>
+<span class="lineNum">     515 </span><span class="lineCov">         13 :                  EQUAL(poExpr-&gt;papoSubExpr[1]-&gt;string_value, &quot;ST_MakeEnvelope&quot;)) )</span>
+<span class="lineNum">     516 </span>            :             {
+<span class="lineNum">     517 </span><span class="lineCov">         69 :                 int bSameTable = psOptions-&gt;poFDefn != nullptr &amp;&amp;</span>
+<span class="lineNum">     518 </span><span class="lineCov">         22 :                                 ( poExpr-&gt;papoSubExpr[0]-&gt;table_name == nullptr ||</span>
+<span class="lineNum">     519 </span><span class="lineCov">         25 :                                 EQUAL(poExpr-&gt;papoSubExpr[0]-&gt;table_name, psOptions-&gt;poFDefn-&gt;GetName()) );</span>
+<span class="lineNum">     520 </span><span class="lineCov">         25 :                 if( bSameTable )</span>
+<span class="lineNum">     521 </span>            :                 {
+<span class="lineNum">     522 </span>            :                     const int nIndex =
+<span class="lineNum">     523 </span>            :                         psOptions-&gt;poFDefn-&gt;
+<span class="lineNum">     524 </span><span class="lineCov">         22 :                         GetGeomFieldIndex(poExpr-&gt;papoSubExpr[0]-&gt;string_value);</span>
+<span class="lineNum">     525 </span><span class="lineCov">         22 :                     if( nIndex  &gt;= 0 )</span>
+<span class="lineNum">     526 </span>            :                     {
+<span class="lineNum">     527 </span><span class="lineCov">         22 :                         psOptions-&gt;poSRS = psOptions-&gt;poFDefn-&gt;GetGeomFieldDefn(nIndex)-&gt;GetSpatialRef();</span>
+<span class="lineNum">     528 </span>            :                     }
+<span class="lineNum">     529 </span>            :                 }
+<span class="lineNum">     530 </span><span class="lineCov">          3 :                 else if( psOptions-&gt;poDS != nullptr )</span>
+<span class="lineNum">     531 </span>            :                 {
+<span class="lineNum">     532 </span><span class="lineCov">          2 :                     OGRLayer* poLayer = psOptions-&gt;poDS-&gt;GetLayerByName(poExpr-&gt;papoSubExpr[0]-&gt;table_name);</span>
+<span class="lineNum">     533 </span><span class="lineCov">          2 :                     if( poLayer )</span>
+<span class="lineNum">     534 </span>            :                     {
+<span class="lineNum">     535 </span><span class="lineCov">          2 :                         OGRFeatureDefn* poFDefn = poLayer-&gt;GetLayerDefn();</span>
+<span class="lineNum">     536 </span>            :                         const int nIndex =
+<span class="lineNum">     537 </span>            :                             poFDefn-&gt;GetGeomFieldIndex(
+<span class="lineNum">     538 </span><span class="lineCov">          2 :                                 poExpr-&gt;papoSubExpr[0]-&gt;string_value);</span>
+<span class="lineNum">     539 </span><span class="lineCov">          2 :                         if( nIndex &gt;= 0 )</span>
+<span class="lineNum">     540 </span>            :                         {
+<span class="lineNum">     541 </span><span class="lineCov">          2 :                             psOptions-&gt;poSRS = poFDefn-&gt;GetGeomFieldDefn(nIndex)-&gt;GetSpatialRef();</span>
+<span class="lineNum">     542 </span>            :                         }
+<span class="lineNum">     543 </span>            :                     }
+<span class="lineNum">     544 </span>            :                 }
+<span class="lineNum">     545 </span>            :             }
+<span class="lineNum">     546 </span>            :             const bool bRet =
+<span class="lineNum">     547 </span><span class="lineCov">         50 :                 WFS_ExprDumpAsOGCFilter(osFilter, poExpr-&gt;papoSubExpr[i],</span>
+<span class="lineNum">     548 </span><span class="lineCov">         50 :                                         FALSE, psOptions);</span>
+<span class="lineNum">     549 </span><span class="lineCov">         50 :             psOptions-&gt;poSRS = nullptr;</span>
+<span class="lineNum">     550 </span><span class="lineCov">         50 :             if( !bRet )</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     552 </span>            :         }
+<span class="lineNum">     553 </span><span class="lineCov">         25 :         if( poExpr-&gt;nSubExprCount &gt; 2 )</span>
+<span class="lineNum">     554 </span>            :         {
+<span class="lineNum">     555 </span><span class="lineCov">          2 :             osFilter += CPLSPrintf(&quot;&lt;%sDistance unit=\&quot;m\&quot;&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     556 </span><span class="lineCov">          2 :             if (!WFS_ExprDumpRawLitteral(osFilter, poExpr-&gt;papoSubExpr[2]) )</span>
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     558 </span><span class="lineCov">          2 :             osFilter += CPLSPrintf(&quot;&lt;/%sDistance&gt;&quot;, psOptions-&gt;pszNSPrefix);</span>
+<span class="lineNum">     559 </span>            :         }
+<span class="lineNum">     560 </span><span class="lineCov">         25 :         osFilter += &quot;&lt;/&quot;;</span>
+<span class="lineNum">     561 </span><span class="lineCov">         25 :         osFilter += psOptions-&gt;pszNSPrefix;</span>
+<span class="lineNum">     562 </span><span class="lineCov">         25 :         osFilter += pszName;</span>
+<span class="lineNum">     563 </span><span class="lineCov">         25 :         osFilter += &quot;&gt;&quot;;</span>
+<span class="lineNum">     564 </span><span class="lineCov">         25 :         return true;</span>
+<span class="lineNum">     565 </span>            :     }
+<span class="lineNum">     566 </span>            : 
+<span class="lineNum">     567 </span><span class="lineNoCov">          0 :     return false;</span>
+<span class="lineNum">     568 </span>            : }
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span>            : /************************************************************************/
+<span class="lineNum">     571 </span>            : /*               WFS_TurnSQLFilterToOGCFilter()                         */
+<a name="572"><span class="lineNum">     572 </span>            : /************************************************************************/</a>
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span><span class="lineCov">         74 : CPLString WFS_TurnSQLFilterToOGCFilter( const swq_expr_node* poExpr,</span>
+<span class="lineNum">     575 </span>            :                                         OGRDataSource* poDS,
+<span class="lineNum">     576 </span>            :                                         OGRFeatureDefn* poFDefn,
+<span class="lineNum">     577 </span>            :                                         int nVersion,
+<span class="lineNum">     578 </span>            :                                         int bPropertyIsNotEqualToSupported,
+<span class="lineNum">     579 </span>            :                                         int bUseFeatureId,
+<span class="lineNum">     580 </span>            :                                         int bGmlObjectIdNeedsGMLPrefix,
+<span class="lineNum">     581 </span>            :                                         const char* pszNSPrefix,
+<span class="lineNum">     582 </span>            :                                         int* pbOutNeedsNullCheck )
+<span class="lineNum">     583 </span>            : {
+<span class="lineNum">     584 </span><span class="lineCov">         74 :     CPLString osFilter;</span>
+<span class="lineNum">     585 </span>            :     /* If the filter is only made of querying one or several gml_id */
+<span class="lineNum">     586 </span>            :     /* (with OR operator), we turn this to &lt;GmlObjectId&gt; list */
+<span class="lineNum">     587 </span><span class="lineCov">         74 :     if (!WFS_ExprDumpGmlObjectIdFilter(osFilter, poExpr, bUseFeatureId,</span>
+<span class="lineNum">     588 </span><span class="lineCov">         74 :                                        bGmlObjectIdNeedsGMLPrefix, nVersion))</span>
+<span class="lineNum">     589 </span>            :     {
+<span class="lineNum">     590 </span>            :         ExprDumpFilterOptions sOptions;
+<span class="lineNum">     591 </span><span class="lineCov">         54 :         sOptions.nVersion = nVersion;</span>
+<span class="lineNum">     592 </span>            :         sOptions.bPropertyIsNotEqualToSupported =
+<span class="lineNum">     593 </span><span class="lineCov">         54 :             CPL_TO_BOOL(bPropertyIsNotEqualToSupported);</span>
+<span class="lineNum">     594 </span><span class="lineCov">         54 :         sOptions.bOutNeedsNullCheck = FALSE;</span>
+<span class="lineNum">     595 </span><span class="lineCov">         54 :         sOptions.poDS = poDS;</span>
+<span class="lineNum">     596 </span><span class="lineCov">         54 :         sOptions.poFDefn = poFDefn;</span>
+<span class="lineNum">     597 </span><span class="lineCov">         54 :         sOptions.nUniqueGeomGMLId = 1;</span>
+<span class="lineNum">     598 </span><span class="lineCov">         54 :         sOptions.poSRS = nullptr;</span>
+<span class="lineNum">     599 </span><span class="lineCov">         54 :         sOptions.pszNSPrefix = pszNSPrefix;</span>
+<span class="lineNum">     600 </span><span class="lineCov">         54 :         osFilter = &quot;&quot;;</span>
+<span class="lineNum">     601 </span><span class="lineCov">         54 :         if( !WFS_ExprDumpAsOGCFilter(osFilter, poExpr, TRUE, &amp;sOptions) )</span>
+<span class="lineNum">     602 </span><span class="lineCov">          6 :             osFilter = &quot;&quot;;</span>
+<span class="lineNum">     603 </span>            :         /*else
+<span class="lineNum">     604 </span>            :             CPLDebug(&quot;WFS&quot;, &quot;Filter %s&quot;, osFilter.c_str());*/
+<span class="lineNum">     605 </span><span class="lineCov">         54 :         *pbOutNeedsNullCheck = sOptions.bOutNeedsNullCheck;</span>
+<span class="lineNum">     606 </span>            :     }
+<span class="lineNum">     607 </span>            : 
+<span class="lineNum">     608 </span><span class="lineCov">         74 :     return osFilter;</span>
+<span class="lineNum">     609 </span>            : }
+<span class="lineNum">     610 </span>            : 
+<span class="lineNum">     611 </span>            : /************************************************************************/
+<span class="lineNum">     612 </span>            : /*                  OGRWFSSpatialBooleanPredicateChecker()              */
+<a name="613"><span class="lineNum">     613 </span>            : /************************************************************************/</a>
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span><span class="lineCov">         35 : static swq_field_type OGRWFSSpatialBooleanPredicateChecker( swq_expr_node *op,</span>
+<span class="lineNum">     616 </span>            :                                                CPL_UNUSED int bAllowMismatchTypeOnFieldComparison )
+<span class="lineNum">     617 </span>            : {
+<span class="lineNum">     618 </span><span class="lineCov">         35 :     if( op-&gt;nSubExprCount != 2 )</span>
+<span class="lineNum">     619 </span>            :     {
+<span class="lineNum">     620 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong number of arguments for %s&quot;,
+<span class="lineNum">     621 </span><span class="lineCov">          2 :                  op-&gt;string_value);</span>
+<span class="lineNum">     622 </span><span class="lineCov">          2 :         return SWQ_ERROR;</span>
+<span class="lineNum">     623 </span>            :     }
+<span class="lineNum">     624 </span><span class="lineCov">         97 :     for(int i=0;i&lt;op-&gt;nSubExprCount;i++)</span>
+<span class="lineNum">     625 </span>            :     {
+<span class="lineNum">     626 </span><span class="lineCov">         66 :         if( op-&gt;papoSubExpr[i]-&gt;field_type != SWQ_GEOMETRY )</span>
+<span class="lineNum">     627 </span>            :         {
+<span class="lineNum">     628 </span>            :             CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong field type for argument %d of %s&quot;,
+<span class="lineNum">     629 </span><span class="lineCov">          2 :                      i+1, op-&gt;string_value);</span>
+<span class="lineNum">     630 </span><span class="lineCov">          2 :             return SWQ_ERROR;</span>
+<span class="lineNum">     631 </span>            :         }
+<span class="lineNum">     632 </span>            :     }
+<span class="lineNum">     633 </span><span class="lineCov">         31 :     return SWQ_BOOLEAN;</span>
+<span class="lineNum">     634 </span>            : }
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span>            : /************************************************************************/
+<span class="lineNum">     637 </span>            : /*                           OGRWFSCheckSRIDArg()                       */
+<a name="638"><span class="lineNum">     638 </span>            : /************************************************************************/</a>
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span><span class="lineCov">         27 : static bool OGRWFSCheckSRIDArg( swq_expr_node *op, int iSubArgIndex )</span>
+<span class="lineNum">     641 </span>            : {
+<span class="lineNum">     642 </span><span class="lineCov">         27 :     if( op-&gt;papoSubExpr[iSubArgIndex]-&gt;field_type == SWQ_INTEGER )</span>
+<span class="lineNum">     643 </span>            :     {
+<span class="lineNum">     644 </span><span class="lineCov">         13 :         OGRSpatialReference oSRS;</span>
+<span class="lineNum">     645 </span><span class="lineCov">         13 :         if( oSRS.importFromEPSGA((int)op-&gt;papoSubExpr[iSubArgIndex]-&gt;int_value) != OGRERR_NONE )</span>
+<span class="lineNum">     646 </span>            :         {
+<span class="lineNum">     647 </span>            :             CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong value for argument %d of %s&quot;,
+<span class="lineNum">     648 </span><span class="lineCov">          2 :                      iSubArgIndex + 1, op-&gt;string_value);</span>
+<span class="lineNum">     649 </span><span class="lineCov">          2 :             return false;</span>
+<span class="lineNum">     650 </span><span class="lineCov">         11 :         }</span>
+<span class="lineNum">     651 </span>            :     }
+<span class="lineNum">     652 </span><span class="lineCov">         14 :     else if( op-&gt;papoSubExpr[iSubArgIndex]-&gt;field_type == SWQ_STRING )</span>
+<span class="lineNum">     653 </span>            :     {
+<span class="lineNum">     654 </span><span class="lineCov">         12 :         OGRSpatialReference oSRS;</span>
+<span class="lineNum">     655 </span><span class="lineCov">         12 :         if( oSRS.SetFromUserInput(op-&gt;papoSubExpr[iSubArgIndex]-&gt;string_value) != OGRERR_NONE )</span>
+<span class="lineNum">     656 </span>            :         {
+<span class="lineNum">     657 </span>            :             CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong value for argument %d of %s&quot;,
+<span class="lineNum">     658 </span><span class="lineCov">          4 :                      iSubArgIndex + 1, op-&gt;string_value);</span>
+<span class="lineNum">     659 </span><span class="lineCov">          4 :             return false;</span>
+<span class="lineNum">     660 </span><span class="lineCov">          8 :         }</span>
+<span class="lineNum">     661 </span>            :     }
+<span class="lineNum">     662 </span>            :     else
+<span class="lineNum">     663 </span>            :     {
+<span class="lineNum">     664 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong field type for argument %d of %s&quot;,
+<span class="lineNum">     665 </span><span class="lineCov">          2 :                  iSubArgIndex + 1, op-&gt;string_value);</span>
+<span class="lineNum">     666 </span><span class="lineCov">          2 :         return false;</span>
+<span class="lineNum">     667 </span>            :     }
+<span class="lineNum">     668 </span><span class="lineCov">         19 :     return true;</span>
+<span class="lineNum">     669 </span>            : }
+<span class="lineNum">     670 </span>            : 
+<span class="lineNum">     671 </span>            : /************************************************************************/
+<span class="lineNum">     672 </span>            : /*                   OGRWFSMakeEnvelopeChecker()                        */
+<a name="673"><span class="lineNum">     673 </span>            : /************************************************************************/</a>
+<span class="lineNum">     674 </span>            : 
+<span class="lineNum">     675 </span><span class="lineCov">         23 : static swq_field_type OGRWFSMakeEnvelopeChecker( swq_expr_node *op,</span>
+<span class="lineNum">     676 </span>            :                                                  CPL_UNUSED int bAllowMismatchTypeOnFieldComparison )
+<span class="lineNum">     677 </span>            : {
+<span class="lineNum">     678 </span><span class="lineCov">         23 :     if( op-&gt;nSubExprCount != 4 &amp;&amp; op-&gt;nSubExprCount != 5 )</span>
+<span class="lineNum">     679 </span>            :     {
+<span class="lineNum">     680 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong number of arguments for %s&quot;,
+<span class="lineNum">     681 </span><span class="lineCov">          2 :                  op-&gt;string_value);</span>
+<span class="lineNum">     682 </span><span class="lineCov">          2 :         return SWQ_ERROR;</span>
+<span class="lineNum">     683 </span>            :     }
+<span class="lineNum">     684 </span><span class="lineCov">        103 :     for(int i=0;i&lt;4;i++)</span>
+<span class="lineNum">     685 </span>            :     {
+<span class="lineNum">     686 </span><span class="lineCov">        118 :         if( op-&gt;papoSubExpr[i]-&gt;field_type != SWQ_INTEGER &amp;&amp;</span>
+<span class="lineNum">     687 </span><span class="lineCov">         68 :             op-&gt;papoSubExpr[i]-&gt;field_type != SWQ_INTEGER64 &amp;&amp;</span>
+<span class="lineNum">     688 </span><span class="lineCov">         34 :             op-&gt;papoSubExpr[i]-&gt;field_type != SWQ_FLOAT )</span>
+<span class="lineNum">     689 </span>            :         {
+<span class="lineNum">     690 </span>            :             CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong field type for argument %d of %s&quot;,
+<span class="lineNum">     691 </span><span class="lineCov">          2 :                      i+1, op-&gt;string_value);</span>
+<span class="lineNum">     692 </span><span class="lineCov">          2 :             return SWQ_ERROR;</span>
+<span class="lineNum">     693 </span>            :         }
+<span class="lineNum">     694 </span>            :     }
+<span class="lineNum">     695 </span><span class="lineCov">         19 :     if( op-&gt;nSubExprCount == 5 )</span>
+<span class="lineNum">     696 </span>            :     {
+<span class="lineNum">     697 </span><span class="lineCov">         13 :         if( !OGRWFSCheckSRIDArg( op, 4 ) )</span>
+<span class="lineNum">     698 </span><span class="lineCov">          6 :             return SWQ_ERROR;</span>
+<span class="lineNum">     699 </span>            :     }
+<span class="lineNum">     700 </span><span class="lineCov">         13 :     return SWQ_GEOMETRY;</span>
+<span class="lineNum">     701 </span>            : }
+<span class="lineNum">     702 </span>            : 
+<span class="lineNum">     703 </span>            : /************************************************************************/
+<span class="lineNum">     704 </span>            : /*                   OGRWFSGeomFromTextChecker()                        */
+<a name="705"><span class="lineNum">     705 </span>            : /************************************************************************/</a>
+<span class="lineNum">     706 </span>            : 
+<span class="lineNum">     707 </span><span class="lineCov">         28 : static swq_field_type OGRWFSGeomFromTextChecker( swq_expr_node *op,</span>
+<span class="lineNum">     708 </span>            :                                                  CPL_UNUSED int bAllowMismatchTypeOnFieldComparison )
+<span class="lineNum">     709 </span>            : {
+<span class="lineNum">     710 </span><span class="lineCov">         28 :     if( op-&gt;nSubExprCount != 1&amp;&amp; op-&gt;nSubExprCount != 2 )</span>
+<span class="lineNum">     711 </span>            :     {
+<span class="lineNum">     712 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong number of arguments for %s&quot;,
+<span class="lineNum">     713 </span><span class="lineCov">          2 :                  op-&gt;string_value);</span>
+<span class="lineNum">     714 </span><span class="lineCov">          2 :         return SWQ_ERROR;</span>
+<span class="lineNum">     715 </span>            :     }
+<span class="lineNum">     716 </span><span class="lineCov">         26 :     if( op-&gt;papoSubExpr[0]-&gt;field_type != SWQ_STRING )</span>
+<span class="lineNum">     717 </span>            :     {
+<span class="lineNum">     718 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong field type for argument %d of %s&quot;,
+<span class="lineNum">     719 </span><span class="lineCov">          2 :                     1, op-&gt;string_value);</span>
+<span class="lineNum">     720 </span><span class="lineCov">          2 :         return SWQ_ERROR;</span>
+<span class="lineNum">     721 </span>            :     }
+<span class="lineNum">     722 </span><span class="lineCov">         24 :     OGRGeometry* poGeom = nullptr;</span>
+<span class="lineNum">     723 </span><span class="lineCov">         24 :     const char* pszWKT = op-&gt;papoSubExpr[0]-&gt;string_value;</span>
+<span class="lineNum">     724 </span><span class="lineCov">         24 :     if( OGRGeometryFactory::createFromWkt(pszWKT, nullptr, &amp;poGeom) != OGRERR_NONE )</span>
+<span class="lineNum">     725 </span>            :     {
+<span class="lineNum">     726 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong value for argument %d of %s&quot;,
+<span class="lineNum">     727 </span><span class="lineCov">          2 :                   1, op-&gt;string_value);</span>
+<span class="lineNum">     728 </span><span class="lineCov">          2 :         return SWQ_ERROR;</span>
+<span class="lineNum">     729 </span>            :     }
+<span class="lineNum">     730 </span><span class="lineCov">         22 :     delete poGeom;</span>
+<span class="lineNum">     731 </span><span class="lineCov">         22 :     if( op-&gt;nSubExprCount == 2 )</span>
+<span class="lineNum">     732 </span>            :     {
+<span class="lineNum">     733 </span><span class="lineCov">         14 :         if( !OGRWFSCheckSRIDArg( op, 1 ) )</span>
+<span class="lineNum">     734 </span><span class="lineCov">          2 :             return SWQ_ERROR;</span>
+<span class="lineNum">     735 </span>            :     }
+<span class="lineNum">     736 </span><span class="lineCov">         20 :     return SWQ_GEOMETRY;</span>
+<span class="lineNum">     737 </span>            : }
+<span class="lineNum">     738 </span>            : 
+<span class="lineNum">     739 </span>            : /************************************************************************/
+<span class="lineNum">     740 </span>            : /*                      OGRWFSDWithinBeyondChecker()                    */
+<a name="741"><span class="lineNum">     741 </span>            : /************************************************************************/</a>
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span><span class="lineCov">          8 : static swq_field_type OGRWFSDWithinBeyondChecker( swq_expr_node *op,</span>
+<span class="lineNum">     744 </span>            :                             CPL_UNUSED int bAllowMismatchTypeOnFieldComparison )
+<span class="lineNum">     745 </span>            : {
+<span class="lineNum">     746 </span><span class="lineCov">          8 :     if( op-&gt;nSubExprCount != 3 )</span>
+<span class="lineNum">     747 </span>            :     {
+<span class="lineNum">     748 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong number of arguments for %s&quot;,
+<span class="lineNum">     749 </span><span class="lineCov">          2 :                  op-&gt;string_value);</span>
+<span class="lineNum">     750 </span><span class="lineCov">          2 :         return SWQ_ERROR;</span>
+<span class="lineNum">     751 </span>            :     }
+<span class="lineNum">     752 </span><span class="lineCov">         16 :     for(int i=0;i&lt;2;i++)</span>
+<span class="lineNum">     753 </span>            :     {
+<span class="lineNum">     754 </span><span class="lineCov">         12 :         if( op-&gt;papoSubExpr[i]-&gt;field_type != SWQ_GEOMETRY )</span>
+<span class="lineNum">     755 </span>            :         {
+<span class="lineNum">     756 </span>            :             CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong field type for argument %d of %s&quot;,
+<span class="lineNum">     757 </span><span class="lineCov">          2 :                      i+1, op-&gt;string_value);</span>
+<span class="lineNum">     758 </span><span class="lineCov">          2 :             return SWQ_ERROR;</span>
+<span class="lineNum">     759 </span>            :         }
+<span class="lineNum">     760 </span>            :     }
+<span class="lineNum">     761 </span><span class="lineCov">          6 :     if( op-&gt;papoSubExpr[2]-&gt;field_type != SWQ_INTEGER &amp;&amp;</span>
+<span class="lineNum">     762 </span><span class="lineCov">          4 :         op-&gt;papoSubExpr[2]-&gt;field_type != SWQ_INTEGER64 &amp;&amp;</span>
+<span class="lineNum">     763 </span><span class="lineCov">          2 :         op-&gt;papoSubExpr[2]-&gt;field_type != SWQ_FLOAT )</span>
+<span class="lineNum">     764 </span>            :     {
+<span class="lineNum">     765 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Wrong field type for argument %d of %s&quot;,
+<span class="lineNum">     766 </span><span class="lineCov">          2 :                     2+1, op-&gt;string_value);</span>
+<span class="lineNum">     767 </span><span class="lineCov">          2 :         return SWQ_ERROR;</span>
+<span class="lineNum">     768 </span>            :     }
+<span class="lineNum">     769 </span><span class="lineCov">          2 :     return SWQ_BOOLEAN;</span>
+<span class="lineNum">     770 </span>            : }
+<span class="lineNum">     771 </span>            : 
+<span class="lineNum">     772 </span>            : /************************************************************************/
+<span class="lineNum">     773 </span>            : /*                   OGRWFSCustomFuncRegistrar                          */
+<a name="774"><span class="lineNum">     774 </span>            : /************************************************************************/</a>
+<span class="lineNum">     775 </span>            : 
+<span class="lineNum">     776 </span><span class="lineCov">          1 : class OGRWFSCustomFuncRegistrar: public swq_custom_func_registrar</span>
+<a name="777"><span class="lineNum">     777 </span>            : {</a>
+<span class="lineNum">     778 </span>            :     public:
+<span class="lineNum">     779 </span><span class="lineCov">          1 :         OGRWFSCustomFuncRegistrar() {}</span>
+<span class="lineNum">     780 </span>            :         virtual const swq_operation *GetOperator( const char * ) override ;
+<span class="lineNum">     781 </span>            : };
+<span class="lineNum">     782 </span>            : 
+<span class="lineNum">     783 </span>            : /************************************************************************/
+<span class="lineNum">     784 </span>            : /*                  WFSGetCustomFuncRegistrar()                         */
+<a name="785"><span class="lineNum">     785 </span>            : /************************************************************************/</a>
+<span class="lineNum">     786 </span>            : 
+<span class="lineNum">     787 </span><span class="lineCov">        118 : swq_custom_func_registrar* WFSGetCustomFuncRegistrar()</span>
+<span class="lineNum">     788 </span>            : {
+<span class="lineNum">     789 </span><span class="lineCov">        118 :     static OGRWFSCustomFuncRegistrar obj;</span>
+<span class="lineNum">     790 </span><span class="lineCov">        118 :     return &amp;obj;</span>
+<span class="lineNum">     791 </span>            : }
+<span class="lineNum">     792 </span>            : 
+<span class="lineNum">     793 </span>            : /************************************************************************/
+<span class="lineNum">     794 </span>            : /*                           GetOperator()                              */
+<span class="lineNum">     795 </span>            : /************************************************************************/
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span>            : static const swq_operation OGRWFSSpatialOps[] = {
+<span class="lineNum">     798 </span>            : { &quot;ST_Equals&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSSpatialBooleanPredicateChecker },
+<span class="lineNum">     799 </span>            : { &quot;ST_Disjoint&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSSpatialBooleanPredicateChecker },
+<span class="lineNum">     800 </span>            : { &quot;ST_Touches&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSSpatialBooleanPredicateChecker },
+<span class="lineNum">     801 </span>            : { &quot;ST_Contains&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSSpatialBooleanPredicateChecker },
+<span class="lineNum">     802 </span>            : /*{ &quot;ST_Covers&quot;, SWQ_CUSTOM_FUNC, NULL, OGRWFSSpatialBooleanPredicateChecker },*/
+<span class="lineNum">     803 </span>            : { &quot;ST_Intersects&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSSpatialBooleanPredicateChecker },
+<span class="lineNum">     804 </span>            : { &quot;ST_Within&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSSpatialBooleanPredicateChecker },
+<span class="lineNum">     805 </span>            : /*{ &quot;ST_CoveredBy&quot;, SWQ_CUSTOM_FUNC, NULL, OGRWFSSpatialBooleanPredicateChecker },*/
+<span class="lineNum">     806 </span>            : { &quot;ST_Crosses&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSSpatialBooleanPredicateChecker },
+<span class="lineNum">     807 </span>            : { &quot;ST_Overlaps&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSSpatialBooleanPredicateChecker },
+<span class="lineNum">     808 </span>            : { &quot;ST_DWithin&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSDWithinBeyondChecker },
+<span class="lineNum">     809 </span>            : { &quot;ST_Beyond&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSDWithinBeyondChecker },
+<span class="lineNum">     810 </span>            : { &quot;ST_MakeEnvelope&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSMakeEnvelopeChecker },
+<span class="lineNum">     811 </span>            : { &quot;ST_GeomFromText&quot;, SWQ_CUSTOM_FUNC, nullptr, OGRWFSGeomFromTextChecker }
+<a name="812"><span class="lineNum">     812 </span>            : };</a>
+<span class="lineNum">     813 </span>            : 
+<span class="lineNum">     814 </span><span class="lineCov">        112 : const swq_operation *OGRWFSCustomFuncRegistrar::GetOperator( const char * pszName )</span>
+<span class="lineNum">     815 </span>            : {
+<span class="lineNum">     816 </span><span class="lineCov">        928 :     for(int i=0; i&lt; (int)(sizeof(OGRWFSSpatialOps)/sizeof(OGRWFSSpatialOps[0]));i++)</span>
+<span class="lineNum">     817 </span>            :     {
+<span class="lineNum">     818 </span><span class="lineCov">        928 :         if( EQUAL(OGRWFSSpatialOps[i].pszName, pszName) )</span>
+<span class="lineNum">     819 </span><span class="lineCov">        112 :             return &amp;OGRWFSSpatialOps[i];</span>
+<span class="lineNum">     820 </span>            :     }
+<span class="lineNum">     821 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     822 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

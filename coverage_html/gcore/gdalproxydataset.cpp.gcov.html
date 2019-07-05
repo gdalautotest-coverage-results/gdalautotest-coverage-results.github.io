@@ -1,0 +1,521 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - gcore/gdalproxydataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">gcore</a> - gdalproxydataset.cpp<span style="font-size: 80%;"> (source / <a href="gdalproxydataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">55</td>
+            <td class="headerCovTableEntry">120</td>
+            <td class="headerCovTableEntryLo">45.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">25</td>
+            <td class="headerCovTableEntry">73</td>
+            <td class="headerCovTableEntryLo">34.2 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL Core
+<span class="lineNum">       4 </span>            :  * Purpose:  A dataset and raster band classes that act as proxy for underlying
+<span class="lineNum">       5 </span>            :  *           GDALDataset* and GDALRasterBand*
+<span class="lineNum">       6 </span>            :  * Author:   Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  ******************************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2008-2014, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdal_proxy.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;cpl_progress.h&quot;
+<span class="lineNum">      37 </span>            : #include &quot;cpl_virtualmem.h&quot;
+<span class="lineNum">      38 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : /*! @cond Doxygen_Suppress */
+<span class="lineNum">      44 </span>            : /* ******************************************************************** */
+<span class="lineNum">      45 </span>            : /*                        GDALProxyDataset                              */
+<span class="lineNum">      46 </span>            : /* ******************************************************************** */
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : #define D_PROXY_METHOD_WITH_RET(retType, retErrValue, methodName, \
+<span class="lineNum">      49 </span>            :                                 argList, argParams) \
+<span class="lineNum">      50 </span>            : retType GDALProxyDataset::methodName argList \
+<span class="lineNum">      51 </span>            : { \
+<span class="lineNum">      52 </span>            :     retType ret; \
+<span class="lineNum">      53 </span>            :     GDALDataset* poUnderlyingDataset = RefUnderlyingDataset(); \
+<span class="lineNum">      54 </span>            :     if (poUnderlyingDataset) \
+<span class="lineNum">      55 </span>            :     { \
+<span class="lineNum">      56 </span>            :         ret = poUnderlyingDataset-&gt;methodName argParams; \
+<span class="lineNum">      57 </span>            :         UnrefUnderlyingDataset(poUnderlyingDataset); \
+<span class="lineNum">      58 </span>            :     } \
+<span class="lineNum">      59 </span>            :     else \
+<span class="lineNum">      60 </span>            :     { \
+<span class="lineNum">      61 </span>            :         ret = retErrValue; \
+<span class="lineNum">      62 </span>            :     } \
+<span class="lineNum">      63 </span>            :     return ret; \
+<a name="64"><span class="lineNum">      64 </span>            : }</a>
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span><span class="lineCov">        128 : CPLErr GDALProxyDataset::IRasterIO( GDALRWFlag eRWFlag,</span>
+<span class="lineNum">      67 </span>            :                         int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">      68 </span>            :                         void * pData, int nBufXSize, int nBufYSize,
+<span class="lineNum">      69 </span>            :                         GDALDataType eBufType,
+<span class="lineNum">      70 </span>            :                         int nBandCount, int *panBandMap,
+<span class="lineNum">      71 </span>            :                         GSpacing nPixelSpace, GSpacing nLineSpace, GSpacing nBandSpace,
+<span class="lineNum">      72 </span>            :                         GDALRasterIOExtraArg* psExtraArg)
+<span class="lineNum">      73 </span>            : {
+<span class="lineNum">      74 </span>            :     CPLErr ret;
+<span class="lineNum">      75 </span><span class="lineCov">        128 :     GDALDataset* poUnderlyingDataset = RefUnderlyingDataset();</span>
+<span class="lineNum">      76 </span><span class="lineCov">        128 :     if (poUnderlyingDataset)</span>
+<span class="lineNum">      77 </span>            :     {
+<span class="lineNum">      78 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      79 </span>            : /*      Do some validation of parameters.                               */
+<span class="lineNum">      80 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">      81 </span><span class="lineCov">        252 :         if( nXOff + nXSize &gt; poUnderlyingDataset-&gt;GetRasterXSize() ||</span>
+<span class="lineNum">      82 </span><span class="lineCov">        126 :             nYOff + nYSize &gt; poUnderlyingDataset-&gt;GetRasterYSize() )</span>
+<span class="lineNum">      83 </span>            :         {
+<span class="lineNum">      84 </span>            :             ReportError( CE_Failure, CPLE_IllegalArg,
+<span class="lineNum">      85 </span>            :                          &quot;Access window out of range in RasterIO().  Requested\n&quot;
+<span class="lineNum">      86 </span>            :                          &quot;(%d,%d) of size %dx%d on raster of %dx%d.&quot;,
+<span class="lineNum">      87 </span>            :                          nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">      88 </span>            :                          poUnderlyingDataset-&gt;GetRasterXSize(),
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :                          poUnderlyingDataset-&gt;GetRasterYSize() );</span>
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :             ret = CE_Failure;</span>
+<span class="lineNum">      91 </span>            :         }
+<span class="lineNum">      92 </span><span class="lineCov">        126 :         else if( panBandMap == nullptr &amp;&amp; nBandCount &gt; poUnderlyingDataset-&gt;GetRasterCount() )</span>
+<span class="lineNum">      93 </span>            :         {
+<span class="lineNum">      94 </span>            :             ReportError( CE_Failure, CPLE_IllegalArg,
+<span class="lineNum">      95 </span>            :                         &quot;%s: nBandCount cannot be greater than %d&quot;,
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :                         &quot;IRasterIO&quot;, poUnderlyingDataset-&gt;GetRasterCount() );</span>
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :             ret = CE_Failure;</span>
+<span class="lineNum">      98 </span>            :         }
+<span class="lineNum">      99 </span>            :         else
+<span class="lineNum">     100 </span>            :         {
+<span class="lineNum">     101 </span><span class="lineCov">        126 :             ret = CE_None;</span>
+<span class="lineNum">     102 </span><span class="lineCov">        296 :             for( int i = 0; i &lt; nBandCount &amp;&amp; ret == CE_None; ++i )</span>
+<span class="lineNum">     103 </span>            :             {
+<span class="lineNum">     104 </span><span class="lineCov">        170 :                 int iBand = (panBandMap != nullptr) ? panBandMap[i] : i + 1;</span>
+<span class="lineNum">     105 </span><span class="lineCov">        170 :                 if( iBand &lt; 1 || iBand &gt; poUnderlyingDataset-&gt;GetRasterCount() )</span>
+<span class="lineNum">     106 </span>            :                 {
+<span class="lineNum">     107 </span>            :                     ReportError( CE_Failure, CPLE_IllegalArg,
+<span class="lineNum">     108 </span>            :                               &quot;%s: panBandMap[%d] = %d, this band does not exist on dataset.&quot;,
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :                               &quot;IRasterIO&quot;, i, iBand );</span>
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 :                     ret = CE_Failure;</span>
+<span class="lineNum">     111 </span>            :                 }
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span><span class="lineCov">        170 :                 if( ret == CE_None &amp;&amp; poUnderlyingDataset-&gt;GetRasterBand( iBand ) == nullptr )</span>
+<span class="lineNum">     114 </span>            :                 {
+<span class="lineNum">     115 </span>            :                     ReportError( CE_Failure, CPLE_IllegalArg,
+<span class="lineNum">     116 </span>            :                               &quot;%s: panBandMap[%d]=%d, this band should exist but is NULL!&quot;,
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :                               &quot;IRasterIO&quot;, i, iBand );</span>
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :                     ret = CE_Failure;</span>
+<span class="lineNum">     119 </span>            :                 }
+<span class="lineNum">     120 </span>            :             }
+<span class="lineNum">     121 </span><span class="lineCov">        126 :             if( ret != CE_Failure )</span>
+<span class="lineNum">     122 </span>            :             {
+<span class="lineNum">     123 </span>            :                 ret = poUnderlyingDataset-&gt;IRasterIO( eRWFlag, nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">     124 </span>            :                                 pData, nBufXSize, nBufYSize,
+<span class="lineNum">     125 </span>            :                                 eBufType, nBandCount, panBandMap,
+<span class="lineNum">     126 </span><span class="lineCov">        126 :                                 nPixelSpace, nLineSpace, nBandSpace, psExtraArg );</span>
+<span class="lineNum">     127 </span>            :             }
+<span class="lineNum">     128 </span>            :         }
+<span class="lineNum">     129 </span><span class="lineCov">        126 :         UnrefUnderlyingDataset(poUnderlyingDataset);</span>
+<span class="lineNum">     130 </span>            :     }
+<span class="lineNum">     131 </span>            :     else
+<span class="lineNum">     132 </span>            :     {
+<span class="lineNum">     133 </span><span class="lineCov">          2 :         ret = CE_Failure;</span>
+<span class="lineNum">     134 </span>            :     }
+<span class="lineNum">     135 </span><span class="lineCov">        128 :     return ret;</span>
+<a name="136"><span class="lineNum">     136 </span>            : }</a>
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, IBuildOverviews,</span>
+<span class="lineNum">     139 </span>            :                         ( const char *pszResampling,
+<span class="lineNum">     140 </span>            :                           int nOverviews, int *panOverviewList,
+<span class="lineNum">     141 </span>            :                           int nListBands, int *panBandList,
+<span class="lineNum">     142 </span>            :                           GDALProgressFunc pfnProgress,
+<span class="lineNum">     143 </span>            :                           void * pProgressData ),
+<span class="lineNum">     144 </span>            :                         ( pszResampling, nOverviews, panOverviewList,
+<a name="145"><span class="lineNum">     145 </span>            :                           nListBands, panBandList, pfnProgress, pProgressData ))</a>
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 : void  GDALProxyDataset::FlushCache()</span>
+<span class="lineNum">     148 </span>            : {
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :     GDALDataset* poUnderlyingDataset = RefUnderlyingDataset();</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :     if (poUnderlyingDataset)</span>
+<span class="lineNum">     151 </span>            :     {
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :         poUnderlyingDataset-&gt;FlushCache();</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :         UnrefUnderlyingDataset(poUnderlyingDataset);</span>
+<span class="lineNum">     154 </span>            :     }
+<a name="155"><span class="lineNum">     155 </span><span class="lineNoCov">          0 : }</span></a>
+<a name="156"><span class="lineNum">     156 </span>            : </a>
+<a name="157"><span class="lineNum">     157 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(char**, nullptr, GetMetadataDomainList, (), ())</span></a>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(char**, nullptr, GetMetadata, (const char * pszDomain), (pszDomain))</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetMetadata,</span>
+<a name="160"><span class="lineNum">     160 </span>            :                         (char ** papszMetadata, const char * pszDomain),</a>
+<span class="lineNum">     161 </span>            :                         (papszMetadata, pszDomain))
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(const char*, nullptr, GetMetadataItem,</span>
+<a name="163"><span class="lineNum">     163 </span>            :                         (const char * pszName, const char * pszDomain),</a>
+<span class="lineNum">     164 </span>            :                         (pszName, pszDomain))
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetMetadataItem,</span>
+<span class="lineNum">     166 </span>            :                         (const char * pszName, const char * pszValue, const char * pszDomain),
+<a name="167"><span class="lineNum">     167 </span>            :                         (pszName, pszValue, pszDomain))</a>
+<a name="168"><span class="lineNum">     168 </span>            : </a>
+<a name="169"><span class="lineNum">     169 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(const char *, nullptr, _GetProjectionRef, (), ())</span></a>
+<a name="170"><span class="lineNum">     170 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(const OGRSpatialReference *, nullptr, GetSpatialRef, () const, ())</span></a>
+<a name="171"><span class="lineNum">     171 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, _SetProjection, (const char* pszProjection), (pszProjection))</span></a>
+<a name="172"><span class="lineNum">     172 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetSpatialRef, (const OGRSpatialReference* poSRS), (poSRS))</span></a>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, GetGeoTransform, (double* padfGeoTransform), (padfGeoTransform))</span>
+<a name="174"><span class="lineNum">     174 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetGeoTransform, (double* padfGeoTransform), (padfGeoTransform))</span></a>
+<a name="175"><span class="lineNum">     175 </span>            : </a>
+<a name="176"><span class="lineNum">     176 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(void *, nullptr, GetInternalHandle, ( const char * arg1), (arg1))</span></a>
+<a name="177"><span class="lineNum">     177 </span><span class="lineCov">         11 : D_PROXY_METHOD_WITH_RET(GDALDriver *, nullptr, GetDriver, (), ())</span></a>
+<a name="178"><span class="lineNum">     178 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(char **, nullptr, GetFileList, (), ())</span></a>
+<a name="179"><span class="lineNum">     179 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(int, 0, GetGCPCount, (), ())</span></a>
+<a name="180"><span class="lineNum">     180 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(const char *, nullptr, _GetGCPProjection, (), ())</span></a>
+<a name="181"><span class="lineNum">     181 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(const OGRSpatialReference *, nullptr, GetGCPSpatialRef, () const, ())</span></a>
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(const GDAL_GCP *, nullptr, GetGCPs, (), ())</span>
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, _SetGCPs,</span>
+<span class="lineNum">     184 </span>            :                         (int nGCPCount, const GDAL_GCP *pasGCPList,
+<a name="185"><span class="lineNum">     185 </span>            :                          const char *pszGCPProjection),</a>
+<span class="lineNum">     186 </span>            :                         (nGCPCount, pasGCPList, pszGCPProjection))
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetGCPs,</span>
+<span class="lineNum">     188 </span>            :                         (int nGCPCount, const GDAL_GCP *pasGCPList,
+<a name="189"><span class="lineNum">     189 </span>            :                          const OGRSpatialReference *poGCP_SRS),</a>
+<span class="lineNum">     190 </span>            :                         (nGCPCount, pasGCPList, poGCP_SRS))
+<span class="lineNum">     191 </span><span class="lineCov">        135 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, AdviseRead,</span>
+<span class="lineNum">     192 </span>            :                         ( int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     193 </span>            :                                 int nBufXSize, int nBufYSize,
+<span class="lineNum">     194 </span>            :                                 GDALDataType eDT,
+<span class="lineNum">     195 </span>            :                                 int nBandCount, int *panBandList,
+<a name="196"><span class="lineNum">     196 </span>            :                                 char **papszOptions ),</a>
+<span class="lineNum">     197 </span>            :                         (nXOff, nYOff, nXSize, nYSize, nBufXSize, nBufYSize, eDT, nBandCount, panBandList, papszOptions))
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 : D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, CreateMaskBand, ( int nFlagsIn ), (nFlagsIn))</span>
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span>            : /************************************************************************/
+<span class="lineNum">     201 </span>            : /*                    UnrefUnderlyingDataset()                        */
+<a name="202"><span class="lineNum">     202 </span>            : /************************************************************************/</a>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 : void GDALProxyDataset::UnrefUnderlyingDataset(</span>
+<span class="lineNum">     205 </span>            :     GDALDataset* /* poUnderlyingDataset */) const
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 : {}</span>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span>            : /* ******************************************************************** */
+<span class="lineNum">     209 </span>            : /*                        GDALProxyRasterBand                           */
+<span class="lineNum">     210 </span>            : /* ******************************************************************** */
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            : #define RB_PROXY_METHOD_WITH_RET(retType, retErrValue, methodName, argList, argParams) \
+<span class="lineNum">     213 </span>            : retType GDALProxyRasterBand::methodName argList \
+<span class="lineNum">     214 </span>            : { \
+<span class="lineNum">     215 </span>            :     retType ret; \
+<span class="lineNum">     216 </span>            :     GDALRasterBand* poSrcBand = RefUnderlyingRasterBand(); \
+<span class="lineNum">     217 </span>            :     if (poSrcBand) \
+<span class="lineNum">     218 </span>            :     { \
+<span class="lineNum">     219 </span>            :         ret = poSrcBand-&gt;methodName argParams; \
+<span class="lineNum">     220 </span>            :         UnrefUnderlyingRasterBand(poSrcBand); \
+<span class="lineNum">     221 </span>            :     } \
+<span class="lineNum">     222 </span>            :     else \
+<span class="lineNum">     223 </span>            :     { \
+<span class="lineNum">     224 </span>            :         ret = retErrValue; \
+<span class="lineNum">     225 </span>            :     } \
+<span class="lineNum">     226 </span>            :     return ret; \
+<span class="lineNum">     227 </span>            : }
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            : #define RB_PROXY_METHOD_WITH_RET_WITH_INIT_BLOCK(retType, retErrValue, methodName, argList, argParams) \
+<span class="lineNum">     230 </span>            : retType GDALProxyRasterBand::methodName argList \
+<span class="lineNum">     231 </span>            : { \
+<span class="lineNum">     232 </span>            :     retType ret; \
+<span class="lineNum">     233 </span>            :     GDALRasterBand* poSrcBand = RefUnderlyingRasterBand(); \
+<span class="lineNum">     234 </span>            :     if (poSrcBand) \
+<span class="lineNum">     235 </span>            :     { \
+<span class="lineNum">     236 </span>            :         if( !poSrcBand-&gt;InitBlockInfo() ) \
+<span class="lineNum">     237 </span>            :             ret = CE_Failure; \
+<span class="lineNum">     238 </span>            :         else \
+<span class="lineNum">     239 </span>            :         { \
+<span class="lineNum">     240 </span>            :             int nSrcBlockXSize, nSrcBlockYSize; \
+<span class="lineNum">     241 </span>            :             poSrcBand-&gt;GetBlockSize(&amp;nSrcBlockXSize, &amp;nSrcBlockYSize); \
+<span class="lineNum">     242 </span>            :             if( poSrcBand-&gt;GetRasterDataType() != GetRasterDataType() ) \
+<span class="lineNum">     243 </span>            :             { \
+<span class="lineNum">     244 </span>            :                 CPLError(CE_Failure, CPLE_AppDefined, &quot;Inconsistent datatype between proxy and source&quot;); \
+<span class="lineNum">     245 </span>            :                 ret = CE_Failure; \
+<span class="lineNum">     246 </span>            :             } \
+<span class="lineNum">     247 </span>            :             else if( nSrcBlockXSize != nBlockXSize || nSrcBlockYSize != nBlockYSize) \
+<span class="lineNum">     248 </span>            :             { \
+<span class="lineNum">     249 </span>            :                 CPLError(CE_Failure, CPLE_AppDefined, &quot;Inconsistent block dimensions between proxy and source&quot;); \
+<span class="lineNum">     250 </span>            :                 ret = CE_Failure; \
+<span class="lineNum">     251 </span>            :             } \
+<span class="lineNum">     252 </span>            :             else \
+<span class="lineNum">     253 </span>            :             { \
+<span class="lineNum">     254 </span>            :                 ret = poSrcBand-&gt;methodName argParams; \
+<span class="lineNum">     255 </span>            :             } \
+<span class="lineNum">     256 </span>            :         } \
+<span class="lineNum">     257 </span>            :         UnrefUnderlyingRasterBand(poSrcBand); \
+<span class="lineNum">     258 </span>            :     } \
+<span class="lineNum">     259 </span>            :     else \
+<span class="lineNum">     260 </span>            :     { \
+<span class="lineNum">     261 </span>            :         ret = retErrValue; \
+<span class="lineNum">     262 </span>            :     } \
+<span class="lineNum">     263 </span>            :     return ret; \
+<a name="264"><span class="lineNum">     264 </span>            : }</a>
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET_WITH_INIT_BLOCK(CPLErr, CE_Failure, IReadBlock,</span>
+<a name="267"><span class="lineNum">     267 </span>            :                                 ( int nXBlockOff, int nYBlockOff, void* pImage),</a>
+<span class="lineNum">     268 </span>            :                                 (nXBlockOff, nYBlockOff, pImage) )
+<span class="lineNum">     269 </span><span class="lineCov">          4 : RB_PROXY_METHOD_WITH_RET_WITH_INIT_BLOCK(CPLErr, CE_Failure, IWriteBlock,</span>
+<span class="lineNum">     270 </span>            :                                 ( int nXBlockOff, int nYBlockOff, void* pImage),
+<a name="271"><span class="lineNum">     271 </span>            :                                 (nXBlockOff, nYBlockOff, pImage) )</a>
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span><span class="lineCov">      38817 : CPLErr GDALProxyRasterBand::IRasterIO( GDALRWFlag eRWFlag,</span>
+<span class="lineNum">     274 </span>            :                                 int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     275 </span>            :                                 void * pData, int nBufXSize, int nBufYSize,
+<span class="lineNum">     276 </span>            :                                 GDALDataType eBufType,
+<span class="lineNum">     277 </span>            :                                 GSpacing nPixelSpace,
+<span class="lineNum">     278 </span>            :                                 GSpacing nLineSpace,
+<span class="lineNum">     279 </span>            :                                 GDALRasterIOExtraArg* psExtraArg )
+<span class="lineNum">     280 </span>            : {
+<span class="lineNum">     281 </span>            :     CPLErr ret;
+<span class="lineNum">     282 </span><span class="lineCov">      38817 :     GDALRasterBand* poSrcBand = RefUnderlyingRasterBand();</span>
+<span class="lineNum">     283 </span><span class="lineCov">      38817 :     if (poSrcBand)</span>
+<span class="lineNum">     284 </span>            :     {
+<span class="lineNum">     285 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     286 </span>            : /*      Do some validation of parameters.                               */
+<span class="lineNum">     287 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     288 </span><span class="lineCov">      38813 :         if( nXOff + nXSize &gt; poSrcBand-&gt;GetXSize() || nYOff + nYSize &gt; poSrcBand-&gt;GetYSize() )</span>
+<span class="lineNum">     289 </span>            :         {
+<span class="lineNum">     290 </span>            :             ReportError( CE_Failure, CPLE_IllegalArg,
+<span class="lineNum">     291 </span>            :                       &quot;Access window out of range in RasterIO().  Requested\n&quot;
+<span class="lineNum">     292 </span>            :                       &quot;(%d,%d) of size %dx%d on raster of %dx%d.&quot;,
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :                       nXOff, nYOff, nXSize, nYSize, poSrcBand-&gt;GetXSize(), poSrcBand-&gt;GetYSize() );</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :             ret =  CE_Failure;</span>
+<span class="lineNum">     295 </span>            :         }
+<span class="lineNum">     296 </span>            :         else
+<span class="lineNum">     297 </span>            :         {
+<span class="lineNum">     298 </span>            :             ret = poSrcBand-&gt;IRasterIO(eRWFlag, nXOff, nYOff, nXSize, nYSize,
+<span class="lineNum">     299 </span>            :                                 pData, nBufXSize, nBufYSize, eBufType,
+<span class="lineNum">     300 </span><span class="lineCov">      38813 :                                 nPixelSpace, nLineSpace, psExtraArg );</span>
+<span class="lineNum">     301 </span>            :         }
+<span class="lineNum">     302 </span><span class="lineCov">      38813 :         UnrefUnderlyingRasterBand(poSrcBand);</span>
+<span class="lineNum">     303 </span>            :     }
+<span class="lineNum">     304 </span>            :     else
+<span class="lineNum">     305 </span>            :     {
+<span class="lineNum">     306 </span><span class="lineCov">          4 :         ret = CE_Failure;</span>
+<span class="lineNum">     307 </span>            :     }
+<span class="lineNum">     308 </span><span class="lineCov">      38817 :     return ret;</span>
+<a name="309"><span class="lineNum">     309 </span>            : }</a>
+<a name="310"><span class="lineNum">     310 </span>            : </a>
+<a name="311"><span class="lineNum">     311 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(char**, nullptr, GetMetadataDomainList, (), ())</span></a>
+<span class="lineNum">     312 </span><span class="lineCov">         25 : RB_PROXY_METHOD_WITH_RET(char**, nullptr, GetMetadata, (const char * pszDomain), (pszDomain))</span>
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetMetadata,</span>
+<a name="314"><span class="lineNum">     314 </span>            :                         (char ** papszMetadata, const char * pszDomain),</a>
+<span class="lineNum">     315 </span>            :                         (papszMetadata, pszDomain))
+<span class="lineNum">     316 </span><span class="lineCov">         42 : RB_PROXY_METHOD_WITH_RET(const char*, nullptr, GetMetadataItem,</span>
+<a name="317"><span class="lineNum">     317 </span>            :                         (const char * pszName, const char * pszDomain),</a>
+<span class="lineNum">     318 </span>            :                         (pszName, pszDomain))
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetMetadataItem,</span>
+<span class="lineNum">     320 </span>            :                         (const char * pszName, const char * pszValue, const char * pszDomain),
+<span class="lineNum">     321 </span>            :                         (pszName, pszValue, pszDomain))
+<a name="322"><span class="lineNum">     322 </span>            : </a>
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span><span class="lineCov">        112 : CPLErr GDALProxyRasterBand::FlushCache()</span>
+<span class="lineNum">     325 </span>            : {
+<span class="lineNum">     326 </span>            :     // We need to make sure that all cached bocks at the proxy level are
+<span class="lineNum">     327 </span>            :     // first flushed
+<span class="lineNum">     328 </span><span class="lineCov">        112 :     CPLErr ret = GDALRasterBand::FlushCache();</span>
+<span class="lineNum">     329 </span><span class="lineCov">        112 :     if( ret == CE_None )</span>
+<span class="lineNum">     330 </span>            :     {
+<span class="lineNum">     331 </span><span class="lineCov">        112 :         GDALRasterBand* poSrcBand = RefUnderlyingRasterBand();</span>
+<span class="lineNum">     332 </span><span class="lineCov">        112 :         if (poSrcBand)</span>
+<span class="lineNum">     333 </span>            :         {
+<span class="lineNum">     334 </span><span class="lineCov">        112 :             ret = poSrcBand-&gt;FlushCache();</span>
+<span class="lineNum">     335 </span><span class="lineCov">        112 :             UnrefUnderlyingRasterBand(poSrcBand);</span>
+<span class="lineNum">     336 </span>            :         }
+<span class="lineNum">     337 </span>            :         else
+<span class="lineNum">     338 </span>            :         {
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :             ret = CE_Failure;</span>
+<span class="lineNum">     340 </span>            :         }
+<span class="lineNum">     341 </span>            :     }
+<span class="lineNum">     342 </span><span class="lineCov">        112 :     return ret;</span>
+<a name="343"><span class="lineNum">     343 </span>            : }</a>
+<a name="344"><span class="lineNum">     344 </span>            : </a>
+<a name="345"><span class="lineNum">     345 </span><span class="lineCov">         21 : RB_PROXY_METHOD_WITH_RET(char**, nullptr, GetCategoryNames, (), ())</span></a>
+<a name="346"><span class="lineNum">     346 </span><span class="lineCov">         32 : RB_PROXY_METHOD_WITH_RET(double, 0, GetNoDataValue, (int *pbSuccess), (pbSuccess))</span></a>
+<a name="347"><span class="lineNum">     347 </span><span class="lineCov">          3 : RB_PROXY_METHOD_WITH_RET(double, 0, GetMinimum, (int *pbSuccess), (pbSuccess))</span></a>
+<a name="348"><span class="lineNum">     348 </span><span class="lineCov">          3 : RB_PROXY_METHOD_WITH_RET(double, 0, GetMaximum, (int *pbSuccess), (pbSuccess))</span></a>
+<a name="349"><span class="lineNum">     349 </span><span class="lineCov">         21 : RB_PROXY_METHOD_WITH_RET(double, 0, GetOffset, (int *pbSuccess), (pbSuccess))</span></a>
+<a name="350"><span class="lineNum">     350 </span><span class="lineCov">         21 : RB_PROXY_METHOD_WITH_RET(double, 0, GetScale, (int *pbSuccess), (pbSuccess))</span></a>
+<a name="351"><span class="lineNum">     351 </span><span class="lineCov">         25 : RB_PROXY_METHOD_WITH_RET(const char*, nullptr, GetUnitType, (), ())</span></a>
+<a name="352"><span class="lineNum">     352 </span><span class="lineCov">         33 : RB_PROXY_METHOD_WITH_RET(GDALColorInterp, GCI_Undefined, GetColorInterpretation, (), ())</span></a>
+<span class="lineNum">     353 </span><span class="lineCov">         25 : RB_PROXY_METHOD_WITH_RET(GDALColorTable*, nullptr, GetColorTable, (), ())</span>
+<span class="lineNum">     354 </span><span class="lineCov">          6 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, Fill,</span>
+<span class="lineNum">     355 </span>            :                         (double dfRealValue, double dfImaginaryValue),
+<a name="356"><span class="lineNum">     356 </span>            :                         (dfRealValue, dfImaginaryValue))</a>
+<a name="357"><span class="lineNum">     357 </span>            : </a>
+<a name="358"><span class="lineNum">     358 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetCategoryNames, ( char ** arg ), (arg))</span></a>
+<a name="359"><span class="lineNum">     359 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetNoDataValue, ( double arg ), (arg))</span></a>
+<a name="360"><span class="lineNum">     360 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, DeleteNoDataValue, (), ())</span></a>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetColorTable, ( GDALColorTable *arg ), (arg))</span>
+<a name="362"><span class="lineNum">     362 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetColorInterpretation,</span></a>
+<a name="363"><span class="lineNum">     363 </span>            :                                     ( GDALColorInterp arg ), (arg))</a>
+<a name="364"><span class="lineNum">     364 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetOffset, ( double arg ), (arg))</span></a>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetScale, ( double arg ), (arg))</span>
+<a name="366"><span class="lineNum">     366 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetUnitType, ( const char * arg ), (arg))</span></a>
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, GetStatistics,</span>
+<span class="lineNum">     369 </span>            :                         ( int bApproxOK, int bForce,
+<span class="lineNum">     370 </span>            :                         double *pdfMin, double *pdfMax,
+<a name="371"><span class="lineNum">     371 </span>            :                         double *pdfMean, double *padfStdDev ),</a>
+<span class="lineNum">     372 </span>            :                         (bApproxOK, bForce, pdfMin, pdfMax, pdfMean, padfStdDev))
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, ComputeStatistics,</span>
+<span class="lineNum">     374 </span>            :                         ( int bApproxOK,
+<span class="lineNum">     375 </span>            :                         double *pdfMin, double *pdfMax,
+<span class="lineNum">     376 </span>            :                         double *pdfMean, double *pdfStdDev,
+<a name="377"><span class="lineNum">     377 </span>            :                         GDALProgressFunc pfn, void *pProgressData ),</a>
+<span class="lineNum">     378 </span>            :                         ( bApproxOK, pdfMin, pdfMax, pdfMean, pdfStdDev, pfn, pProgressData))
+<span class="lineNum">     379 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetStatistics,</span>
+<span class="lineNum">     380 </span>            :                         ( double dfMin, double dfMax,
+<a name="381"><span class="lineNum">     381 </span>            :                         double dfMean, double dfStdDev ),</a>
+<span class="lineNum">     382 </span>            :                         (dfMin, dfMax, dfMean, dfStdDev))
+<span class="lineNum">     383 </span><span class="lineCov">         10 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, ComputeRasterMinMax,</span>
+<a name="384"><span class="lineNum">     384 </span>            :                         ( int arg1, double* arg2 ), (arg1, arg2))</a>
+<a name="385"><span class="lineNum">     385 </span>            : </a>
+<a name="386"><span class="lineNum">     386 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(int, 0, HasArbitraryOverviews, (), ())</span></a>
+<a name="387"><span class="lineNum">     387 </span><span class="lineCov">        711 : RB_PROXY_METHOD_WITH_RET(int, 0,  GetOverviewCount, (), ())</span></a>
+<span class="lineNum">     388 </span><span class="lineCov">          1 : RB_PROXY_METHOD_WITH_RET(GDALRasterBand*, nullptr,  GetOverview, (int arg1), (arg1))</span>
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(GDALRasterBand*, nullptr,  GetRasterSampleOverview,</span>
+<a name="390"><span class="lineNum">     390 </span>            :                         (GUIntBig arg1), (arg1))</a>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, BuildOverviews,</span>
+<span class="lineNum">     393 </span>            :                         (const char * arg1, int arg2, int *arg3,
+<span class="lineNum">     394 </span>            :                         GDALProgressFunc arg4, void * arg5),
+<a name="395"><span class="lineNum">     395 </span>            :                         (arg1, arg2, arg3, arg4, arg5))</a>
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span><span class="lineCov">         11 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, AdviseRead,</span>
+<span class="lineNum">     398 </span>            :                         ( int nXOff, int nYOff, int nXSize, int nYSize,
+<span class="lineNum">     399 </span>            :                         int nBufXSize, int nBufYSize,
+<span class="lineNum">     400 </span>            :                         GDALDataType eDT, char **papszOptions ),
+<a name="401"><span class="lineNum">     401 </span>            :                         (nXOff, nYOff, nXSize, nYSize, nBufXSize, nBufYSize, eDT, papszOptions))</a>
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, GetHistogram,</span>
+<span class="lineNum">     404 </span>            :                         ( double dfMin, double dfMax,
+<span class="lineNum">     405 </span>            :                         int nBuckets, GUIntBig * panHistogram,
+<span class="lineNum">     406 </span>            :                         int bIncludeOutOfRange, int bApproxOK,
+<span class="lineNum">     407 </span>            :                         GDALProgressFunc pfn, void *pProgressData ),
+<span class="lineNum">     408 </span>            :                         (dfMin, dfMax, nBuckets, panHistogram, bIncludeOutOfRange,
+<a name="409"><span class="lineNum">     409 </span>            :                         bApproxOK, pfn, pProgressData))</a>
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, GetDefaultHistogram,</span>
+<span class="lineNum">     412 </span>            :                         (double *pdfMin, double *pdfMax,
+<span class="lineNum">     413 </span>            :                         int *pnBuckets, GUIntBig ** ppanHistogram,
+<span class="lineNum">     414 </span>            :                         int bForce,
+<span class="lineNum">     415 </span>            :                         GDALProgressFunc pfn, void *pProgressData ),
+<span class="lineNum">     416 </span>            :                         (pdfMin, pdfMax, pnBuckets, ppanHistogram, bForce,
+<a name="417"><span class="lineNum">     417 </span>            :                         pfn, pProgressData))</a>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetDefaultHistogram,</span>
+<span class="lineNum">     420 </span>            :                         ( double dfMin, double dfMax,
+<span class="lineNum">     421 </span>            :                         int nBuckets, GUIntBig * panHistogram ),
+<a name="422"><span class="lineNum">     422 </span>            :                         (dfMin, dfMax, nBuckets, panHistogram))</a>
+<span class="lineNum">     423 </span>            : 
+<a name="424"><span class="lineNum">     424 </span><span class="lineCov">         25 : RB_PROXY_METHOD_WITH_RET(GDALRasterAttributeTable *, nullptr,</span></a>
+<span class="lineNum">     425 </span>            :                         GetDefaultRAT, (), ())
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetDefaultRAT,</span>
+<a name="427"><span class="lineNum">     427 </span>            :                         ( const GDALRasterAttributeTable * arg1), (arg1))</a>
+<a name="428"><span class="lineNum">     428 </span>            : </a>
+<a name="429"><span class="lineNum">     429 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(GDALRasterBand*, nullptr, GetMaskBand, (), ())</span></a>
+<span class="lineNum">     430 </span><span class="lineCov">         46 : RB_PROXY_METHOD_WITH_RET(int, 0, GetMaskFlags, (), ())</span>
+<a name="431"><span class="lineNum">     431 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, CreateMaskBand, ( int nFlagsIn ), (nFlagsIn))</span></a>
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 : RB_PROXY_METHOD_WITH_RET(CPLVirtualMem*, nullptr, GetVirtualMemAuto,</span>
+<span class="lineNum">     434 </span>            :                          ( GDALRWFlag eRWFlag, int *pnPixelSpace, GIntBig *pnLineSpace, char **papszOptions ),
+<span class="lineNum">     435 </span>            :                          (eRWFlag, pnPixelSpace, pnLineSpace, papszOptions) )
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span>            : /************************************************************************/
+<span class="lineNum">     438 </span>            : /*                 UnrefUnderlyingRasterBand()                        */
+<a name="439"><span class="lineNum">     439 </span>            : /************************************************************************/</a>
+<span class="lineNum">     440 </span>            : 
+<span class="lineNum">     441 </span><span class="lineCov">        979 : void GDALProxyRasterBand::UnrefUnderlyingRasterBand(</span>
+<span class="lineNum">     442 </span>            :     GDALRasterBand* /* poUnderlyingRasterBand */ )
+<span class="lineNum">     443 </span><span class="lineCov">        979 : {}</span>
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span>            : /*! @endcond */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

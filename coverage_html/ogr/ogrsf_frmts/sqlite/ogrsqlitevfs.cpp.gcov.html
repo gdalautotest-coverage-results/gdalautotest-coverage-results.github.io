@@ -1,0 +1,592 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/sqlite/ogrsqlitevfs.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/sqlite</a> - ogrsqlitevfs.cpp<span style="font-size: 80%;"> (source / <a href="ogrsqlitevfs.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">128</td>
+            <td class="headerCovTableEntry">173</td>
+            <td class="headerCovTableEntryLo">74.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntryLo">65.4 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  OpenGIS Simple Features Reference Implementation
+<span class="lineNum">       4 </span>            :  * Purpose:  Implements SQLite VFS
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2011-2012, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;ogr_sqlite.h&quot;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : #include &lt;cstdio&gt;
+<span class="lineNum">      33 </span>            : #include &lt;cstdlib&gt;
+<span class="lineNum">      34 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : #include &quot;cpl_atomic_ops.h&quot;
+<span class="lineNum">      37 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      38 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;sqlite3.h&quot;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">      46 </span>            : # define DEBUG_ONLY
+<span class="lineNum">      47 </span>            : #else
+<span class="lineNum">      48 </span>            : # define DEBUG_ONLY CPL_UNUSED
+<span class="lineNum">      49 </span>            : #endif
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : //#define DEBUG_IO 1
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : typedef struct
+<span class="lineNum">      54 </span>            : {
+<span class="lineNum">      55 </span>            :     char                       szVFSName[64];
+<span class="lineNum">      56 </span>            :     sqlite3_vfs               *pDefaultVFS;
+<span class="lineNum">      57 </span>            :     pfnNotifyFileOpenedType    pfn;
+<span class="lineNum">      58 </span>            :     void                      *pfnUserData;
+<span class="lineNum">      59 </span>            :     int                        nCounter;
+<span class="lineNum">      60 </span>            : } OGRSQLiteVFSAppDataStruct;
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span>            : #define GET_UNDERLYING_VFS(pVFS)  ((OGRSQLiteVFSAppDataStruct* )pVFS-&gt;pAppData)-&gt;pDefaultVFS
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : typedef struct
+<span class="lineNum">      65 </span>            : {
+<span class="lineNum">      66 </span>            :     const struct sqlite3_io_methods *pMethods;
+<span class="lineNum">      67 </span>            :     VSILFILE                        *fp;
+<span class="lineNum">      68 </span>            :     int                              bDeleteOnClose;
+<span class="lineNum">      69 </span>            :     char                            *pszFilename;
+<a name="70"><span class="lineNum">      70 </span>            : } OGRSQLiteFileStruct;</a>
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span><span class="lineCov">       8322 : static int OGRSQLiteIOClose(sqlite3_file* pFile)</span>
+<span class="lineNum">      73 </span>            : {
+<span class="lineNum">      74 </span><span class="lineCov">       8322 :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;</span>
+<span class="lineNum">      75 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">      76 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOClose(%p (%s))&quot;, pMyFile-&gt;fp, pMyFile-&gt;pszFilename);
+<span class="lineNum">      77 </span>            : #endif
+<span class="lineNum">      78 </span><span class="lineCov">       8322 :     VSIFCloseL(pMyFile-&gt;fp);</span>
+<span class="lineNum">      79 </span><span class="lineCov">       8322 :     if (pMyFile-&gt;bDeleteOnClose)</span>
+<span class="lineNum">      80 </span><span class="lineCov">        278 :         VSIUnlink(pMyFile-&gt;pszFilename);</span>
+<span class="lineNum">      81 </span><span class="lineCov">       8322 :     CPLFree(pMyFile-&gt;pszFilename);</span>
+<span class="lineNum">      82 </span><span class="lineCov">       8322 :     return SQLITE_OK;</span>
+<a name="83"><span class="lineNum">      83 </span>            : }</a>
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span><span class="lineCov">     408395 : static int OGRSQLiteIORead(sqlite3_file* pFile, void* pBuffer, int iAmt, sqlite3_int64 iOfst)</span>
+<span class="lineNum">      86 </span>            : {
+<span class="lineNum">      87 </span><span class="lineCov">     408395 :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;</span>
+<span class="lineNum">      88 </span><span class="lineCov">     408395 :     VSIFSeekL(pMyFile-&gt;fp, (vsi_l_offset) iOfst, SEEK_SET);</span>
+<span class="lineNum">      89 </span><span class="lineCov">     408395 :     int nRead = (int)VSIFReadL(pBuffer, 1, iAmt, pMyFile-&gt;fp);</span>
+<span class="lineNum">      90 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">      91 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIORead(%p, %d, %d) = %d&quot;, pMyFile-&gt;fp, iAmt, (int)iOfst, nRead);
+<span class="lineNum">      92 </span>            : #endif
+<span class="lineNum">      93 </span><span class="lineCov">     408395 :     if (nRead &lt; iAmt)</span>
+<span class="lineNum">      94 </span>            :     {
+<span class="lineNum">      95 </span><span class="lineCov">       2343 :         memset(((char*)pBuffer) + nRead, 0, iAmt - nRead);</span>
+<span class="lineNum">      96 </span><span class="lineCov">       2343 :         return SQLITE_IOERR_SHORT_READ;</span>
+<span class="lineNum">      97 </span>            :     }
+<span class="lineNum">      98 </span><span class="lineCov">     406052 :     return SQLITE_OK;</span>
+<a name="99"><span class="lineNum">      99 </span>            : }</a>
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span><span class="lineCov">    1655023 : static int OGRSQLiteIOWrite(sqlite3_file* pFile, const void* pBuffer, int iAmt, sqlite3_int64 iOfst)</span>
+<span class="lineNum">     102 </span>            : {
+<span class="lineNum">     103 </span><span class="lineCov">    1655023 :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;</span>
+<span class="lineNum">     104 </span><span class="lineCov">    1655023 :     VSIFSeekL(pMyFile-&gt;fp, (vsi_l_offset) iOfst, SEEK_SET);</span>
+<span class="lineNum">     105 </span><span class="lineCov">    1655023 :     int nWritten = (int)VSIFWriteL(pBuffer, 1, iAmt, pMyFile-&gt;fp);</span>
+<span class="lineNum">     106 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     107 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOWrite(%p, %d, %d) = %d&quot;, pMyFile-&gt;fp, iAmt, (int)iOfst, nWritten);
+<span class="lineNum">     108 </span>            : #endif
+<span class="lineNum">     109 </span><span class="lineCov">    1655023 :     if (nWritten &lt; iAmt)</span>
+<span class="lineNum">     110 </span>            :     {
+<span class="lineNum">     111 </span><span class="lineCov">          2 :         return SQLITE_IOERR_WRITE;</span>
+<span class="lineNum">     112 </span>            :     }
+<span class="lineNum">     113 </span><span class="lineCov">    1655021 :     return SQLITE_OK;</span>
+<a name="114"><span class="lineNum">     114 </span>            : }</a>
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span><span class="lineCov">          8 : static int OGRSQLiteIOTruncate(sqlite3_file* pFile, sqlite3_int64 size)</span>
+<span class="lineNum">     117 </span>            : {
+<span class="lineNum">     118 </span><span class="lineCov">          8 :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;</span>
+<span class="lineNum">     119 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     120 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOTruncate(%p, &quot; CPL_FRMT_GIB &quot;)&quot;, pMyFile-&gt;fp, size);
+<span class="lineNum">     121 </span>            : #endif
+<span class="lineNum">     122 </span><span class="lineCov">          8 :     int nRet = VSIFTruncateL(pMyFile-&gt;fp, size);</span>
+<span class="lineNum">     123 </span><span class="lineCov">          8 :     return (nRet == 0) ? SQLITE_OK : SQLITE_IOERR_TRUNCATE;</span>
+<a name="124"><span class="lineNum">     124 </span>            : }</a>
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span><span class="lineCov">       5103 : static int OGRSQLiteIOSync(DEBUG_ONLY sqlite3_file* pFile, DEBUG_ONLY int flags)</span>
+<span class="lineNum">     127 </span>            : {
+<span class="lineNum">     128 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     129 </span>            :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;
+<span class="lineNum">     130 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOSync(%p, %d)&quot;, pMyFile-&gt;fp, flags);
+<span class="lineNum">     131 </span>            : #endif
+<span class="lineNum">     132 </span><span class="lineCov">       5103 :     return SQLITE_OK;</span>
+<a name="133"><span class="lineNum">     133 </span>            : }</a>
+<span class="lineNum">     134 </span>            : 
+<span class="lineNum">     135 </span><span class="lineCov">     123290 : static int OGRSQLiteIOFileSize(sqlite3_file* pFile, sqlite3_int64 *pSize)</span>
+<span class="lineNum">     136 </span>            : {
+<span class="lineNum">     137 </span><span class="lineCov">     123290 :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;</span>
+<span class="lineNum">     138 </span><span class="lineCov">     123290 :     vsi_l_offset nCurOffset = VSIFTellL(pMyFile-&gt;fp);</span>
+<span class="lineNum">     139 </span><span class="lineCov">     123290 :     VSIFSeekL(pMyFile-&gt;fp, 0, SEEK_END);</span>
+<span class="lineNum">     140 </span><span class="lineCov">     123290 :     *pSize = VSIFTellL(pMyFile-&gt;fp);</span>
+<span class="lineNum">     141 </span><span class="lineCov">     123290 :     VSIFSeekL(pMyFile-&gt;fp, nCurOffset, SEEK_SET);</span>
+<span class="lineNum">     142 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     143 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOFileSize(%p) = &quot; CPL_FRMT_GIB, pMyFile-&gt;fp, *pSize);
+<span class="lineNum">     144 </span>            : #endif
+<span class="lineNum">     145 </span><span class="lineCov">     123290 :     return SQLITE_OK;</span>
+<a name="146"><span class="lineNum">     146 </span>            : }</a>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span><span class="lineCov">      68920 : static int OGRSQLiteIOLock(DEBUG_ONLY sqlite3_file* pFile, DEBUG_ONLY int flags)</span>
+<span class="lineNum">     149 </span>            : {
+<span class="lineNum">     150 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     151 </span>            :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;
+<span class="lineNum">     152 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOLock(%p)&quot;, pMyFile-&gt;fp);
+<span class="lineNum">     153 </span>            : #endif
+<span class="lineNum">     154 </span><span class="lineCov">      68920 :     return SQLITE_OK;</span>
+<a name="155"><span class="lineNum">     155 </span>            : }</a>
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span><span class="lineCov">      56774 : static int OGRSQLiteIOUnlock(DEBUG_ONLY sqlite3_file* pFile, DEBUG_ONLY int flags)</span>
+<span class="lineNum">     158 </span>            : {
+<span class="lineNum">     159 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     160 </span>            :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;
+<span class="lineNum">     161 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOUnlock(%p)&quot;, pMyFile-&gt;fp);
+<span class="lineNum">     162 </span>            : #endif
+<span class="lineNum">     163 </span><span class="lineCov">      56774 :     return SQLITE_OK;</span>
+<a name="164"><span class="lineNum">     164 </span>            : }</a>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 : static int OGRSQLiteIOCheckReservedLock(DEBUG_ONLY sqlite3_file* pFile,</span>
+<span class="lineNum">     167 </span>            :                                         DEBUG_ONLY int *pResOut)
+<span class="lineNum">     168 </span>            : {
+<span class="lineNum">     169 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     170 </span>            :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;
+<span class="lineNum">     171 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOCheckReservedLock(%p)&quot;, pMyFile-&gt;fp);
+<span class="lineNum">     172 </span>            : #endif
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :     *pResOut = 0;</span>
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :     return SQLITE_OK;</span>
+<a name="175"><span class="lineNum">     175 </span>            : }</a>
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span><span class="lineCov">      20437 : static int OGRSQLiteIOFileControl(DEBUG_ONLY sqlite3_file* pFile,</span>
+<span class="lineNum">     178 </span>            :                            DEBUG_ONLY int op,
+<span class="lineNum">     179 </span>            :                            DEBUG_ONLY void *pArg)
+<span class="lineNum">     180 </span>            : {
+<span class="lineNum">     181 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     182 </span>            :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;
+<span class="lineNum">     183 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOFileControl(%p, %d)&quot;, pMyFile-&gt;fp, op);
+<span class="lineNum">     184 </span>            : #endif
+<span class="lineNum">     185 </span><span class="lineCov">      20437 :     return SQLITE_NOTFOUND;</span>
+<a name="186"><span class="lineNum">     186 </span>            : }</a>
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineCov">       2689 : static int OGRSQLiteIOSectorSize(DEBUG_ONLY sqlite3_file* pFile)</span>
+<span class="lineNum">     189 </span>            : {
+<span class="lineNum">     190 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     191 </span>            :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;
+<span class="lineNum">     192 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIOSectorSize(%p)&quot;, pMyFile-&gt;fp);
+<span class="lineNum">     193 </span>            : #endif
+<span class="lineNum">     194 </span><span class="lineCov">       2689 :     return 0;</span>
+<a name="195"><span class="lineNum">     195 </span>            : }</a>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">      49173 : static int OGRSQLiteIODeviceCharacteristics(DEBUG_ONLY sqlite3_file* pFile)</span>
+<span class="lineNum">     198 </span>            : {
+<span class="lineNum">     199 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     200 </span>            :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;
+<span class="lineNum">     201 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteIODeviceCharacteristics(%p)&quot;, pMyFile-&gt;fp);
+<span class="lineNum">     202 </span>            : #endif
+<span class="lineNum">     203 </span><span class="lineCov">      49173 :     return 0;</span>
+<span class="lineNum">     204 </span>            : }
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            : static const sqlite3_io_methods OGRSQLiteIOMethods =
+<span class="lineNum">     207 </span>            : {
+<span class="lineNum">     208 </span>            :     1,
+<span class="lineNum">     209 </span>            :     OGRSQLiteIOClose,
+<span class="lineNum">     210 </span>            :     OGRSQLiteIORead,
+<span class="lineNum">     211 </span>            :     OGRSQLiteIOWrite,
+<span class="lineNum">     212 </span>            :     OGRSQLiteIOTruncate,
+<span class="lineNum">     213 </span>            :     OGRSQLiteIOSync,
+<span class="lineNum">     214 </span>            :     OGRSQLiteIOFileSize,
+<span class="lineNum">     215 </span>            :     OGRSQLiteIOLock,
+<span class="lineNum">     216 </span>            :     OGRSQLiteIOUnlock,
+<span class="lineNum">     217 </span>            :     OGRSQLiteIOCheckReservedLock,
+<span class="lineNum">     218 </span>            :     OGRSQLiteIOFileControl,
+<span class="lineNum">     219 </span>            :     OGRSQLiteIOSectorSize,
+<span class="lineNum">     220 </span>            :     OGRSQLiteIODeviceCharacteristics,
+<span class="lineNum">     221 </span>            : #if SQLITE_VERSION_NUMBER &gt;= 3007004L /* perhaps older too ? */
+<span class="lineNum">     222 </span>            :     nullptr,  // xShmMap
+<span class="lineNum">     223 </span>            :     nullptr,  // xShmLock
+<span class="lineNum">     224 </span>            :     nullptr,  // xShmBarrier
+<span class="lineNum">     225 </span>            :     nullptr,  // xShmUnmap
+<span class="lineNum">     226 </span>            : #if SQLITE_VERSION_NUMBER &gt;= 3007017L /* perhaps older too ? */
+<span class="lineNum">     227 </span>            :     nullptr,  // xFetch
+<span class="lineNum">     228 </span>            :     nullptr,  // xUnfetch
+<span class="lineNum">     229 </span>            : #endif
+<span class="lineNum">     230 </span>            : #endif
+<a name="231"><span class="lineNum">     231 </span>            : };</a>
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span><span class="lineCov">       8326 : static int OGRSQLiteVFSOpen(sqlite3_vfs* pVFS,</span>
+<span class="lineNum">     234 </span>            :                             const char *zName,
+<span class="lineNum">     235 </span>            :                             sqlite3_file* pFile,
+<span class="lineNum">     236 </span>            :                             int flags,
+<span class="lineNum">     237 </span>            :                             int *pOutFlags)
+<span class="lineNum">     238 </span>            : {
+<span class="lineNum">     239 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     240 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSOpen(%s, %d)&quot;, zName ? zName : &quot;(null)&quot;, flags);
+<span class="lineNum">     241 </span>            : #endif
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineCov">       8326 :     OGRSQLiteVFSAppDataStruct* pAppData = (OGRSQLiteVFSAppDataStruct* )pVFS-&gt;pAppData;</span>
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span><span class="lineCov">       8326 :     if (zName == nullptr)</span>
+<span class="lineNum">     246 </span>            :     {
+<span class="lineNum">     247 </span>            :         zName = CPLSPrintf(&quot;/vsimem/sqlite/%p_%d&quot;,
+<span class="lineNum">     248 </span><span class="lineCov">        278 :                            pVFS, CPLAtomicInc(&amp;(pAppData-&gt;nCounter)));</span>
+<span class="lineNum">     249 </span>            :     }
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineCov">       8326 :     OGRSQLiteFileStruct* pMyFile = (OGRSQLiteFileStruct*) pFile;</span>
+<span class="lineNum">     252 </span><span class="lineCov">       8326 :     pMyFile-&gt;pMethods = nullptr;</span>
+<span class="lineNum">     253 </span><span class="lineCov">       8326 :     pMyFile-&gt;bDeleteOnClose = FALSE;</span>
+<span class="lineNum">     254 </span><span class="lineCov">       8326 :     pMyFile-&gt;pszFilename = nullptr;</span>
+<span class="lineNum">     255 </span><span class="lineCov">       8326 :     if ( flags &amp; SQLITE_OPEN_READONLY )</span>
+<span class="lineNum">     256 </span><span class="lineCov">        322 :         pMyFile-&gt;fp = VSIFOpenL(zName, &quot;rb&quot;);</span>
+<span class="lineNum">     257 </span><span class="lineCov">       8004 :     else if ( flags &amp; SQLITE_OPEN_CREATE )</span>
+<span class="lineNum">     258 </span><span class="lineCov">       7469 :         pMyFile-&gt;fp = VSIFOpenL(zName, &quot;wb+&quot;);</span>
+<span class="lineNum">     259 </span><span class="lineCov">        535 :     else if ( flags &amp; SQLITE_OPEN_READWRITE )</span>
+<span class="lineNum">     260 </span><span class="lineCov">        535 :         pMyFile-&gt;fp = VSIFOpenL(zName, &quot;rb+&quot;);</span>
+<span class="lineNum">     261 </span>            :     else
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :         pMyFile-&gt;fp = nullptr;</span>
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span><span class="lineCov">       8326 :     if (pMyFile-&gt;fp == nullptr)</span>
+<span class="lineNum">     265 </span><span class="lineCov">          4 :         return SQLITE_CANTOPEN;</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     268 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSOpen() = %p&quot;, pMyFile-&gt;fp);
+<span class="lineNum">     269 </span>            : #endif
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span><span class="lineCov">       8322 :     pfnNotifyFileOpenedType pfn = pAppData-&gt;pfn;</span>
+<span class="lineNum">     272 </span><span class="lineCov">       8322 :     if (pfn)</span>
+<span class="lineNum">     273 </span>            :     {
+<span class="lineNum">     274 </span><span class="lineCov">       8018 :         pfn(pAppData-&gt;pfnUserData, zName, pMyFile-&gt;fp);</span>
+<span class="lineNum">     275 </span>            :     }
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span><span class="lineCov">       8322 :     pMyFile-&gt;pMethods = &amp;OGRSQLiteIOMethods;</span>
+<span class="lineNum">     278 </span><span class="lineCov">       8322 :     pMyFile-&gt;bDeleteOnClose = ( flags &amp; SQLITE_OPEN_DELETEONCLOSE );</span>
+<span class="lineNum">     279 </span><span class="lineCov">       8322 :     pMyFile-&gt;pszFilename = CPLStrdup(zName);</span>
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span><span class="lineCov">       8322 :     if (pOutFlags != nullptr)</span>
+<span class="lineNum">     282 </span><span class="lineCov">       1498 :         *pOutFlags = flags;</span>
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineCov">       8322 :     return SQLITE_OK;</span>
+<a name="285"><span class="lineNum">     285 </span>            : }</a>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span><span class="lineCov">       7838 : static int OGRSQLiteVFSDelete(DEBUG_ONLY sqlite3_vfs* pVFS,</span>
+<span class="lineNum">     288 </span>            :                            const char *zName, int DEBUG_ONLY syncDir)
+<span class="lineNum">     289 </span>            : {
+<span class="lineNum">     290 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     291 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSDelete(%s)&quot;, zName);
+<span class="lineNum">     292 </span>            : #endif
+<span class="lineNum">     293 </span><span class="lineCov">       7838 :     VSIUnlink(zName);</span>
+<span class="lineNum">     294 </span><span class="lineCov">       7838 :     return SQLITE_OK;</span>
+<a name="295"><span class="lineNum">     295 </span>            : }</a>
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span><span class="lineCov">      81858 : static int OGRSQLiteVFSAccess (DEBUG_ONLY sqlite3_vfs* pVFS,</span>
+<span class="lineNum">     298 </span>            :                                const char *zName,
+<span class="lineNum">     299 </span>            :                                int flags,
+<span class="lineNum">     300 </span>            :                                int *pResOut)
+<span class="lineNum">     301 </span>            : {
+<span class="lineNum">     302 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     303 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSAccess(%s, %d)&quot;, zName, flags);
+<span class="lineNum">     304 </span>            : #endif
+<span class="lineNum">     305 </span>            :     VSIStatBufL sStatBufL;
+<span class="lineNum">     306 </span>            :     int nRet;  // TODO(schwehr): Cleanup nRet and pResOut.  bools?
+<span class="lineNum">     307 </span><span class="lineCov">      81858 :     if (flags == SQLITE_ACCESS_EXISTS)</span>
+<span class="lineNum">     308 </span>            :     {
+<span class="lineNum">     309 </span>            :         /* Do not try to check the presence of a journal or a wal on /vsicurl ! */
+<span class="lineNum">     310 </span><span class="lineCov">     163556 :         if ( (STARTS_WITH(zName, &quot;/vsicurl/&quot;) ||</span>
+<span class="lineNum">     311 </span><span class="lineCov">     163396 :               STARTS_WITH(zName, &quot;/vsitar/&quot;) ||</span>
+<span class="lineNum">     312 </span><span class="lineCov">      81882 :               STARTS_WITH(zName, &quot;/vsizip/&quot;)) &amp;&amp;</span>
+<span class="lineNum">     313 </span><span class="lineCov">        368 :              ((strlen(zName) &gt; strlen(&quot;-journal&quot;) &amp;&amp;</span>
+<span class="lineNum">     314 </span><span class="lineCov">        276 :                strcmp(zName + strlen(zName) - strlen(&quot;-journal&quot;), &quot;-journal&quot;) == 0) ||</span>
+<span class="lineNum">     315 </span><span class="lineCov">        184 :               (strlen(zName) &gt; strlen(&quot;-wal&quot;) &amp;&amp;</span>
+<span class="lineNum">     316 </span><span class="lineCov">         92 :                strcmp(zName + strlen(zName) - strlen(&quot;-wal&quot;), &quot;-wal&quot;) == 0)) )</span>
+<span class="lineNum">     317 </span>            :         {
+<span class="lineNum">     318 </span><span class="lineCov">        184 :             nRet = -1;</span>
+<span class="lineNum">     319 </span>            :         }
+<span class="lineNum">     320 </span>            :         else
+<span class="lineNum">     321 </span>            :         {
+<span class="lineNum">     322 </span><span class="lineCov">      81674 :             nRet = VSIStatExL(zName, &amp;sStatBufL, VSI_STAT_EXISTS_FLAG);</span>
+<span class="lineNum">     323 </span>            :         }
+<span class="lineNum">     324 </span>            :     }
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :     else if (flags == SQLITE_ACCESS_READ)</span>
+<span class="lineNum">     326 </span>            :     {
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :         VSILFILE* fp = VSIFOpenL(zName, &quot;rb&quot;);</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :         nRet = fp ? 0 : -1;</span>
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :         if (fp)</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :             VSIFCloseL(fp);</span>
+<span class="lineNum">     331 </span>            :     }
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :     else if (flags == SQLITE_ACCESS_READWRITE)</span>
+<span class="lineNum">     333 </span>            :     {
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :         VSILFILE* fp = VSIFOpenL(zName, &quot;rb+&quot;);</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :         nRet = fp ? 0 : -1;</span>
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :         if (fp)</span>
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :             VSIFCloseL(fp);</span>
+<span class="lineNum">     338 </span>            :     }
+<span class="lineNum">     339 </span>            :     else
+<span class="lineNum">     340 </span>            :     {
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :         nRet = -1;</span>
+<span class="lineNum">     342 </span>            :     }
+<span class="lineNum">     343 </span><span class="lineCov">      81858 :     *pResOut = (nRet == 0);</span>
+<span class="lineNum">     344 </span><span class="lineCov">      81858 :     return SQLITE_OK;</span>
+<a name="345"><span class="lineNum">     345 </span>            : }</a>
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span><span class="lineCov">       1502 : static int OGRSQLiteVFSFullPathname (sqlite3_vfs* pVFS, const char *zName, int nOut, char *zOut)</span>
+<span class="lineNum">     348 </span>            : {
+<span class="lineNum">     349 </span><span class="lineCov">       1502 :     sqlite3_vfs* pUnderlyingVFS = GET_UNDERLYING_VFS(pVFS);</span>
+<span class="lineNum">     350 </span>            : #ifdef DEBUG_IO
+<span class="lineNum">     351 </span>            :     CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSFullPathname(%s)&quot;, zName);
+<span class="lineNum">     352 </span>            : #endif
+<span class="lineNum">     353 </span><span class="lineCov">       1502 :     if (zName[0] == '/')</span>
+<span class="lineNum">     354 </span>            :     {
+<span class="lineNum">     355 </span><span class="lineCov">       1501 :         if( static_cast&lt;int&gt;(strlen( zName )) &gt;= nOut )</span>
+<span class="lineNum">     356 </span>            :         {
+<span class="lineNum">     357 </span>            :             // The +8 comes from the fact that sqlite3 does this check as
+<span class="lineNum">     358 </span>            :             // it needs to be able to append .journal to the filename
+<span class="lineNum">     359 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     360 </span>            :                      &quot;Maximum pathname length reserved for SQLite3 VFS &quot;
+<span class="lineNum">     361 </span>            :                      &quot;isn't large enough. Try raising OGR_SQLITE_VFS_MAXPATHNAME to at least %d&quot;,
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :                      static_cast&lt;int&gt;(strlen(zName)) + 8);</span>
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :             return SQLITE_CANTOPEN;</span>
+<span class="lineNum">     364 </span>            :         }
+<span class="lineNum">     365 </span><span class="lineCov">       1501 :         strncpy(zOut, zName, nOut);</span>
+<span class="lineNum">     366 </span><span class="lineCov">       1501 :         zOut[nOut-1] = '\0';</span>
+<span class="lineNum">     367 </span><span class="lineCov">       1501 :         return SQLITE_OK;</span>
+<span class="lineNum">     368 </span>            :     }
+<span class="lineNum">     369 </span><span class="lineCov">          1 :     return pUnderlyingVFS-&gt;xFullPathname(pUnderlyingVFS, zName, nOut, zOut);</span>
+<a name="370"><span class="lineNum">     370 </span>            : }</a>
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 : static void* OGRSQLiteVFSDlOpen (sqlite3_vfs* pVFS, const char *zFilename)</span>
+<span class="lineNum">     373 </span>            : {
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :     sqlite3_vfs* pUnderlyingVFS = GET_UNDERLYING_VFS(pVFS);</span>
+<span class="lineNum">     375 </span>            :     //CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSDlOpen(%s)&quot;, zFilename);
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :     return pUnderlyingVFS-&gt;xDlOpen(pUnderlyingVFS, zFilename);</span>
+<a name="377"><span class="lineNum">     377 </span>            : }</a>
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span><span class="lineNoCov">          0 : static void OGRSQLiteVFSDlError (sqlite3_vfs* pVFS, int nByte, char *zErrMsg)</span>
+<span class="lineNum">     380 </span>            : {
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :     sqlite3_vfs* pUnderlyingVFS = GET_UNDERLYING_VFS(pVFS);</span>
+<span class="lineNum">     382 </span>            :     //CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSDlError()&quot;);
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :     pUnderlyingVFS-&gt;xDlError(pUnderlyingVFS, nByte, zErrMsg);</span>
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span>            : /* xDlSym member signature changed in sqlite 3.6.7 (http://www.sqlite.org/changes.html) */
+<span class="lineNum">     387 </span>            : /* This was supposed to be done &quot;in a way that is backwards compatible but which might cause compiler warnings&quot; */
+<a name="388"><span class="lineNum">     388 </span>            : /* Perhaps in C, but definitely not in C++ ( #4515 ) */</a>
+<span class="lineNum">     389 </span>            : #if SQLITE_VERSION_NUMBER &gt;= 3006007
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 : static void (*OGRSQLiteVFSDlSym (sqlite3_vfs* pVFS,void* pHandle, const char *zSymbol))(void)</span>
+<span class="lineNum">     391 </span>            : #else
+<span class="lineNum">     392 </span>            : static void (*OGRSQLiteVFSDlSym (sqlite3_vfs* pVFS,void* pHandle, const char *zSymbol))
+<span class="lineNum">     393 </span>            : #endif
+<span class="lineNum">     394 </span>            : {
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :     sqlite3_vfs* pUnderlyingVFS = GET_UNDERLYING_VFS(pVFS);</span>
+<span class="lineNum">     396 </span>            :     //CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSDlSym(%s)&quot;, zSymbol);
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :     return pUnderlyingVFS-&gt;xDlSym(pUnderlyingVFS, pHandle, zSymbol);</span>
+<a name="398"><span class="lineNum">     398 </span>            : }</a>
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 : static void OGRSQLiteVFSDlClose (sqlite3_vfs* pVFS, void* pHandle)</span>
+<span class="lineNum">     401 </span>            : {
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :     sqlite3_vfs* pUnderlyingVFS = GET_UNDERLYING_VFS(pVFS);</span>
+<span class="lineNum">     403 </span>            :     //CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSDlClose(%p)&quot;, pHandle);
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :     pUnderlyingVFS-&gt;xDlClose(pUnderlyingVFS, pHandle);</span>
+<a name="405"><span class="lineNum">     405 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 : static int OGRSQLiteVFSRandomness (sqlite3_vfs* pVFS, int nByte, char *zOut)</span>
+<span class="lineNum">     408 </span>            : {
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :     sqlite3_vfs* pUnderlyingVFS = GET_UNDERLYING_VFS(pVFS);</span>
+<span class="lineNum">     410 </span>            :     //CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSRandomness()&quot;);
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :     return pUnderlyingVFS-&gt;xRandomness(pUnderlyingVFS, nByte, zOut);</span>
+<a name="412"><span class="lineNum">     412 </span>            : }</a>
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 : static int OGRSQLiteVFSSleep (sqlite3_vfs* pVFS, int microseconds)</span>
+<span class="lineNum">     415 </span>            : {
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :     sqlite3_vfs* pUnderlyingVFS = GET_UNDERLYING_VFS(pVFS);</span>
+<span class="lineNum">     417 </span>            :     //CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSSleep()&quot;);
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :     return pUnderlyingVFS-&gt;xSleep(pUnderlyingVFS, microseconds);</span>
+<span class="lineNum">     419 </span>            : }
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span>            : // Derived for sqlite3.c implementation of unixCurrentTime64 and winCurrentTime64
+<span class="lineNum">     422 </span>            : #ifdef WIN32
+<span class="lineNum">     423 </span>            : #include &lt;windows.h&gt;
+<span class="lineNum">     424 </span>            : static int OGRSQLiteVFSCurrentTimeInt64 (sqlite3_vfs* /*pVFS*/, sqlite3_int64 *piNow)
+<span class="lineNum">     425 </span>            : {
+<span class="lineNum">     426 </span>            :     FILETIME ft;
+<span class="lineNum">     427 </span>            :     constexpr sqlite3_int64 winFiletimeEpoch = 23058135*(sqlite3_int64)8640000;
+<span class="lineNum">     428 </span>            :     constexpr sqlite3_int64 max32BitValue =
+<span class="lineNum">     429 </span>            :       (sqlite3_int64)2000000000 + (sqlite3_int64)2000000000 +
+<span class="lineNum">     430 </span>            :       (sqlite3_int64)294967296;
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span>            : #if defined(_WIN32_WCE)
+<span class="lineNum">     433 </span>            :     SYSTEMTIME time;
+<span class="lineNum">     434 </span>            :     GetSystemTime(&amp;time);
+<span class="lineNum">     435 </span>            :     /* if SystemTimeToFileTime() fails, it returns zero. */
+<span class="lineNum">     436 </span>            :     if (!SystemTimeToFileTime(&amp;time,&amp;ft)){
+<span class="lineNum">     437 </span>            :         return SQLITE_ERROR;
+<span class="lineNum">     438 </span>            :     }
+<span class="lineNum">     439 </span>            : #else
+<span class="lineNum">     440 </span>            :     GetSystemTimeAsFileTime( &amp;ft );
+<span class="lineNum">     441 </span>            : #endif
+<span class="lineNum">     442 </span>            :     *piNow = winFiletimeEpoch +
+<span class="lineNum">     443 </span>            :             ((((sqlite3_int64)ft.dwHighDateTime)*max32BitValue) +
+<span class="lineNum">     444 </span>            :                (sqlite3_int64)ft.dwLowDateTime)/(sqlite3_int64)10000;
+<span class="lineNum">     445 </span>            :     return SQLITE_OK;
+<span class="lineNum">     446 </span>            : }
+<a name="447"><span class="lineNum">     447 </span>            : #else</a>
+<span class="lineNum">     448 </span>            : #include &lt;sys/time.h&gt;
+<span class="lineNum">     449 </span><span class="lineCov">       3465 : static int OGRSQLiteVFSCurrentTimeInt64 (sqlite3_vfs* /*pVFS*/, sqlite3_int64 *piNow)</span>
+<span class="lineNum">     450 </span>            : {
+<span class="lineNum">     451 </span>            :     struct timeval sNow;
+<span class="lineNum">     452 </span><span class="lineCov">       3465 :     constexpr sqlite3_int64 unixEpoch = 24405875*(sqlite3_int64)8640000;</span>
+<span class="lineNum">     453 </span><span class="lineCov">       3465 :     (void)gettimeofday(&amp;sNow, nullptr);  /* Cannot fail given valid arguments */</span>
+<span class="lineNum">     454 </span><span class="lineCov">       3465 :     *piNow = unixEpoch + 1000*(sqlite3_int64)sNow.tv_sec + sNow.tv_usec/1000;</span>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">       3465 :     return SQLITE_OK;</span>
+<span class="lineNum">     457 </span>            : }
+<a name="458"><span class="lineNum">     458 </span>            : #endif</a>
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 : static int OGRSQLiteVFSCurrentTime (sqlite3_vfs* /*pVFS*/, double* p1)</span>
+<span class="lineNum">     461 </span>            : {
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :     sqlite3_int64 i = 0;</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :     int rc = OGRSQLiteVFSCurrentTimeInt64(nullptr, &amp;i);</span>
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 :     *p1 = i/86400000.0;</span>
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :     return rc;</span>
+<a name="466"><span class="lineNum">     466 </span>            : }</a>
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 : static int OGRSQLiteVFSGetLastError (sqlite3_vfs* pVFS, int p1, char *p2)</span>
+<span class="lineNum">     469 </span>            : {
+<span class="lineNum">     470 </span><span class="lineNoCov">          0 :     sqlite3_vfs* pUnderlyingVFS = GET_UNDERLYING_VFS(pVFS);</span>
+<span class="lineNum">     471 </span>            :     //CPLDebug(&quot;SQLITE&quot;, &quot;OGRSQLiteVFSGetLastError()&quot;);
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :     return pUnderlyingVFS-&gt;xGetLastError(pUnderlyingVFS, p1, p2);</span>
+<a name="473"><span class="lineNum">     473 </span>            : }</a>
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineCov">       1463 : sqlite3_vfs* OGRSQLiteCreateVFS(pfnNotifyFileOpenedType pfn, void* pfnUserData)</span>
+<span class="lineNum">     476 </span>            : {
+<span class="lineNum">     477 </span><span class="lineCov">       1463 :     sqlite3_vfs* pDefaultVFS = sqlite3_vfs_find(nullptr);</span>
+<span class="lineNum">     478 </span><span class="lineCov">       1463 :     sqlite3_vfs* pMyVFS = (sqlite3_vfs*) CPLCalloc(1, sizeof(sqlite3_vfs));</span>
+<span class="lineNum">     479 </span>            : 
+<span class="lineNum">     480 </span>            :     OGRSQLiteVFSAppDataStruct* pVFSAppData =
+<span class="lineNum">     481 </span><span class="lineCov">       1463 :         (OGRSQLiteVFSAppDataStruct*) CPLCalloc(1, sizeof(OGRSQLiteVFSAppDataStruct));</span>
+<span class="lineNum">     482 </span><span class="lineCov">       1463 :     snprintf(pVFSAppData-&gt;szVFSName, sizeof(pVFSAppData-&gt;szVFSName), &quot;OGRSQLITEVFS_%p&quot;, pVFSAppData);</span>
+<span class="lineNum">     483 </span><span class="lineCov">       1463 :     pVFSAppData-&gt;pDefaultVFS = pDefaultVFS;</span>
+<span class="lineNum">     484 </span><span class="lineCov">       1463 :     pVFSAppData-&gt;pfn = pfn;</span>
+<span class="lineNum">     485 </span><span class="lineCov">       1463 :     pVFSAppData-&gt;pfnUserData = pfnUserData;</span>
+<span class="lineNum">     486 </span><span class="lineCov">       1463 :     pVFSAppData-&gt;nCounter = 0;</span>
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span>            : #if SQLITE_VERSION_NUMBER &gt;= 3008000L /* perhaps not the minimal version that defines xCurrentTimeInt64, but who cares */
+<span class="lineNum">     489 </span><span class="lineCov">       1463 :     pMyVFS-&gt;iVersion = 2;</span>
+<span class="lineNum">     490 </span>            : #else
+<span class="lineNum">     491 </span>            :     pMyVFS-&gt;iVersion = 1;
+<span class="lineNum">     492 </span>            : #endif
+<span class="lineNum">     493 </span><span class="lineCov">       1463 :     pMyVFS-&gt;szOsFile = sizeof(OGRSQLiteFileStruct);</span>
+<span class="lineNum">     494 </span>            :     // must be large enough to hold potentially very long names like /vsicurl/.... with AWS S3 security tokens
+<span class="lineNum">     495 </span><span class="lineCov">       1463 :     pMyVFS-&gt;mxPathname = atoi(CPLGetConfigOption(&quot;OGR_SQLITE_VFS_MAXPATHNAME&quot;, &quot;2048&quot;));</span>
+<span class="lineNum">     496 </span><span class="lineCov">       1463 :     pMyVFS-&gt;zName = pVFSAppData-&gt;szVFSName;</span>
+<span class="lineNum">     497 </span><span class="lineCov">       1463 :     pMyVFS-&gt;pAppData = pVFSAppData;</span>
+<span class="lineNum">     498 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xOpen = OGRSQLiteVFSOpen;</span>
+<span class="lineNum">     499 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xDelete = OGRSQLiteVFSDelete;</span>
+<span class="lineNum">     500 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xAccess = OGRSQLiteVFSAccess;</span>
+<span class="lineNum">     501 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xFullPathname = OGRSQLiteVFSFullPathname;</span>
+<span class="lineNum">     502 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xDlOpen = OGRSQLiteVFSDlOpen;</span>
+<span class="lineNum">     503 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xDlError = OGRSQLiteVFSDlError;</span>
+<span class="lineNum">     504 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xDlSym = OGRSQLiteVFSDlSym;</span>
+<span class="lineNum">     505 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xDlClose = OGRSQLiteVFSDlClose;</span>
+<span class="lineNum">     506 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xRandomness = OGRSQLiteVFSRandomness;</span>
+<span class="lineNum">     507 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xSleep = OGRSQLiteVFSSleep;</span>
+<span class="lineNum">     508 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xCurrentTime = OGRSQLiteVFSCurrentTime;</span>
+<span class="lineNum">     509 </span><span class="lineCov">       1463 :     pMyVFS-&gt;xGetLastError = OGRSQLiteVFSGetLastError;</span>
+<span class="lineNum">     510 </span>            : #if SQLITE_VERSION_NUMBER &gt;= 3008000L /* perhaps not the minimal version that defines xCurrentTimeInt64, but who cares */
+<span class="lineNum">     511 </span><span class="lineCov">       1463 :     if( pMyVFS-&gt;iVersion &gt;= 2 )</span>
+<span class="lineNum">     512 </span><span class="lineCov">       1463 :         pMyVFS-&gt;xCurrentTimeInt64 = OGRSQLiteVFSCurrentTimeInt64;</span>
+<span class="lineNum">     513 </span>            : #endif
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span><span class="lineCov">       1463 :     return pMyVFS;</span>
+<span class="lineNum">     516 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,1529 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/jpeg2000/jpeg2000dataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/jpeg2000</a> - jpeg2000dataset.cpp<span style="font-size: 80%;"> (source / <a href="jpeg2000dataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">380</td>
+            <td class="headerCovTableEntry">552</td>
+            <td class="headerCovTableEntryLo">68.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  JPEG-2000
+<span class="lineNum">       4 </span>            :  * Purpose:  Partial implementation of the ISO/IEC 15444-1 standard
+<span class="lineNum">       5 </span>            :  * Author:   Andrey Kiselev, dron@ak4719.spb.edu
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2002, Andrey Kiselev &lt;dron@ak4719.spb.edu&gt;
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2007-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #ifndef __STDC_LIMIT_MACROS
+<span class="lineNum">      31 </span>            : // Needed on RHEL 6 for SIZE_MAX availability, needed by Jasper
+<span class="lineNum">      32 </span>            :  #define __STDC_LIMIT_MACROS 1
+<span class="lineNum">      33 </span>            : #endif
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;gdal_frmts.h&quot;
+<span class="lineNum">      37 </span>            : #include &quot;gdaljp2abstractdataset.h&quot;
+<span class="lineNum">      38 </span>            : #include &quot;gdaljp2metadata.h&quot;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : #include &lt;jasper/jasper.h&gt;
+<span class="lineNum">      41 </span>            : #include &quot;jpeg2000_vsil_io.h&quot;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : #include &lt;cmath&gt;
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            : // XXX: Part of code below extracted from the JasPer internal headers and
+<span class="lineNum">      50 </span>            : // must be in sync with JasPer version (this one works with JasPer 1.900.1)
+<span class="lineNum">      51 </span>            : #define JP2_FTYP_MAXCOMPATCODES 32
+<span class="lineNum">      52 </span>            : #define JP2_BOX_IHDR    0x69686472      /* Image Header */
+<span class="lineNum">      53 </span>            : #define JP2_BOX_BPCC    0x62706363      /* Bits Per Component */
+<span class="lineNum">      54 </span>            : #define JP2_BOX_PCLR    0x70636c72      /* Palette */
+<span class="lineNum">      55 </span>            : #define JP2_BOX_UUID    0x75756964      /* UUID */
+<span class="lineNum">      56 </span>            : extern &quot;C&quot; {
+<span class="lineNum">      57 </span>            : #ifdef NOT_USED
+<span class="lineNum">      58 </span>            : typedef struct {
+<span class="lineNum">      59 </span>            :         uint_fast32_t magic;
+<span class="lineNum">      60 </span>            : } jp2_jp_t;
+<span class="lineNum">      61 </span>            : typedef struct {
+<span class="lineNum">      62 </span>            :         uint_fast32_t majver;
+<span class="lineNum">      63 </span>            :         uint_fast32_t minver;
+<span class="lineNum">      64 </span>            :         uint_fast32_t numcompatcodes;
+<span class="lineNum">      65 </span>            :         uint_fast32_t compatcodes[JP2_FTYP_MAXCOMPATCODES];
+<span class="lineNum">      66 </span>            : } jp2_ftyp_t;
+<span class="lineNum">      67 </span>            : #endif
+<span class="lineNum">      68 </span>            : typedef struct {
+<span class="lineNum">      69 </span>            :         uint_fast32_t width;
+<span class="lineNum">      70 </span>            :         uint_fast32_t height;
+<span class="lineNum">      71 </span>            :         uint_fast16_t numcmpts;
+<span class="lineNum">      72 </span>            :         uint_fast8_t bpc;
+<span class="lineNum">      73 </span>            :         // cppcheck-suppress unusedStructMember
+<span class="lineNum">      74 </span>            :         uint_fast8_t comptype;
+<span class="lineNum">      75 </span>            :         // cppcheck-suppress unusedStructMember
+<span class="lineNum">      76 </span>            :         uint_fast8_t csunk;
+<span class="lineNum">      77 </span>            :         // cppcheck-suppress unusedStructMember
+<span class="lineNum">      78 </span>            :         uint_fast8_t ipr;
+<span class="lineNum">      79 </span>            : } jp2_ihdr_t;
+<span class="lineNum">      80 </span>            : typedef struct {
+<span class="lineNum">      81 </span>            :         uint_fast16_t numcmpts;
+<span class="lineNum">      82 </span>            :         uint_fast8_t *bpcs;
+<span class="lineNum">      83 </span>            : } jp2_bpcc_t;
+<span class="lineNum">      84 </span>            : #ifdef NOT_USED
+<span class="lineNum">      85 </span>            : typedef struct {
+<span class="lineNum">      86 </span>            :         uint_fast8_t method;
+<span class="lineNum">      87 </span>            :         uint_fast8_t pri;
+<span class="lineNum">      88 </span>            :         uint_fast8_t approx;
+<span class="lineNum">      89 </span>            :         uint_fast32_t csid;
+<span class="lineNum">      90 </span>            :         uint_fast8_t *iccp;
+<span class="lineNum">      91 </span>            :         int iccplen;
+<span class="lineNum">      92 </span>            : } jp2_colr_t;
+<span class="lineNum">      93 </span>            : #endif
+<span class="lineNum">      94 </span>            : typedef struct {
+<span class="lineNum">      95 </span>            :         uint_fast16_t numlutents;
+<span class="lineNum">      96 </span>            :         uint_fast8_t numchans;
+<span class="lineNum">      97 </span>            :         // cppcheck-suppress unusedStructMember
+<span class="lineNum">      98 </span>            :         int_fast32_t *lutdata;
+<span class="lineNum">      99 </span>            :         uint_fast8_t *bpc;
+<span class="lineNum">     100 </span>            : } jp2_pclr_t;
+<span class="lineNum">     101 </span>            : typedef struct {
+<span class="lineNum">     102 </span>            :         uint_fast16_t channo;
+<span class="lineNum">     103 </span>            :         uint_fast16_t type;
+<span class="lineNum">     104 </span>            :         uint_fast16_t assoc;
+<span class="lineNum">     105 </span>            : } jp2_cdefchan_t;
+<span class="lineNum">     106 </span>            : typedef struct {
+<span class="lineNum">     107 </span>            :         uint_fast16_t numchans;
+<span class="lineNum">     108 </span>            :         // cppcheck-suppress unusedStructMember
+<span class="lineNum">     109 </span>            :         jp2_cdefchan_t *ents;
+<span class="lineNum">     110 </span>            : } jp2_cdef_t;
+<span class="lineNum">     111 </span>            : typedef struct {
+<span class="lineNum">     112 </span>            :         uint_fast16_t cmptno;
+<span class="lineNum">     113 </span>            :         uint_fast8_t map;
+<span class="lineNum">     114 </span>            :         uint_fast8_t pcol;
+<span class="lineNum">     115 </span>            : } jp2_cmapent_t;
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : typedef struct {
+<span class="lineNum">     118 </span>            :         uint_fast16_t numchans;
+<span class="lineNum">     119 </span>            :         // cppcheck-suppress unusedStructMember
+<span class="lineNum">     120 </span>            :         jp2_cmapent_t *ents;
+<span class="lineNum">     121 </span>            : } jp2_cmap_t;
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            : #ifdef HAVE_JASPER_UUID
+<span class="lineNum">     124 </span>            : typedef struct {
+<span class="lineNum">     125 </span>            :         uint_fast32_t datalen;
+<span class="lineNum">     126 </span>            :         uint_fast8_t uuid[16];
+<span class="lineNum">     127 </span>            :         uint_fast8_t *data;
+<span class="lineNum">     128 </span>            : } jp2_uuid_t;
+<span class="lineNum">     129 </span>            : #endif
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span>            : struct jp2_boxops_s;
+<span class="lineNum">     132 </span>            : typedef struct {
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            :         struct jp2_boxops_s *ops;
+<span class="lineNum">     135 </span>            :         struct jp2_boxinfo_s *info;
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span>            :         uint_fast32_t type;
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span>            :         /* The length of the box including the (variable-length) header. */
+<span class="lineNum">     140 </span>            :         uint_fast32_t len;
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span>            :         /* The length of the box data. */
+<span class="lineNum">     143 </span>            :         uint_fast32_t datalen;
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span>            :         union {
+<span class="lineNum">     146 </span>            : #ifdef NOT_USED
+<span class="lineNum">     147 </span>            :                 jp2_jp_t jp;
+<span class="lineNum">     148 </span>            :                 jp2_ftyp_t ftyp;
+<span class="lineNum">     149 </span>            : #endif
+<span class="lineNum">     150 </span>            :                 jp2_ihdr_t ihdr;
+<span class="lineNum">     151 </span>            :                 jp2_bpcc_t bpcc;
+<span class="lineNum">     152 </span>            : #ifdef NOT_USED
+<span class="lineNum">     153 </span>            :                 jp2_colr_t colr;
+<span class="lineNum">     154 </span>            : #endif
+<span class="lineNum">     155 </span>            :                 jp2_pclr_t pclr;
+<span class="lineNum">     156 </span>            :                 jp2_cdef_t cdef;
+<span class="lineNum">     157 </span>            :                 jp2_cmap_t cmap;
+<span class="lineNum">     158 </span>            : #ifdef HAVE_JASPER_UUID
+<span class="lineNum">     159 </span>            :                 jp2_uuid_t uuid;
+<span class="lineNum">     160 </span>            : #endif
+<span class="lineNum">     161 </span>            :         } data;
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            : } jp2_box_t;
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            : #ifdef NOT_USED
+<span class="lineNum">     166 </span>            : typedef struct jp2_boxops_s {
+<span class="lineNum">     167 </span>            :         void (*init)(jp2_box_t *box);
+<span class="lineNum">     168 </span>            :         void (*destroy)(jp2_box_t *box);
+<span class="lineNum">     169 </span>            :         int (*getdata)(jp2_box_t *box, jas_stream_t *in);
+<span class="lineNum">     170 </span>            :         int (*putdata)(jp2_box_t *box, jas_stream_t *out);
+<span class="lineNum">     171 </span>            :         void (*dumpdata)(jp2_box_t *box, FILE *out);
+<span class="lineNum">     172 </span>            : } jp2_boxops_t;
+<span class="lineNum">     173 </span>            : #endif
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span>            : extern jp2_box_t *jp2_box_create(int type);
+<span class="lineNum">     176 </span>            : extern void jp2_box_destroy(jp2_box_t *box);
+<span class="lineNum">     177 </span>            : extern jp2_box_t *jp2_box_get(jas_stream_t *in);
+<span class="lineNum">     178 </span>            : extern int jp2_box_put(jp2_box_t *box, jas_stream_t *out);
+<span class="lineNum">     179 </span>            : #ifdef HAVE_JASPER_UUID
+<span class="lineNum">     180 </span>            : int jp2_encode_uuid(jas_image_t *image, jas_stream_t *out,
+<span class="lineNum">     181 </span>            :                     char *optstr, jp2_box_t *uuid);
+<span class="lineNum">     182 </span>            : #endif
+<span class="lineNum">     183 </span>            : }
+<span class="lineNum">     184 </span>            : // XXX: End of JasPer header.
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span>            : /************************************************************************/
+<span class="lineNum">     187 </span>            : /* ==================================================================== */
+<span class="lineNum">     188 </span>            : /*                              JPEG2000Dataset                         */
+<span class="lineNum">     189 </span>            : /* ==================================================================== */
+<span class="lineNum">     190 </span>            : /************************************************************************/
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            : class JPEG2000Dataset : public GDALJP2AbstractDataset
+<span class="lineNum">     193 </span>            : {
+<span class="lineNum">     194 </span>            :     friend class JPEG2000RasterBand;
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            :     jas_stream_t *psStream;
+<span class="lineNum">     197 </span>            :     jas_image_t *psImage;
+<span class="lineNum">     198 </span>            :     int         iFormat;
+<span class="lineNum">     199 </span>            :     int         bPromoteTo8Bit;
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span>            :     int         bAlreadyDecoded;
+<span class="lineNum">     202 </span>            :     int         DecodeImage();
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span>            :   public:
+<span class="lineNum">     205 </span>            :                 JPEG2000Dataset();
+<span class="lineNum">     206 </span>            :                 ~JPEG2000Dataset();
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span>            :     static int           Identify( GDALOpenInfo * );
+<span class="lineNum">     209 </span>            :     static GDALDataset  *Open( GDALOpenInfo * );
+<span class="lineNum">     210 </span>            : };
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            : /************************************************************************/
+<span class="lineNum">     213 </span>            : /* ==================================================================== */
+<span class="lineNum">     214 </span>            : /*                            JPEG2000RasterBand                        */
+<span class="lineNum">     215 </span>            : /* ==================================================================== */
+<span class="lineNum">     216 </span>            : /************************************************************************/
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            : class JPEG2000RasterBand : public GDALPamRasterBand
+<span class="lineNum">     219 </span>            : {
+<span class="lineNum">     220 </span>            :     friend class JPEG2000Dataset;
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span>            :     // NOTE: poDS may be altered for NITF/JPEG2000 files!
+<span class="lineNum">     223 </span>            :     JPEG2000Dataset     *poGDS;
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            :     jas_matrix_t        *psMatrix;
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            :     int                  iDepth;
+<span class="lineNum">     228 </span>            :     int                  bSignedness;
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span>            :   public:
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :                 JPEG2000RasterBand( JPEG2000Dataset *, int, int, int );
+<span class="lineNum">     233 </span>            :     virtual ~JPEG2000RasterBand();
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            :     virtual CPLErr IReadBlock( int, int, void * ) override;
+<span class="lineNum">     236 </span>            :     virtual GDALColorInterp GetColorInterpretation() override;
+<span class="lineNum">     237 </span>            : };
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            : /************************************************************************/
+<span class="lineNum">     240 </span>            : /*                           JPEG2000RasterBand()                       */
+<a name="241"><span class="lineNum">     241 </span>            : /************************************************************************/</a>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineCov">         61 : JPEG2000RasterBand::JPEG2000RasterBand( JPEG2000Dataset *poDSIn, int nBandIn,</span>
+<span class="lineNum">     244 </span>            :                                         int iDepthIn, int bSignednessIn ) :
+<span class="lineNum">     245 </span>            :     poGDS(poDSIn),
+<span class="lineNum">     246 </span>            :     psMatrix(nullptr),
+<span class="lineNum">     247 </span>            :     iDepth(iDepthIn),
+<span class="lineNum">     248 </span><span class="lineCov">         61 :     bSignedness(bSignednessIn)</span>
+<span class="lineNum">     249 </span>            : {
+<span class="lineNum">     250 </span><span class="lineCov">         61 :     poDS = poDSIn;</span>
+<span class="lineNum">     251 </span><span class="lineCov">         61 :     nBand = nBandIn;</span>
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span>            :     // XXX: JasPer can't handle data with depth &gt; 32 bits
+<span class="lineNum">     254 </span>            :     // Maximum possible depth for JPEG2000 is 38!
+<span class="lineNum">     255 </span><span class="lineCov">         61 :     switch ( bSignedness )</span>
+<span class="lineNum">     256 </span>            :     {
+<span class="lineNum">     257 </span>            :         case 1:                         // Signed component
+<span class="lineNum">     258 </span><span class="lineCov">          5 :         if (iDepth &lt;= 8)</span>
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :             this-&gt;eDataType = GDT_Byte; // FIXME: should be signed,</span>
+<span class="lineNum">     260 </span>            :                                         // but we haven't signed byte
+<span class="lineNum">     261 </span>            :                                         // data type in GDAL
+<span class="lineNum">     262 </span><span class="lineCov">          5 :         else if (iDepth &lt;= 16)</span>
+<span class="lineNum">     263 </span><span class="lineCov">          5 :             this-&gt;eDataType = GDT_Int16;</span>
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :         else if (iDepth &lt;= 32)</span>
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :             this-&gt;eDataType = GDT_Int32;</span>
+<span class="lineNum">     266 </span><span class="lineCov">          5 :         break;</span>
+<span class="lineNum">     267 </span>            :         case 0:                         // Unsigned component
+<span class="lineNum">     268 </span>            :         default:
+<span class="lineNum">     269 </span><span class="lineCov">         56 :         if (iDepth &lt;= 8)</span>
+<span class="lineNum">     270 </span><span class="lineCov">         50 :             this-&gt;eDataType = GDT_Byte;</span>
+<span class="lineNum">     271 </span><span class="lineCov">          6 :         else if (iDepth &lt;= 16)</span>
+<span class="lineNum">     272 </span><span class="lineCov">          6 :             this-&gt;eDataType = GDT_UInt16;</span>
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :         else if (iDepth &lt;= 32)</span>
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :             this-&gt;eDataType = GDT_UInt32;</span>
+<span class="lineNum">     275 </span><span class="lineCov">         56 :         break;</span>
+<span class="lineNum">     276 </span>            :     }
+<span class="lineNum">     277 </span>            :     // FIXME: Figure out optimal block size!
+<span class="lineNum">     278 </span>            :     // Should the block size be fixed or determined dynamically?
+<span class="lineNum">     279 </span><span class="lineCov">         61 :     nBlockXSize = std::min(256, poDSIn-&gt;nRasterXSize);</span>
+<span class="lineNum">     280 </span><span class="lineCov">         61 :     nBlockYSize = std::min(256, poDSIn-&gt;nRasterYSize);</span>
+<span class="lineNum">     281 </span><span class="lineCov">         61 :     psMatrix = jas_matrix_create(nBlockYSize, nBlockXSize);</span>
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span><span class="lineCov">         61 :     if( iDepth % 8 != 0 &amp;&amp; !poDSIn-&gt;bPromoteTo8Bit )</span>
+<span class="lineNum">     284 </span>            :     {
+<span class="lineNum">     285 </span>            :         SetMetadataItem( &quot;NBITS&quot;,
+<span class="lineNum">     286 </span><span class="lineCov">         18 :                          CPLString().Printf(&quot;%d&quot;,iDepth),</span>
+<span class="lineNum">     287 </span><span class="lineCov">          9 :                          &quot;IMAGE_STRUCTURE&quot; );</span>
+<span class="lineNum">     288 </span>            :     }
+<span class="lineNum">     289 </span><span class="lineCov">         61 :     SetMetadataItem( &quot;COMPRESSION&quot;, &quot;JP2000&quot;, &quot;IMAGE_STRUCTURE&quot; );</span>
+<span class="lineNum">     290 </span><span class="lineCov">         61 : }</span>
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            : /************************************************************************/
+<span class="lineNum">     293 </span>            : /*                         ~JPEG2000RasterBand()                        */
+<a name="294"><span class="lineNum">     294 </span>            : /************************************************************************/</a>
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span><span class="lineCov">        183 : JPEG2000RasterBand::~JPEG2000RasterBand()</span>
+<span class="lineNum">     297 </span>            : {
+<span class="lineNum">     298 </span><span class="lineCov">         61 :     if ( psMatrix )</span>
+<span class="lineNum">     299 </span><span class="lineCov">         61 :         jas_matrix_destroy( psMatrix );</span>
+<span class="lineNum">     300 </span><span class="lineCov">        122 : }</span>
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            : /************************************************************************/
+<span class="lineNum">     303 </span>            : /*                             IReadBlock()                             */
+<a name="304"><span class="lineNum">     304 </span>            : /************************************************************************/</a>
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span><span class="lineCov">         33 : CPLErr JPEG2000RasterBand::IReadBlock( int nBlockXOff, int nBlockYOff,</span>
+<span class="lineNum">     307 </span>            :                                       void * pImage )
+<span class="lineNum">     308 </span>            : {
+<span class="lineNum">     309 </span>            :     int             i, j;
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span>            :     // Decode image from the stream, if not yet
+<span class="lineNum">     312 </span><span class="lineCov">         33 :     if ( !poGDS-&gt;DecodeImage() )</span>
+<span class="lineNum">     313 </span>            :     {
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     315 </span>            :     }
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            :     // Now we can calculate the pixel offset of the top left by multiplying
+<span class="lineNum">     318 </span>            :     // block offset with the block size.
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span>            :     /* In case the dimensions of the image are not multiple of the block dimensions */
+<span class="lineNum">     321 </span>            :     /* take care of not requesting more pixels than available for the blocks at the */
+<span class="lineNum">     322 </span>            :     /* right or bottom of the image */
+<span class="lineNum">     323 </span>            :     const int nWidthToRead =
+<span class="lineNum">     324 </span><span class="lineCov">         33 :         std::min(nBlockXSize, poGDS-&gt;nRasterXSize - nBlockXOff * nBlockXSize);</span>
+<span class="lineNum">     325 </span>            :     const int nHeightToRead =
+<span class="lineNum">     326 </span><span class="lineCov">         33 :         std::min(nBlockYSize, poGDS-&gt;nRasterYSize - nBlockYOff * nBlockYSize);</span>
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span>            :     jas_image_readcmpt( poGDS-&gt;psImage, nBand - 1,
+<span class="lineNum">     329 </span><span class="lineCov">         66 :                         nBlockXOff * nBlockXSize, nBlockYOff * nBlockYSize,</span>
+<span class="lineNum">     330 </span><span class="lineCov">         99 :                         nWidthToRead, nHeightToRead, psMatrix );</span>
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span><span class="lineCov">         33 :     int nWordSize = GDALGetDataTypeSize(eDataType) / 8;</span>
+<span class="lineNum">     333 </span><span class="lineCov">         33 :     int nLineSize = nBlockXSize * nWordSize;</span>
+<span class="lineNum">     334 </span><span class="lineCov">         33 :     GByte* ptr = (GByte*)pImage;</span>
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span>            :     /* Pad incomplete blocks at the right or bottom of the image */
+<span class="lineNum">     337 </span><span class="lineCov">         33 :     if (nWidthToRead != nBlockXSize || nHeightToRead != nBlockYSize)</span>
+<span class="lineNum">     338 </span><span class="lineCov">          4 :         memset(pImage, 0, nLineSize * nBlockYSize);</span>
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span><span class="lineCov">       3681 :     for( i = 0; i &lt; nHeightToRead; i++, ptr += nLineSize )</span>
+<span class="lineNum">     341 </span>            :     {
+<span class="lineNum">     342 </span><span class="lineCov">     546800 :         for( j = 0; j &lt; nWidthToRead; j++ )</span>
+<span class="lineNum">     343 </span>            :         {
+<span class="lineNum">     344 </span>            :             // XXX: We need casting because matrix element always
+<span class="lineNum">     345 </span>            :             // has 32 bit depth in JasPer
+<span class="lineNum">     346 </span>            :             // FIXME: what about float values?
+<span class="lineNum">     347 </span><span class="lineCov">     543152 :             switch( eDataType )</span>
+<span class="lineNum">     348 </span>            :             {
+<span class="lineNum">     349 </span>            :                 case GDT_Int16:
+<span class="lineNum">     350 </span>            :                 {
+<span class="lineNum">     351 </span><span class="lineCov">       1600 :                     ((GInt16*)ptr)[j] = (GInt16)jas_matrix_get(psMatrix, i, j);</span>
+<span class="lineNum">     352 </span>            :                 }
+<span class="lineNum">     353 </span><span class="lineCov">       1600 :                 break;</span>
+<span class="lineNum">     354 </span>            :                 case GDT_Int32:
+<span class="lineNum">     355 </span>            :                 {
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :                     ((GInt32*)ptr)[j] = (GInt32)jas_matrix_get(psMatrix, i, j);</span>
+<span class="lineNum">     357 </span>            :                 }
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     359 </span>            :                 case GDT_UInt16:
+<span class="lineNum">     360 </span>            :                 {
+<span class="lineNum">     361 </span><span class="lineCov">     186648 :                     ((GUInt16*)ptr)[j] = (GUInt16)jas_matrix_get(psMatrix, i, j);</span>
+<span class="lineNum">     362 </span>            :                 }
+<span class="lineNum">     363 </span><span class="lineCov">     186648 :                 break;</span>
+<span class="lineNum">     364 </span>            :                 case GDT_UInt32:
+<span class="lineNum">     365 </span>            :                 {
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :                     ((GUInt32*)ptr)[j] = (GUInt32)jas_matrix_get(psMatrix, i, j);</span>
+<span class="lineNum">     367 </span>            :                 }
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     369 </span>            :                 case GDT_Byte:
+<span class="lineNum">     370 </span>            :                 default:
+<span class="lineNum">     371 </span>            :                 {
+<span class="lineNum">     372 </span><span class="lineCov">     354904 :                     ((GByte*)ptr)[j] = (GByte)jas_matrix_get(psMatrix, i, j);</span>
+<span class="lineNum">     373 </span>            :                 }
+<span class="lineNum">     374 </span><span class="lineCov">     354904 :                 break;</span>
+<span class="lineNum">     375 </span>            :             }
+<span class="lineNum">     376 </span>            :         }
+<span class="lineNum">     377 </span>            :     }
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span><span class="lineCov">         33 :     if( poGDS-&gt;bPromoteTo8Bit &amp;&amp; nBand == 4 )</span>
+<span class="lineNum">     380 </span>            :     {
+<span class="lineNum">     381 </span><span class="lineCov">          1 :         ptr = (GByte*)pImage;</span>
+<span class="lineNum">     382 </span><span class="lineCov">        151 :         for( i = 0; i &lt; nHeightToRead; i++, ptr += nLineSize )</span>
+<span class="lineNum">     383 </span>            :         {
+<span class="lineNum">     384 </span><span class="lineCov">      24450 :             for( j = 0; j &lt; nWidthToRead; j++ )</span>
+<span class="lineNum">     385 </span>            :             {
+<span class="lineNum">     386 </span><span class="lineCov">      24300 :                 ((GByte*)ptr)[j] *= 255;</span>
+<span class="lineNum">     387 </span>            :             }
+<span class="lineNum">     388 </span>            :         }
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span><span class="lineCov">         33 :     return CE_None;</span>
+<span class="lineNum">     392 </span>            : }
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span>            : /************************************************************************/
+<span class="lineNum">     395 </span>            : /*                       GetColorInterpretation()                       */
+<a name="396"><span class="lineNum">     396 </span>            : /************************************************************************/</a>
+<span class="lineNum">     397 </span>            : 
+<span class="lineNum">     398 </span><span class="lineCov">         48 : GDALColorInterp JPEG2000RasterBand::GetColorInterpretation()</span>
+<span class="lineNum">     399 </span>            : {
+<span class="lineNum">     400 </span>            :     // Decode image from the stream, if not yet
+<span class="lineNum">     401 </span><span class="lineCov">         48 :     if ( !poGDS-&gt;DecodeImage() )</span>
+<span class="lineNum">     402 </span>            :     {
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :         return GCI_Undefined;</span>
+<span class="lineNum">     404 </span>            :     }
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span><span class="lineCov">         48 :     if ( jas_clrspc_fam( jas_image_clrspc( poGDS-&gt;psImage ) ) ==</span>
+<span class="lineNum">     407 </span>            :          JAS_CLRSPC_FAM_GRAY )
+<span class="lineNum">     408 </span><span class="lineCov">         17 :         return GCI_GrayIndex;</span>
+<span class="lineNum">     409 </span><span class="lineCov">         31 :     else if ( jas_clrspc_fam( jas_image_clrspc( poGDS-&gt;psImage ) ) ==</span>
+<span class="lineNum">     410 </span>            :               JAS_CLRSPC_FAM_RGB )
+<span class="lineNum">     411 </span>            :     {
+<span class="lineNum">     412 </span><span class="lineCov">         31 :         switch ( jas_image_cmpttype( poGDS-&gt;psImage, nBand - 1 ) )</span>
+<span class="lineNum">     413 </span>            :         {
+<span class="lineNum">     414 </span>            :             case JAS_IMAGE_CT_RGB_R:
+<span class="lineNum">     415 </span><span class="lineCov">          6 :                 return GCI_RedBand;</span>
+<span class="lineNum">     416 </span>            :             case JAS_IMAGE_CT_RGB_G:
+<span class="lineNum">     417 </span><span class="lineCov">          6 :                 return GCI_GreenBand;</span>
+<span class="lineNum">     418 </span>            :             case JAS_IMAGE_CT_RGB_B:
+<span class="lineNum">     419 </span><span class="lineCov">          6 :                 return GCI_BlueBand;</span>
+<span class="lineNum">     420 </span>            :             case JAS_IMAGE_CT_OPACITY:
+<span class="lineNum">     421 </span><span class="lineCov">         13 :                 return GCI_AlphaBand;</span>
+<span class="lineNum">     422 </span>            :             default:
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :                 return GCI_Undefined;</span>
+<span class="lineNum">     424 </span>            :         }
+<span class="lineNum">     425 </span>            :     }
+<span class="lineNum">     426 </span>            :     else
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :         return GCI_Undefined;</span>
+<span class="lineNum">     428 </span>            : }
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span>            : /************************************************************************/
+<span class="lineNum">     431 </span>            : /* ==================================================================== */
+<span class="lineNum">     432 </span>            : /*                              JPEG2000Dataset                         */
+<span class="lineNum">     433 </span>            : /* ==================================================================== */
+<span class="lineNum">     434 </span>            : /************************************************************************/
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span>            : /************************************************************************/
+<span class="lineNum">     437 </span>            : /*                           JPEG2000Dataset()                          */
+<a name="438"><span class="lineNum">     438 </span>            : /************************************************************************/</a>
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span><span class="lineCov">         39 : JPEG2000Dataset::JPEG2000Dataset() :</span>
+<span class="lineNum">     441 </span>            :     psStream(nullptr),
+<span class="lineNum">     442 </span>            :     psImage(nullptr),
+<span class="lineNum">     443 </span>            :     iFormat(0),
+<span class="lineNum">     444 </span>            :     bPromoteTo8Bit(FALSE),
+<span class="lineNum">     445 </span><span class="lineCov">         39 :     bAlreadyDecoded(FALSE)</span>
+<span class="lineNum">     446 </span>            : {
+<span class="lineNum">     447 </span><span class="lineCov">         39 :     nBands = 0;</span>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineCov">         39 :     poDriver = (GDALDriver *)GDALGetDriverByName(&quot;JPEG2000&quot;);</span>
+<span class="lineNum">     450 </span><span class="lineCov">         39 : }</span>
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span>            : /************************************************************************/
+<span class="lineNum">     453 </span>            : /*                            ~JPEG2000Dataset()                        */
+<a name="454"><span class="lineNum">     454 </span>            : /************************************************************************/</a>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">        117 : JPEG2000Dataset::~JPEG2000Dataset()</span>
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            : {
+<span class="lineNum">     459 </span><span class="lineCov">         39 :     FlushCache();</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineCov">         39 :     if ( psStream )</span>
+<span class="lineNum">     462 </span><span class="lineCov">         39 :         jas_stream_close( psStream );</span>
+<span class="lineNum">     463 </span><span class="lineCov">         39 :     if ( psImage )</span>
+<span class="lineNum">     464 </span><span class="lineCov">         28 :         jas_image_destroy( psImage );</span>
+<span class="lineNum">     465 </span><span class="lineCov">         78 : }</span>
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span>            : /************************************************************************/
+<a name="468"><span class="lineNum">     468 </span>            : /*                             DecodeImage()                            */</a>
+<span class="lineNum">     469 </span>            : /************************************************************************/
+<span class="lineNum">     470 </span><span class="lineCov">         89 : int JPEG2000Dataset::DecodeImage()</span>
+<span class="lineNum">     471 </span>            : {
+<span class="lineNum">     472 </span><span class="lineCov">         89 :     if (bAlreadyDecoded)</span>
+<span class="lineNum">     473 </span><span class="lineCov">         61 :         return psImage != nullptr;</span>
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineCov">         28 :     bAlreadyDecoded = TRUE;</span>
+<span class="lineNum">     476 </span><span class="lineCov">         28 :     if ( !( psImage = jas_image_decode(psStream, iFormat, nullptr) ) )</span>
+<span class="lineNum">     477 </span>            :     {
+<span class="lineNum">     478 </span>            :         CPLDebug( &quot;JPEG2000&quot;, &quot;Unable to decode image. Format: %s, %d&quot;,
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :                   jas_image_fmttostr( iFormat ), iFormat );</span>
+<span class="lineNum">     480 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     481 </span>            :     }
+<span class="lineNum">     482 </span>            : 
+<span class="lineNum">     483 </span>            :     /* Case of a JP2 image : check that the properties given by */
+<span class="lineNum">     484 </span>            :     /* the JP2 boxes match the ones of the code stream */
+<span class="lineNum">     485 </span><span class="lineCov">         28 :     if (nBands != 0)</span>
+<span class="lineNum">     486 </span>            :     {
+<span class="lineNum">     487 </span><span class="lineCov">         20 :         if (nBands != jas_image_numcmpts( psImage ))</span>
+<span class="lineNum">     488 </span>            :         {
+<span class="lineNum">     489 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     490 </span>            :                      &quot;The number of components indicated in the IHDR box (%d) mismatch &quot;
+<span class="lineNum">     491 </span>            :                      &quot;the value specified in the code stream (%d)&quot;,
+<span class="lineNum">     492 </span><span class="lineNoCov">          0 :                      nBands, jas_image_numcmpts( psImage ));</span>
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :             jas_image_destroy( psImage );</span>
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :             psImage = nullptr;</span>
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     496 </span>            :         }
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span><span class="lineCov">         40 :         if (nRasterXSize != jas_image_cmptwidth( psImage, 0 ) ||</span>
+<span class="lineNum">     499 </span><span class="lineCov">         20 :             nRasterYSize != jas_image_cmptheight( psImage, 0 ) )</span>
+<span class="lineNum">     500 </span>            :         {
+<span class="lineNum">     501 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     502 </span>            :                      &quot;The dimensions indicated in the IHDR box (%d x %d) mismatch &quot;
+<span class="lineNum">     503 </span>            :                      &quot;the value specified in the code stream (%d x %d)&quot;,
+<span class="lineNum">     504 </span>            :                      nRasterXSize, nRasterYSize,
+<span class="lineNum">     505 </span><span class="lineNoCov">          0 :                      (int)jas_image_cmptwidth( psImage, 0 ),</span>
+<span class="lineNum">     506 </span><span class="lineNoCov">          0 :                      (int)jas_image_cmptheight( psImage, 0 ));</span>
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :             jas_image_destroy( psImage );</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :             psImage = nullptr;</span>
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     510 </span>            :         }
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span>            :         int iBand;
+<span class="lineNum">     513 </span><span class="lineCov">         57 :         for ( iBand = 0; iBand &lt; nBands; iBand++ )</span>
+<span class="lineNum">     514 </span>            :         {
+<span class="lineNum">     515 </span><span class="lineCov">         37 :             JPEG2000RasterBand* poBand = (JPEG2000RasterBand*) GetRasterBand(iBand+1);</span>
+<span class="lineNum">     516 </span><span class="lineCov">         74 :             if (poBand-&gt;iDepth != jas_image_cmptprec( psImage, iBand ) ||</span>
+<span class="lineNum">     517 </span><span class="lineCov">         37 :                 poBand-&gt;bSignedness != jas_image_cmptsgnd( psImage, iBand ))</span>
+<span class="lineNum">     518 </span>            :             {
+<span class="lineNum">     519 </span>            :                 CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     520 </span>            :                          &quot;The bit depth of band %d indicated in the IHDR box (%d) mismatch &quot;
+<span class="lineNum">     521 </span>            :                          &quot;the value specified in the code stream (%d)&quot;,
+<span class="lineNum">     522 </span><span class="lineNoCov">          0 :                          iBand + 1, poBand-&gt;iDepth, jas_image_cmptprec( psImage, iBand ));</span>
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 :                 jas_image_destroy( psImage );</span>
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :                 psImage = nullptr;</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :                 return FALSE;</span>
+<span class="lineNum">     526 </span>            :             }
+<span class="lineNum">     527 </span>            :         }
+<span class="lineNum">     528 </span>            :     }
+<span class="lineNum">     529 </span>            : 
+<span class="lineNum">     530 </span>            :     /* Ask for YCbCr -&gt; RGB translation */
+<span class="lineNum">     531 </span><span class="lineCov">         28 :     if ( jas_clrspc_fam( jas_image_clrspc( psImage ) ) ==</span>
+<span class="lineNum">     532 </span>            :               JAS_CLRSPC_FAM_YCBCR )
+<span class="lineNum">     533 </span>            :     {
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :         jas_image_t *psRGBImage = nullptr;</span>
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :         jas_cmprof_t *psRGBProf = nullptr;</span>
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 :         CPLDebug( &quot;JPEG2000&quot;, &quot;forcing conversion to sRGB&quot;);</span>
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 :         if (!(psRGBProf = jas_cmprof_createfromclrspc(JAS_CLRSPC_SRGB))) {</span>
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :             CPLDebug( &quot;JPEG2000&quot;, &quot;cannot create sRGB profile&quot;);</span>
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :             return TRUE;</span>
+<span class="lineNum">     540 </span>            :         }
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :         if (!(psRGBImage = jas_image_chclrspc(psImage, psRGBProf, JAS_CMXFORM_INTENT_PER))) {</span>
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :             CPLDebug( &quot;JPEG2000&quot;, &quot;cannot convert to sRGB&quot;);</span>
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :             jas_cmprof_destroy(psRGBProf);</span>
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :             return TRUE;</span>
+<span class="lineNum">     545 </span>            :         }
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :         jas_image_destroy(psImage);</span>
+<span class="lineNum">     547 </span><span class="lineNoCov">          0 :         jas_cmprof_destroy(psRGBProf);</span>
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :         psImage = psRGBImage;</span>
+<span class="lineNum">     549 </span>            :     }
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span><span class="lineCov">         28 :     return TRUE;</span>
+<a name="552"><span class="lineNum">     552 </span>            : }</a>
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span><span class="lineCov">         49 : static void JPEG2000Init()</span>
+<span class="lineNum">     555 </span>            : {
+<span class="lineNum">     556 </span>            :     static int bHasInit = FALSE;
+<span class="lineNum">     557 </span><span class="lineCov">         49 :     if (!bHasInit)</span>
+<span class="lineNum">     558 </span>            :     {
+<span class="lineNum">     559 </span><span class="lineCov">          4 :         bHasInit = TRUE;</span>
+<span class="lineNum">     560 </span><span class="lineCov">          4 :         jas_init();</span>
+<span class="lineNum">     561 </span>            :     }
+<span class="lineNum">     562 </span><span class="lineCov">         49 : }</span>
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span>            : /************************************************************************/
+<span class="lineNum">     565 </span>            : /*                            Identify()                                */
+<a name="566"><span class="lineNum">     566 </span>            : /************************************************************************/</a>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineCov">      49815 : int JPEG2000Dataset::Identify( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span>            : {
+<span class="lineNum">     571 </span><span class="lineCov">      49815 :     constexpr unsigned char jpc_header[] = {0xff,0x4f};</span>
+<span class="lineNum">     572 </span><span class="lineCov">      49815 :     constexpr unsigned char jp2_box_jp[] = {0x6a,0x50,0x20,0x20}; /* 'jP  ' */</span>
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span><span class="lineCov">      49815 :     if( poOpenInfo-&gt;nHeaderBytes &gt;= 16</span>
+<span class="lineNum">     575 </span><span class="lineCov">      11749 :         &amp;&amp; (memcmp( poOpenInfo-&gt;pabyHeader, jpc_header,</span>
+<span class="lineNum">     576 </span><span class="lineCov">      11749 :                     sizeof(jpc_header) ) == 0</span>
+<span class="lineNum">     577 </span><span class="lineCov">      11736 :             || memcmp( poOpenInfo-&gt;pabyHeader + 4, jp2_box_jp,</span>
+<span class="lineNum">     578 </span><span class="lineCov">      11736 :                     sizeof(jp2_box_jp) ) == 0</span>
+<span class="lineNum">     579 </span>            :             /* PGX file*/
+<span class="lineNum">     580 </span><span class="lineCov">      11679 :             || (memcmp( poOpenInfo-&gt;pabyHeader, &quot;PG&quot;, 2) == 0 &amp;&amp;</span>
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :                 (poOpenInfo-&gt;pabyHeader[2] == ' ' || poOpenInfo-&gt;pabyHeader[2] == '\t') &amp;&amp;</span>
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :                 (memcmp( poOpenInfo-&gt;pabyHeader + 3, &quot;ML&quot;, 2) == 0 ||</span>
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :                  memcmp( poOpenInfo-&gt;pabyHeader + 3, &quot;LM&quot;, 2) == 0))) )</span>
+<span class="lineNum">     584 </span><span class="lineCov">         70 :         return TRUE;</span>
+<span class="lineNum">     585 </span>            : 
+<span class="lineNum">     586 </span>            :     else
+<span class="lineNum">     587 </span><span class="lineCov">      49745 :         return FALSE;</span>
+<span class="lineNum">     588 </span>            : }
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span>            : /************************************************************************/
+<span class="lineNum">     591 </span>            : /*                                Open()                                */
+<a name="592"><span class="lineNum">     592 </span>            : /************************************************************************/</a>
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span><span class="lineCov">      12631 : GDALDataset *JPEG2000Dataset::Open( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span>            : {
+<span class="lineNum">     597 </span>            :     int         iFormat;
+<span class="lineNum">     598 </span><span class="lineCov">      12631 :     char        *pszFormatName = nullptr;</span>
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span><span class="lineCov">      12631 :     if (!Identify(poOpenInfo))</span>
+<span class="lineNum">     601 </span><span class="lineCov">      12591 :         return nullptr;</span>
+<span class="lineNum">     602 </span>            : 
+<span class="lineNum">     603 </span><span class="lineCov">         39 :     JPEG2000Init();</span>
+<span class="lineNum">     604 </span><span class="lineCov">         39 :     jas_stream_t *sS= JPEG2000_VSIL_fopen( poOpenInfo-&gt;pszFilename, &quot;rb&quot; );</span>
+<span class="lineNum">     605 </span><span class="lineCov">         39 :     if( !sS )</span>
+<span class="lineNum">     606 </span>            :     {
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     608 </span>            :     }
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineCov">         39 :     iFormat = jas_image_getfmt( sS );</span>
+<span class="lineNum">     611 </span><span class="lineCov">         39 :     if ( !(pszFormatName = jas_image_fmttostr( iFormat )) )</span>
+<span class="lineNum">     612 </span>            :     {
+<span class="lineNum">     613 </span><span class="lineNoCov">          0 :         jas_stream_close( sS );</span>
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     615 </span>            :     }
+<span class="lineNum">     616 </span><span class="lineCov">         78 :     if ( strlen( pszFormatName ) &lt; 3 ||</span>
+<span class="lineNum">     617 </span><span class="lineCov">         47 :         (!STARTS_WITH_CI(pszFormatName, &quot;jp2&quot;) &amp;&amp;</span>
+<span class="lineNum">     618 </span><span class="lineCov">          8 :          !STARTS_WITH_CI(pszFormatName, &quot;jpc&quot;) &amp;&amp;</span>
+<span class="lineNum">     619 </span><span class="lineNoCov">          0 :          !STARTS_WITH_CI(pszFormatName, &quot;pgx&quot;)) )</span>
+<span class="lineNum">     620 </span>            :     {
+<span class="lineNum">     621 </span>            :         CPLDebug( &quot;JPEG2000&quot;, &quot;JasPer reports file is format type `%s'.&quot;,
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :                   pszFormatName );</span>
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :         jas_stream_close( sS );</span>
+<span class="lineNum">     624 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     625 </span>            :     }
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     628 </span>            : /*      Confirm the requested access is supported.                      */
+<span class="lineNum">     629 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     630 </span><span class="lineCov">         39 :     if( poOpenInfo-&gt;eAccess == GA_Update )</span>
+<span class="lineNum">     631 </span>            :     {
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :         jas_stream_close(sS);</span>
+<span class="lineNum">     633 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     634 </span>            :                   &quot;The JPEG2000 driver does not support update access to existing&quot;
+<span class="lineNum">     635 </span><span class="lineNoCov">          0 :                   &quot; datasets.\n&quot; );</span>
+<span class="lineNum">     636 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     637 </span>            :     }
+<span class="lineNum">     638 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     639 </span>            : /*      Create a corresponding GDALDataset.                             */
+<span class="lineNum">     640 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     641 </span><span class="lineCov">         39 :     int *paiDepth = nullptr;</span>
+<span class="lineNum">     642 </span><span class="lineCov">         39 :     int *pabSignedness = nullptr;</span>
+<span class="lineNum">     643 </span>            :     int iBand;
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span><span class="lineCov">         39 :     JPEG2000Dataset *poDS = new JPEG2000Dataset();</span>
+<span class="lineNum">     646 </span>            : 
+<span class="lineNum">     647 </span><span class="lineCov">         39 :     poDS-&gt;psStream = sS;</span>
+<span class="lineNum">     648 </span><span class="lineCov">         39 :     poDS-&gt;iFormat = iFormat;</span>
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span><span class="lineCov">         39 :     if ( STARTS_WITH_CI(pszFormatName, &quot;jp2&quot;) )</span>
+<span class="lineNum">     651 </span>            :     {
+<span class="lineNum">     652 </span>            :         // XXX: Hack to read JP2 boxes from input file. JasPer hasn't public
+<span class="lineNum">     653 </span>            :         // API call for such things, so we will use internal JasPer functions.
+<span class="lineNum">     654 </span>            :         jp2_box_t *box;
+<span class="lineNum">     655 </span><span class="lineCov">        320 :         while ( ( box = jp2_box_get(poDS-&gt;psStream) ) != nullptr )</span>
+<span class="lineNum">     656 </span>            :         {
+<span class="lineNum">     657 </span><span class="lineCov">        258 :             switch (box-&gt;type)</span>
+<span class="lineNum">     658 </span>            :             {
+<span class="lineNum">     659 </span>            :                 case JP2_BOX_IHDR:
+<span class="lineNum">     660 </span><span class="lineCov">         31 :                 poDS-&gt;nBands = static_cast&lt;int&gt;(box-&gt;data.ihdr.numcmpts);</span>
+<span class="lineNum">     661 </span><span class="lineCov">         31 :                 poDS-&gt;nRasterXSize = static_cast&lt;int&gt;(box-&gt;data.ihdr.width);</span>
+<span class="lineNum">     662 </span><span class="lineCov">         31 :                 poDS-&gt;nRasterYSize = static_cast&lt;int&gt;(box-&gt;data.ihdr.height);</span>
+<span class="lineNum">     663 </span>            :                 CPLDebug( &quot;JPEG2000&quot;,
+<span class="lineNum">     664 </span>            :                           &quot;IHDR box found. Dump: &quot;
+<span class="lineNum">     665 </span>            :                           &quot;width=%d, height=%d, numcmpts=%d, bpp=%d&quot;,
+<span class="lineNum">     666 </span>            :                           (int)box-&gt;data.ihdr.width, (int)box-&gt;data.ihdr.height,
+<span class="lineNum">     667 </span><span class="lineCov">         31 :                           (int)box-&gt;data.ihdr.numcmpts, (box-&gt;data.ihdr.bpc &amp; 0x7F) + 1 );</span>
+<span class="lineNum">     668 </span>            :                 /* ISO/IEC 15444-1:2004 I.5.3.1 specifies that 255 means that all */
+<span class="lineNum">     669 </span>            :                 /* components have not the same bit depth and/or sign and that a */
+<span class="lineNum">     670 </span>            :                 /* BPCC box must then follow to specify them for each component */
+<span class="lineNum">     671 </span><span class="lineCov">         31 :                 if ( box-&gt;data.ihdr.bpc != 255 &amp;&amp; paiDepth == nullptr &amp;&amp; pabSignedness == nullptr )</span>
+<span class="lineNum">     672 </span>            :                 {
+<span class="lineNum">     673 </span><span class="lineCov">         27 :                     paiDepth = (int *)CPLMalloc(poDS-&gt;nBands * sizeof(int));</span>
+<span class="lineNum">     674 </span><span class="lineCov">         27 :                     pabSignedness = (int *)CPLMalloc(poDS-&gt;nBands * sizeof(int));</span>
+<span class="lineNum">     675 </span><span class="lineCov">         64 :                     for ( iBand = 0; iBand &lt; poDS-&gt;nBands; iBand++ )</span>
+<span class="lineNum">     676 </span>            :                     {
+<span class="lineNum">     677 </span><span class="lineCov">         37 :                         paiDepth[iBand] = (box-&gt;data.ihdr.bpc &amp; 0x7F) + 1;</span>
+<span class="lineNum">     678 </span><span class="lineCov">         37 :                         pabSignedness[iBand] = box-&gt;data.ihdr.bpc &gt;&gt; 7;</span>
+<span class="lineNum">     679 </span>            :                         CPLDebug( &quot;JPEG2000&quot;,
+<span class="lineNum">     680 </span>            :                                   &quot;Component %d: bpp=%d, signedness=%d&quot;,
+<span class="lineNum">     681 </span><span class="lineCov">         37 :                                   iBand, paiDepth[iBand], pabSignedness[iBand] );</span>
+<span class="lineNum">     682 </span>            :                     }
+<span class="lineNum">     683 </span>            :                 }
+<span class="lineNum">     684 </span><span class="lineCov">         31 :                 break;</span>
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span>            :                 case JP2_BOX_BPCC:
+<span class="lineNum">     687 </span><span class="lineCov">          4 :                 CPLDebug( &quot;JPEG2000&quot;, &quot;BPCC box found. Dump:&quot; );</span>
+<span class="lineNum">     688 </span><span class="lineCov">          4 :                 if ( !paiDepth &amp;&amp; !pabSignedness )</span>
+<span class="lineNum">     689 </span>            :                 {
+<span class="lineNum">     690 </span>            :                     paiDepth = (int *)
+<span class="lineNum">     691 </span><span class="lineCov">          4 :                         CPLMalloc( box-&gt;data.bpcc.numcmpts * sizeof(int) );</span>
+<span class="lineNum">     692 </span>            :                     pabSignedness = (int *)
+<span class="lineNum">     693 </span><span class="lineCov">          4 :                         CPLMalloc( box-&gt;data.bpcc.numcmpts * sizeof(int) );</span>
+<span class="lineNum">     694 </span><span class="lineCov">         20 :                     for( iBand = 0; iBand &lt; (int)box-&gt;data.bpcc.numcmpts; iBand++ )</span>
+<span class="lineNum">     695 </span>            :                     {
+<span class="lineNum">     696 </span><span class="lineCov">         16 :                         paiDepth[iBand] = (box-&gt;data.bpcc.bpcs[iBand] &amp; 0x7F) + 1;</span>
+<span class="lineNum">     697 </span><span class="lineCov">         16 :                         pabSignedness[iBand] = box-&gt;data.bpcc.bpcs[iBand] &gt;&gt; 7;</span>
+<span class="lineNum">     698 </span>            :                         CPLDebug( &quot;JPEG2000&quot;,
+<span class="lineNum">     699 </span>            :                                   &quot;Component %d: bpp=%d, signedness=%d&quot;,
+<span class="lineNum">     700 </span><span class="lineCov">         16 :                                   iBand, paiDepth[iBand], pabSignedness[iBand] );</span>
+<span class="lineNum">     701 </span>            :                     }
+<span class="lineNum">     702 </span>            :                 }
+<span class="lineNum">     703 </span><span class="lineCov">          4 :                 break;</span>
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span>            :                 case JP2_BOX_PCLR:
+<span class="lineNum">     706 </span>            :                 CPLDebug( &quot;JPEG2000&quot;,
+<span class="lineNum">     707 </span>            :                           &quot;PCLR box found. Dump: number of LUT entries=%d, &quot;
+<span class="lineNum">     708 </span>            :                           &quot;number of resulting channels=%d&quot;,
+<span class="lineNum">     709 </span><span class="lineNoCov">          0 :                           (int)box-&gt;data.pclr.numlutents, box-&gt;data.pclr.numchans );</span>
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :                 poDS-&gt;nBands = box-&gt;data.pclr.numchans;</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :                 if ( paiDepth )</span>
+<span class="lineNum">     712 </span><span class="lineNoCov">          0 :                     CPLFree( paiDepth );</span>
+<span class="lineNum">     713 </span><span class="lineNoCov">          0 :                 if ( pabSignedness )</span>
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :                     CPLFree( pabSignedness );</span>
+<span class="lineNum">     715 </span>            :                 paiDepth = (int *)
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :                         CPLMalloc( box-&gt;data.pclr.numchans * sizeof(int) );</span>
+<span class="lineNum">     717 </span>            :                 pabSignedness = (int *)
+<span class="lineNum">     718 </span><span class="lineNoCov">          0 :                         CPLMalloc( box-&gt;data.pclr.numchans * sizeof(int) );</span>
+<span class="lineNum">     719 </span><span class="lineNoCov">          0 :                 for( iBand = 0; iBand &lt; (int)box-&gt;data.pclr.numchans; iBand++ )</span>
+<span class="lineNum">     720 </span>            :                 {
+<span class="lineNum">     721 </span><span class="lineNoCov">          0 :                     paiDepth[iBand] = (box-&gt;data.pclr.bpc[iBand] &amp; 0x7F) + 1;</span>
+<span class="lineNum">     722 </span><span class="lineNoCov">          0 :                     pabSignedness[iBand] = box-&gt;data.pclr.bpc[iBand] &gt;&gt; 7;</span>
+<span class="lineNum">     723 </span>            :                     CPLDebug( &quot;JPEG2000&quot;,
+<span class="lineNum">     724 </span>            :                               &quot;Component %d: bpp=%d, signedness=%d&quot;,
+<span class="lineNum">     725 </span><span class="lineNoCov">          0 :                               iBand, paiDepth[iBand], pabSignedness[iBand] );</span>
+<span class="lineNum">     726 </span>            :                 }
+<span class="lineNum">     727 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     728 </span>            :             }
+<span class="lineNum">     729 </span><span class="lineCov">        258 :             jp2_box_destroy( box );</span>
+<span class="lineNum">     730 </span><span class="lineCov">        258 :             box = nullptr;</span>
+<span class="lineNum">     731 </span>            :         }
+<span class="lineNum">     732 </span><span class="lineCov">         31 :         if( !paiDepth || !pabSignedness )</span>
+<span class="lineNum">     733 </span>            :         {
+<span class="lineNum">     734 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 :             CPLDebug( &quot;JPEG2000&quot;, &quot;Unable to read JP2 header boxes.\n&quot; );</span>
+<span class="lineNum">     736 </span><span class="lineNoCov">          0 :             CPLFree( paiDepth );</span>
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :             CPLFree( pabSignedness );</span>
+<span class="lineNum">     738 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     739 </span>            :         }
+<span class="lineNum">     740 </span><span class="lineCov">         31 :         if ( jas_stream_rewind( poDS-&gt;psStream ) &lt; 0 )</span>
+<span class="lineNum">     741 </span>            :         {
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :             CPLDebug( &quot;JPEG2000&quot;, &quot;Unable to rewind input stream.\n&quot; );</span>
+<span class="lineNum">     744 </span><span class="lineNoCov">          0 :             CPLFree( paiDepth );</span>
+<span class="lineNum">     745 </span><span class="lineNoCov">          0 :             CPLFree( pabSignedness );</span>
+<span class="lineNum">     746 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     747 </span>            :         }
+<span class="lineNum">     748 </span>            :     }
+<span class="lineNum">     749 </span>            :     else
+<span class="lineNum">     750 </span>            :     {
+<span class="lineNum">     751 </span><span class="lineCov">          8 :         if ( !poDS-&gt;DecodeImage() )</span>
+<span class="lineNum">     752 </span>            :         {
+<span class="lineNum">     753 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     755 </span>            :         }
+<span class="lineNum">     756 </span>            : 
+<span class="lineNum">     757 </span><span class="lineCov">          8 :         poDS-&gt;nBands = jas_image_numcmpts( poDS-&gt;psImage );</span>
+<span class="lineNum">     758 </span><span class="lineCov">          8 :         poDS-&gt;nRasterXSize = static_cast&lt;int&gt;(jas_image_cmptwidth( poDS-&gt;psImage, 0 ));</span>
+<span class="lineNum">     759 </span><span class="lineCov">          8 :         poDS-&gt;nRasterYSize = static_cast&lt;int&gt;(jas_image_cmptheight( poDS-&gt;psImage, 0 ));</span>
+<span class="lineNum">     760 </span><span class="lineCov">          8 :         paiDepth = (int *)CPLMalloc( poDS-&gt;nBands * sizeof(int) );</span>
+<span class="lineNum">     761 </span><span class="lineCov">          8 :         pabSignedness = (int *)CPLMalloc( poDS-&gt;nBands * sizeof(int) );</span>
+<span class="lineNum">     762 </span><span class="lineCov">         16 :         for ( iBand = 0; iBand &lt; poDS-&gt;nBands; iBand++ )</span>
+<span class="lineNum">     763 </span>            :         {
+<span class="lineNum">     764 </span><span class="lineCov">          8 :             paiDepth[iBand] = jas_image_cmptprec( poDS-&gt;psImage, iBand );</span>
+<span class="lineNum">     765 </span><span class="lineCov">          8 :             pabSignedness[iBand] = jas_image_cmptsgnd( poDS-&gt;psImage, iBand );</span>
+<span class="lineNum">     766 </span>            :         }
+<span class="lineNum">     767 </span>            :     }
+<span class="lineNum">     768 </span>            : 
+<span class="lineNum">     769 </span><span class="lineCov">         78 :     if ( !GDALCheckDatasetDimensions(poDS-&gt;nRasterXSize, poDS-&gt;nRasterYSize) ||</span>
+<span class="lineNum">     770 </span><span class="lineCov">         39 :          !GDALCheckBandCount(poDS-&gt;nBands, 0) )</span>
+<span class="lineNum">     771 </span>            :     {
+<span class="lineNum">     772 </span><span class="lineNoCov">          0 :         CPLFree( paiDepth );</span>
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :         CPLFree( pabSignedness );</span>
+<span class="lineNum">     774 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">     775 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     776 </span>            :     }
+<span class="lineNum">     777 </span>            : 
+<span class="lineNum">     778 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     779 </span>            : /*      Should we promote alpha channel to 8 bits ?                     */
+<span class="lineNum">     780 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     781 </span>            :     poDS-&gt;bPromoteTo8Bit =
+<span class="lineNum">     782 </span><span class="lineCov">         43 :         poDS-&gt;nBands == 4 &amp;&amp;</span>
+<span class="lineNum">     783 </span><span class="lineCov">          6 :         paiDepth[0] == 8 &amp;&amp;</span>
+<span class="lineNum">     784 </span><span class="lineCov">          4 :         paiDepth[1] == 8 &amp;&amp;</span>
+<span class="lineNum">     785 </span><span class="lineCov">          4 :         paiDepth[2] == 8 &amp;&amp;</span>
+<span class="lineNum">     786 </span><span class="lineCov">         43 :         paiDepth[3] == 1 &amp;&amp;</span>
+<span class="lineNum">     787 </span>            :         CPLFetchBool(poOpenInfo-&gt;papszOpenOptions,
+<span class="lineNum">     788 </span><span class="lineCov">         41 :                      &quot;1BIT_ALPHA_PROMOTION&quot;, true);</span>
+<span class="lineNum">     789 </span><span class="lineCov">         39 :     if( poDS-&gt;bPromoteTo8Bit )</span>
+<span class="lineNum">     790 </span><span class="lineCov">          1 :         CPLDebug( &quot;JPEG2000&quot;,  &quot;Fourth (alpha) band is promoted from 1 bit to 8 bit&quot;);</span>
+<span class="lineNum">     791 </span>            : 
+<span class="lineNum">     792 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     793 </span>            : 
+<span class="lineNum">     794 </span>            : /*      Create band information objects.                                */
+<span class="lineNum">     795 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span><span class="lineCov">        100 :     for( iBand = 1; iBand &lt;= poDS-&gt;nBands; iBand++ )</span>
+<span class="lineNum">     798 </span>            :     {
+<span class="lineNum">     799 </span>            :         poDS-&gt;SetBand( iBand, new JPEG2000RasterBand( poDS, iBand,
+<span class="lineNum">     800 </span><span class="lineCov">         61 :             paiDepth[iBand - 1], pabSignedness[iBand - 1] ) );</span>
+<span class="lineNum">     801 </span>            :     }
+<span class="lineNum">     802 </span>            : 
+<span class="lineNum">     803 </span><span class="lineCov">         39 :     CPLFree( paiDepth );</span>
+<span class="lineNum">     804 </span><span class="lineCov">         39 :     CPLFree( pabSignedness );</span>
+<span class="lineNum">     805 </span>            : 
+<span class="lineNum">     806 </span><span class="lineCov">         39 :     poDS-&gt;LoadJP2Metadata(poOpenInfo);</span>
+<span class="lineNum">     807 </span>            : 
+<span class="lineNum">     808 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     809 </span>            : /*      Initialize any PAM information.                                 */
+<span class="lineNum">     810 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     811 </span><span class="lineCov">         39 :     poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     812 </span><span class="lineCov">         39 :     poDS-&gt;TryLoadXML();</span>
+<span class="lineNum">     813 </span>            : 
+<span class="lineNum">     814 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     815 </span>            : /*      Check for overviews.                                            */
+<span class="lineNum">     816 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     817 </span><span class="lineCov">         39 :     poDS-&gt;oOvManager.Initialize( poDS, poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     818 </span>            : 
+<span class="lineNum">     819 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     820 </span>            : /*      Vector layers                                                   */
+<span class="lineNum">     821 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     822 </span><span class="lineCov">         39 :     if( poOpenInfo-&gt;nOpenFlags &amp; GDAL_OF_VECTOR )</span>
+<span class="lineNum">     823 </span>            :     {
+<span class="lineNum">     824 </span>            :         poDS-&gt;LoadVectorLayers(
+<span class="lineNum">     825 </span>            :             CPLFetchBool(poOpenInfo-&gt;papszOpenOptions,
+<span class="lineNum">     826 </span><span class="lineCov">          4 :                          &quot;OPEN_REMOTE_GML&quot;, false));</span>
+<span class="lineNum">     827 </span>            : 
+<span class="lineNum">     828 </span>            :         // If file opened in vector-only mode and there's no vector,
+<span class="lineNum">     829 </span>            :         // return
+<span class="lineNum">     830 </span><span class="lineCov">          4 :         if( (poOpenInfo-&gt;nOpenFlags &amp; GDAL_OF_RASTER) == 0 &amp;&amp;</span>
+<span class="lineNum">     831 </span><span class="lineNoCov">          0 :             poDS-&gt;GetLayerCount() == 0 )</span>
+<span class="lineNum">     832 </span>            :         {
+<span class="lineNum">     833 </span><span class="lineNoCov">          0 :             delete poDS;</span>
+<span class="lineNum">     834 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     835 </span>            :         }
+<span class="lineNum">     836 </span>            :     }
+<span class="lineNum">     837 </span>            : 
+<span class="lineNum">     838 </span><span class="lineCov">         39 :     return poDS;</span>
+<span class="lineNum">     839 </span>            : }
+<span class="lineNum">     840 </span>            : 
+<span class="lineNum">     841 </span>            : /************************************************************************/
+<span class="lineNum">     842 </span>            : /*                      JPEG2000CreateCopy()                            */
+<span class="lineNum">     843 </span>            : /************************************************************************/
+<a name="844"><span class="lineNum">     844 </span>            : </a>
+<span class="lineNum">     845 </span>            : static GDALDataset *
+<span class="lineNum">     846 </span><span class="lineCov">         11 : JPEG2000CreateCopy( const char * pszFilename, GDALDataset *poSrcDS,</span>
+<span class="lineNum">     847 </span>            :                     int bStrict, char ** papszOptions,
+<span class="lineNum">     848 </span>            :                     GDALProgressFunc pfnProgress, void * pProgressData )
+<span class="lineNum">     849 </span>            : 
+<span class="lineNum">     850 </span>            : {
+<span class="lineNum">     851 </span><span class="lineCov">         11 :     int  nBands = poSrcDS-&gt;GetRasterCount();</span>
+<span class="lineNum">     852 </span><span class="lineCov">         11 :     int  nXSize = poSrcDS-&gt;GetRasterXSize();</span>
+<span class="lineNum">     853 </span><span class="lineCov">         11 :     int  nYSize = poSrcDS-&gt;GetRasterYSize();</span>
+<span class="lineNum">     854 </span>            : 
+<span class="lineNum">     855 </span><span class="lineCov">         11 :     if( nBands == 0 )</span>
+<span class="lineNum">     856 </span>            :     {
+<span class="lineNum">     857 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     858 </span><span class="lineCov">          1 :                   &quot;Unable to export files with zero bands.&quot; );</span>
+<span class="lineNum">     859 </span><span class="lineCov">          1 :         return nullptr;</span>
+<span class="lineNum">     860 </span>            :     }
+<span class="lineNum">     861 </span>            : 
+<span class="lineNum">     862 </span><span class="lineCov">         10 :     if (poSrcDS-&gt;GetRasterBand(1)-&gt;GetColorTable() != nullptr)</span>
+<span class="lineNum">     863 </span>            :     {
+<span class="lineNum">     864 </span>            :         CPLError( (bStrict) ? CE_Failure : CE_Warning, CPLE_NotSupported,
+<span class="lineNum">     865 </span>            :                   &quot;JPEG2000 driver ignores color table. &quot;
+<span class="lineNum">     866 </span>            :                   &quot;The source raster band will be considered as grey level.\n&quot;
+<span class="lineNum">     867 </span><span class="lineNoCov">          0 :                   &quot;Consider using color table expansion (-expand option in gdal_translate)\n&quot;);</span>
+<span class="lineNum">     868 </span><span class="lineNoCov">          0 :         if (bStrict)</span>
+<span class="lineNum">     869 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     870 </span>            :     }
+<span class="lineNum">     871 </span>            : 
+<span class="lineNum">     872 </span>            :     // TODO(schwehr): Localize these vars.
+<span class="lineNum">     873 </span>            :     int iBand;
+<span class="lineNum">     874 </span><span class="lineCov">         10 :     GDALRasterBand  *poBand = nullptr;</span>
+<span class="lineNum">     875 </span><span class="lineCov">         24 :     for ( iBand = 0; iBand &lt; nBands; iBand++ )</span>
+<span class="lineNum">     876 </span>            :     {
+<span class="lineNum">     877 </span><span class="lineCov">         14 :         poBand = poSrcDS-&gt;GetRasterBand( iBand + 1);</span>
+<span class="lineNum">     878 </span>            : 
+<span class="lineNum">     879 </span><span class="lineCov">         14 :         switch ( poBand-&gt;GetRasterDataType() )</span>
+<span class="lineNum">     880 </span>            :         {
+<span class="lineNum">     881 </span>            :             case GDT_Byte:
+<span class="lineNum">     882 </span>            :             case GDT_Int16:
+<span class="lineNum">     883 </span>            :             case GDT_UInt16:
+<span class="lineNum">     884 </span><span class="lineCov">         14 :                 break;</span>
+<span class="lineNum">     885 </span>            : 
+<span class="lineNum">     886 </span>            :             default:
+<span class="lineNum">     887 </span><span class="lineNoCov">          0 :                 if( !CPLTestBool(CPLGetConfigOption(&quot;JPEG2000_FORCE_CREATION&quot;, &quot;NO&quot;)) )</span>
+<span class="lineNum">     888 </span>            :                 {
+<span class="lineNum">     889 </span>            :                     CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     890 </span>            :                              &quot;A band of the source dataset is of type %s, which might cause crashes in libjasper. &quot;
+<span class="lineNum">     891 </span>            :                              &quot;Set JPEG2000_FORCE_CREATION configuration option to YES to attempt the creation of the file.&quot;,
+<span class="lineNum">     892 </span><span class="lineNoCov">          0 :                              GDALGetDataTypeName(poBand-&gt;GetRasterDataType()));</span>
+<span class="lineNum">     893 </span><span class="lineNoCov">          0 :                     return nullptr;</span>
+<span class="lineNum">     894 </span>            :                 }
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     896 </span>            :         }
+<span class="lineNum">     897 </span>            :     }
+<span class="lineNum">     898 </span>            : 
+<span class="lineNum">     899 </span><span class="lineCov">         10 :     if( !pfnProgress( 0.0, nullptr, pProgressData ) )</span>
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     901 </span>            : 
+<span class="lineNum">     902 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     903 </span>            : /*      Create the dataset.                                             */
+<span class="lineNum">     904 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     905 </span><span class="lineCov">         10 :     JPEG2000Init();</span>
+<span class="lineNum">     906 </span><span class="lineCov">         10 :     const char* pszAccess = STARTS_WITH_CI(pszFilename, &quot;/vsisubfile/&quot;) ? &quot;r+b&quot; : &quot;w+b&quot;;</span>
+<span class="lineNum">     907 </span><span class="lineCov">         10 :     jas_stream_t *psStream = JPEG2000_VSIL_fopen( pszFilename, pszAccess);</span>
+<span class="lineNum">     908 </span><span class="lineCov">         10 :     if( !psStream )</span>
+<span class="lineNum">     909 </span>            :     {
+<span class="lineNum">     910 </span>            :         CPLError( CE_Failure, CPLE_FileIO, &quot;Unable to create file %s.\n&quot;,
+<span class="lineNum">     911 </span><span class="lineCov">          2 :                   pszFilename );</span>
+<span class="lineNum">     912 </span><span class="lineCov">          2 :         return nullptr;</span>
+<span class="lineNum">     913 </span>            :     }
+<span class="lineNum">     914 </span>            : 
+<span class="lineNum">     915 </span><span class="lineCov">          8 :     jas_image_t *psImage = jas_image_create0();</span>
+<span class="lineNum">     916 </span><span class="lineCov">          8 :     if ( !psImage )</span>
+<span class="lineNum">     917 </span>            :     {
+<span class="lineNum">     918 </span>            :         CPLError( CE_Failure, CPLE_OutOfMemory, &quot;Unable to create image %s.\n&quot;,
+<span class="lineNum">     919 </span><span class="lineNoCov">          0 :                   pszFilename );</span>
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 :         jas_stream_close( psStream );</span>
+<span class="lineNum">     921 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     922 </span>            :     }
+<span class="lineNum">     923 </span>            : 
+<span class="lineNum">     924 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     925 </span>            : /*      Loop over image, copying image data.                            */
+<span class="lineNum">     926 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     927 </span>            :     GUInt32             *paiScanline;
+<span class="lineNum">     928 </span>            :     int                 iLine, iPixel;
+<span class="lineNum">     929 </span><span class="lineCov">          8 :     CPLErr              eErr = CE_None;</span>
+<span class="lineNum">     930 </span>            :     jas_image_cmptparm_t *sComps; // Array of pointers to image components
+<span class="lineNum">     931 </span>            : 
+<span class="lineNum">     932 </span>            :     sComps = (jas_image_cmptparm_t*)
+<span class="lineNum">     933 </span><span class="lineCov">          8 :         CPLMalloc( nBands * sizeof(jas_image_cmptparm_t) );</span>
+<span class="lineNum">     934 </span>            : 
+<span class="lineNum">     935 </span><span class="lineCov">          8 :     jas_matrix_t *psMatrix  = jas_matrix_create( 1, nXSize );</span>
+<span class="lineNum">     936 </span><span class="lineCov">          8 :     if ( !psMatrix )</span>
+<span class="lineNum">     937 </span>            :     {
+<span class="lineNum">     938 </span>            :         CPLError( CE_Failure, CPLE_OutOfMemory,
+<span class="lineNum">     939 </span><span class="lineNoCov">          0 :                   &quot;Unable to create matrix with size %dx%d.\n&quot;, 1, nYSize );</span>
+<span class="lineNum">     940 </span><span class="lineNoCov">          0 :         CPLFree( sComps );</span>
+<span class="lineNum">     941 </span><span class="lineNoCov">          0 :         jas_image_destroy( psImage );</span>
+<span class="lineNum">     942 </span><span class="lineNoCov">          0 :         jas_stream_close( psStream );</span>
+<span class="lineNum">     943 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     944 </span>            :     }
+<span class="lineNum">     945 </span><span class="lineCov">          8 :     paiScanline = (GUInt32 *) CPLMalloc( nXSize *</span>
+<span class="lineNum">     946 </span><span class="lineCov">         16 :                             GDALGetDataTypeSize(GDT_UInt32) / 8 );</span>
+<span class="lineNum">     947 </span>            : 
+<span class="lineNum">     948 </span><span class="lineCov">         20 :     for ( iBand = 0; iBand &lt; nBands; iBand++ )</span>
+<span class="lineNum">     949 </span>            :     {
+<span class="lineNum">     950 </span><span class="lineCov">         12 :         poBand = poSrcDS-&gt;GetRasterBand( iBand + 1);</span>
+<span class="lineNum">     951 </span>            : 
+<span class="lineNum">     952 </span><span class="lineCov">         12 :         sComps[iBand].tlx = 0;</span>
+<span class="lineNum">     953 </span><span class="lineCov">         12 :         sComps[iBand].tly = 0;</span>
+<span class="lineNum">     954 </span><span class="lineCov">         12 :         sComps[iBand].hstep = 1;</span>
+<span class="lineNum">     955 </span><span class="lineCov">         12 :         sComps[iBand].vstep = 1;</span>
+<span class="lineNum">     956 </span><span class="lineCov">         12 :         sComps[iBand].width = nXSize;</span>
+<span class="lineNum">     957 </span><span class="lineCov">         12 :         sComps[iBand].height = nYSize;</span>
+<span class="lineNum">     958 </span><span class="lineCov">         12 :         const char* pszNBITS = CSLFetchNameValue(papszOptions, &quot;NBITS&quot;);</span>
+<span class="lineNum">     959 </span><span class="lineCov">         12 :         if( pszNBITS &amp;&amp; atoi(pszNBITS) &gt; 0 )</span>
+<span class="lineNum">     960 </span><span class="lineCov">          2 :             sComps[iBand].prec = atoi(pszNBITS);</span>
+<span class="lineNum">     961 </span>            :         else
+<span class="lineNum">     962 </span><span class="lineCov">         10 :             sComps[iBand].prec = GDALGetDataTypeSize( poBand-&gt;GetRasterDataType() );</span>
+<span class="lineNum">     963 </span><span class="lineCov">         12 :         switch ( poBand-&gt;GetRasterDataType() )</span>
+<span class="lineNum">     964 </span>            :         {
+<span class="lineNum">     965 </span>            :             case GDT_Int16:
+<span class="lineNum">     966 </span>            :             case GDT_Int32:
+<span class="lineNum">     967 </span>            :             case GDT_Float32:
+<span class="lineNum">     968 </span>            :             case GDT_Float64:
+<span class="lineNum">     969 </span><span class="lineCov">          1 :             sComps[iBand].sgnd = 1;</span>
+<span class="lineNum">     970 </span><span class="lineCov">          1 :             break;</span>
+<span class="lineNum">     971 </span>            :             case GDT_Byte:
+<span class="lineNum">     972 </span>            :             case GDT_UInt16:
+<span class="lineNum">     973 </span>            :             case GDT_UInt32:
+<span class="lineNum">     974 </span>            :             default:
+<span class="lineNum">     975 </span><span class="lineCov">         11 :             sComps[iBand].sgnd = 0;</span>
+<span class="lineNum">     976 </span><span class="lineCov">         11 :             break;</span>
+<span class="lineNum">     977 </span>            :         }
+<span class="lineNum">     978 </span><span class="lineCov">         12 :         jas_image_addcmpt(psImage, iBand, sComps);</span>
+<span class="lineNum">     979 </span>            : 
+<span class="lineNum">     980 </span><span class="lineCov">       1936 :         for( iLine = 0; eErr == CE_None &amp;&amp; iLine &lt; nYSize; iLine++ )</span>
+<span class="lineNum">     981 </span>            :         {
+<span class="lineNum">     982 </span>            :             eErr = poBand-&gt;RasterIO( GF_Read, 0, iLine, nXSize, 1,
+<span class="lineNum">     983 </span>            :                               paiScanline, nXSize, 1, GDT_UInt32,
+<span class="lineNum">     984 </span><span class="lineCov">       1924 :                               sizeof(GUInt32), sizeof(GUInt32) * nXSize, nullptr );</span>
+<span class="lineNum">     985 </span><span class="lineCov">     629332 :             for ( iPixel = 0; iPixel &lt; nXSize; iPixel++ )</span>
+<span class="lineNum">     986 </span><span class="lineCov">     627408 :                 jas_matrix_setv( psMatrix, iPixel, paiScanline[iPixel] );</span>
+<span class="lineNum">     987 </span>            : 
+<span class="lineNum">     988 </span><span class="lineCov">       1924 :             if( (jas_image_writecmpt(psImage, iBand, 0, iLine,</span>
+<span class="lineNum">     989 </span><span class="lineCov">       1924 :                               nXSize, 1, psMatrix)) &lt; 0 )</span>
+<span class="lineNum">     990 </span>            :             {
+<span class="lineNum">     991 </span>            :                 CPLError( CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     992 </span>            :                     &quot;Unable to write scanline %d of the component %d.\n&quot;,
+<span class="lineNum">     993 </span><span class="lineNoCov">          0 :                     iLine, iBand );</span>
+<span class="lineNum">     994 </span><span class="lineNoCov">          0 :                 jas_matrix_destroy( psMatrix );</span>
+<span class="lineNum">     995 </span><span class="lineNoCov">          0 :                 CPLFree( paiScanline );</span>
+<span class="lineNum">     996 </span><span class="lineNoCov">          0 :                 CPLFree( sComps );</span>
+<span class="lineNum">     997 </span><span class="lineNoCov">          0 :                 jas_image_destroy( psImage );</span>
+<span class="lineNum">     998 </span><span class="lineNoCov">          0 :                 jas_stream_close( psStream );</span>
+<span class="lineNum">     999 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">    1000 </span>            :             }
+<span class="lineNum">    1001 </span>            : 
+<span class="lineNum">    1002 </span><span class="lineCov">       3848 :             if( eErr == CE_None &amp;&amp;</span>
+<span class="lineNum">    1003 </span><span class="lineCov">       1924 :             !pfnProgress( ((iLine + 1) + iBand * nYSize) /</span>
+<span class="lineNum">    1004 </span><span class="lineCov">       1924 :                           ((double) nYSize * nBands),</span>
+<span class="lineNum">    1005 </span><span class="lineCov">       3848 :                          nullptr, pProgressData) )</span>
+<span class="lineNum">    1006 </span>            :             {
+<span class="lineNum">    1007 </span><span class="lineNoCov">          0 :                 eErr = CE_Failure;</span>
+<span class="lineNum">    1008 </span>            :                 CPLError( CE_Failure, CPLE_UserInterrupt,
+<span class="lineNum">    1009 </span><span class="lineNoCov">          0 :                       &quot;User terminated CreateCopy()&quot; );</span>
+<span class="lineNum">    1010 </span>            :             }
+<span class="lineNum">    1011 </span>            :         }
+<span class="lineNum">    1012 </span>            :     }
+<span class="lineNum">    1013 </span>            : 
+<span class="lineNum">    1014 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1015 </span>            : /*       Read compression parameters and encode the image.              */
+<span class="lineNum">    1016 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1017 </span>            :     const char  *apszComprOptions[]=
+<span class="lineNum">    1018 </span>            :     {
+<span class="lineNum">    1019 </span>            :         &quot;imgareatlx&quot;,
+<span class="lineNum">    1020 </span>            :         &quot;imgareatly&quot;,
+<span class="lineNum">    1021 </span>            :         &quot;tilegrdtlx&quot;,
+<span class="lineNum">    1022 </span>            :         &quot;tilegrdtly&quot;,
+<span class="lineNum">    1023 </span>            :         &quot;tilewidth&quot;,
+<span class="lineNum">    1024 </span>            :         &quot;tileheight&quot;,
+<span class="lineNum">    1025 </span>            :         &quot;prcwidth&quot;,
+<span class="lineNum">    1026 </span>            :         &quot;prcheight&quot;,
+<span class="lineNum">    1027 </span>            :         &quot;cblkwidth&quot;,
+<span class="lineNum">    1028 </span>            :         &quot;cblkheight&quot;,
+<span class="lineNum">    1029 </span>            :         &quot;mode&quot;,
+<span class="lineNum">    1030 </span>            :         &quot;rate&quot;,
+<span class="lineNum">    1031 </span>            :         &quot;ilyrrates&quot;,
+<span class="lineNum">    1032 </span>            :         &quot;prg&quot;,
+<span class="lineNum">    1033 </span>            :         &quot;numrlvls&quot;,
+<span class="lineNum">    1034 </span>            :         &quot;sop&quot;,
+<span class="lineNum">    1035 </span>            :         &quot;eph&quot;,
+<span class="lineNum">    1036 </span>            :         &quot;lazy&quot;,
+<span class="lineNum">    1037 </span>            :         &quot;termall&quot;,
+<span class="lineNum">    1038 </span>            :         &quot;segsym&quot;,
+<span class="lineNum">    1039 </span>            :         &quot;vcausal&quot;,
+<span class="lineNum">    1040 </span>            :         &quot;pterm&quot;,
+<span class="lineNum">    1041 </span>            :         &quot;resetprob&quot;,
+<span class="lineNum">    1042 </span>            :         &quot;numgbits&quot;,
+<span class="lineNum">    1043 </span>            :         nullptr
+<span class="lineNum">    1044 </span><span class="lineCov">          8 :     };</span>
+<span class="lineNum">    1045 </span>            : 
+<span class="lineNum">    1046 </span><span class="lineCov">          8 :     const char *pszFormatName = CSLFetchNameValue( papszOptions, &quot;FORMAT&quot; );</span>
+<span class="lineNum">    1047 </span><span class="lineCov">          8 :     if( pszFormatName == nullptr &amp;&amp; EQUAL(CPLGetExtension(pszFilename), &quot;J2K&quot;) )</span>
+<span class="lineNum">    1048 </span><span class="lineCov">          2 :         pszFormatName = &quot;jpc&quot;;</span>
+<span class="lineNum">    1049 </span><span class="lineCov">          7 :     else if ( !pszFormatName ||</span>
+<span class="lineNum">    1050 </span><span class="lineCov">          2 :          (!STARTS_WITH_CI(pszFormatName, &quot;jp2&quot;) &amp;&amp;</span>
+<span class="lineNum">    1051 </span><span class="lineCov">          1 :           !STARTS_WITH_CI(pszFormatName, &quot;jpc&quot;) ) )</span>
+<span class="lineNum">    1052 </span><span class="lineCov">          5 :         pszFormatName = &quot;jp2&quot;;</span>
+<span class="lineNum">    1053 </span>            : 
+<span class="lineNum">    1054 </span>            :     // TODO(schwehr): Move pszOptionBuf off the stack.
+<span class="lineNum">    1055 </span><span class="lineCov">          8 :     const int OPTSMAX = 4096;</span>
+<span class="lineNum">    1056 </span><span class="lineCov">          8 :     char pszOptionBuf[OPTSMAX + 1] = {};</span>
+<span class="lineNum">    1057 </span>            : 
+<span class="lineNum">    1058 </span><span class="lineCov">          8 :     if ( papszOptions )</span>
+<span class="lineNum">    1059 </span>            :     {
+<span class="lineNum">    1060 </span><span class="lineCov">          3 :         CPLDebug( &quot;JPEG2000&quot;, &quot;User supplied parameters:&quot; );</span>
+<span class="lineNum">    1061 </span><span class="lineCov">          8 :         for ( int i = 0; papszOptions[i] != nullptr; i++ )</span>
+<span class="lineNum">    1062 </span>            :         {
+<span class="lineNum">    1063 </span><span class="lineCov">          5 :             CPLDebug( &quot;JPEG2000&quot;, &quot;%s\n&quot;, papszOptions[i] );</span>
+<span class="lineNum">    1064 </span><span class="lineCov">        125 :             for ( int j = 0; apszComprOptions[j] != nullptr; j++ )</span>
+<span class="lineNum">    1065 </span><span class="lineCov">        120 :                 if( EQUALN( apszComprOptions[j], papszOptions[i],</span>
+<span class="lineNum">    1066 </span>            :                             strlen(apszComprOptions[j]) ) )
+<span class="lineNum">    1067 </span>            :                 {
+<span class="lineNum">    1068 </span><span class="lineCov">          2 :                     const int n = static_cast&lt;int&gt;(strlen( pszOptionBuf ));</span>
+<span class="lineNum">    1069 </span>            :                     const int m =
+<span class="lineNum">    1070 </span><span class="lineCov">          2 :                         n + static_cast&lt;int&gt;(strlen( papszOptions[i] )) + 1;</span>
+<span class="lineNum">    1071 </span><span class="lineCov">          2 :                     if ( m &gt; OPTSMAX )</span>
+<span class="lineNum">    1072 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">    1073 </span><span class="lineCov">          2 :                     if ( n &gt; 0 )</span>
+<span class="lineNum">    1074 </span>            :                     {
+<span class="lineNum">    1075 </span><span class="lineCov">          1 :                         strcat( pszOptionBuf, &quot;\n&quot; );</span>
+<span class="lineNum">    1076 </span>            :                     }
+<span class="lineNum">    1077 </span><span class="lineCov">          2 :                     strcat( pszOptionBuf, papszOptions[i] );</span>
+<span class="lineNum">    1078 </span>            :                 }
+<span class="lineNum">    1079 </span>            :         }
+<span class="lineNum">    1080 </span>            :     }
+<span class="lineNum">    1081 </span><span class="lineCov">          8 :     CPLDebug( &quot;JPEG2000&quot;, &quot;Parameters, delivered to the JasPer library:&quot; );</span>
+<span class="lineNum">    1082 </span><span class="lineCov">          8 :     CPLDebug( &quot;JPEG2000&quot;, &quot;%s&quot;, pszOptionBuf );</span>
+<span class="lineNum">    1083 </span>            : 
+<span class="lineNum">    1084 </span><span class="lineCov">          8 :     if ( nBands == 1 )                      // Grayscale</span>
+<span class="lineNum">    1085 </span>            :     {
+<span class="lineNum">    1086 </span><span class="lineCov">          7 :         jas_image_setclrspc( psImage, JAS_CLRSPC_SGRAY );</span>
+<span class="lineNum">    1087 </span><span class="lineCov">          7 :         jas_image_setcmpttype( psImage, 0, JAS_IMAGE_CT_GRAY_Y );</span>
+<span class="lineNum">    1088 </span>            :     }
+<span class="lineNum">    1089 </span><span class="lineCov">          1 :     else if ( nBands == 3 || nBands == 4 )  // Assume as RGB(A)</span>
+<span class="lineNum">    1090 </span>            :     {
+<span class="lineNum">    1091 </span><span class="lineNoCov">          0 :         jas_image_setclrspc( psImage, JAS_CLRSPC_SRGB );</span>
+<span class="lineNum">    1092 </span><span class="lineNoCov">          0 :         for ( iBand = 0; iBand &lt; nBands; iBand++ )</span>
+<span class="lineNum">    1093 </span>            :         {
+<span class="lineNum">    1094 </span><span class="lineNoCov">          0 :             poBand = poSrcDS-&gt;GetRasterBand( iBand + 1);</span>
+<span class="lineNum">    1095 </span><span class="lineNoCov">          0 :             switch ( poBand-&gt;GetColorInterpretation() )</span>
+<span class="lineNum">    1096 </span>            :             {
+<span class="lineNum">    1097 </span>            :                 case GCI_RedBand:
+<span class="lineNum">    1098 </span><span class="lineNoCov">          0 :                 jas_image_setcmpttype( psImage, iBand, JAS_IMAGE_CT_RGB_R );</span>
+<span class="lineNum">    1099 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1100 </span>            :                 case GCI_GreenBand:
+<span class="lineNum">    1101 </span><span class="lineNoCov">          0 :                 jas_image_setcmpttype( psImage, iBand, JAS_IMAGE_CT_RGB_G );</span>
+<span class="lineNum">    1102 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1103 </span>            :                 case GCI_BlueBand:
+<span class="lineNum">    1104 </span><span class="lineNoCov">          0 :                 jas_image_setcmpttype( psImage, iBand, JAS_IMAGE_CT_RGB_B );</span>
+<span class="lineNum">    1105 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1106 </span>            :                 case GCI_AlphaBand:
+<span class="lineNum">    1107 </span><span class="lineNoCov">          0 :                 jas_image_setcmpttype( psImage, iBand, JAS_IMAGE_CT_OPACITY );</span>
+<span class="lineNum">    1108 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1109 </span>            :                 default:
+<span class="lineNum">    1110 </span><span class="lineNoCov">          0 :                 jas_image_setcmpttype( psImage, iBand, JAS_IMAGE_CT_UNKNOWN );</span>
+<span class="lineNum">    1111 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1112 </span>            :             }
+<span class="lineNum">    1113 </span>            :         }
+<span class="lineNum">    1114 </span>            :     }
+<span class="lineNum">    1115 </span>            :     else                                    // Unknown
+<span class="lineNum">    1116 </span>            :     {
+<span class="lineNum">    1117 </span>            :         /* JAS_CLRSPC_UNKNOWN causes crashes in Jasper jp2_enc.c at line 231 */
+<span class="lineNum">    1118 </span>            :         /* iccprof = jas_iccprof_createfromcmprof(jas_image_cmprof(image)); */
+<span class="lineNum">    1119 </span>            :         /* but if we explicitly set the cmprof, it does not work better */
+<span class="lineNum">    1120 </span>            :         /* since it would abort at line 281 later ... */
+<span class="lineNum">    1121 </span>            :         /* So the best option is to switch to gray colorspace */
+<span class="lineNum">    1122 </span>            :         /* And we need to switch at the band level too, otherwise Kakadu or */
+<span class="lineNum">    1123 </span>            :         /* JP2MrSID don't like it */
+<span class="lineNum">    1124 </span>            :         //jas_image_setclrspc( psImage, JAS_CLRSPC_UNKNOWN );
+<span class="lineNum">    1125 </span><span class="lineCov">          1 :         jas_image_setclrspc( psImage, JAS_CLRSPC_SGRAY );</span>
+<span class="lineNum">    1126 </span><span class="lineCov">          6 :         for ( iBand = 0; iBand &lt; nBands; iBand++ )</span>
+<span class="lineNum">    1127 </span>            :             //jas_image_setcmpttype( psImage, iBand, JAS_IMAGE_CT_UNKNOWN );
+<span class="lineNum">    1128 </span><span class="lineCov">          5 :             jas_image_setcmpttype( psImage, iBand, JAS_IMAGE_CT_GRAY_Y );</span>
+<span class="lineNum">    1129 </span>            :     }
+<span class="lineNum">    1130 </span>            : 
+<span class="lineNum">    1131 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1132 </span>            : /*      Set the GeoTIFF box if georeferencing is available, and this    */
+<span class="lineNum">    1133 </span>            : /*      is a JP2 file.                                                  */
+<span class="lineNum">    1134 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1135 </span><span class="lineCov">          8 :     if ( STARTS_WITH_CI(pszFormatName, &quot;jp2&quot;) )</span>
+<span class="lineNum">    1136 </span>            :     {
+<span class="lineNum">    1137 </span>            : #ifdef HAVE_JASPER_UUID
+<span class="lineNum">    1138 </span>            :         double  adfGeoTransform[6];
+<span class="lineNum">    1139 </span><span class="lineCov">         14 :         if( CPLFetchBool( papszOptions, &quot;GeoJP2&quot;, true ) &amp;&amp;</span>
+<span class="lineNum">    1140 </span><span class="lineCov">          5 :             ((poSrcDS-&gt;GetGeoTransform(adfGeoTransform) == CE_None</span>
+<span class="lineNum">    1141 </span><span class="lineCov">          4 :                  &amp;&amp; (adfGeoTransform[0] != 0.0</span>
+<span class="lineNum">    1142 </span><span class="lineNoCov">          0 :                      || adfGeoTransform[1] != 1.0</span>
+<span class="lineNum">    1143 </span><span class="lineNoCov">          0 :                      || adfGeoTransform[2] != 0.0</span>
+<span class="lineNum">    1144 </span><span class="lineNoCov">          0 :                      || adfGeoTransform[3] != 0.0</span>
+<span class="lineNum">    1145 </span><span class="lineNoCov">          0 :                      || adfGeoTransform[4] != 0.0</span>
+<span class="lineNum">    1146 </span><span class="lineNoCov">          0 :                      || std::abs(adfGeoTransform[5]) != 1.0))</span>
+<span class="lineNum">    1147 </span><span class="lineCov">          1 :                 || poSrcDS-&gt;GetGCPCount() &gt; 0</span>
+<span class="lineNum">    1148 </span><span class="lineCov">          1 :                 || poSrcDS-&gt;GetMetadata(&quot;RPC&quot;) != nullptr ) )</span>
+<span class="lineNum">    1149 </span>            :         {
+<span class="lineNum">    1150 </span><span class="lineCov">          4 :             GDALJP2Metadata oJP2Geo;</span>
+<span class="lineNum">    1151 </span>            : 
+<span class="lineNum">    1152 </span><span class="lineCov">          4 :             if( poSrcDS-&gt;GetGCPCount() &gt; 0 )</span>
+<span class="lineNum">    1153 </span>            :             {
+<span class="lineNum">    1154 </span><span class="lineNoCov">          0 :                 oJP2Geo.SetProjection( poSrcDS-&gt;GetGCPProjection() );</span>
+<span class="lineNum">    1155 </span><span class="lineNoCov">          0 :                 oJP2Geo.SetGCPs( poSrcDS-&gt;GetGCPCount(), poSrcDS-&gt;GetGCPs() );</span>
+<span class="lineNum">    1156 </span>            :             }
+<span class="lineNum">    1157 </span>            :             else
+<span class="lineNum">    1158 </span>            :             {
+<span class="lineNum">    1159 </span><span class="lineCov">          4 :                 oJP2Geo.SetProjection( poSrcDS-&gt;GetProjectionRef() );</span>
+<span class="lineNum">    1160 </span><span class="lineCov">          4 :                 oJP2Geo.SetGeoTransform( adfGeoTransform );</span>
+<span class="lineNum">    1161 </span>            :             }
+<span class="lineNum">    1162 </span>            : 
+<span class="lineNum">    1163 </span><span class="lineCov">          4 :             oJP2Geo.SetRPCMD(  poSrcDS-&gt;GetMetadata(&quot;RPC&quot;) );</span>
+<span class="lineNum">    1164 </span>            : 
+<span class="lineNum">    1165 </span><span class="lineCov">          4 :             const char* pszAreaOrPoint = poSrcDS-&gt;GetMetadataItem(GDALMD_AREA_OR_POINT);</span>
+<span class="lineNum">    1166 </span><span class="lineCov">          4 :             oJP2Geo.bPixelIsPoint = pszAreaOrPoint != nullptr &amp;&amp; EQUAL(pszAreaOrPoint, GDALMD_AOP_POINT);</span>
+<span class="lineNum">    1167 </span>            : 
+<span class="lineNum">    1168 </span><span class="lineCov">          4 :             GDALJP2Box *poBox = oJP2Geo.CreateJP2GeoTIFF();</span>
+<span class="lineNum">    1169 </span><span class="lineCov">          4 :             jp2_box_t  *box = jp2_box_create( JP2_BOX_UUID );</span>
+<span class="lineNum">    1170 </span><span class="lineCov">          4 :             memcpy( box-&gt;data.uuid.uuid, poBox-&gt;GetUUID(), 16 );</span>
+<span class="lineNum">    1171 </span><span class="lineCov">          4 :             box-&gt;data.uuid.datalen = poBox-&gt;GetDataLength() - 16;</span>
+<span class="lineNum">    1172 </span>            :             box-&gt;data.uuid.data =
+<span class="lineNum">    1173 </span><span class="lineCov">          4 :                 (uint_fast8_t *)jas_malloc( poBox-&gt;GetDataLength() - 16 );</span>
+<span class="lineNum">    1174 </span><span class="lineCov">          4 :             memcpy( box-&gt;data.uuid.data, poBox-&gt;GetWritableData() + 16,</span>
+<span class="lineNum">    1175 </span><span class="lineCov">          8 :                     poBox-&gt;GetDataLength() - 16 );</span>
+<span class="lineNum">    1176 </span><span class="lineCov">          4 :             delete poBox;</span>
+<span class="lineNum">    1177 </span><span class="lineCov">          4 :             poBox = nullptr;</span>
+<span class="lineNum">    1178 </span>            : 
+<span class="lineNum">    1179 </span><span class="lineCov">          4 :             if ( jp2_encode_uuid( psImage, psStream, pszOptionBuf, box) &lt; 0 )</span>
+<span class="lineNum">    1180 </span>            :             {
+<span class="lineNum">    1181 </span>            :                 CPLError( CE_Failure, CPLE_FileIO,
+<span class="lineNum">    1182 </span><span class="lineNoCov">          0 :                           &quot;Unable to encode image %s.&quot;, pszFilename );</span>
+<span class="lineNum">    1183 </span><span class="lineNoCov">          0 :                 jp2_box_destroy( box );</span>
+<span class="lineNum">    1184 </span><span class="lineNoCov">          0 :                 jas_matrix_destroy( psMatrix );</span>
+<span class="lineNum">    1185 </span><span class="lineNoCov">          0 :                 CPLFree( paiScanline );</span>
+<span class="lineNum">    1186 </span><span class="lineNoCov">          0 :                 CPLFree( sComps );</span>
+<span class="lineNum">    1187 </span><span class="lineNoCov">          0 :                 jas_image_destroy( psImage );</span>
+<span class="lineNum">    1188 </span><span class="lineNoCov">          0 :                 jas_stream_close( psStream );</span>
+<span class="lineNum">    1189 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">    1190 </span>            :             }
+<span class="lineNum">    1191 </span><span class="lineCov">          4 :             jp2_box_destroy( box );</span>
+<span class="lineNum">    1192 </span>            :         }
+<span class="lineNum">    1193 </span>            :         else
+<span class="lineNum">    1194 </span>            :         {
+<span class="lineNum">    1195 </span>            : #endif
+<span class="lineNum">    1196 </span><span class="lineCov">          1 :             if ( jp2_encode( psImage, psStream, pszOptionBuf) &lt; 0 )</span>
+<span class="lineNum">    1197 </span>            :             {
+<span class="lineNum">    1198 </span>            :                 CPLError( CE_Failure, CPLE_FileIO,
+<span class="lineNum">    1199 </span><span class="lineNoCov">          0 :                           &quot;Unable to encode image %s.&quot;, pszFilename );</span>
+<span class="lineNum">    1200 </span><span class="lineNoCov">          0 :                 jas_matrix_destroy( psMatrix );</span>
+<span class="lineNum">    1201 </span><span class="lineNoCov">          0 :                 CPLFree( paiScanline );</span>
+<span class="lineNum">    1202 </span><span class="lineNoCov">          0 :                 CPLFree( sComps );</span>
+<span class="lineNum">    1203 </span><span class="lineNoCov">          0 :                 jas_image_destroy( psImage );</span>
+<span class="lineNum">    1204 </span><span class="lineNoCov">          0 :                 jas_stream_close( psStream );</span>
+<span class="lineNum">    1205 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">    1206 </span>            :             }
+<span class="lineNum">    1207 </span>            : #ifdef HAVE_JASPER_UUID
+<span class="lineNum">    1208 </span>            :         }
+<span class="lineNum">    1209 </span>            : #endif
+<span class="lineNum">    1210 </span>            :     }
+<span class="lineNum">    1211 </span>            :     else    // Write JPC code stream
+<span class="lineNum">    1212 </span>            :     {
+<span class="lineNum">    1213 </span><span class="lineCov">          3 :         if ( jpc_encode(psImage, psStream, pszOptionBuf) &lt; 0 )</span>
+<span class="lineNum">    1214 </span>            :         {
+<span class="lineNum">    1215 </span>            :             CPLError( CE_Failure, CPLE_FileIO,
+<span class="lineNum">    1216 </span><span class="lineNoCov">          0 :                       &quot;Unable to encode image %s.\n&quot;, pszFilename );</span>
+<span class="lineNum">    1217 </span><span class="lineNoCov">          0 :             jas_matrix_destroy( psMatrix );</span>
+<span class="lineNum">    1218 </span><span class="lineNoCov">          0 :             CPLFree( paiScanline );</span>
+<span class="lineNum">    1219 </span><span class="lineNoCov">          0 :             CPLFree( sComps );</span>
+<span class="lineNum">    1220 </span><span class="lineNoCov">          0 :             jas_image_destroy( psImage );</span>
+<span class="lineNum">    1221 </span><span class="lineNoCov">          0 :             jas_stream_close( psStream );</span>
+<span class="lineNum">    1222 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1223 </span>            :         }
+<span class="lineNum">    1224 </span>            :     }
+<span class="lineNum">    1225 </span>            : 
+<span class="lineNum">    1226 </span><span class="lineCov">          8 :     jas_stream_flush( psStream );</span>
+<span class="lineNum">    1227 </span>            : 
+<span class="lineNum">    1228 </span><span class="lineCov">          8 :     jas_matrix_destroy( psMatrix );</span>
+<span class="lineNum">    1229 </span><span class="lineCov">          8 :     CPLFree( paiScanline );</span>
+<span class="lineNum">    1230 </span><span class="lineCov">          8 :     CPLFree( sComps );</span>
+<span class="lineNum">    1231 </span><span class="lineCov">          8 :     jas_image_destroy( psImage );</span>
+<span class="lineNum">    1232 </span><span class="lineCov">          8 :     if ( jas_stream_close( psStream ) )</span>
+<span class="lineNum">    1233 </span>            :     {
+<span class="lineNum">    1234 </span>            :         CPLError( CE_Failure, CPLE_FileIO, &quot;Unable to close file %s.\n&quot;,
+<span class="lineNum">    1235 </span><span class="lineNoCov">          0 :                   pszFilename );</span>
+<span class="lineNum">    1236 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1237 </span>            :     }
+<span class="lineNum">    1238 </span>            : 
+<span class="lineNum">    1239 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1240 </span>            : /*      Add GMLJP2 box at end of file.                                  */
+<span class="lineNum">    1241 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1242 </span><span class="lineCov">          8 :     if ( STARTS_WITH_CI(pszFormatName, &quot;jp2&quot;) )</span>
+<span class="lineNum">    1243 </span>            :     {
+<span class="lineNum">    1244 </span>            :         double  adfGeoTransform[6];
+<span class="lineNum">    1245 </span><span class="lineCov">         15 :         if( CPLFetchBool( papszOptions, &quot;GMLJP2&quot;, true ) &amp;&amp;</span>
+<span class="lineNum">    1246 </span><span class="lineCov">          9 :             poSrcDS-&gt;GetGeoTransform(adfGeoTransform) == CE_None &amp;&amp;</span>
+<span class="lineNum">    1247 </span><span class="lineCov">         13 :             poSrcDS-&gt;GetProjectionRef() != nullptr &amp;&amp;</span>
+<span class="lineNum">    1248 </span><span class="lineCov">          4 :             poSrcDS-&gt;GetProjectionRef()[0] != '\0' )</span>
+<span class="lineNum">    1249 </span>            :         {
+<span class="lineNum">    1250 </span><span class="lineCov">          4 :             VSILFILE* fp = VSIFOpenL(pszFilename, &quot;rb+&quot;);</span>
+<span class="lineNum">    1251 </span><span class="lineCov">          4 :             if( fp )</span>
+<span class="lineNum">    1252 </span>            :             {
+<span class="lineNum">    1253 </span>            :                 // Look for jp2c box and patch its LBox to be the real box size
+<span class="lineNum">    1254 </span>            :                 // instead of zero
+<span class="lineNum">    1255 </span><span class="lineCov">          4 :                 int bOK = FALSE;</span>
+<span class="lineNum">    1256 </span>            :                 GUInt32   nLBox;
+<span class="lineNum">    1257 </span>            :                 GUInt32   nTBox;
+<span class="lineNum">    1258 </span>            : 
+<span class="lineNum">    1259 </span>            :                 while( true )
+<span class="lineNum">    1260 </span>            :                 {
+<span class="lineNum">    1261 </span><span class="lineCov">         40 :                     if( VSIFReadL(&amp;nLBox, 4, 1, fp) != 1 ||</span>
+<span class="lineNum">    1262 </span><span class="lineCov">         20 :                         VSIFReadL(&amp;nTBox, 4, 1, fp) != 1 )</span>
+<span class="lineNum">    1263 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">    1264 </span><span class="lineCov">         20 :                     nLBox = CPL_MSBWORD32( nLBox );</span>
+<span class="lineNum">    1265 </span><span class="lineCov">         20 :                     if( memcmp(&amp;nTBox, &quot;jp2c&quot;, 4) == 0 )</span>
+<span class="lineNum">    1266 </span>            :                     {
+<span class="lineNum">    1267 </span><span class="lineCov">          4 :                         if( nLBox &gt;= 8 )</span>
+<span class="lineNum">    1268 </span>            :                         {
+<span class="lineNum">    1269 </span><span class="lineNoCov">          0 :                             bOK = TRUE;</span>
+<span class="lineNum">    1270 </span><span class="lineNoCov">          0 :                             break;</span>
+<span class="lineNum">    1271 </span>            :                         }
+<span class="lineNum">    1272 </span><span class="lineCov">          4 :                         if( nLBox == 0 )</span>
+<span class="lineNum">    1273 </span>            :                         {
+<span class="lineNum">    1274 </span><span class="lineCov">          4 :                             vsi_l_offset nPos = VSIFTellL(fp);</span>
+<span class="lineNum">    1275 </span><span class="lineCov">          4 :                             VSIFSeekL(fp, 0, SEEK_END);</span>
+<span class="lineNum">    1276 </span><span class="lineCov">          4 :                             vsi_l_offset nEnd = VSIFTellL(fp);</span>
+<span class="lineNum">    1277 </span><span class="lineCov">          4 :                             VSIFSeekL(fp, nPos - 8, SEEK_SET);</span>
+<span class="lineNum">    1278 </span><span class="lineCov">          4 :                             nLBox = (GUInt32)(8 + nEnd - nPos);</span>
+<span class="lineNum">    1279 </span><span class="lineCov">          4 :                             if( nLBox == (vsi_l_offset)8 + nEnd - nPos )</span>
+<span class="lineNum">    1280 </span>            :                             {
+<span class="lineNum">    1281 </span><span class="lineCov">          4 :                                 nLBox = CPL_MSBWORD32( nLBox );</span>
+<span class="lineNum">    1282 </span><span class="lineCov">          4 :                                 VSIFWriteL(&amp;nLBox, 1, 4, fp);</span>
+<span class="lineNum">    1283 </span><span class="lineCov">          4 :                                 bOK = TRUE;</span>
+<span class="lineNum">    1284 </span>            :                             }
+<span class="lineNum">    1285 </span>            :                         }
+<span class="lineNum">    1286 </span><span class="lineCov">          4 :                         break;</span>
+<span class="lineNum">    1287 </span>            :                     }
+<span class="lineNum">    1288 </span><span class="lineCov">         16 :                     if( nLBox &lt; 8 )</span>
+<span class="lineNum">    1289 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">    1290 </span><span class="lineCov">         16 :                     VSIFSeekL(fp, nLBox - 8, SEEK_CUR);</span>
+<span class="lineNum">    1291 </span>            :                 }
+<span class="lineNum">    1292 </span>            : 
+<span class="lineNum">    1293 </span>            :                 // Can write GMLJP2 box
+<span class="lineNum">    1294 </span><span class="lineCov">          4 :                 if( bOK )</span>
+<span class="lineNum">    1295 </span>            :                 {
+<span class="lineNum">    1296 </span><span class="lineCov">          4 :                     GDALJP2Metadata oJP2MD;</span>
+<span class="lineNum">    1297 </span><span class="lineCov">          4 :                     oJP2MD.SetProjection( poSrcDS-&gt;GetProjectionRef() );</span>
+<span class="lineNum">    1298 </span><span class="lineCov">          4 :                     oJP2MD.SetGeoTransform( adfGeoTransform );</span>
+<span class="lineNum">    1299 </span>            :                     GDALJP2Box *poBox;
+<span class="lineNum">    1300 </span><span class="lineCov">          4 :                     const char* pszGMLJP2V2Def = CSLFetchNameValue( papszOptions, &quot;GMLJP2V2_DEF&quot; );</span>
+<span class="lineNum">    1301 </span><span class="lineCov">          4 :                     if( pszGMLJP2V2Def != nullptr )</span>
+<span class="lineNum">    1302 </span><span class="lineNoCov">          0 :                         poBox = oJP2MD.CreateGMLJP2V2(nXSize,nYSize,pszGMLJP2V2Def,poSrcDS);</span>
+<span class="lineNum">    1303 </span>            :                     else
+<span class="lineNum">    1304 </span><span class="lineCov">          4 :                         poBox = oJP2MD.CreateGMLJP2(nXSize,nYSize);</span>
+<span class="lineNum">    1305 </span>            : 
+<span class="lineNum">    1306 </span><span class="lineCov">          4 :                     nLBox = (int) poBox-&gt;GetDataLength() + 8;</span>
+<span class="lineNum">    1307 </span><span class="lineCov">          4 :                     CPL_MSBPTR32( &amp;nLBox );</span>
+<span class="lineNum">    1308 </span><span class="lineCov">          4 :                     memcpy(&amp;nTBox, poBox-&gt;GetType(), 4);</span>
+<span class="lineNum">    1309 </span>            : 
+<span class="lineNum">    1310 </span><span class="lineCov">          4 :                     VSIFSeekL(fp, 0, SEEK_END);</span>
+<span class="lineNum">    1311 </span><span class="lineCov">          4 :                     VSIFWriteL( &amp;nLBox, 4, 1, fp );</span>
+<span class="lineNum">    1312 </span><span class="lineCov">          4 :                     VSIFWriteL( &amp;nTBox, 4, 1, fp );</span>
+<span class="lineNum">    1313 </span><span class="lineCov">          4 :                     VSIFWriteL(poBox-&gt;GetWritableData(), 1, (int) poBox-&gt;GetDataLength(), fp);</span>
+<span class="lineNum">    1314 </span><span class="lineCov">          4 :                     VSIFCloseL(fp);</span>
+<span class="lineNum">    1315 </span>            : 
+<span class="lineNum">    1316 </span><span class="lineCov">          4 :                     delete poBox;</span>
+<span class="lineNum">    1317 </span><span class="lineCov">         16 :                 }</span>
+<span class="lineNum">    1318 </span>            :             }
+<span class="lineNum">    1319 </span>            :         }
+<span class="lineNum">    1320 </span>            :     }
+<span class="lineNum">    1321 </span>            : 
+<span class="lineNum">    1322 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1323 </span>            : /*      Do we need a world file?                                        */
+<span class="lineNum">    1324 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1325 </span><span class="lineCov">          8 :     if( CPLFetchBool( papszOptions, &quot;WORLDFILE&quot;, false ) )</span>
+<span class="lineNum">    1326 </span>            :     {
+<span class="lineNum">    1327 </span>            :         double      adfGeoTransform[6];
+<span class="lineNum">    1328 </span>            : 
+<span class="lineNum">    1329 </span><span class="lineNoCov">          0 :         poSrcDS-&gt;GetGeoTransform( adfGeoTransform );</span>
+<span class="lineNum">    1330 </span><span class="lineNoCov">          0 :         GDALWriteWorldFile( pszFilename, &quot;wld&quot;, adfGeoTransform );</span>
+<span class="lineNum">    1331 </span>            :     }
+<span class="lineNum">    1332 </span>            : 
+<span class="lineNum">    1333 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1334 </span>            : /*      Re-open dataset, and copy any auxiliary pam information.         */
+<span class="lineNum">    1335 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">    1336 </span><span class="lineCov">          8 :     GDALOpenInfo oOpenInfo(pszFilename, GA_ReadOnly);</span>
+<span class="lineNum">    1337 </span><span class="lineCov">          8 :     GDALPamDataset *poDS = (GDALPamDataset*) JPEG2000Dataset::Open(&amp;oOpenInfo);</span>
+<span class="lineNum">    1338 </span>            : 
+<span class="lineNum">    1339 </span><span class="lineCov">          8 :     if( poDS )</span>
+<span class="lineNum">    1340 </span>            :     {
+<span class="lineNum">    1341 </span><span class="lineCov">          8 :         poDS-&gt;CloneInfo( poSrcDS, GCIF_PAM_DEFAULT &amp; (~GCIF_METADATA) );</span>
+<span class="lineNum">    1342 </span>            : 
+<span class="lineNum">    1343 </span>            :         /* Only write relevant metadata to PAM, and if needed */
+<span class="lineNum">    1344 </span><span class="lineCov">          8 :         char** papszSrcMD = CSLDuplicate(poSrcDS-&gt;GetMetadata());</span>
+<span class="lineNum">    1345 </span><span class="lineCov">          8 :         papszSrcMD = CSLSetNameValue(papszSrcMD, GDALMD_AREA_OR_POINT, nullptr);</span>
+<span class="lineNum">    1346 </span><span class="lineCov">          8 :         papszSrcMD = CSLSetNameValue(papszSrcMD, &quot;Corder&quot;, nullptr);</span>
+<span class="lineNum">    1347 </span><span class="lineCov">         16 :         for(char** papszSrcMDIter = papszSrcMD;</span>
+<span class="lineNum">    1348 </span><span class="lineCov">          2 :                 papszSrcMDIter &amp;&amp; *papszSrcMDIter; )</span>
+<span class="lineNum">    1349 </span>            :         {
+<span class="lineNum">    1350 </span>            :             /* Remove entries like KEY= (without value) */
+<span class="lineNum">    1351 </span><span class="lineNoCov">          0 :             if( (*papszSrcMDIter)[0] &amp;&amp;</span>
+<span class="lineNum">    1352 </span><span class="lineNoCov">          0 :                 (*papszSrcMDIter)[strlen((*papszSrcMDIter))-1] == '=' )</span>
+<span class="lineNum">    1353 </span>            :             {
+<span class="lineNum">    1354 </span><span class="lineNoCov">          0 :                 CPLFree(*papszSrcMDIter);</span>
+<span class="lineNum">    1355 </span>            :                 memmove(papszSrcMDIter, papszSrcMDIter + 1,
+<span class="lineNum">    1356 </span><span class="lineNoCov">          0 :                         sizeof(char*) * (CSLCount(papszSrcMDIter + 1) + 1));</span>
+<span class="lineNum">    1357 </span>            :             }
+<span class="lineNum">    1358 </span>            :             else
+<span class="lineNum">    1359 </span><span class="lineNoCov">          0 :                 ++papszSrcMDIter;</span>
+<span class="lineNum">    1360 </span>            :         }
+<span class="lineNum">    1361 </span><span class="lineCov">          8 :         char** papszMD = CSLDuplicate(poDS-&gt;GetMetadata());</span>
+<span class="lineNum">    1362 </span><span class="lineCov">          8 :         papszMD = CSLSetNameValue(papszMD, GDALMD_AREA_OR_POINT, nullptr);</span>
+<span class="lineNum">    1363 </span><span class="lineCov">          8 :         if( papszSrcMD &amp;&amp; papszSrcMD[0] != nullptr &amp;&amp;</span>
+<span class="lineNum">    1364 </span><span class="lineNoCov">          0 :             CSLCount(papszSrcMD) != CSLCount(papszMD) )</span>
+<span class="lineNum">    1365 </span>            :         {
+<span class="lineNum">    1366 </span><span class="lineNoCov">          0 :             poDS-&gt;SetMetadata(papszSrcMD);</span>
+<span class="lineNum">    1367 </span>            :         }
+<span class="lineNum">    1368 </span><span class="lineCov">          8 :         CSLDestroy(papszSrcMD);</span>
+<span class="lineNum">    1369 </span><span class="lineCov">          8 :         CSLDestroy(papszMD);</span>
+<span class="lineNum">    1370 </span>            :     }
+<span class="lineNum">    1371 </span>            : 
+<span class="lineNum">    1372 </span><span class="lineCov">          8 :     return poDS;</span>
+<span class="lineNum">    1373 </span>            : }
+<span class="lineNum">    1374 </span>            : 
+<span class="lineNum">    1375 </span>            : /************************************************************************/
+<span class="lineNum">    1376 </span>            : /*                        GDALRegister_JPEG2000()                       */
+<a name="1377"><span class="lineNum">    1377 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1378 </span>            : 
+<span class="lineNum">    1379 </span><span class="lineCov">       1109 : void GDALRegister_JPEG2000()</span>
+<span class="lineNum">    1380 </span>            : 
+<span class="lineNum">    1381 </span>            : {
+<span class="lineNum">    1382 </span><span class="lineCov">       1109 :     if( !GDAL_CHECK_VERSION( &quot;JPEG2000 driver&quot; ) )</span>
+<span class="lineNum">    1383 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1384 </span>            : 
+<span class="lineNum">    1385 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( &quot;JPEG2000&quot; ) != nullptr )</span>
+<span class="lineNum">    1386 </span><span class="lineCov">        122 :         return;</span>
+<span class="lineNum">    1387 </span>            : 
+<span class="lineNum">    1388 </span><span class="lineCov">        987 :     GDALDriver *poDriver = new GDALDriver();</span>
+<span class="lineNum">    1389 </span>            : 
+<span class="lineNum">    1390 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( &quot;JPEG2000&quot; );</span>
+<span class="lineNum">    1391 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">    1392 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VECTOR, &quot;YES&quot; );</span>
+<span class="lineNum">    1393 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME,
+<span class="lineNum">    1394 </span>            :                                &quot;JPEG-2000 part 1 (ISO/IEC 15444-1), &quot;
+<span class="lineNum">    1395 </span><span class="lineCov">        987 :                                &quot;based on Jasper library&quot; );</span>
+<span class="lineNum">    1396 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_HELPTOPIC, &quot;frmt_jpeg2000.html&quot; );</span>
+<span class="lineNum">    1397 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_CREATIONDATATYPES,
+<span class="lineNum">    1398 </span><span class="lineCov">        987 :                                &quot;Byte Int16 UInt16 Int32 UInt32&quot; );</span>
+<span class="lineNum">    1399 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_MIMETYPE, &quot;image/jp2&quot; );</span>
+<span class="lineNum">    1400 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_EXTENSION, &quot;jp2&quot; );</span>
+<span class="lineNum">    1401 </span>            : 
+<span class="lineNum">    1402 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VIRTUALIO, &quot;YES&quot; );</span>
+<span class="lineNum">    1403 </span>            : 
+<span class="lineNum">    1404 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_OPENOPTIONLIST,
+<span class="lineNum">    1405 </span>            : &quot;&lt;OpenOptionList&gt;&quot;
+<span class="lineNum">    1406 </span>            : &quot;   &lt;Option name='1BIT_ALPHA_PROMOTION' type='boolean' description='Whether a 1-bit alpha channel should be promoted to 8-bit' default='YES'/&gt;&quot;
+<span class="lineNum">    1407 </span>            : &quot;   &lt;Option name='OPEN_REMOTE_GML' type='boolean' description='Whether to load remote vector layers referenced by a link in a GMLJP2 v2 box' default='NO'/&gt;&quot;
+<span class="lineNum">    1408 </span>            : &quot;   &lt;Option name='GEOREF_SOURCES' type='string' description='Comma separated list made with values INTERNAL/GMLJP2/GEOJP2/WORLDFILE/PAM/NONE that describe the priority order for georeferencing' default='PAM,GEOJP2,GMLJP2,WORLDFILE'/&gt;&quot;
+<span class="lineNum">    1409 </span><span class="lineCov">        987 : &quot;&lt;/OpenOptionList&gt;&quot; );</span>
+<span class="lineNum">    1410 </span>            : 
+<span class="lineNum">    1411 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_CREATIONOPTIONLIST,
+<span class="lineNum">    1412 </span>            : &quot;&lt;CreationOptionList&gt;&quot;
+<span class="lineNum">    1413 </span>            : &quot;   &lt;Option name='FORMAT' type='string-select' default='according to file extension. If unknown, default to J2K'&gt;&quot;
+<span class="lineNum">    1414 </span>            : &quot;       &lt;Value&gt;JP2&lt;/Value&gt;&quot;
+<span class="lineNum">    1415 </span>            : &quot;       &lt;Value&gt;JPC&lt;/Value&gt;&quot;
+<span class="lineNum">    1416 </span>            : &quot;   &lt;/Option&gt;&quot;
+<span class="lineNum">    1417 </span>            : &quot;   &lt;Option name='GeoJP2' type='boolean' description='Whether to emit a GeoJP2 box' default='YES'/&gt;&quot;
+<span class="lineNum">    1418 </span>            : &quot;   &lt;Option name='GMLJP2' type='boolean' description='Whether to emit a GMLJP2 v1 box' default='YES'/&gt;&quot;
+<span class="lineNum">    1419 </span>            : &quot;   &lt;Option name='GMLJP2V2_DEF' type='string' description='Definition file to describe how a GMLJP2 v2 box should be generated. If set to YES, a minimal instance will be created'/&gt;&quot;
+<span class="lineNum">    1420 </span>            : &quot;   &lt;Option name='WORLDFILE' type='boolean' description='Whether to write a worldfile .wld' default='NO'/&gt;&quot;
+<span class="lineNum">    1421 </span>            : &quot;   &lt;Option name='NBITS' type='int' description='Bits (precision) for sub-byte files (1-7), sub-uint16 (9-15)'/&gt;&quot;
+<span class="lineNum">    1422 </span>            : &quot;   &lt;Option name='imgareatlx' type='string' /&gt;&quot;
+<span class="lineNum">    1423 </span>            : &quot;   &lt;Option name='imgareatly' type='string' /&gt;&quot;
+<span class="lineNum">    1424 </span>            : &quot;   &lt;Option name='tilegrdtlx' type='string' /&gt;&quot;
+<span class="lineNum">    1425 </span>            : &quot;   &lt;Option name='tilegrdtly' type='string' /&gt;&quot;
+<span class="lineNum">    1426 </span>            : &quot;   &lt;Option name='tilewidth' type='string' /&gt;&quot;
+<span class="lineNum">    1427 </span>            : &quot;   &lt;Option name='tileheight' type='string' /&gt;&quot;
+<span class="lineNum">    1428 </span>            : &quot;   &lt;Option name='prcwidth' type='string' /&gt;&quot;
+<span class="lineNum">    1429 </span>            : &quot;   &lt;Option name='prcheight' type='string' /&gt;&quot;
+<span class="lineNum">    1430 </span>            : &quot;   &lt;Option name='cblkwidth' type='string' /&gt;&quot;
+<span class="lineNum">    1431 </span>            : &quot;   &lt;Option name='cblkheight' type='string' /&gt;&quot;
+<span class="lineNum">    1432 </span>            : &quot;   &lt;Option name='mode' type='string' /&gt;&quot;
+<span class="lineNum">    1433 </span>            : &quot;   &lt;Option name='rate' type='string' /&gt;&quot;
+<span class="lineNum">    1434 </span>            : &quot;   &lt;Option name='ilyrrates' type='string' /&gt;&quot;
+<span class="lineNum">    1435 </span>            : &quot;   &lt;Option name='prg' type='string' /&gt;&quot;
+<span class="lineNum">    1436 </span>            : &quot;   &lt;Option name='numrlvls' type='string' /&gt;&quot;
+<span class="lineNum">    1437 </span>            : &quot;   &lt;Option name='sop' type='string' /&gt;&quot;
+<span class="lineNum">    1438 </span>            : &quot;   &lt;Option name='eph' type='string' /&gt;&quot;
+<span class="lineNum">    1439 </span>            : &quot;   &lt;Option name='lazy' type='string' /&gt;&quot;
+<span class="lineNum">    1440 </span>            : &quot;   &lt;Option name='termall' type='string' /&gt;&quot;
+<span class="lineNum">    1441 </span>            : &quot;   &lt;Option name='segsym' type='string' /&gt;&quot;
+<span class="lineNum">    1442 </span>            : &quot;   &lt;Option name='vcausal' type='string' /&gt;&quot;
+<span class="lineNum">    1443 </span>            : &quot;   &lt;Option name='pterm' type='string' /&gt;&quot;
+<span class="lineNum">    1444 </span>            : &quot;   &lt;Option name='resetprob' type='string' /&gt;&quot;
+<span class="lineNum">    1445 </span>            : &quot;   &lt;Option name='numgbits' type='string' /&gt;&quot;
+<span class="lineNum">    1446 </span><span class="lineCov">        987 : &quot;&lt;/CreationOptionList&gt;&quot;  );</span>
+<span class="lineNum">    1447 </span>            : 
+<span class="lineNum">    1448 </span><span class="lineCov">        987 :     poDriver-&gt;pfnIdentify = JPEG2000Dataset::Identify;</span>
+<span class="lineNum">    1449 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = JPEG2000Dataset::Open;</span>
+<span class="lineNum">    1450 </span><span class="lineCov">        987 :     poDriver-&gt;pfnCreateCopy = JPEG2000CreateCopy;</span>
+<span class="lineNum">    1451 </span>            : 
+<span class="lineNum">    1452 </span><span class="lineCov">        987 :     GetGDALDriverManager()-&gt;RegisterDriver( poDriver );</span>
+<span class="lineNum">    1453 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

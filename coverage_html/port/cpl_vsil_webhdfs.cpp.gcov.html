@@ -1,0 +1,1266 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_vsil_webhdfs.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_vsil_webhdfs.cpp<span style="font-size: 80%;"> (source / <a href="cpl_vsil_webhdfs.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">435</td>
+            <td class="headerCovTableEntry">481</td>
+            <td class="headerCovTableEntryHi">90.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">28</td>
+            <td class="headerCovTableEntry">30</td>
+            <td class="headerCovTableEntryHi">93.3 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  CPL - Common Portability Library
+<span class="lineNum">       4 </span>            :  * Purpose:  Implement VSI large file api for WebHDFS REST API
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, even.rouault at spatialys.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2018, Even Rouault &lt;even.rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;cpl_http.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;cpl_json.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;cpl_vsil_curl_priv.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;cpl_vsil_curl_class.h&quot;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      36 </span>            : #include &lt;set&gt;
+<span class="lineNum">      37 </span>            : #include &lt;map&gt;
+<span class="lineNum">      38 </span>            : #include &lt;memory&gt;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : #include &quot;cpl_alibaba_oss.h&quot;
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : #ifndef HAVE_CURL
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : void VSIInstallWebHdfsHandler( void )
+<span class="lineNum">      47 </span>            : {
+<span class="lineNum">      48 </span>            :     // Not supported
+<span class="lineNum">      49 </span>            : }
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : #else
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">      55 </span>            : #ifndef DOXYGEN_SKIP
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : #define ENABLE_DEBUG 0
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span>            : namespace cpl {
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            : /************************************************************************/
+<span class="lineNum">      64 </span>            : /*                         VSIWebHDFSFSHandler                          */
+<span class="lineNum">      65 </span>            : /************************************************************************/
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            : class VSIWebHDFSFSHandler final : public VSICurlFilesystemHandler
+<span class="lineNum">      68 </span>            : {
+<span class="lineNum">      69 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSIWebHDFSFSHandler)
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            : protected:
+<a name="72"><span class="lineNum">      72 </span>            :         VSICurlHandle* CreateFileHandle( const char* pszFilename ) override;</a>
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :         int HasOptimizedReadMultiRange( const char* /* pszPath */ )</span>
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :             override { return false; }</span>
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span>            :         char** GetFileList(const char *pszFilename,
+<span class="lineNum">      78 </span>            :                                int nMaxFiles,
+<span class="lineNum">      79 </span>            :                                bool* pbGotFileList) override;
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span>            :         CPLString GetURLFromFilename( const CPLString&amp; osFilename ) override;
+<a name="82"><span class="lineNum">      82 </span>            : </a>
+<a name="83"><span class="lineNum">      83 </span>            : public:</a>
+<span class="lineNum">      84 </span><span class="lineCov">        988 :         VSIWebHDFSFSHandler() = default;</span>
+<span class="lineNum">      85 </span><span class="lineCov">       1438 :         ~VSIWebHDFSFSHandler() override = default;</span>
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            :         VSIVirtualHandle *Open( const char *pszFilename,
+<span class="lineNum">      88 </span>            :                                 const char *pszAccess,
+<span class="lineNum">      89 </span>            :                                 bool bSetError ) override;
+<span class="lineNum">      90 </span>            :         int Unlink( const char *pszFilename ) override;
+<span class="lineNum">      91 </span>            :         int Rmdir( const char *pszFilename ) override;
+<a name="92"><span class="lineNum">      92 </span>            :         int Mkdir( const char *pszDirname, long nMode ) override;</a>
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span><span class="lineCov">        105 :         CPLString GetFSPrefix() override { return &quot;/vsiwebhdfs/&quot;; }</span>
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            :         const char* GetOptions() override;
+<span class="lineNum">      97 </span>            : };
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span>            : /************************************************************************/
+<span class="lineNum">     100 </span>            : /*                            VSIWebHDFSHandle                          */
+<span class="lineNum">     101 </span>            : /************************************************************************/
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            : class VSIWebHDFSHandle final : public VSICurlHandle
+<span class="lineNum">     104 </span>            : {
+<span class="lineNum">     105 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSIWebHDFSHandle)
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            :     CPLString       m_osDataNodeHost{};
+<span class="lineNum">     108 </span>            :     CPLString       m_osUsernameParam{};
+<span class="lineNum">     109 </span>            :     CPLString       m_osDelegationParam{};
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            :     bool            DownloadRegion(vsi_l_offset startOffset, int nBlocks) override;
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span>            :   public:
+<a name="114"><span class="lineNum">     114 </span>            :     VSIWebHDFSHandle( VSIWebHDFSFSHandler* poFS,</a>
+<span class="lineNum">     115 </span>            :                       const char* pszFilename, const char* pszURL );
+<a name="116"><span class="lineNum">     116 </span><span class="lineCov">         14 :     ~VSIWebHDFSHandle() override = default;</span></a>
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :     int ReadMultiRange( int nRanges, void ** ppData,</span>
+<span class="lineNum">     119 </span>            :                         const vsi_l_offset* panOffsets,
+<span class="lineNum">     120 </span>            :                         const size_t* panSizes ) override {
+<span class="lineNum">     121 </span>            :         return VSIVirtualHandle::ReadMultiRange( nRanges,  ppData,
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :                                                  panOffsets, panSizes );</span>
+<span class="lineNum">     123 </span>            :     }
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span>            :     vsi_l_offset GetFileSize( bool bSetError ) override;
+<span class="lineNum">     126 </span>            : };
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span>            : /************************************************************************/
+<span class="lineNum">     129 </span>            : /*                           PatchWebHDFSUrl()                          */
+<span class="lineNum">     130 </span>            : /************************************************************************/
+<a name="131"><span class="lineNum">     131 </span>            : </a>
+<span class="lineNum">     132 </span>            : #ifdef HAVE_CURLINFO_REDIRECT_URL
+<span class="lineNum">     133 </span><span class="lineCov">          6 : static CPLString PatchWebHDFSUrl(const CPLString&amp; osURLIn,</span>
+<span class="lineNum">     134 </span>            :                                  const CPLString&amp; osNewHost)
+<span class="lineNum">     135 </span>            : {
+<span class="lineNum">     136 </span><span class="lineCov">          6 :     CPLString osURL(osURLIn);</span>
+<span class="lineNum">     137 </span><span class="lineCov">          6 :     size_t nStart = 0;</span>
+<span class="lineNum">     138 </span><span class="lineCov">          6 :     if( osURL.find(&quot;http://&quot;) == 0 )</span>
+<span class="lineNum">     139 </span><span class="lineCov">          6 :         nStart = strlen(&quot;http://&quot;);</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :     else if( osURL.find(&quot;https://&quot;) == 0 )</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :         nStart = strlen(&quot;https://&quot;);</span>
+<span class="lineNum">     142 </span><span class="lineCov">          6 :     if( nStart )</span>
+<span class="lineNum">     143 </span>            :     {
+<span class="lineNum">     144 </span><span class="lineCov">          6 :         size_t nHostEnd = osURL.find(':', nStart);</span>
+<span class="lineNum">     145 </span><span class="lineCov">          6 :         if( nHostEnd != std::string::npos )</span>
+<span class="lineNum">     146 </span>            :         {
+<span class="lineNum">     147 </span><span class="lineCov">         12 :             osURL = osURL.substr(0, nStart) + osNewHost +</span>
+<span class="lineNum">     148 </span><span class="lineCov">          6 :                     osURL.substr(nHostEnd);</span>
+<span class="lineNum">     149 </span>            :         }
+<span class="lineNum">     150 </span>            :     }
+<span class="lineNum">     151 </span><span class="lineCov">          6 :     return osURL;</span>
+<span class="lineNum">     152 </span>            : }
+<span class="lineNum">     153 </span>            : #endif
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            : /************************************************************************/
+<span class="lineNum">     156 </span>            : /*                       GetWebHDFSDataNodeHost()                       */
+<a name="157"><span class="lineNum">     157 </span>            : /************************************************************************/</a>
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span><span class="lineCov">         13 : static CPLString GetWebHDFSDataNodeHost()</span>
+<span class="lineNum">     160 </span>            : {
+<span class="lineNum">     161 </span><span class="lineCov">         13 :     CPLString osDataNodeHost = CPLGetConfigOption(&quot;WEBHDFS_DATANODE_HOST&quot;, &quot;&quot;);</span>
+<span class="lineNum">     162 </span>            : #ifndef HAVE_CURLINFO_REDIRECT_URL
+<span class="lineNum">     163 </span>            :     if( !osDataNodeHost.empty() )
+<span class="lineNum">     164 </span>            :     {
+<span class="lineNum">     165 </span>            :         static bool bFirstTime = true;
+<span class="lineNum">     166 </span>            :         if( bFirstTime )
+<span class="lineNum">     167 </span>            :         {
+<span class="lineNum">     168 </span>            :             CPLError(CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     169 </span>            :                  &quot;WEBHDFS_DATANODE_HOST not honored due to too old libcurl&quot;);
+<span class="lineNum">     170 </span>            :             bFirstTime = false;
+<span class="lineNum">     171 </span>            :         }
+<span class="lineNum">     172 </span>            :     }
+<span class="lineNum">     173 </span>            : #endif
+<span class="lineNum">     174 </span><span class="lineCov">         13 :     return osDataNodeHost;</span>
+<span class="lineNum">     175 </span>            : }
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span>            : #ifdef HAVE_CURLINFO_REDIRECT_URL
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            : /************************************************************************/
+<span class="lineNum">     180 </span>            : /*                         VSIWebHDFSWriteHandle                        */
+<span class="lineNum">     181 </span>            : /************************************************************************/
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span>            : class VSIWebHDFSWriteHandle final : public VSIAppendWriteHandle
+<span class="lineNum">     184 </span>            : {
+<span class="lineNum">     185 </span>            :     CPL_DISALLOW_COPY_ASSIGN(VSIWebHDFSWriteHandle)
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            :     CPLString           m_osURL{};
+<span class="lineNum">     188 </span>            :     CPLString           m_osDataNodeHost{};
+<span class="lineNum">     189 </span>            :     CPLString           m_osUsernameParam{};
+<span class="lineNum">     190 </span>            :     CPLString           m_osDelegationParam{};
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            :     bool                Send(bool bIsLastBlock) override;
+<span class="lineNum">     193 </span>            :     bool                CreateFile();
+<span class="lineNum">     194 </span>            :     bool                Append();
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            :     void                InvalidateParentDirectory();
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            :     public:
+<span class="lineNum">     199 </span>            :         VSIWebHDFSWriteHandle( VSIWebHDFSFSHandler* poFS,
+<span class="lineNum">     200 </span>            :                                const char* pszFilename );
+<span class="lineNum">     201 </span>            :         virtual ~VSIWebHDFSWriteHandle();
+<span class="lineNum">     202 </span>            : };
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span>            : /************************************************************************/
+<span class="lineNum">     205 </span>            : /*                        GetWebHDFSBufferSize()                        */
+<a name="206"><span class="lineNum">     206 </span>            : /************************************************************************/</a>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineCov">          6 : static int GetWebHDFSBufferSize()</span>
+<span class="lineNum">     209 </span>            : {
+<span class="lineNum">     210 </span>            :     int nBufferSize;
+<span class="lineNum">     211 </span><span class="lineCov">          6 :     int nChunkSizeMB = atoi(CPLGetConfigOption(&quot;VSIWEBHDFS_SIZE&quot;, &quot;4&quot;));</span>
+<span class="lineNum">     212 </span><span class="lineCov">          6 :     if( nChunkSizeMB &lt;= 0 || nChunkSizeMB &gt; 1000 )</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :         nBufferSize = 4 * 1024 * 1024;</span>
+<span class="lineNum">     214 </span>            :     else
+<span class="lineNum">     215 </span><span class="lineCov">          6 :         nBufferSize = nChunkSizeMB * 1024 * 1024;</span>
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            :     // For testing only !
+<span class="lineNum">     218 </span>            :     const char* pszChunkSizeBytes =
+<span class="lineNum">     219 </span><span class="lineCov">          6 :         CPLGetConfigOption(&quot;VSIWEBHDFS_SIZE_BYTES&quot;, nullptr);</span>
+<span class="lineNum">     220 </span><span class="lineCov">          6 :     if( pszChunkSizeBytes )</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :         nBufferSize = atoi(pszChunkSizeBytes);</span>
+<span class="lineNum">     222 </span><span class="lineCov">          6 :     if( nBufferSize &lt;= 0 || nBufferSize &gt; 1000 * 1024 * 1024 )</span>
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :         nBufferSize = 4 * 1024 * 1024;</span>
+<span class="lineNum">     224 </span><span class="lineCov">          6 :     return nBufferSize;</span>
+<span class="lineNum">     225 </span>            : }
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            : /************************************************************************/
+<span class="lineNum">     228 </span>            : /*                      VSIWebHDFSWriteHandle()                         */
+<a name="229"><span class="lineNum">     229 </span>            : /************************************************************************/</a>
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span><span class="lineCov">          6 : VSIWebHDFSWriteHandle::VSIWebHDFSWriteHandle( VSIWebHDFSFSHandler* poFS,</span>
+<span class="lineNum">     232 </span>            :                                               const char* pszFilename) :
+<span class="lineNum">     233 </span>            :         VSIAppendWriteHandle(poFS, poFS-&gt;GetFSPrefix(), pszFilename,
+<span class="lineNum">     234 </span>            :                              GetWebHDFSBufferSize()),
+<span class="lineNum">     235 </span><span class="lineCov">          6 :         m_osURL( pszFilename + poFS-&gt;GetFSPrefix().size() )</span>
+<span class="lineNum">     236 </span>            : {
+<span class="lineNum">     237 </span><span class="lineCov">          6 :     m_osDataNodeHost = GetWebHDFSDataNodeHost();</span>
+<span class="lineNum">     238 </span><span class="lineCov">          6 :     m_osUsernameParam = CPLGetConfigOption(&quot;WEBHDFS_USERNAME&quot;, &quot;&quot;);</span>
+<span class="lineNum">     239 </span><span class="lineCov">          6 :     if( !m_osUsernameParam.empty() )</span>
+<span class="lineNum">     240 </span><span class="lineCov">          5 :         m_osUsernameParam = &quot;&amp;user.name=&quot; + m_osUsernameParam;</span>
+<span class="lineNum">     241 </span><span class="lineCov">          6 :     m_osDelegationParam = CPLGetConfigOption(&quot;WEBHDFS_DELEGATION&quot;, &quot;&quot;);</span>
+<span class="lineNum">     242 </span><span class="lineCov">          6 :     if( !m_osDelegationParam.empty() )</span>
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :         m_osDelegationParam = &quot;&amp;delegation=&quot; + m_osDelegationParam;</span>
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span><span class="lineCov">          6 :     if( m_pabyBuffer != nullptr &amp;&amp; !CreateFile() )</span>
+<span class="lineNum">     246 </span>            :     {
+<span class="lineNum">     247 </span><span class="lineCov">          3 :         CPLFree(m_pabyBuffer);</span>
+<span class="lineNum">     248 </span><span class="lineCov">          3 :         m_pabyBuffer = nullptr;</span>
+<span class="lineNum">     249 </span>            :     }
+<span class="lineNum">     250 </span><span class="lineCov">          6 : }</span>
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            : /************************************************************************/
+<span class="lineNum">     253 </span>            : /*                     ~VSIWebHDFSWriteHandle()                         */
+<a name="254"><span class="lineNum">     254 </span>            : /************************************************************************/</a>
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineCov">         18 : VSIWebHDFSWriteHandle::~VSIWebHDFSWriteHandle()</span>
+<span class="lineNum">     257 </span>            : {
+<span class="lineNum">     258 </span><span class="lineCov">          6 :     Close();</span>
+<span class="lineNum">     259 </span><span class="lineCov">         12 : }</span>
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span>            : /************************************************************************/
+<span class="lineNum">     262 </span>            : /*                    InvalidateParentDirectory()                       */
+<a name="263"><span class="lineNum">     263 </span>            : /************************************************************************/</a>
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span><span class="lineCov">          3 : void VSIWebHDFSWriteHandle::InvalidateParentDirectory()</span>
+<span class="lineNum">     266 </span>            : {
+<span class="lineNum">     267 </span><span class="lineCov">          3 :     m_poFS-&gt;InvalidateCachedData(m_osURL);</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineCov">          3 :     CPLString osFilenameWithoutSlash(m_osFilename);</span>
+<span class="lineNum">     270 </span><span class="lineCov">          3 :     if( !osFilenameWithoutSlash.empty() &amp;&amp; osFilenameWithoutSlash.back() == '/' )</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :         osFilenameWithoutSlash.resize( osFilenameWithoutSlash.size() - 1 );</span>
+<span class="lineNum">     272 </span><span class="lineCov">          3 :     m_poFS-&gt;InvalidateDirContent( CPLGetDirname(osFilenameWithoutSlash) );</span>
+<span class="lineNum">     273 </span><span class="lineCov">          3 : }</span>
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span>            : /************************************************************************/
+<span class="lineNum">     276 </span>            : /*                             Send()                                   */
+<a name="277"><span class="lineNum">     277 </span>            : /************************************************************************/</a>
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span><span class="lineCov">          6 : bool VSIWebHDFSWriteHandle::Send(bool /* bIsLastBlock */)</span>
+<span class="lineNum">     280 </span>            : {
+<span class="lineNum">     281 </span><span class="lineCov">          6 :     if( m_nCurOffset &gt; 0 )</span>
+<span class="lineNum">     282 </span><span class="lineCov">          2 :         return Append();</span>
+<span class="lineNum">     283 </span><span class="lineCov">          4 :     return true;</span>
+<span class="lineNum">     284 </span>            : }
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            : /************************************************************************/
+<span class="lineNum">     287 </span>            : /*                           CreateFile()                               */
+<a name="288"><span class="lineNum">     288 </span>            : /************************************************************************/</a>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineCov">          6 : bool VSIWebHDFSWriteHandle::CreateFile()</span>
+<span class="lineNum">     291 </span>            : {
+<span class="lineNum">     292 </span><span class="lineCov">          6 :     if( m_osUsernameParam.empty() &amp;&amp; m_osDelegationParam.empty() )</span>
+<span class="lineNum">     293 </span>            :     {
+<span class="lineNum">     294 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     295 </span>            :                  &quot;Configuration option WEBHDFS_USERNAME or WEBHDFS_DELEGATION &quot;
+<span class="lineNum">     296 </span><span class="lineCov">          1 :                  &quot;should be defined&quot;);</span>
+<span class="lineNum">     297 </span><span class="lineCov">          1 :         return false;</span>
+<span class="lineNum">     298 </span>            :     }
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">         15 :     CPLString osURL = m_osURL + &quot;?op=CREATE&amp;overwrite=true&quot; +</span>
+<span class="lineNum">     301 </span><span class="lineCov">         15 :         m_osUsernameParam + m_osDelegationParam;</span>
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span><span class="lineCov">         10 :     CPLString osPermission = CPLGetConfigOption(&quot;WEBHDFS_PERMISSION&quot;, &quot;&quot;);</span>
+<span class="lineNum">     304 </span><span class="lineCov">          5 :     if( !osPermission.empty() )</span>
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :         osURL += &quot;&amp;permission=&quot; + osPermission;</span>
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span><span class="lineCov">         10 :     CPLString osReplication = CPLGetConfigOption(&quot;WEBHDFS_REPLICATION&quot;, &quot;&quot;);</span>
+<span class="lineNum">     308 </span><span class="lineCov">          5 :     if( !osReplication.empty() )</span>
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :         osURL += &quot;&amp;replication=&quot; + osReplication;</span>
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span><span class="lineCov">          5 :     bool bInRedirect = false;</span>
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            : retry:
+<span class="lineNum">     314 </span><span class="lineCov">          8 :     CURL* hCurlHandle = curl_easy_init();</span>
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span>            :     struct curl_slist* headers = static_cast&lt;struct curl_slist*&gt;(
+<span class="lineNum">     317 </span><span class="lineCov">          8 :         CPLHTTPSetOptions(hCurlHandle, osURL.c_str(), nullptr));</span>
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span><span class="lineCov">          8 :     curl_easy_setopt(hCurlHandle, CURLOPT_CUSTOMREQUEST, &quot;PUT&quot;);</span>
+<span class="lineNum">     320 </span><span class="lineCov">          8 :     curl_easy_setopt(hCurlHandle, CURLOPT_INFILESIZE, 0);</span>
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span><span class="lineCov">          8 :     if( !m_osDataNodeHost.empty() )</span>
+<span class="lineNum">     323 </span>            :     {
+<span class="lineNum">     324 </span><span class="lineCov">          7 :         curl_easy_setopt(hCurlHandle, CURLOPT_FOLLOWLOCATION, 0);</span>
+<span class="lineNum">     325 </span>            :     }
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineCov">          8 :     curl_easy_setopt(hCurlHandle, CURLOPT_HTTPHEADER, headers);</span>
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span><span class="lineCov">          8 :     WriteFuncStruct sWriteFuncData;</span>
+<span class="lineNum">     330 </span><span class="lineCov">          8 :     VSICURLInitWriteFuncStruct(&amp;sWriteFuncData, nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     331 </span><span class="lineCov">          8 :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEDATA, &amp;sWriteFuncData);</span>
+<span class="lineNum">     332 </span>            :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEFUNCTION,
+<span class="lineNum">     333 </span><span class="lineCov">          8 :                         VSICurlHandleWriteFunc);</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span><span class="lineCov">          8 :     MultiPerform(m_poFS-&gt;GetCurlMultiHandleFor(m_osURL), hCurlHandle);</span>
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineCov">          8 :     curl_slist_free_all(headers);</span>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineCov">          8 :     long response_code = 0;</span>
+<span class="lineNum">     340 </span><span class="lineCov">          8 :     curl_easy_getinfo(hCurlHandle, CURLINFO_HTTP_CODE, &amp;response_code);</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineCov">          8 :     if( !bInRedirect )</span>
+<span class="lineNum">     343 </span>            :     {
+<span class="lineNum">     344 </span><span class="lineCov">          5 :         char *pszRedirectURL = nullptr;</span>
+<span class="lineNum">     345 </span><span class="lineCov">          5 :         curl_easy_getinfo(hCurlHandle, CURLINFO_REDIRECT_URL, &amp;pszRedirectURL);</span>
+<span class="lineNum">     346 </span><span class="lineCov">          8 :         if( pszRedirectURL &amp;&amp;</span>
+<span class="lineNum">     347 </span><span class="lineCov">          3 :             strstr(pszRedirectURL, osURL.c_str()) == nullptr )</span>
+<span class="lineNum">     348 </span>            :         {
+<span class="lineNum">     349 </span><span class="lineCov">          3 :             CPLDebug(&quot;WEBHDFS&quot;, &quot;Redirect URL: %s&quot;, pszRedirectURL);</span>
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span><span class="lineCov">          3 :             bInRedirect = true;</span>
+<span class="lineNum">     352 </span><span class="lineCov">          3 :             osURL = pszRedirectURL;</span>
+<span class="lineNum">     353 </span><span class="lineCov">          3 :             if( !m_osDataNodeHost.empty() )</span>
+<span class="lineNum">     354 </span>            :             {
+<span class="lineNum">     355 </span><span class="lineCov">          3 :                 osURL = PatchWebHDFSUrl(osURL, m_osDataNodeHost);</span>
+<span class="lineNum">     356 </span>            :             }
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span><span class="lineCov">          3 :             curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     359 </span><span class="lineCov">          3 :             CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span><span class="lineCov">          3 :             goto retry;</span>
+<span class="lineNum">     362 </span>            :         }
+<span class="lineNum">     363 </span>            :     }
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineCov">          5 :     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span><span class="lineCov">          5 :     if( response_code == 201 )</span>
+<span class="lineNum">     368 </span>            :     {
+<span class="lineNum">     369 </span><span class="lineCov">          3 :         InvalidateParentDirectory();</span>
+<span class="lineNum">     370 </span>            :     }
+<span class="lineNum">     371 </span>            :     else
+<span class="lineNum">     372 </span>            :     {
+<span class="lineNum">     373 </span>            :         CPLDebug(&quot;WEBHDFS&quot;,
+<span class="lineNum">     374 </span>            :                     &quot;%s&quot;,
+<span class="lineNum">     375 </span>            :                     sWriteFuncData.pBuffer
+<span class="lineNum">     376 </span>            :                     ? sWriteFuncData.pBuffer
+<span class="lineNum">     377 </span><span class="lineCov">          2 :                     : &quot;(null)&quot;);</span>
+<span class="lineNum">     378 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     379 </span>            :                     &quot;PUT of %s failed&quot;,
+<span class="lineNum">     380 </span><span class="lineCov">          2 :                     m_osURL.c_str());</span>
+<span class="lineNum">     381 </span>            :     }
+<span class="lineNum">     382 </span><span class="lineCov">          5 :     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span><span class="lineCov">         10 :     return response_code == 201;</span>
+<span class="lineNum">     385 </span>            : }
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            : /************************************************************************/
+<span class="lineNum">     388 </span>            : /*                             Append()                                 */
+<a name="389"><span class="lineNum">     389 </span>            : /************************************************************************/</a>
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span><span class="lineCov">          2 : bool VSIWebHDFSWriteHandle::Append()</span>
+<span class="lineNum">     392 </span>            : {
+<span class="lineNum">     393 </span><span class="lineCov">          6 :     CPLString osURL = m_osURL + &quot;?op=APPEND&quot; +</span>
+<span class="lineNum">     394 </span><span class="lineCov">          6 :                       m_osUsernameParam + m_osDelegationParam;</span>
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">          2 :     CURL* hCurlHandle = curl_easy_init();</span>
+<span class="lineNum">     397 </span>            : 
+<span class="lineNum">     398 </span>            :     struct curl_slist* headers = static_cast&lt;struct curl_slist*&gt;(
+<span class="lineNum">     399 </span><span class="lineCov">          2 :         CPLHTTPSetOptions(hCurlHandle, osURL.c_str(), nullptr));</span>
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_CUSTOMREQUEST, &quot;POST&quot;);</span>
+<span class="lineNum">     402 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_FOLLOWLOCATION, 0);</span>
+<span class="lineNum">     403 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_HTTPHEADER, headers);</span>
+<span class="lineNum">     404 </span>            : 
+<span class="lineNum">     405 </span><span class="lineCov">          2 :     WriteFuncStruct sWriteFuncData;</span>
+<span class="lineNum">     406 </span><span class="lineCov">          2 :     VSICURLInitWriteFuncStruct(&amp;sWriteFuncData, nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     407 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEDATA, &amp;sWriteFuncData);</span>
+<span class="lineNum">     408 </span>            :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEFUNCTION,
+<span class="lineNum">     409 </span><span class="lineCov">          2 :                         VSICurlHandleWriteFunc);</span>
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span><span class="lineCov">          2 :     MultiPerform(m_poFS-&gt;GetCurlMultiHandleFor(m_osURL), hCurlHandle);</span>
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span><span class="lineCov">          2 :     curl_slist_free_all(headers);</span>
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span><span class="lineCov">          2 :     long response_code = 0;</span>
+<span class="lineNum">     416 </span><span class="lineCov">          2 :     curl_easy_getinfo(hCurlHandle, CURLINFO_HTTP_CODE, &amp;response_code);</span>
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span><span class="lineCov">          2 :     if( response_code != 307 )</span>
+<span class="lineNum">     419 </span>            :     {
+<span class="lineNum">     420 </span>            :         CPLDebug(&quot;WEBHDFS&quot;,
+<span class="lineNum">     421 </span>            :                     &quot;%s&quot;,
+<span class="lineNum">     422 </span>            :                     sWriteFuncData.pBuffer
+<span class="lineNum">     423 </span>            :                     ? sWriteFuncData.pBuffer
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :                     : &quot;(null)&quot;);</span>
+<span class="lineNum">     425 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     426 </span>            :                     &quot;POST of %s failed&quot;,
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :                     m_osURL.c_str());</span>
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :         curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :         CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     431 </span>            :     }
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span><span class="lineCov">          2 :     char *pszRedirectURL = nullptr;</span>
+<span class="lineNum">     434 </span><span class="lineCov">          2 :     curl_easy_getinfo(hCurlHandle, CURLINFO_REDIRECT_URL, &amp;pszRedirectURL);</span>
+<span class="lineNum">     435 </span><span class="lineCov">          2 :     if( pszRedirectURL == nullptr )</span>
+<span class="lineNum">     436 </span>            :     {
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :         curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :         CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     440 </span>            :     }
+<span class="lineNum">     441 </span><span class="lineCov">          2 :     CPLDebug(&quot;WEBHDFS&quot;, &quot;Redirect URL: %s&quot;, pszRedirectURL);</span>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span><span class="lineCov">          2 :     osURL = pszRedirectURL;</span>
+<span class="lineNum">     444 </span><span class="lineCov">          2 :     if( !m_osDataNodeHost.empty() )</span>
+<span class="lineNum">     445 </span>            :     {
+<span class="lineNum">     446 </span><span class="lineCov">          2 :         osURL = PatchWebHDFSUrl(osURL, m_osDataNodeHost);</span>
+<span class="lineNum">     447 </span>            :     }
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineCov">          2 :     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     450 </span><span class="lineCov">          2 :     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span>            : 
+<span class="lineNum">     453 </span>            :     // After redirection
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span><span class="lineCov">          2 :     hCurlHandle = curl_easy_init();</span>
+<span class="lineNum">     456 </span>            : 
+<span class="lineNum">     457 </span>            :     headers = static_cast&lt;struct curl_slist*&gt;(
+<span class="lineNum">     458 </span><span class="lineCov">          2 :         CPLHTTPSetOptions(hCurlHandle, osURL.c_str(), nullptr));</span>
+<span class="lineNum">     459 </span><span class="lineCov">          2 :     headers = curl_slist_append(headers, &quot;Content-Type: application/octet-stream&quot;);</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_POSTFIELDS, m_pabyBuffer);</span>
+<span class="lineNum">     462 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_POSTFIELDSIZE , m_nBufferOff);</span>
+<span class="lineNum">     463 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_FOLLOWLOCATION, 0);</span>
+<span class="lineNum">     464 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_HTTPHEADER, headers);</span>
+<span class="lineNum">     465 </span>            : 
+<span class="lineNum">     466 </span><span class="lineCov">          2 :     VSICURLInitWriteFuncStruct(&amp;sWriteFuncData, nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     467 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEDATA, &amp;sWriteFuncData);</span>
+<span class="lineNum">     468 </span>            :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEFUNCTION,
+<span class="lineNum">     469 </span><span class="lineCov">          2 :                         VSICurlHandleWriteFunc);</span>
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span><span class="lineCov">          2 :     MultiPerform(m_poFS-&gt;GetCurlMultiHandleFor(m_osURL), hCurlHandle);</span>
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span><span class="lineCov">          2 :     curl_slist_free_all(headers);</span>
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineCov">          2 :     response_code = 0;</span>
+<span class="lineNum">     476 </span><span class="lineCov">          2 :     curl_easy_getinfo(hCurlHandle, CURLINFO_HTTP_CODE, &amp;response_code);</span>
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span><span class="lineCov">          2 :     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     479 </span>            : 
+<span class="lineNum">     480 </span><span class="lineCov">          2 :     if( response_code != 200 )</span>
+<span class="lineNum">     481 </span>            :     {
+<span class="lineNum">     482 </span>            :         CPLDebug(&quot;WEBHDFS&quot;,
+<span class="lineNum">     483 </span>            :                     &quot;%s&quot;,
+<span class="lineNum">     484 </span>            :                     sWriteFuncData.pBuffer
+<span class="lineNum">     485 </span>            :                     ? sWriteFuncData.pBuffer
+<span class="lineNum">     486 </span><span class="lineCov">          1 :                     : &quot;(null)&quot;);</span>
+<span class="lineNum">     487 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     488 </span>            :                     &quot;POST of %s failed&quot;,
+<span class="lineNum">     489 </span><span class="lineCov">          1 :                     m_osURL.c_str());</span>
+<span class="lineNum">     490 </span>            :     }
+<span class="lineNum">     491 </span><span class="lineCov">          2 :     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     492 </span>            : 
+<span class="lineNum">     493 </span><span class="lineCov">          2 :     return response_code == 200;</span>
+<span class="lineNum">     494 </span>            : }
+<span class="lineNum">     495 </span>            : 
+<span class="lineNum">     496 </span>            : #endif // #ifdef HAVE_CURLINFO_REDIRECT_URL
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span>            : /************************************************************************/
+<span class="lineNum">     500 </span>            : /*                                Open()                                */
+<a name="501"><span class="lineNum">     501 </span>            : /************************************************************************/</a>
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span><span class="lineCov">          9 : VSIVirtualHandle* VSIWebHDFSFSHandler::Open( const char *pszFilename,</span>
+<span class="lineNum">     504 </span>            :                                         const char *pszAccess,
+<span class="lineNum">     505 </span>            :                                         bool bSetError)
+<span class="lineNum">     506 </span>            : {
+<span class="lineNum">     507 </span><span class="lineCov">          9 :     if( !STARTS_WITH_CI(pszFilename, GetFSPrefix()) )</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span><span class="lineCov">          9 :     if( strchr(pszAccess, 'w') != nullptr || strchr(pszAccess, 'a') != nullptr )</span>
+<span class="lineNum">     511 </span>            :     {
+<span class="lineNum">     512 </span>            : #ifdef HAVE_CURLINFO_REDIRECT_URL
+<span class="lineNum">     513 </span>            :         VSIWebHDFSWriteHandle* poHandle =
+<span class="lineNum">     514 </span><span class="lineCov">          6 :             new VSIWebHDFSWriteHandle(this, pszFilename);</span>
+<span class="lineNum">     515 </span><span class="lineCov">          6 :         if( !poHandle-&gt;IsOK() )</span>
+<span class="lineNum">     516 </span>            :         {
+<span class="lineNum">     517 </span><span class="lineCov">          3 :             delete poHandle;</span>
+<span class="lineNum">     518 </span><span class="lineCov">          3 :             poHandle = nullptr;</span>
+<span class="lineNum">     519 </span>            :         }
+<span class="lineNum">     520 </span><span class="lineCov">          6 :         return poHandle;</span>
+<span class="lineNum">     521 </span>            : #else
+<span class="lineNum">     522 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     523 </span>            :                  &quot;libcurl &gt;= 7.18.1 for /vsiwebhdfs support&quot;);
+<span class="lineNum">     524 </span>            :         return nullptr;
+<span class="lineNum">     525 </span>            : #endif
+<span class="lineNum">     526 </span>            :     }
+<span class="lineNum">     527 </span>            : 
+<span class="lineNum">     528 </span>            :     return
+<span class="lineNum">     529 </span><span class="lineCov">          3 :         VSICurlFilesystemHandler::Open(pszFilename, pszAccess, bSetError);</span>
+<span class="lineNum">     530 </span>            : }
+<span class="lineNum">     531 </span>            : 
+<span class="lineNum">     532 </span>            : /************************************************************************/
+<span class="lineNum">     533 </span>            : /*                           GetOptions()                               */
+<a name="534"><span class="lineNum">     534 </span>            : /************************************************************************/</a>
+<span class="lineNum">     535 </span>            : 
+<span class="lineNum">     536 </span><span class="lineCov">          1 : const char* VSIWebHDFSFSHandler::GetOptions()</span>
+<span class="lineNum">     537 </span>            : {
+<span class="lineNum">     538 </span>            :     static CPLString osOptions(
+<span class="lineNum">     539 </span><span class="lineCov">          2 :         CPLString(&quot;&lt;Options&gt;&quot;) +</span>
+<span class="lineNum">     540 </span>            :     &quot;  &lt;Option name='WEBHDFS_USERNAME' type='string' &quot;
+<span class="lineNum">     541 </span>            :         &quot;description='username (when security is off)'/&gt;&quot;
+<span class="lineNum">     542 </span>            :     &quot;  &lt;Option name='WEBHDFS_DELEGATION' type='string' &quot;
+<span class="lineNum">     543 </span>            :         &quot;description='Hadoop delegation token (when security is on)'/&gt;&quot;
+<span class="lineNum">     544 </span>            :     &quot;  &lt;Option name='WEBHDFS_DATANODE_HOST' type='string' &quot;
+<span class="lineNum">     545 </span>            :         &quot;description='For APIs using redirect, substitute the redirection &quot;
+<span class="lineNum">     546 </span>            :         &quot;hostname with the one provided by this option (normally resolvable &quot;
+<span class="lineNum">     547 </span>            :         &quot;hostname should be rewritten by a proxy)'/&gt;&quot;
+<span class="lineNum">     548 </span>            :     &quot;  &lt;Option name='WEBHDFS_REPLICATION' type='integer' &quot;
+<span class="lineNum">     549 </span>            :         &quot;description='Replication value used when creating a file'/&gt;&quot;
+<span class="lineNum">     550 </span>            :     &quot;  &lt;Option name='WEBHDFS_PERMISSION' type='integer' &quot;
+<span class="lineNum">     551 </span>            :         &quot;description='Permission mask (to provide as decimal number) when &quot;
+<span class="lineNum">     552 </span><span class="lineCov">          3 :         &quot;creating a file or directory'/&gt;&quot; +</span>
+<span class="lineNum">     553 </span><span class="lineCov">          2 :         VSICurlFilesystemHandler::GetOptionsStatic() +</span>
+<span class="lineNum">     554 </span><span class="lineCov">          2 :         &quot;&lt;/Options&gt;&quot;);</span>
+<span class="lineNum">     555 </span><span class="lineCov">          1 :     return osOptions.c_str();</span>
+<span class="lineNum">     556 </span>            : }
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span>            : /************************************************************************/
+<span class="lineNum">     559 </span>            : /*                          CreateFileHandle()                          */
+<a name="560"><span class="lineNum">     560 </span>            : /************************************************************************/</a>
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span><span class="lineCov">          7 : VSICurlHandle* VSIWebHDFSFSHandler::CreateFileHandle(const char* pszFilename)</span>
+<span class="lineNum">     563 </span>            : {
+<span class="lineNum">     564 </span>            :     return new VSIWebHDFSHandle(this, pszFilename,
+<span class="lineNum">     565 </span><span class="lineCov">          7 :                                 pszFilename + GetFSPrefix().size());</span>
+<span class="lineNum">     566 </span>            : }
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span>            : /************************************************************************/
+<span class="lineNum">     569 </span>            : /*                          GetURLFromFilename()                         */
+<a name="570"><span class="lineNum">     570 </span>            : /************************************************************************/</a>
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span><span class="lineCov">         14 : CPLString VSIWebHDFSFSHandler::GetURLFromFilename( const CPLString&amp; osFilename )</span>
+<span class="lineNum">     573 </span>            : {
+<span class="lineNum">     574 </span><span class="lineCov">         14 :     return osFilename.substr(GetFSPrefix().size());</span>
+<span class="lineNum">     575 </span>            : }
+<span class="lineNum">     576 </span>            : /************************************************************************/
+<span class="lineNum">     577 </span>            : /*                           GetFileList()                              */
+<a name="578"><span class="lineNum">     578 </span>            : /************************************************************************/</a>
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span><span class="lineCov">          2 : char** VSIWebHDFSFSHandler::GetFileList( const char *pszDirname,</span>
+<span class="lineNum">     581 </span>            :                                          int /*nMaxFiles*/,
+<span class="lineNum">     582 </span>            :                                          bool* pbGotFileList )
+<span class="lineNum">     583 </span>            : {
+<span class="lineNum">     584 </span>            :     if( ENABLE_DEBUG )
+<span class="lineNum">     585 </span>            :         CPLDebug(&quot;WEBHDFS&quot;, &quot;GetFileList(%s)&quot; , pszDirname);
+<span class="lineNum">     586 </span><span class="lineCov">          2 :     *pbGotFileList = false;</span>
+<span class="lineNum">     587 </span>            : 
+<span class="lineNum">     588 </span><span class="lineCov">          2 :     CPLAssert( strlen(pszDirname) &gt;= GetFSPrefix().size() );</span>
+<span class="lineNum">     589 </span><span class="lineCov">          2 :     CPLString osDirnameWithoutPrefix = pszDirname + GetFSPrefix().size();</span>
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span><span class="lineCov">          4 :     CPLString osBaseURL = osDirnameWithoutPrefix;</span>
+<span class="lineNum">     592 </span><span class="lineCov">          2 :     if( !osBaseURL.empty() &amp;&amp; osBaseURL.back() != '/' )</span>
+<span class="lineNum">     593 </span><span class="lineCov">          2 :         osBaseURL += '/';</span>
+<span class="lineNum">     594 </span>            : 
+<span class="lineNum">     595 </span><span class="lineCov">          2 :     CURLM* hCurlMultiHandle = GetCurlMultiHandleFor(osBaseURL);</span>
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span><span class="lineCov">          4 :     CPLString osUsernameParam = CPLGetConfigOption(&quot;WEBHDFS_USERNAME&quot;, &quot;&quot;);</span>
+<span class="lineNum">     598 </span><span class="lineCov">          2 :     if( !osUsernameParam.empty() )</span>
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :         osUsernameParam = &quot;&amp;user.name=&quot; + osUsernameParam;</span>
+<span class="lineNum">     600 </span><span class="lineCov">          4 :     CPLString osDelegationParam = CPLGetConfigOption(&quot;WEBHDFS_DELEGATION&quot;, &quot;&quot;);</span>
+<span class="lineNum">     601 </span><span class="lineCov">          2 :     if( !osDelegationParam.empty() )</span>
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :         osDelegationParam = &quot;&amp;delegation=&quot; + osDelegationParam;</span>
+<span class="lineNum">     603 </span><span class="lineCov">          4 :     CPLString osURL = osBaseURL + &quot;?op=LISTSTATUS&quot; + osUsernameParam + osDelegationParam;</span>
+<span class="lineNum">     604 </span>            : 
+<span class="lineNum">     605 </span><span class="lineCov">          2 :     CURL* hCurlHandle = curl_easy_init();</span>
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span>            :     struct curl_slist* headers =
+<span class="lineNum">     608 </span><span class="lineCov">          2 :             VSICurlSetOptions(hCurlHandle, osURL, nullptr);</span>
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineCov">          2 :     WriteFuncStruct sWriteFuncData;</span>
+<span class="lineNum">     611 </span><span class="lineCov">          2 :     VSICURLInitWriteFuncStruct(&amp;sWriteFuncData, nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     612 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEDATA, &amp;sWriteFuncData);</span>
+<span class="lineNum">     613 </span>            :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEFUNCTION,
+<span class="lineNum">     614 </span><span class="lineCov">          2 :                      VSICurlHandleWriteFunc);</span>
+<span class="lineNum">     615 </span>            : 
+<span class="lineNum">     616 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_HTTPHEADER, headers);</span>
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span><span class="lineCov">          2 :     MultiPerform(hCurlMultiHandle, hCurlHandle);</span>
+<span class="lineNum">     619 </span>            : 
+<span class="lineNum">     620 </span><span class="lineCov">          2 :     VSICURLResetHeaderAndWriterFunctions(hCurlHandle);</span>
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span><span class="lineCov">          2 :     curl_slist_free_all(headers);</span>
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span><span class="lineCov">          2 :     long response_code = 0;</span>
+<span class="lineNum">     625 </span><span class="lineCov">          2 :     curl_easy_getinfo(hCurlHandle, CURLINFO_HTTP_CODE, &amp;response_code);</span>
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span><span class="lineCov">          4 :     CPLStringList aosList;</span>
+<span class="lineNum">     628 </span><span class="lineCov">          2 :     bool bOK = false;</span>
+<span class="lineNum">     629 </span><span class="lineCov">          2 :     if( response_code == 200 &amp;&amp; sWriteFuncData.pBuffer )</span>
+<span class="lineNum">     630 </span>            :     {
+<span class="lineNum">     631 </span><span class="lineCov">          1 :         CPLJSONDocument oDoc;</span>
+<span class="lineNum">     632 </span><span class="lineCov">          1 :         if( oDoc.LoadMemory(reinterpret_cast&lt;const GByte*&gt;(sWriteFuncData.pBuffer )) )</span>
+<span class="lineNum">     633 </span>            :         {
+<span class="lineNum">     634 </span><span class="lineCov">          1 :             CPLJSONArray oFileStatus = oDoc.GetRoot().GetArray(&quot;FileStatuses/FileStatus&quot;);</span>
+<span class="lineNum">     635 </span><span class="lineCov">          1 :             bOK = oFileStatus.IsValid();</span>
+<span class="lineNum">     636 </span><span class="lineCov">          3 :             for( int i = 0; i &lt; oFileStatus.Size(); i++ )</span>
+<span class="lineNum">     637 </span>            :             {
+<span class="lineNum">     638 </span><span class="lineCov">          2 :                 CPLJSONObject oItem = oFileStatus[i];</span>
+<span class="lineNum">     639 </span><span class="lineCov">          2 :                 vsi_l_offset fileSize = oItem.GetLong(&quot;length&quot;);</span>
+<span class="lineNum">     640 </span>            :                 size_t mTime = static_cast&lt;size_t&gt;(
+<span class="lineNum">     641 </span><span class="lineCov">          2 :                     oItem.GetLong(&quot;modificationTime&quot;) / 1000);</span>
+<span class="lineNum">     642 </span><span class="lineCov">          2 :                 bool bIsDirectory = oItem.GetString(&quot;type&quot;) == &quot;DIRECTORY&quot;;</span>
+<span class="lineNum">     643 </span><span class="lineCov">          4 :                 CPLString osName = oItem.GetString(&quot;pathSuffix&quot;);</span>
+<span class="lineNum">     644 </span>            :                 // can be empty if we for example ask to list a file: in that
+<span class="lineNum">     645 </span>            :                 // case the file entry is reported but with an empty pathSuffix
+<span class="lineNum">     646 </span><span class="lineCov">          2 :                 if( !osName.empty() )</span>
+<span class="lineNum">     647 </span>            :                 {
+<span class="lineNum">     648 </span><span class="lineCov">          2 :                     aosList.AddString(osName);</span>
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span><span class="lineCov">          2 :                     FileProp prop;</span>
+<span class="lineNum">     651 </span><span class="lineCov">          2 :                     prop.eExists = EXIST_YES;</span>
+<span class="lineNum">     652 </span><span class="lineCov">          2 :                     prop.bIsDirectory = bIsDirectory;</span>
+<span class="lineNum">     653 </span><span class="lineCov">          2 :                     prop.bHasComputedFileSize = true;</span>
+<span class="lineNum">     654 </span><span class="lineCov">          2 :                     prop.fileSize = fileSize;</span>
+<span class="lineNum">     655 </span><span class="lineCov">          2 :                     prop.mTime = mTime;</span>
+<span class="lineNum">     656 </span><span class="lineCov">          4 :                     CPLString osCachedFilename(osBaseURL + osName);</span>
+<span class="lineNum">     657 </span>            : #if DEBUG_VERBOSE
+<span class="lineNum">     658 </span>            :                     CPLDebug(&quot;WEBHDFS&quot;, &quot;Cache %s&quot;, osCachedFilename.c_str());
+<span class="lineNum">     659 </span>            : #endif
+<span class="lineNum">     660 </span><span class="lineCov">          4 :                     SetCachedFileProp(osCachedFilename, prop);</span>
+<span class="lineNum">     661 </span>            :                 }
+<span class="lineNum">     662 </span><span class="lineCov">          3 :             }</span>
+<span class="lineNum">     663 </span><span class="lineCov">          1 :         }</span>
+<span class="lineNum">     664 </span>            :     }
+<span class="lineNum">     665 </span>            : 
+<span class="lineNum">     666 </span><span class="lineCov">          2 :     *pbGotFileList = bOK;</span>
+<span class="lineNum">     667 </span>            : 
+<span class="lineNum">     668 </span><span class="lineCov">          2 :     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     669 </span><span class="lineCov">          2 :     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     670 </span>            : 
+<span class="lineNum">     671 </span><span class="lineCov">          2 :     if( bOK )</span>
+<span class="lineNum">     672 </span><span class="lineCov">          1 :         return aosList.StealList();</span>
+<span class="lineNum">     673 </span>            :     else
+<span class="lineNum">     674 </span><span class="lineCov">          3 :         return nullptr;</span>
+<span class="lineNum">     675 </span>            : }
+<span class="lineNum">     676 </span>            : 
+<span class="lineNum">     677 </span>            : /************************************************************************/
+<span class="lineNum">     678 </span>            : /*                               Unlink()                               */
+<a name="679"><span class="lineNum">     679 </span>            : /************************************************************************/</a>
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span><span class="lineCov">          7 : int VSIWebHDFSFSHandler::Unlink( const char *pszFilename )</span>
+<span class="lineNum">     682 </span>            : {
+<span class="lineNum">     683 </span><span class="lineCov">          7 :     if( !STARTS_WITH_CI(pszFilename, GetFSPrefix()) )</span>
+<span class="lineNum">     684 </span><span class="lineCov">          1 :         return -1;</span>
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span><span class="lineCov">          6 :     CPLString osBaseURL = GetURLFromFilename(pszFilename);</span>
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span><span class="lineCov">          6 :     CURLM* hCurlMultiHandle = GetCurlMultiHandleFor(osBaseURL);</span>
+<span class="lineNum">     689 </span>            : 
+<span class="lineNum">     690 </span><span class="lineCov">         12 :     CPLString osUsernameParam = CPLGetConfigOption(&quot;WEBHDFS_USERNAME&quot;, &quot;&quot;);</span>
+<span class="lineNum">     691 </span><span class="lineCov">          6 :     if( !osUsernameParam.empty() )</span>
+<span class="lineNum">     692 </span><span class="lineCov">          1 :         osUsernameParam = &quot;&amp;user.name=&quot; + osUsernameParam;</span>
+<span class="lineNum">     693 </span><span class="lineCov">         12 :     CPLString osDelegationParam = CPLGetConfigOption(&quot;WEBHDFS_DELEGATION&quot;, &quot;&quot;);</span>
+<span class="lineNum">     694 </span><span class="lineCov">          6 :     if( !osDelegationParam.empty() )</span>
+<span class="lineNum">     695 </span><span class="lineCov">          1 :         osDelegationParam = &quot;&amp;delegation=&quot; + osDelegationParam;</span>
+<span class="lineNum">     696 </span><span class="lineCov">         12 :     CPLString osURL = osBaseURL + &quot;?op=DELETE&quot; + osUsernameParam + osDelegationParam;</span>
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span><span class="lineCov">          6 :     CURL* hCurlHandle = curl_easy_init();</span>
+<span class="lineNum">     699 </span>            : 
+<span class="lineNum">     700 </span><span class="lineCov">          6 :     curl_easy_setopt(hCurlHandle, CURLOPT_CUSTOMREQUEST, &quot;DELETE&quot;);</span>
+<span class="lineNum">     701 </span>            : 
+<span class="lineNum">     702 </span>            :     struct curl_slist* headers =
+<span class="lineNum">     703 </span><span class="lineCov">          6 :             VSICurlSetOptions(hCurlHandle, osURL, nullptr);</span>
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span><span class="lineCov">          6 :     WriteFuncStruct sWriteFuncData;</span>
+<span class="lineNum">     706 </span><span class="lineCov">          6 :     VSICURLInitWriteFuncStruct(&amp;sWriteFuncData, nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     707 </span><span class="lineCov">          6 :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEDATA, &amp;sWriteFuncData);</span>
+<span class="lineNum">     708 </span>            :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEFUNCTION,
+<span class="lineNum">     709 </span><span class="lineCov">          6 :                      VSICurlHandleWriteFunc);</span>
+<span class="lineNum">     710 </span>            : 
+<span class="lineNum">     711 </span><span class="lineCov">          6 :     curl_easy_setopt(hCurlHandle, CURLOPT_HTTPHEADER, headers);</span>
+<span class="lineNum">     712 </span>            : 
+<span class="lineNum">     713 </span><span class="lineCov">          6 :     MultiPerform(hCurlMultiHandle, hCurlHandle);</span>
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span><span class="lineCov">          6 :     VSICURLResetHeaderAndWriterFunctions(hCurlHandle);</span>
+<span class="lineNum">     716 </span>            : 
+<span class="lineNum">     717 </span><span class="lineCov">          6 :     curl_slist_free_all(headers);</span>
+<span class="lineNum">     718 </span>            : 
+<span class="lineNum">     719 </span><span class="lineCov">          6 :     long response_code = 0;</span>
+<span class="lineNum">     720 </span><span class="lineCov">          6 :     curl_easy_getinfo(hCurlHandle, CURLINFO_HTTP_CODE, &amp;response_code);</span>
+<span class="lineNum">     721 </span>            : 
+<span class="lineNum">     722 </span><span class="lineCov">         12 :     CPLStringList aosList;</span>
+<span class="lineNum">     723 </span><span class="lineCov">          6 :     bool bOK = false;</span>
+<span class="lineNum">     724 </span><span class="lineCov">          6 :     if( response_code == 200 &amp;&amp; sWriteFuncData.pBuffer )</span>
+<span class="lineNum">     725 </span>            :     {
+<span class="lineNum">     726 </span><span class="lineCov">          4 :         CPLJSONDocument oDoc;</span>
+<span class="lineNum">     727 </span><span class="lineCov">          4 :         if( oDoc.LoadMemory(reinterpret_cast&lt;const GByte*&gt;(sWriteFuncData.pBuffer )) )</span>
+<span class="lineNum">     728 </span>            :         {
+<span class="lineNum">     729 </span><span class="lineCov">          4 :             bOK = oDoc.GetRoot().GetBool(&quot;boolean&quot;);</span>
+<span class="lineNum">     730 </span><span class="lineCov">          4 :         }</span>
+<span class="lineNum">     731 </span>            :     }
+<span class="lineNum">     732 </span><span class="lineCov">          6 :     if( bOK )</span>
+<span class="lineNum">     733 </span>            :     {
+<span class="lineNum">     734 </span><span class="lineCov">          3 :         InvalidateCachedData(osBaseURL);</span>
+<span class="lineNum">     735 </span>            : 
+<span class="lineNum">     736 </span><span class="lineCov">          3 :         CPLString osFilenameWithoutSlash(pszFilename);</span>
+<span class="lineNum">     737 </span><span class="lineCov">          3 :         if( !osFilenameWithoutSlash.empty() &amp;&amp; osFilenameWithoutSlash.back() == '/' )</span>
+<span class="lineNum">     738 </span><span class="lineNoCov">          0 :             osFilenameWithoutSlash.resize( osFilenameWithoutSlash.size() - 1 );</span>
+<span class="lineNum">     739 </span>            : 
+<span class="lineNum">     740 </span><span class="lineCov">          3 :         InvalidateDirContent( CPLGetDirname(osFilenameWithoutSlash) );</span>
+<span class="lineNum">     741 </span>            :     }
+<span class="lineNum">     742 </span>            :     else
+<span class="lineNum">     743 </span>            :     {
+<span class="lineNum">     744 </span>            :         CPLDebug(&quot;WEBHDFS&quot;,
+<span class="lineNum">     745 </span>            :                     &quot;%s&quot;,
+<span class="lineNum">     746 </span>            :                     sWriteFuncData.pBuffer
+<span class="lineNum">     747 </span>            :                     ? sWriteFuncData.pBuffer
+<span class="lineNum">     748 </span><span class="lineCov">          3 :                     : &quot;(null)&quot;);</span>
+<span class="lineNum">     749 </span>            :     }
+<span class="lineNum">     750 </span>            : 
+<span class="lineNum">     751 </span><span class="lineCov">          6 :     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     752 </span><span class="lineCov">          6 :     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     753 </span>            : 
+<span class="lineNum">     754 </span><span class="lineCov">         12 :     return bOK ? 0 : -1;</span>
+<span class="lineNum">     755 </span>            : }
+<span class="lineNum">     756 </span>            : 
+<span class="lineNum">     757 </span>            : /************************************************************************/
+<span class="lineNum">     758 </span>            : /*                               Rmdir()                                */
+<a name="759"><span class="lineNum">     759 </span>            : /************************************************************************/</a>
+<span class="lineNum">     760 </span>            : 
+<span class="lineNum">     761 </span><span class="lineCov">          3 : int VSIWebHDFSFSHandler::Rmdir( const char *pszFilename )</span>
+<span class="lineNum">     762 </span>            : {
+<span class="lineNum">     763 </span><span class="lineCov">          3 :     return Unlink(pszFilename);</span>
+<span class="lineNum">     764 </span>            : }
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span>            : /************************************************************************/
+<span class="lineNum">     767 </span>            : /*                               Mkdir()                                */
+<a name="768"><span class="lineNum">     768 </span>            : /************************************************************************/</a>
+<span class="lineNum">     769 </span>            : 
+<span class="lineNum">     770 </span><span class="lineCov">          5 : int VSIWebHDFSFSHandler::Mkdir( const char *pszDirname, long nMode )</span>
+<span class="lineNum">     771 </span>            : {
+<span class="lineNum">     772 </span><span class="lineCov">          5 :     if( !STARTS_WITH_CI(pszDirname, GetFSPrefix()) )</span>
+<span class="lineNum">     773 </span><span class="lineCov">          1 :         return -1;</span>
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span><span class="lineCov">          4 :     CPLString osDirnameWithoutEndSlash(pszDirname);</span>
+<span class="lineNum">     776 </span><span class="lineCov">          8 :     if( !osDirnameWithoutEndSlash.empty() &amp;&amp;</span>
+<span class="lineNum">     777 </span><span class="lineCov">          4 :         osDirnameWithoutEndSlash.back() == '/' )</span>
+<span class="lineNum">     778 </span>            :     {
+<span class="lineNum">     779 </span><span class="lineCov">          2 :         osDirnameWithoutEndSlash.resize( osDirnameWithoutEndSlash.size() - 1 );</span>
+<span class="lineNum">     780 </span>            :     }
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span><span class="lineCov">         15 :     if( osDirnameWithoutEndSlash.find(&quot;/webhdfs/v1&quot;) ==</span>
+<span class="lineNum">     783 </span><span class="lineCov">         10 :         osDirnameWithoutEndSlash.size() - strlen(&quot;/webhdfs/v1&quot;) &amp;&amp;</span>
+<span class="lineNum">     784 </span>            :         std::count(osDirnameWithoutEndSlash.begin(),
+<span class="lineNum">     785 </span><span class="lineCov">          7 :                    osDirnameWithoutEndSlash.end(),'/') == 6 )</span>
+<span class="lineNum">     786 </span>            :     {
+<span class="lineNum">     787 </span>            :         // The server does weird things (creating a webhdfs/v1 subfolder)
+<span class="lineNum">     788 </span>            :         // if we provide the root directory like
+<span class="lineNum">     789 </span>            :         // /vsiwebhdfs/http://localhost:50070/webhdfs/v1
+<span class="lineNum">     790 </span><span class="lineCov">          1 :         return -1;</span>
+<span class="lineNum">     791 </span>            :     }
+<span class="lineNum">     792 </span>            : 
+<span class="lineNum">     793 </span><span class="lineCov">          6 :     CPLString osBaseURL = GetURLFromFilename(osDirnameWithoutEndSlash);</span>
+<span class="lineNum">     794 </span>            : 
+<span class="lineNum">     795 </span><span class="lineCov">          3 :     CURLM* hCurlMultiHandle = GetCurlMultiHandleFor(osBaseURL);</span>
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span><span class="lineCov">          6 :     CPLString osUsernameParam = CPLGetConfigOption(&quot;WEBHDFS_USERNAME&quot;, &quot;&quot;);</span>
+<span class="lineNum">     798 </span><span class="lineCov">          3 :     if( !osUsernameParam.empty() )</span>
+<span class="lineNum">     799 </span><span class="lineCov">          1 :         osUsernameParam = &quot;&amp;user.name=&quot; + osUsernameParam;</span>
+<span class="lineNum">     800 </span><span class="lineCov">          6 :     CPLString osDelegationParam = CPLGetConfigOption(&quot;WEBHDFS_DELEGATION&quot;, &quot;&quot;);</span>
+<span class="lineNum">     801 </span><span class="lineCov">          3 :     if( !osDelegationParam.empty() )</span>
+<span class="lineNum">     802 </span><span class="lineCov">          1 :         osDelegationParam = &quot;&amp;delegation=&quot; + osDelegationParam;</span>
+<span class="lineNum">     803 </span><span class="lineCov">          6 :     CPLString osURL = osBaseURL + &quot;?op=MKDIRS&quot; + osUsernameParam + osDelegationParam;</span>
+<span class="lineNum">     804 </span><span class="lineCov">          3 :     if( nMode )</span>
+<span class="lineNum">     805 </span>            :     {
+<span class="lineNum">     806 </span><span class="lineCov">          1 :         osURL += &quot;&amp;permission=&quot;;</span>
+<span class="lineNum">     807 </span><span class="lineCov">          1 :         osURL += CPLSPrintf(&quot;%o&quot;, static_cast&lt;int&gt;(nMode));</span>
+<span class="lineNum">     808 </span>            :     }
+<span class="lineNum">     809 </span>            : 
+<span class="lineNum">     810 </span><span class="lineCov">          3 :     CURL* hCurlHandle = curl_easy_init();</span>
+<span class="lineNum">     811 </span>            : 
+<span class="lineNum">     812 </span><span class="lineCov">          3 :     curl_easy_setopt(hCurlHandle, CURLOPT_CUSTOMREQUEST, &quot;PUT&quot;);</span>
+<span class="lineNum">     813 </span>            : 
+<span class="lineNum">     814 </span>            :     struct curl_slist* headers =
+<span class="lineNum">     815 </span><span class="lineCov">          3 :             VSICurlSetOptions(hCurlHandle, osURL, nullptr);</span>
+<span class="lineNum">     816 </span>            : 
+<span class="lineNum">     817 </span><span class="lineCov">          3 :     WriteFuncStruct sWriteFuncData;</span>
+<span class="lineNum">     818 </span><span class="lineCov">          3 :     VSICURLInitWriteFuncStruct(&amp;sWriteFuncData, nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     819 </span><span class="lineCov">          3 :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEDATA, &amp;sWriteFuncData);</span>
+<span class="lineNum">     820 </span>            :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEFUNCTION,
+<span class="lineNum">     821 </span><span class="lineCov">          3 :                      VSICurlHandleWriteFunc);</span>
+<span class="lineNum">     822 </span>            : 
+<span class="lineNum">     823 </span><span class="lineCov">          3 :     curl_easy_setopt(hCurlHandle, CURLOPT_HTTPHEADER, headers);</span>
+<span class="lineNum">     824 </span>            : 
+<span class="lineNum">     825 </span><span class="lineCov">          3 :     MultiPerform(hCurlMultiHandle, hCurlHandle);</span>
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span><span class="lineCov">          3 :     VSICURLResetHeaderAndWriterFunctions(hCurlHandle);</span>
+<span class="lineNum">     828 </span>            : 
+<span class="lineNum">     829 </span><span class="lineCov">          3 :     curl_slist_free_all(headers);</span>
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span><span class="lineCov">          3 :     long response_code = 0;</span>
+<span class="lineNum">     832 </span><span class="lineCov">          3 :     curl_easy_getinfo(hCurlHandle, CURLINFO_HTTP_CODE, &amp;response_code);</span>
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span><span class="lineCov">          6 :     CPLStringList aosList;</span>
+<span class="lineNum">     835 </span><span class="lineCov">          3 :     bool bOK = false;</span>
+<span class="lineNum">     836 </span><span class="lineCov">          3 :     if( response_code == 200 &amp;&amp; sWriteFuncData.pBuffer )</span>
+<span class="lineNum">     837 </span>            :     {
+<span class="lineNum">     838 </span><span class="lineCov">          2 :         CPLJSONDocument oDoc;</span>
+<span class="lineNum">     839 </span><span class="lineCov">          2 :         if( oDoc.LoadMemory(reinterpret_cast&lt;const GByte*&gt;(sWriteFuncData.pBuffer )) )</span>
+<span class="lineNum">     840 </span>            :         {
+<span class="lineNum">     841 </span><span class="lineCov">          2 :             bOK = oDoc.GetRoot().GetBool(&quot;boolean&quot;);</span>
+<span class="lineNum">     842 </span><span class="lineCov">          2 :         }</span>
+<span class="lineNum">     843 </span>            :     }
+<span class="lineNum">     844 </span><span class="lineCov">          3 :     if( bOK )</span>
+<span class="lineNum">     845 </span>            :     {
+<span class="lineNum">     846 </span><span class="lineCov">          2 :         InvalidateDirContent( CPLGetDirname(osDirnameWithoutEndSlash) );</span>
+<span class="lineNum">     847 </span>            : 
+<span class="lineNum">     848 </span><span class="lineCov">          2 :         FileProp cachedFileProp;</span>
+<span class="lineNum">     849 </span><span class="lineCov">          2 :         cachedFileProp.eExists = EXIST_YES;</span>
+<span class="lineNum">     850 </span><span class="lineCov">          2 :         cachedFileProp.bIsDirectory = true;</span>
+<span class="lineNum">     851 </span><span class="lineCov">          2 :         cachedFileProp.bHasComputedFileSize = true;</span>
+<span class="lineNum">     852 </span><span class="lineCov">          2 :         SetCachedFileProp(GetURLFromFilename(osDirnameWithoutEndSlash), cachedFileProp);</span>
+<span class="lineNum">     853 </span>            : 
+<span class="lineNum">     854 </span><span class="lineCov">          2 :         RegisterEmptyDir(osDirnameWithoutEndSlash);</span>
+<span class="lineNum">     855 </span>            :     }
+<span class="lineNum">     856 </span>            :     else
+<span class="lineNum">     857 </span>            :     {
+<span class="lineNum">     858 </span>            :         CPLDebug(&quot;WEBHDFS&quot;,
+<span class="lineNum">     859 </span>            :                     &quot;%s&quot;,
+<span class="lineNum">     860 </span>            :                     sWriteFuncData.pBuffer
+<span class="lineNum">     861 </span>            :                     ? sWriteFuncData.pBuffer
+<span class="lineNum">     862 </span><span class="lineCov">          1 :                     : &quot;(null)&quot;);</span>
+<span class="lineNum">     863 </span>            :     }
+<span class="lineNum">     864 </span>            : 
+<span class="lineNum">     865 </span><span class="lineCov">          3 :     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     866 </span><span class="lineCov">          3 :     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     867 </span>            : 
+<span class="lineNum">     868 </span><span class="lineCov">          7 :     return bOK ? 0 : -1;</span>
+<span class="lineNum">     869 </span>            : }
+<span class="lineNum">     870 </span>            : 
+<span class="lineNum">     871 </span>            : /************************************************************************/
+<span class="lineNum">     872 </span>            : /*                            VSIWebHDFSHandle()                        */
+<a name="873"><span class="lineNum">     873 </span>            : /************************************************************************/</a>
+<span class="lineNum">     874 </span>            : 
+<span class="lineNum">     875 </span><span class="lineCov">          7 : VSIWebHDFSHandle::VSIWebHDFSHandle( VSIWebHDFSFSHandler* poFSIn,</span>
+<span class="lineNum">     876 </span>            :                           const char* pszFilename, const char* pszURL ) :
+<span class="lineNum">     877 </span><span class="lineCov">          7 :         VSICurlHandle(poFSIn, pszFilename, pszURL)</span>
+<span class="lineNum">     878 </span>            : {
+<span class="lineNum">     879 </span><span class="lineCov">          7 :     m_osDataNodeHost = GetWebHDFSDataNodeHost();</span>
+<span class="lineNum">     880 </span><span class="lineCov">          7 :     m_osUsernameParam = CPLGetConfigOption(&quot;WEBHDFS_USERNAME&quot;, &quot;&quot;);</span>
+<span class="lineNum">     881 </span><span class="lineCov">          7 :     if( !m_osUsernameParam.empty() )</span>
+<span class="lineNum">     882 </span><span class="lineCov">          1 :         m_osUsernameParam = &quot;&amp;user.name=&quot; + m_osUsernameParam;</span>
+<span class="lineNum">     883 </span><span class="lineCov">          7 :     m_osDelegationParam = CPLGetConfigOption(&quot;WEBHDFS_DELEGATION&quot;, &quot;&quot;);</span>
+<span class="lineNum">     884 </span><span class="lineCov">          7 :     if( !m_osDelegationParam.empty() )</span>
+<span class="lineNum">     885 </span><span class="lineCov">          1 :         m_osDelegationParam = &quot;&amp;delegation=&quot; + m_osDelegationParam;</span>
+<span class="lineNum">     886 </span>            : 
+<span class="lineNum">     887 </span><span class="lineCov">          7 : }</span>
+<span class="lineNum">     888 </span>            : 
+<span class="lineNum">     889 </span>            : /************************************************************************/
+<span class="lineNum">     890 </span>            : /*                           GetFileSize()                              */
+<a name="891"><span class="lineNum">     891 </span>            : /************************************************************************/</a>
+<span class="lineNum">     892 </span>            : 
+<span class="lineNum">     893 </span><span class="lineCov">          4 : vsi_l_offset VSIWebHDFSHandle::GetFileSize( bool bSetError )</span>
+<span class="lineNum">     894 </span>            : {
+<span class="lineNum">     895 </span><span class="lineCov">          4 :     if( oFileProp.bHasComputedFileSize )</span>
+<span class="lineNum">     896 </span><span class="lineCov">          2 :         return oFileProp.fileSize;</span>
+<span class="lineNum">     897 </span>            : 
+<span class="lineNum">     898 </span><span class="lineCov">          2 :     oFileProp.bHasComputedFileSize = true;</span>
+<span class="lineNum">     899 </span>            : 
+<span class="lineNum">     900 </span><span class="lineCov">          2 :     CURLM* hCurlMultiHandle = poFS-&gt;GetCurlMultiHandleFor(m_pszURL);</span>
+<span class="lineNum">     901 </span>            : 
+<span class="lineNum">     902 </span><span class="lineCov">          2 :     CPLString osURL(m_pszURL);</span>
+<span class="lineNum">     903 </span>            : 
+<span class="lineNum">     904 </span><span class="lineCov">          8 :     if( osURL.find(&quot;/webhdfs/v1&quot;) ==</span>
+<span class="lineNum">     905 </span><span class="lineCov">          4 :         osURL.size() - strlen(&quot;/webhdfs/v1&quot;) &amp;&amp;</span>
+<span class="lineNum">     906 </span>            :         std::count(osURL.begin(),
+<span class="lineNum">     907 </span><span class="lineCov">          2 :                    osURL.end(),'/') == 4 )</span>
+<span class="lineNum">     908 </span>            :     {
+<span class="lineNum">     909 </span>            :         // If this is the root directory, add a trailing slash
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :         osURL += &quot;/&quot;;</span>
+<span class="lineNum">     911 </span>            :     }
+<span class="lineNum">     912 </span>            : 
+<span class="lineNum">     913 </span><span class="lineCov">          2 :     osURL += &quot;?op=GETFILESTATUS&quot; + m_osUsernameParam + m_osDelegationParam;</span>
+<span class="lineNum">     914 </span>            : 
+<span class="lineNum">     915 </span><span class="lineCov">          2 :     CURL* hCurlHandle = curl_easy_init();</span>
+<span class="lineNum">     916 </span>            : 
+<span class="lineNum">     917 </span>            :     struct curl_slist* headers =
+<span class="lineNum">     918 </span><span class="lineCov">          2 :             VSICurlSetOptions(hCurlHandle, osURL, m_papszHTTPOptions);</span>
+<span class="lineNum">     919 </span>            : 
+<span class="lineNum">     920 </span><span class="lineCov">          2 :     WriteFuncStruct sWriteFuncData;</span>
+<span class="lineNum">     921 </span><span class="lineCov">          2 :     VSICURLInitWriteFuncStruct(&amp;sWriteFuncData, nullptr, nullptr, nullptr);</span>
+<span class="lineNum">     922 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEDATA, &amp;sWriteFuncData);</span>
+<span class="lineNum">     923 </span>            :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEFUNCTION,
+<span class="lineNum">     924 </span><span class="lineCov">          2 :                      VSICurlHandleWriteFunc);</span>
+<span class="lineNum">     925 </span>            : 
+<span class="lineNum">     926 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_HTTPHEADER, headers);</span>
+<span class="lineNum">     927 </span>            : 
+<span class="lineNum">     928 </span><span class="lineCov">          2 :     char szCurlErrBuf[CURL_ERROR_SIZE+1] = {};</span>
+<span class="lineNum">     929 </span><span class="lineCov">          2 :     szCurlErrBuf[0] = '\0';</span>
+<span class="lineNum">     930 </span><span class="lineCov">          2 :     curl_easy_setopt(hCurlHandle, CURLOPT_ERRORBUFFER, szCurlErrBuf );</span>
+<span class="lineNum">     931 </span>            : 
+<span class="lineNum">     932 </span><span class="lineCov">          2 :     MultiPerform(hCurlMultiHandle, hCurlHandle);</span>
+<span class="lineNum">     933 </span>            : 
+<span class="lineNum">     934 </span><span class="lineCov">          2 :     VSICURLResetHeaderAndWriterFunctions(hCurlHandle);</span>
+<span class="lineNum">     935 </span>            : 
+<span class="lineNum">     936 </span><span class="lineCov">          2 :     curl_slist_free_all(headers);</span>
+<span class="lineNum">     937 </span>            : 
+<span class="lineNum">     938 </span><span class="lineCov">          2 :     long response_code = 0;</span>
+<span class="lineNum">     939 </span><span class="lineCov">          2 :     curl_easy_getinfo(hCurlHandle, CURLINFO_HTTP_CODE, &amp;response_code);</span>
+<span class="lineNum">     940 </span>            : 
+<span class="lineNum">     941 </span><span class="lineCov">          2 :     oFileProp.eExists = EXIST_NO;</span>
+<span class="lineNum">     942 </span><span class="lineCov">          2 :     if( response_code == 200 &amp;&amp; sWriteFuncData.pBuffer )</span>
+<span class="lineNum">     943 </span>            :     {
+<span class="lineNum">     944 </span><span class="lineCov">          1 :         CPLJSONDocument oDoc;</span>
+<span class="lineNum">     945 </span><span class="lineCov">          1 :         if( oDoc.LoadMemory(reinterpret_cast&lt;const GByte*&gt;(sWriteFuncData.pBuffer )) )</span>
+<span class="lineNum">     946 </span>            :         {
+<span class="lineNum">     947 </span><span class="lineCov">          1 :             CPLJSONObject oFileStatus = oDoc.GetRoot().GetObj(&quot;FileStatus&quot;);</span>
+<span class="lineNum">     948 </span><span class="lineCov">          1 :             oFileProp.fileSize = oFileStatus.GetLong(&quot;length&quot;);</span>
+<span class="lineNum">     949 </span>            :             oFileProp.mTime = static_cast&lt;size_t&gt;(
+<span class="lineNum">     950 </span><span class="lineCov">          1 :                 oFileStatus.GetLong(&quot;modificationTime&quot;) / 1000);</span>
+<span class="lineNum">     951 </span><span class="lineCov">          1 :             oFileProp.bIsDirectory = oFileStatus.GetString(&quot;type&quot;) == &quot;DIRECTORY&quot;;</span>
+<span class="lineNum">     952 </span><span class="lineCov">          1 :             oFileProp.eExists = EXIST_YES;</span>
+<span class="lineNum">     953 </span><span class="lineCov">          1 :         }</span>
+<span class="lineNum">     954 </span>            :     }
+<span class="lineNum">     955 </span>            : 
+<span class="lineNum">     956 </span>            :     // If there was no VSI error thrown in the process,
+<span class="lineNum">     957 </span>            :     // fail by reporting the HTTP response code.
+<span class="lineNum">     958 </span><span class="lineCov">          2 :     if( response_code != 200 &amp;&amp; bSetError &amp;&amp; VSIGetLastErrorNo() == 0 )</span>
+<span class="lineNum">     959 </span>            :     {
+<span class="lineNum">     960 </span><span class="lineNoCov">          0 :         if( strlen(szCurlErrBuf) &gt; 0 )</span>
+<span class="lineNum">     961 </span>            :         {
+<span class="lineNum">     962 </span><span class="lineNoCov">          0 :             if( response_code == 0 )</span>
+<span class="lineNum">     963 </span>            :             {
+<span class="lineNum">     964 </span>            :                 VSIError(VSIE_HttpError,
+<span class="lineNum">     965 </span><span class="lineNoCov">          0 :                             &quot;CURL error: %s&quot;, szCurlErrBuf);</span>
+<span class="lineNum">     966 </span>            :             }
+<span class="lineNum">     967 </span>            :             else
+<span class="lineNum">     968 </span>            :             {
+<span class="lineNum">     969 </span>            :                 VSIError(VSIE_HttpError,
+<span class="lineNum">     970 </span>            :                             &quot;HTTP response code: %d - %s&quot;,
+<span class="lineNum">     971 </span><span class="lineNoCov">          0 :                             static_cast&lt;int&gt;(response_code), szCurlErrBuf);</span>
+<span class="lineNum">     972 </span>            :             }
+<span class="lineNum">     973 </span>            :         }
+<span class="lineNum">     974 </span>            :         else
+<span class="lineNum">     975 </span>            :         {
+<span class="lineNum">     976 </span>            :             VSIError(VSIE_HttpError, &quot;HTTP response code: %d&quot;,
+<span class="lineNum">     977 </span><span class="lineNoCov">          0 :                         static_cast&lt;int&gt;(response_code));</span>
+<span class="lineNum">     978 </span>            :         }
+<span class="lineNum">     979 </span>            :     }
+<span class="lineNum">     980 </span>            : 
+<span class="lineNum">     981 </span>            :     if( ENABLE_DEBUG )
+<span class="lineNum">     982 </span>            :         CPLDebug(&quot;WEBHDFS&quot;, &quot;GetFileSize(%s)=&quot; CPL_FRMT_GUIB
+<span class="lineNum">     983 </span>            :                     &quot;  response_code=%d&quot;,
+<span class="lineNum">     984 </span>            :                     osURL.c_str(), oFileProp.fileSize,
+<span class="lineNum">     985 </span>            :                     static_cast&lt;int&gt;(response_code));
+<span class="lineNum">     986 </span>            : 
+<span class="lineNum">     987 </span><span class="lineCov">          2 :     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">     988 </span><span class="lineCov">          2 :     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">     989 </span>            : 
+<span class="lineNum">     990 </span><span class="lineCov">          2 :     oFileProp.bHasComputedFileSize = true;</span>
+<span class="lineNum">     991 </span><span class="lineCov">          2 :     poFS-&gt;SetCachedFileProp(m_pszURL, oFileProp);</span>
+<span class="lineNum">     992 </span>            : 
+<span class="lineNum">     993 </span><span class="lineCov">          2 :     return oFileProp.fileSize;</span>
+<span class="lineNum">     994 </span>            : }
+<span class="lineNum">     995 </span>            : 
+<span class="lineNum">     996 </span>            : /************************************************************************/
+<span class="lineNum">     997 </span>            : /*                          DownloadRegion()                            */
+<a name="998"><span class="lineNum">     998 </span>            : /************************************************************************/</a>
+<span class="lineNum">     999 </span>            : 
+<span class="lineNum">    1000 </span><span class="lineCov">          3 : bool VSIWebHDFSHandle::DownloadRegion( const vsi_l_offset startOffset,</span>
+<span class="lineNum">    1001 </span>            :                                        const int nBlocks )
+<span class="lineNum">    1002 </span>            : {
+<span class="lineNum">    1003 </span><span class="lineCov">          3 :     if( bInterrupted &amp;&amp; bStopOnInterruptUntilUninstall )</span>
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">    1005 </span>            : 
+<span class="lineNum">    1006 </span><span class="lineCov">          3 :     poFS-&gt;GetCachedFileProp(m_pszURL, oFileProp);</span>
+<span class="lineNum">    1007 </span><span class="lineCov">          3 :     if( oFileProp.eExists == EXIST_NO )</span>
+<span class="lineNum">    1008 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">    1009 </span>            : 
+<span class="lineNum">    1010 </span><span class="lineCov">          3 :     CURLM* hCurlMultiHandle = poFS-&gt;GetCurlMultiHandleFor(m_pszURL);</span>
+<span class="lineNum">    1011 </span>            : 
+<span class="lineNum">    1012 </span><span class="lineCov">          3 :     CPLString osURL(m_pszURL);</span>
+<span class="lineNum">    1013 </span>            : 
+<span class="lineNum">    1014 </span><span class="lineCov">          3 :     WriteFuncStruct sWriteFuncData;</span>
+<span class="lineNum">    1015 </span><span class="lineCov">          3 :     int nRetryCount = 0;</span>
+<span class="lineNum">    1016 </span><span class="lineCov">          3 :     double dfRetryDelay = m_dfRetryDelay;</span>
+<span class="lineNum">    1017 </span>            : 
+<span class="lineNum">    1018 </span>            : #ifdef HAVE_CURLINFO_REDIRECT_URL
+<span class="lineNum">    1019 </span><span class="lineCov">          3 :     bool bInRedirect = false;</span>
+<span class="lineNum">    1020 </span>            : #endif
+<span class="lineNum">    1021 </span>            : 
+<span class="lineNum">    1022 </span>            :     const vsi_l_offset nEndOffset =
+<span class="lineNum">    1023 </span><span class="lineCov">          3 :         startOffset + nBlocks * VSICURLGetDownloadChunkSize() - 1;</span>
+<span class="lineNum">    1024 </span>            : 
+<span class="lineNum">    1025 </span>            : retry:
+<span class="lineNum">    1026 </span><span class="lineCov">          4 :     CURL* hCurlHandle = curl_easy_init();</span>
+<span class="lineNum">    1027 </span>            : 
+<span class="lineNum">    1028 </span>            :     VSICURLInitWriteFuncStruct(&amp;sWriteFuncData,
+<span class="lineNum">    1029 </span>            :                                reinterpret_cast&lt;VSILFILE *&gt;(this),
+<span class="lineNum">    1030 </span><span class="lineCov">          4 :                                pfnReadCbk, pReadCbkUserData);</span>
+<span class="lineNum">    1031 </span><span class="lineCov">          4 :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEDATA, &amp;sWriteFuncData);</span>
+<span class="lineNum">    1032 </span>            :     curl_easy_setopt(hCurlHandle, CURLOPT_WRITEFUNCTION,
+<span class="lineNum">    1033 </span><span class="lineCov">          4 :                      VSICurlHandleWriteFunc);</span>
+<span class="lineNum">    1034 </span>            : 
+<span class="lineNum">    1035 </span>            : 
+<span class="lineNum">    1036 </span>            : #ifdef HAVE_CURLINFO_REDIRECT_URL
+<span class="lineNum">    1037 </span><span class="lineCov">          4 :     if( !bInRedirect )</span>
+<span class="lineNum">    1038 </span>            : #endif
+<span class="lineNum">    1039 </span>            :     {
+<span class="lineNum">    1040 </span><span class="lineCov">          3 :         osURL += &quot;?op=OPEN&amp;offset=&quot;;</span>
+<span class="lineNum">    1041 </span><span class="lineCov">          3 :         osURL += CPLSPrintf(CPL_FRMT_GUIB, startOffset);</span>
+<span class="lineNum">    1042 </span><span class="lineCov">          3 :         osURL += &quot;&amp;length=&quot;;</span>
+<span class="lineNum">    1043 </span><span class="lineCov">          3 :         osURL += CPLSPrintf(CPL_FRMT_GUIB, nEndOffset - startOffset + 1);</span>
+<span class="lineNum">    1044 </span><span class="lineCov">          3 :         osURL += m_osUsernameParam + m_osDelegationParam;</span>
+<span class="lineNum">    1045 </span>            :     }
+<span class="lineNum">    1046 </span>            : 
+<span class="lineNum">    1047 </span>            :     struct curl_slist* headers =
+<span class="lineNum">    1048 </span><span class="lineCov">          4 :         VSICurlSetOptions(hCurlHandle, osURL, m_papszHTTPOptions);</span>
+<span class="lineNum">    1049 </span>            : 
+<span class="lineNum">    1050 </span>            : #ifdef HAVE_CURLINFO_REDIRECT_URL
+<span class="lineNum">    1051 </span><span class="lineCov">          4 :     if( !m_osDataNodeHost.empty() )</span>
+<span class="lineNum">    1052 </span>            :     {
+<span class="lineNum">    1053 </span><span class="lineCov">          2 :         curl_easy_setopt(hCurlHandle, CURLOPT_FOLLOWLOCATION, 0);</span>
+<span class="lineNum">    1054 </span>            :     }
+<span class="lineNum">    1055 </span>            : #endif
+<span class="lineNum">    1056 </span>            : 
+<span class="lineNum">    1057 </span>            :     if( ENABLE_DEBUG )
+<span class="lineNum">    1058 </span>            :         CPLDebug(&quot;WEBHDFS&quot;, &quot;Downloading %s...&quot;, osURL.c_str());
+<span class="lineNum">    1059 </span>            : 
+<span class="lineNum">    1060 </span><span class="lineCov">          4 :     char szCurlErrBuf[CURL_ERROR_SIZE+1] = {};</span>
+<span class="lineNum">    1061 </span><span class="lineCov">          4 :     szCurlErrBuf[0] = '\0';</span>
+<span class="lineNum">    1062 </span><span class="lineCov">          4 :     curl_easy_setopt(hCurlHandle, CURLOPT_ERRORBUFFER, szCurlErrBuf );</span>
+<span class="lineNum">    1063 </span>            : 
+<span class="lineNum">    1064 </span><span class="lineCov">          4 :     curl_easy_setopt(hCurlHandle, CURLOPT_HTTPHEADER, headers);</span>
+<span class="lineNum">    1065 </span>            : 
+<span class="lineNum">    1066 </span><span class="lineCov">          4 :     MultiPerform(hCurlMultiHandle, hCurlHandle);</span>
+<span class="lineNum">    1067 </span>            : 
+<span class="lineNum">    1068 </span><span class="lineCov">          4 :     VSICURLResetHeaderAndWriterFunctions(hCurlHandle);</span>
+<span class="lineNum">    1069 </span>            : 
+<span class="lineNum">    1070 </span><span class="lineCov">          4 :     curl_slist_free_all(headers);</span>
+<span class="lineNum">    1071 </span>            : 
+<span class="lineNum">    1072 </span><span class="lineCov">          4 :     if( sWriteFuncData.bInterrupted )</span>
+<span class="lineNum">    1073 </span>            :     {
+<span class="lineNum">    1074 </span><span class="lineNoCov">          0 :         bInterrupted = true;</span>
+<span class="lineNum">    1075 </span>            : 
+<span class="lineNum">    1076 </span><span class="lineNoCov">          0 :         CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">    1077 </span><span class="lineNoCov">          0 :         curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">    1078 </span>            : 
+<span class="lineNum">    1079 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">    1080 </span>            :     }
+<span class="lineNum">    1081 </span>            : 
+<span class="lineNum">    1082 </span><span class="lineCov">          4 :     long response_code = 0;</span>
+<span class="lineNum">    1083 </span><span class="lineCov">          4 :     curl_easy_getinfo(hCurlHandle, CURLINFO_HTTP_CODE, &amp;response_code);</span>
+<span class="lineNum">    1084 </span>            : 
+<span class="lineNum">    1085 </span>            :     if( ENABLE_DEBUG )
+<span class="lineNum">    1086 </span>            :         CPLDebug(&quot;WEBHDFS&quot;, &quot;Got response_code=%ld&quot;, response_code);
+<span class="lineNum">    1087 </span>            : 
+<span class="lineNum">    1088 </span>            : #ifdef HAVE_CURLINFO_REDIRECT_URL
+<span class="lineNum">    1089 </span><span class="lineCov">          4 :     if( !bInRedirect )</span>
+<span class="lineNum">    1090 </span>            :     {
+<span class="lineNum">    1091 </span><span class="lineCov">          3 :         char *pszRedirectURL = nullptr;</span>
+<span class="lineNum">    1092 </span><span class="lineCov">          3 :         curl_easy_getinfo(hCurlHandle, CURLINFO_REDIRECT_URL, &amp;pszRedirectURL);</span>
+<span class="lineNum">    1093 </span><span class="lineCov">          4 :         if( pszRedirectURL &amp;&amp;</span>
+<span class="lineNum">    1094 </span><span class="lineCov">          1 :             strstr(pszRedirectURL, m_pszURL) == nullptr )</span>
+<span class="lineNum">    1095 </span>            :         {
+<span class="lineNum">    1096 </span><span class="lineCov">          1 :             CPLDebug(&quot;WEBHDFS&quot;, &quot;Redirect URL: %s&quot;, pszRedirectURL);</span>
+<span class="lineNum">    1097 </span>            : 
+<span class="lineNum">    1098 </span><span class="lineCov">          1 :             bInRedirect = true;</span>
+<span class="lineNum">    1099 </span><span class="lineCov">          1 :             osURL = pszRedirectURL;</span>
+<span class="lineNum">    1100 </span><span class="lineCov">          1 :             if( !m_osDataNodeHost.empty() )</span>
+<span class="lineNum">    1101 </span>            :             {
+<span class="lineNum">    1102 </span><span class="lineCov">          1 :                 osURL = PatchWebHDFSUrl(osURL, m_osDataNodeHost);</span>
+<span class="lineNum">    1103 </span>            :             }
+<span class="lineNum">    1104 </span>            : 
+<span class="lineNum">    1105 </span><span class="lineCov">          1 :             CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">    1106 </span><span class="lineCov">          1 :             curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">    1107 </span>            : 
+<span class="lineNum">    1108 </span><span class="lineCov">          1 :             goto retry;</span>
+<span class="lineNum">    1109 </span>            :         }
+<span class="lineNum">    1110 </span>            :     }
+<span class="lineNum">    1111 </span>            : #endif
+<span class="lineNum">    1112 </span>            : 
+<span class="lineNum">    1113 </span><span class="lineCov">          3 :     if( response_code != 200 )</span>
+<span class="lineNum">    1114 </span>            :     {
+<span class="lineNum">    1115 </span>            :         // If HTTP 429, 500, 502, 503, 504 error retry after a
+<span class="lineNum">    1116 </span>            :         // pause.
+<span class="lineNum">    1117 </span>            :         const double dfNewRetryDelay = CPLHTTPGetNewRetryDelay(
+<span class="lineNum">    1118 </span>            :             static_cast&lt;int&gt;(response_code), dfRetryDelay,
+<span class="lineNum">    1119 </span><span class="lineCov">          1 :             nullptr, szCurlErrBuf);</span>
+<span class="lineNum">    1120 </span><span class="lineCov">          1 :         if( dfNewRetryDelay &gt; 0 &amp;&amp;</span>
+<span class="lineNum">    1121 </span><span class="lineNoCov">          0 :             nRetryCount &lt; m_nMaxRetry )</span>
+<span class="lineNum">    1122 </span>            :         {
+<span class="lineNum">    1123 </span>            :             CPLError(CE_Warning, CPLE_AppDefined,
+<span class="lineNum">    1124 </span>            :                         &quot;HTTP error code: %d - %s. &quot;
+<span class="lineNum">    1125 </span>            :                         &quot;Retrying again in %.1f secs&quot;,
+<span class="lineNum">    1126 </span>            :                         static_cast&lt;int&gt;(response_code), m_pszURL,
+<span class="lineNum">    1127 </span><span class="lineNoCov">          0 :                         dfRetryDelay);</span>
+<span class="lineNum">    1128 </span><span class="lineNoCov">          0 :             CPLSleep(dfRetryDelay);</span>
+<span class="lineNum">    1129 </span><span class="lineNoCov">          0 :             dfRetryDelay = dfNewRetryDelay;</span>
+<span class="lineNum">    1130 </span><span class="lineNoCov">          0 :             nRetryCount++;</span>
+<span class="lineNum">    1131 </span><span class="lineNoCov">          0 :             CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">    1132 </span><span class="lineNoCov">          0 :             curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">    1133 </span><span class="lineNoCov">          0 :             goto retry;</span>
+<span class="lineNum">    1134 </span>            :         }
+<span class="lineNum">    1135 </span>            : 
+<span class="lineNum">    1136 </span><span class="lineCov">          1 :         if( response_code &gt;= 400 &amp;&amp; szCurlErrBuf[0] != '\0' )</span>
+<span class="lineNum">    1137 </span>            :         {
+<span class="lineNum">    1138 </span>            :             CPLError(CE_Failure, CPLE_AppDefined, &quot;%d: %s&quot;,
+<span class="lineNum">    1139 </span><span class="lineNoCov">          0 :                         static_cast&lt;int&gt;(response_code), szCurlErrBuf);</span>
+<span class="lineNum">    1140 </span>            :         }
+<span class="lineNum">    1141 </span><span class="lineCov">          1 :         if( !oFileProp.bHasComputedFileSize &amp;&amp; startOffset == 0 )</span>
+<span class="lineNum">    1142 </span>            :         {
+<span class="lineNum">    1143 </span><span class="lineCov">          1 :             oFileProp.bHasComputedFileSize = true;</span>
+<span class="lineNum">    1144 </span><span class="lineCov">          1 :             oFileProp.fileSize = 0;</span>
+<span class="lineNum">    1145 </span><span class="lineCov">          1 :             oFileProp.eExists = EXIST_NO;</span>
+<span class="lineNum">    1146 </span><span class="lineCov">          1 :             poFS-&gt;SetCachedFileProp(m_pszURL, oFileProp);</span>
+<span class="lineNum">    1147 </span>            :         }
+<span class="lineNum">    1148 </span><span class="lineCov">          1 :         CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">    1149 </span><span class="lineCov">          1 :         curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">    1150 </span><span class="lineCov">          1 :         return false;</span>
+<span class="lineNum">    1151 </span>            :     }
+<span class="lineNum">    1152 </span>            : 
+<span class="lineNum">    1153 </span><span class="lineCov">          2 :     oFileProp.eExists = EXIST_YES;</span>
+<span class="lineNum">    1154 </span><span class="lineCov">          2 :     poFS-&gt;SetCachedFileProp(m_pszURL, oFileProp);</span>
+<span class="lineNum">    1155 </span>            : 
+<span class="lineNum">    1156 </span>            :     DownloadRegionPostProcess(startOffset, nBlocks,
+<span class="lineNum">    1157 </span>            :                               sWriteFuncData.pBuffer,
+<span class="lineNum">    1158 </span><span class="lineCov">          2 :                               sWriteFuncData.nSize);</span>
+<span class="lineNum">    1159 </span>            : 
+<span class="lineNum">    1160 </span><span class="lineCov">          2 :     CPLFree(sWriteFuncData.pBuffer);</span>
+<span class="lineNum">    1161 </span><span class="lineCov">          2 :     curl_easy_cleanup(hCurlHandle);</span>
+<span class="lineNum">    1162 </span>            : 
+<span class="lineNum">    1163 </span><span class="lineCov">          2 :     return true;</span>
+<span class="lineNum">    1164 </span>            : }
+<span class="lineNum">    1165 </span>            : 
+<span class="lineNum">    1166 </span>            : 
+<span class="lineNum">    1167 </span>            : } /* end of namespace cpl */
+<span class="lineNum">    1168 </span>            : 
+<span class="lineNum">    1169 </span>            : 
+<span class="lineNum">    1170 </span>            : #endif // DOXYGEN_SKIP
+<span class="lineNum">    1171 </span>            : //! @endcond
+<span class="lineNum">    1172 </span>            : 
+<span class="lineNum">    1173 </span>            : /************************************************************************/
+<span class="lineNum">    1174 </span>            : /*                      VSIInstallWebHdfsHandler()                      */
+<span class="lineNum">    1175 </span>            : /************************************************************************/
+<span class="lineNum">    1176 </span>            : 
+<span class="lineNum">    1177 </span>            : /**
+<span class="lineNum">    1178 </span>            :  * \brief Install /vsiwebhdfs/ WebHDFS (Hadoop File System) REST API file
+<span class="lineNum">    1179 </span>            :  * system handler (requires libcurl)
+<span class="lineNum">    1180 </span>            :  *
+<span class="lineNum">    1181 </span>            :  * @see &lt;a href=&quot;gdal_virtual_file_systems.html#gdal_virtual_file_systems_vsiwebhdfs&quot;&gt;/vsiwebhdfs/ documentation&lt;/a&gt;
+<span class="lineNum">    1182 </span>            :  *
+<a name="1183"><span class="lineNum">    1183 </span>            :  * @since GDAL 2.4</a>
+<span class="lineNum">    1184 </span>            :  */
+<span class="lineNum">    1185 </span><span class="lineCov">        988 : void VSIInstallWebHdfsHandler( void )</span>
+<span class="lineNum">    1186 </span>            : {
+<span class="lineNum">    1187 </span><span class="lineCov">        988 :     VSIFileManager::InstallHandler( &quot;/vsiwebhdfs/&quot;, new cpl::VSIWebHDFSFSHandler );</span>
+<span class="lineNum">    1188 </span><span class="lineCov">        988 : }</span>
+<span class="lineNum">    1189 </span>            : 
+<span class="lineNum">    1190 </span>            : #endif /* HAVE_CURL */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

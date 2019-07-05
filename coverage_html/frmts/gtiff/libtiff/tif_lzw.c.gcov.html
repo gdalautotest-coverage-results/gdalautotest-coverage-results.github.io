@@ -1,0 +1,1308 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/gtiff/libtiff/tif_lzw.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">frmts/gtiff/libtiff</a> - tif_lzw.c<span style="font-size: 80%;"> (source / <a href="tif_lzw.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">409</td>
+            <td class="headerCovTableEntry">494</td>
+            <td class="headerCovTableEntryMed">82.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">13</td>
+            <td class="headerCovTableEntryHi">92.3 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright (c) 1988-1997 Sam Leffler
+<span class="lineNum">       3 </span>            :  * Copyright (c) 1991-1997 Silicon Graphics, Inc.
+<span class="lineNum">       4 </span>            :  *
+<span class="lineNum">       5 </span>            :  * Permission to use, copy, modify, distribute, and sell this software and 
+<span class="lineNum">       6 </span>            :  * its documentation for any purpose is hereby granted without fee, provided
+<span class="lineNum">       7 </span>            :  * that (i) the above copyright notices and this permission notice appear in
+<span class="lineNum">       8 </span>            :  * all copies of the software and related documentation, and (ii) the names of
+<span class="lineNum">       9 </span>            :  * Sam Leffler and Silicon Graphics may not be used in any advertising or
+<span class="lineNum">      10 </span>            :  * publicity relating to the software without the specific, prior written
+<span class="lineNum">      11 </span>            :  * permission of Sam Leffler and Silicon Graphics.
+<span class="lineNum">      12 </span>            :  * 
+<span class="lineNum">      13 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS-IS&quot; AND WITHOUT WARRANTY OF ANY KIND, 
+<span class="lineNum">      14 </span>            :  * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
+<span class="lineNum">      15 </span>            :  * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  
+<span class="lineNum">      16 </span>            :  * 
+<span class="lineNum">      17 </span>            :  * IN NO EVENT SHALL SAM LEFFLER OR SILICON GRAPHICS BE LIABLE FOR
+<span class="lineNum">      18 </span>            :  * ANY SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND,
+<span class="lineNum">      19 </span>            :  * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+<span class="lineNum">      20 </span>            :  * WHETHER OR NOT ADVISED OF THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF 
+<span class="lineNum">      21 </span>            :  * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE 
+<span class="lineNum">      22 </span>            :  * OF THIS SOFTWARE.
+<span class="lineNum">      23 </span>            :  */
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : #include &quot;tiffiop.h&quot;
+<span class="lineNum">      26 </span>            : #ifdef LZW_SUPPORT
+<span class="lineNum">      27 </span>            : /*
+<span class="lineNum">      28 </span>            :  * TIFF Library.  
+<span class="lineNum">      29 </span>            :  * Rev 5.0 Lempel-Ziv &amp; Welch Compression Support
+<span class="lineNum">      30 </span>            :  *
+<span class="lineNum">      31 </span>            :  * This code is derived from the compress program whose code is
+<span class="lineNum">      32 </span>            :  * derived from software contributed to Berkeley by James A. Woods,
+<span class="lineNum">      33 </span>            :  * derived from original work by Spencer Thomas and Joseph Orost.
+<span class="lineNum">      34 </span>            :  *
+<span class="lineNum">      35 </span>            :  * The original Berkeley copyright notice appears below in its entirety.
+<span class="lineNum">      36 </span>            :  */
+<span class="lineNum">      37 </span>            : #include &quot;tif_predict.h&quot;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : /*
+<span class="lineNum">      42 </span>            :  * NB: The 5.0 spec describes a different algorithm than Aldus
+<span class="lineNum">      43 </span>            :  *     implements.  Specifically, Aldus does code length transitions
+<span class="lineNum">      44 </span>            :  *     one code earlier than should be done (for real LZW).
+<span class="lineNum">      45 </span>            :  *     Earlier versions of this library implemented the correct
+<span class="lineNum">      46 </span>            :  *     LZW algorithm, but emitted codes in a bit order opposite
+<span class="lineNum">      47 </span>            :  *     to the TIFF spec.  Thus, to maintain compatibility w/ Aldus
+<span class="lineNum">      48 </span>            :  *     we interpret MSB-LSB ordered codes to be images written w/
+<span class="lineNum">      49 </span>            :  *     old versions of this library, but otherwise adhere to the
+<span class="lineNum">      50 </span>            :  *     Aldus &quot;off by one&quot; algorithm.
+<span class="lineNum">      51 </span>            :  *
+<span class="lineNum">      52 </span>            :  * Future revisions to the TIFF spec are expected to &quot;clarify this issue&quot;.
+<span class="lineNum">      53 </span>            :  */
+<span class="lineNum">      54 </span>            : #define LZW_COMPAT              /* include backwards compatibility code */
+<span class="lineNum">      55 </span>            : /*
+<span class="lineNum">      56 </span>            :  * Each strip of data is supposed to be terminated by a CODE_EOI.
+<span class="lineNum">      57 </span>            :  * If the following #define is included, the decoder will also
+<span class="lineNum">      58 </span>            :  * check for end-of-strip w/o seeing this code.  This makes the
+<span class="lineNum">      59 </span>            :  * library more robust, but also slower.
+<span class="lineNum">      60 </span>            :  */
+<span class="lineNum">      61 </span>            : #define LZW_CHECKEOS            /* include checks for strips w/o EOI code */
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            : #define MAXCODE(n)  ((1L&lt;&lt;(n))-1)
+<span class="lineNum">      64 </span>            : /*
+<span class="lineNum">      65 </span>            :  * The TIFF spec specifies that encoded bit
+<span class="lineNum">      66 </span>            :  * strings range from 9 to 12 bits.
+<span class="lineNum">      67 </span>            :  */
+<span class="lineNum">      68 </span>            : #define BITS_MIN        9               /* start with 9 bits */
+<span class="lineNum">      69 </span>            : #define BITS_MAX        12              /* max of 12 bit strings */
+<span class="lineNum">      70 </span>            : /* predefined codes */
+<span class="lineNum">      71 </span>            : #define CODE_CLEAR      256             /* code to clear string table */
+<span class="lineNum">      72 </span>            : #define CODE_EOI        257             /* end-of-information code */
+<span class="lineNum">      73 </span>            : #define CODE_FIRST      258             /* first free code entry */
+<span class="lineNum">      74 </span>            : #define CODE_MAX        MAXCODE(BITS_MAX)
+<span class="lineNum">      75 </span>            : #define HSIZE           9001L           /* 91% occupancy */
+<span class="lineNum">      76 </span>            : #define HSHIFT          (13-8)
+<span class="lineNum">      77 </span>            : #ifdef LZW_COMPAT
+<span class="lineNum">      78 </span>            : /* NB: +1024 is for compatibility with old files */
+<span class="lineNum">      79 </span>            : #define CSIZE           (MAXCODE(BITS_MAX)+1024L)
+<span class="lineNum">      80 </span>            : #else
+<span class="lineNum">      81 </span>            : #define CSIZE           (MAXCODE(BITS_MAX)+1L)
+<span class="lineNum">      82 </span>            : #endif
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            : /*
+<span class="lineNum">      85 </span>            :  * State block for each open TIFF file using LZW
+<span class="lineNum">      86 </span>            :  * compression/decompression.  Note that the predictor
+<span class="lineNum">      87 </span>            :  * state block must be first in this data structure.
+<span class="lineNum">      88 </span>            :  */
+<span class="lineNum">      89 </span>            : typedef struct {
+<span class="lineNum">      90 </span>            :   TIFFPredictorState predict;     /* predictor super class */
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            :   unsigned short  nbits;          /* # of bits/code */
+<span class="lineNum">      93 </span>            :   unsigned short  maxcode;        /* maximum code for lzw_nbits */
+<span class="lineNum">      94 </span>            :   unsigned short  free_ent;       /* next free entry in hash table */
+<span class="lineNum">      95 </span>            :   unsigned long   nextdata;       /* next bits of i/o */
+<span class="lineNum">      96 </span>            :   long            nextbits;       /* # of valid bits in lzw_nextdata */
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            :   int             rw_mode;        /* preserve rw_mode from init */
+<span class="lineNum">      99 </span>            : } LZWBaseState;
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span>            : #define lzw_nbits       base.nbits
+<span class="lineNum">     102 </span>            : #define lzw_maxcode     base.maxcode
+<span class="lineNum">     103 </span>            : #define lzw_free_ent    base.free_ent
+<span class="lineNum">     104 </span>            : #define lzw_nextdata    base.nextdata
+<span class="lineNum">     105 </span>            : #define lzw_nextbits    base.nextbits
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            : /*
+<span class="lineNum">     108 </span>            :  * Encoding-specific state.
+<span class="lineNum">     109 </span>            :  */
+<span class="lineNum">     110 </span>            : typedef uint16 hcode_t;     /* codes fit in 16 bits */
+<span class="lineNum">     111 </span>            : typedef struct {
+<span class="lineNum">     112 </span>            :   long  hash;
+<span class="lineNum">     113 </span>            :   hcode_t code;
+<span class="lineNum">     114 </span>            : } hash_t;
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span>            : /*
+<span class="lineNum">     117 </span>            :  * Decoding-specific state.
+<span class="lineNum">     118 </span>            :  */
+<span class="lineNum">     119 </span>            : typedef struct code_ent {
+<span class="lineNum">     120 </span>            :   struct code_ent *next;
+<span class="lineNum">     121 </span>            :   unsigned short  length;   /* string len, including this token */
+<span class="lineNum">     122 </span>            :   unsigned char value;    /* data value */
+<span class="lineNum">     123 </span>            :   unsigned char firstchar;  /* first token of string */
+<span class="lineNum">     124 </span>            : } code_t;
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            : typedef int (*decodeFunc)(TIFF*, uint8*, tmsize_t, uint16);
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span>            : typedef struct {
+<span class="lineNum">     129 </span>            :   LZWBaseState base;
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span>            :   /* Decoding specific data */
+<span class="lineNum">     132 </span>            :   long    dec_nbitsmask;    /* lzw_nbits 1 bits, right adjusted */
+<span class="lineNum">     133 </span>            :   long    dec_restart;    /* restart count */
+<span class="lineNum">     134 </span>            : #ifdef LZW_CHECKEOS
+<span class="lineNum">     135 </span>            :   uint64  dec_bitsleft;   /* available bits in raw data */
+<span class="lineNum">     136 </span>            :   tmsize_t old_tif_rawcc;         /* value of tif_rawcc at the end of the previous TIFLZWDecode() call */
+<span class="lineNum">     137 </span>            : #endif
+<span class="lineNum">     138 </span>            :   decodeFunc dec_decode;    /* regular or backwards compatible */
+<span class="lineNum">     139 </span>            :   code_t* dec_codep;    /* current recognized code */
+<span class="lineNum">     140 </span>            :   code_t* dec_oldcodep;   /* previously recognized code */
+<span class="lineNum">     141 </span>            :   code_t* dec_free_entp;    /* next free entry */
+<span class="lineNum">     142 </span>            :   code_t* dec_maxcodep;   /* max available entry */
+<span class="lineNum">     143 </span>            :   code_t* dec_codetab;    /* kept separate for small machines */
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span>            :   /* Encoding specific data */
+<span class="lineNum">     146 </span>            :   int     enc_oldcode;    /* last code encountered */
+<span class="lineNum">     147 </span>            :   long    enc_checkpoint;   /* point at which to clear table */
+<span class="lineNum">     148 </span>            : #define CHECK_GAP 10000   /* enc_ratio check interval */
+<span class="lineNum">     149 </span>            :   long    enc_ratio;    /* current compression ratio */
+<span class="lineNum">     150 </span>            :   long    enc_incount;    /* (input) data bytes encoded */
+<span class="lineNum">     151 </span>            :   long    enc_outcount;   /* encoded (output) bytes */
+<span class="lineNum">     152 </span>            :   uint8*  enc_rawlimit;   /* bound on tif_rawdata buffer */
+<span class="lineNum">     153 </span>            :   hash_t* enc_hashtab;    /* kept separate for small machines */
+<span class="lineNum">     154 </span>            : } LZWCodecState;
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span>            : #define LZWState(tif)   ((LZWBaseState*) (tif)-&gt;tif_data)
+<span class="lineNum">     157 </span>            : #define DecoderState(tif) ((LZWCodecState*) LZWState(tif))
+<span class="lineNum">     158 </span>            : #define EncoderState(tif) ((LZWCodecState*) LZWState(tif))
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            : static int LZWDecode(TIFF* tif, uint8* op0, tmsize_t occ0, uint16 s);
+<span class="lineNum">     161 </span>            : #ifdef LZW_COMPAT
+<span class="lineNum">     162 </span>            : static int LZWDecodeCompat(TIFF* tif, uint8* op0, tmsize_t occ0, uint16 s);
+<span class="lineNum">     163 </span>            : #endif
+<span class="lineNum">     164 </span>            : static void cl_hash(LZWCodecState*);
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : /*
+<span class="lineNum">     167 </span>            :  * LZW Decoder.
+<span class="lineNum">     168 </span>            :  */
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            : #ifdef LZW_CHECKEOS
+<span class="lineNum">     171 </span>            : /*
+<span class="lineNum">     172 </span>            :  * This check shouldn't be necessary because each
+<span class="lineNum">     173 </span>            :  * strip is suppose to be terminated with CODE_EOI.
+<span class="lineNum">     174 </span>            :  */
+<span class="lineNum">     175 </span>            : #define NextCode(_tif, _sp, _bp, _code, _get) {       \
+<span class="lineNum">     176 </span>            :   if ((_sp)-&gt;dec_bitsleft &lt; (uint64)nbits) {      \
+<span class="lineNum">     177 </span>            :     TIFFWarningExt(_tif-&gt;tif_clientdata, module,   \
+<span class="lineNum">     178 </span>            :         &quot;LZWDecode: Strip %d not terminated with EOI code&quot;, \
+<span class="lineNum">     179 </span>            :         _tif-&gt;tif_curstrip);       \
+<span class="lineNum">     180 </span>            :     _code = CODE_EOI;         \
+<span class="lineNum">     181 </span>            :   } else {              \
+<span class="lineNum">     182 </span>            :     _get(_sp,_bp,_code);          \
+<span class="lineNum">     183 </span>            :     (_sp)-&gt;dec_bitsleft -= nbits;        \
+<span class="lineNum">     184 </span>            :   }               \
+<span class="lineNum">     185 </span>            : }
+<span class="lineNum">     186 </span>            : #else
+<span class="lineNum">     187 </span>            : #define NextCode(tif, sp, bp, code, get) get(sp, bp, code)
+<span class="lineNum">     188 </span>            : #endif
+<a name="189"><span class="lineNum">     189 </span>            : </a>
+<span class="lineNum">     190 </span>            : static int
+<span class="lineNum">     191 </span><span class="lineCov">        466 : LZWFixupTags(TIFF* tif)</span>
+<span class="lineNum">     192 </span>            : {
+<span class="lineNum">     193 </span>            :   (void) tif;
+<span class="lineNum">     194 </span><span class="lineCov">        466 :   return (1);</span>
+<span class="lineNum">     195 </span>            : }
+<a name="196"><span class="lineNum">     196 </span>            : </a>
+<span class="lineNum">     197 </span>            : static int
+<span class="lineNum">     198 </span><span class="lineCov">         98 : LZWSetupDecode(TIFF* tif)</span>
+<span class="lineNum">     199 </span>            : {
+<span class="lineNum">     200 </span>            :   static const char module[] = &quot;LZWSetupDecode&quot;;
+<span class="lineNum">     201 </span><span class="lineCov">         98 :   LZWCodecState* sp = DecoderState(tif);</span>
+<span class="lineNum">     202 </span>            :   int code;
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineCov">         98 :   if( sp == NULL )</span>
+<span class="lineNum">     205 </span>            :   {
+<span class="lineNum">     206 </span>            :     /*
+<span class="lineNum">     207 </span>            :      * Allocate state block so tag methods have storage to record
+<span class="lineNum">     208 </span>            :      * values.
+<span class="lineNum">     209 </span>            :     */
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :     tif-&gt;tif_data = (uint8*) _TIFFmalloc(sizeof(LZWCodecState));</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :     if (tif-&gt;tif_data == NULL)</span>
+<span class="lineNum">     212 </span>            :     {
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module, &quot;No space for LZW state block&quot;);</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     215 </span>            :     }
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :     DecoderState(tif)-&gt;dec_codetab = NULL;</span>
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :     DecoderState(tif)-&gt;dec_decode = NULL;</span>
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            :     /*
+<span class="lineNum">     221 </span>            :      * Setup predictor setup.
+<span class="lineNum">     222 </span>            :      */
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :     (void) TIFFPredictorInit(tif);</span>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :     sp = DecoderState(tif);</span>
+<span class="lineNum">     226 </span>            :   }
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span><span class="lineCov">         98 :   assert(sp != NULL);</span>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineCov">         98 :   if (sp-&gt;dec_codetab == NULL) {</span>
+<span class="lineNum">     231 </span><span class="lineCov">         94 :     sp-&gt;dec_codetab = (code_t*)_TIFFmalloc(CSIZE*sizeof (code_t));</span>
+<span class="lineNum">     232 </span><span class="lineCov">         94 :     if (sp-&gt;dec_codetab == NULL) {</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     234 </span>            :              &quot;No space for LZW code table&quot;);
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     236 </span>            :     }
+<span class="lineNum">     237 </span>            :     /*
+<span class="lineNum">     238 </span>            :      * Pre-load the table.
+<span class="lineNum">     239 </span>            :      */
+<span class="lineNum">     240 </span><span class="lineCov">         94 :     code = 255;</span>
+<span class="lineNum">     241 </span>            :     do {
+<span class="lineNum">     242 </span><span class="lineCov">      24064 :       sp-&gt;dec_codetab[code].value = (unsigned char)code;</span>
+<span class="lineNum">     243 </span><span class="lineCov">      24064 :       sp-&gt;dec_codetab[code].firstchar = (unsigned char)code;</span>
+<span class="lineNum">     244 </span><span class="lineCov">      24064 :       sp-&gt;dec_codetab[code].length = 1;</span>
+<span class="lineNum">     245 </span><span class="lineCov">      24064 :       sp-&gt;dec_codetab[code].next = NULL;</span>
+<span class="lineNum">     246 </span><span class="lineCov">      24064 :     } while (code--);</span>
+<span class="lineNum">     247 </span>            :     /*
+<span class="lineNum">     248 </span>            :      * Zero-out the unused entries
+<span class="lineNum">     249 </span>            :                  */
+<span class="lineNum">     250 </span>            :                 /* Silence false positive */
+<span class="lineNum">     251 </span>            :                 /* coverity[overrun-buffer-arg] */
+<span class="lineNum">     252 </span><span class="lineCov">         94 :                  _TIFFmemset(&amp;sp-&gt;dec_codetab[CODE_CLEAR], 0,</span>
+<span class="lineNum">     253 </span>            :            (CODE_FIRST - CODE_CLEAR) * sizeof (code_t));
+<span class="lineNum">     254 </span>            :   }
+<span class="lineNum">     255 </span><span class="lineCov">         98 :   return (1);</span>
+<span class="lineNum">     256 </span>            : }
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span>            : /*
+<span class="lineNum">     259 </span>            :  * Setup state for decoding a strip.
+<a name="260"><span class="lineNum">     260 </span>            :  */</a>
+<span class="lineNum">     261 </span>            : static int
+<span class="lineNum">     262 </span><span class="lineCov">        868 : LZWPreDecode(TIFF* tif, uint16 s)</span>
+<span class="lineNum">     263 </span>            : {
+<span class="lineNum">     264 </span>            :   static const char module[] = &quot;LZWPreDecode&quot;;
+<span class="lineNum">     265 </span><span class="lineCov">        868 :   LZWCodecState *sp = DecoderState(tif);</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span>            :   (void) s;
+<span class="lineNum">     268 </span><span class="lineCov">        868 :   assert(sp != NULL);</span>
+<span class="lineNum">     269 </span><span class="lineCov">        868 :   if( sp-&gt;dec_codetab == NULL )</span>
+<span class="lineNum">     270 </span>            :         {
+<span class="lineNum">     271 </span><span class="lineCov">         24 :             tif-&gt;tif_setupdecode( tif );</span>
+<span class="lineNum">     272 </span><span class="lineCov">         24 :       if( sp-&gt;dec_codetab == NULL )</span>
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">     274 </span>            :         }
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span>            :   /*
+<span class="lineNum">     277 </span>            :    * Check for old bit-reversed codes.
+<span class="lineNum">     278 </span>            :    */
+<span class="lineNum">     279 </span><span class="lineCov">       1736 :   if (tif-&gt;tif_rawcc &gt;= 2 &amp;&amp;</span>
+<span class="lineNum">     280 </span><span class="lineCov">        945 :       tif-&gt;tif_rawdata[0] == 0 &amp;&amp; (tif-&gt;tif_rawdata[1] &amp; 0x1)) {</span>
+<span class="lineNum">     281 </span>            : #ifdef LZW_COMPAT
+<span class="lineNum">     282 </span><span class="lineCov">         77 :     if (!sp-&gt;dec_decode) {</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :       TIFFWarningExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     284 </span>            :           &quot;Old-style LZW codes, convert file&quot;);
+<span class="lineNum">     285 </span>            :       /*
+<span class="lineNum">     286 </span>            :        * Override default decoding methods with
+<span class="lineNum">     287 </span>            :        * ones that deal with the old coding.
+<span class="lineNum">     288 </span>            :        * Otherwise the predictor versions set
+<span class="lineNum">     289 </span>            :        * above will call the compatibility routines
+<span class="lineNum">     290 </span>            :        * through the dec_decode method.
+<span class="lineNum">     291 </span>            :        */
+<span class="lineNum">     292 </span><span class="lineCov">          1 :       tif-&gt;tif_decoderow = LZWDecodeCompat;</span>
+<span class="lineNum">     293 </span><span class="lineCov">          1 :       tif-&gt;tif_decodestrip = LZWDecodeCompat;</span>
+<span class="lineNum">     294 </span><span class="lineCov">          1 :       tif-&gt;tif_decodetile = LZWDecodeCompat;</span>
+<span class="lineNum">     295 </span>            :       /*
+<span class="lineNum">     296 </span>            :        * If doing horizontal differencing, must
+<span class="lineNum">     297 </span>            :        * re-setup the predictor logic since we
+<span class="lineNum">     298 </span>            :        * switched the basic decoder methods...
+<span class="lineNum">     299 </span>            :        */
+<span class="lineNum">     300 </span><span class="lineCov">          1 :       (*tif-&gt;tif_setupdecode)(tif);</span>
+<span class="lineNum">     301 </span><span class="lineCov">          1 :       sp-&gt;dec_decode = LZWDecodeCompat;</span>
+<span class="lineNum">     302 </span>            :     }
+<span class="lineNum">     303 </span><span class="lineCov">         77 :     sp-&gt;lzw_maxcode = MAXCODE(BITS_MIN);</span>
+<span class="lineNum">     304 </span>            : #else /* !LZW_COMPAT */
+<span class="lineNum">     305 </span>            :     if (!sp-&gt;dec_decode) {
+<span class="lineNum">     306 </span>            :       TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     307 </span>            :           &quot;Old-style LZW codes not supported&quot;);
+<span class="lineNum">     308 </span>            :       sp-&gt;dec_decode = LZWDecode;
+<span class="lineNum">     309 </span>            :     }
+<span class="lineNum">     310 </span>            :     return (0);
+<span class="lineNum">     311 </span>            : #endif/* !LZW_COMPAT */
+<span class="lineNum">     312 </span>            :   } else {
+<span class="lineNum">     313 </span><span class="lineCov">        791 :     sp-&gt;lzw_maxcode = MAXCODE(BITS_MIN)-1;</span>
+<span class="lineNum">     314 </span><span class="lineCov">        791 :     sp-&gt;dec_decode = LZWDecode;</span>
+<span class="lineNum">     315 </span>            :   }
+<span class="lineNum">     316 </span><span class="lineCov">        868 :   sp-&gt;lzw_nbits = BITS_MIN;</span>
+<span class="lineNum">     317 </span><span class="lineCov">        868 :   sp-&gt;lzw_nextbits = 0;</span>
+<span class="lineNum">     318 </span><span class="lineCov">        868 :   sp-&gt;lzw_nextdata = 0;</span>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span><span class="lineCov">        868 :   sp-&gt;dec_restart = 0;</span>
+<span class="lineNum">     321 </span><span class="lineCov">        868 :   sp-&gt;dec_nbitsmask = MAXCODE(BITS_MIN);</span>
+<span class="lineNum">     322 </span>            : #ifdef LZW_CHECKEOS
+<span class="lineNum">     323 </span><span class="lineCov">        868 :   sp-&gt;dec_bitsleft = 0;</span>
+<span class="lineNum">     324 </span><span class="lineCov">        868 :         sp-&gt;old_tif_rawcc = 0;</span>
+<span class="lineNum">     325 </span>            : #endif
+<span class="lineNum">     326 </span><span class="lineCov">        868 :   sp-&gt;dec_free_entp = sp-&gt;dec_codetab + CODE_FIRST;</span>
+<span class="lineNum">     327 </span>            :   /*
+<span class="lineNum">     328 </span>            :    * Zero entries that are not yet filled in.  We do
+<span class="lineNum">     329 </span>            :    * this to guard against bogus input data that causes
+<span class="lineNum">     330 </span>            :    * us to index into undefined entries.  If you can
+<span class="lineNum">     331 </span>            :    * come up with a way to safely bounds-check input codes
+<span class="lineNum">     332 </span>            :    * while decoding then you can remove this operation.
+<span class="lineNum">     333 </span>            :    */
+<span class="lineNum">     334 </span><span class="lineCov">        868 :   _TIFFmemset(sp-&gt;dec_free_entp, 0, (CSIZE-CODE_FIRST)*sizeof (code_t));</span>
+<span class="lineNum">     335 </span><span class="lineCov">        868 :   sp-&gt;dec_oldcodep = &amp;sp-&gt;dec_codetab[-1];</span>
+<span class="lineNum">     336 </span><span class="lineCov">        868 :   sp-&gt;dec_maxcodep = &amp;sp-&gt;dec_codetab[sp-&gt;dec_nbitsmask-1];</span>
+<span class="lineNum">     337 </span><span class="lineCov">        868 :   return (1);</span>
+<span class="lineNum">     338 </span>            : }
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span>            : /*
+<span class="lineNum">     341 </span>            :  * Decode a &quot;hunk of data&quot;.
+<span class="lineNum">     342 </span>            :  */
+<span class="lineNum">     343 </span>            : #define GetNextCode(sp, bp, code) {       \
+<span class="lineNum">     344 </span>            :   nextdata = (nextdata&lt;&lt;8) | *(bp)++;     \
+<span class="lineNum">     345 </span>            :   nextbits += 8;            \
+<span class="lineNum">     346 </span>            :   if (nextbits &lt; nbits) {          \
+<span class="lineNum">     347 </span>            :     nextdata = (nextdata&lt;&lt;8) | *(bp)++;   \
+<span class="lineNum">     348 </span>            :     nextbits += 8;          \
+<span class="lineNum">     349 </span>            :   }             \
+<span class="lineNum">     350 </span>            :   code = (hcode_t)((nextdata &gt;&gt; (nextbits-nbits)) &amp; nbitsmask); \
+<span class="lineNum">     351 </span>            :   nextbits -= nbits;          \
+<span class="lineNum">     352 </span>            : }
+<a name="353"><span class="lineNum">     353 </span>            : </a>
+<span class="lineNum">     354 </span>            : static void
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 : codeLoop(TIFF* tif, const char* module)</span>
+<span class="lineNum">     356 </span>            : {
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :   TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     358 </span>            :       &quot;Bogus encoding, loop in the code table; scanline %d&quot;,
+<span class="lineNum">     359 </span>            :       tif-&gt;tif_row);
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 : }</span>
+<a name="361"><span class="lineNum">     361 </span>            : </a>
+<span class="lineNum">     362 </span>            : static int
+<span class="lineNum">     363 </span><span class="lineCov">     109005 : LZWDecode(TIFF* tif, uint8* op0, tmsize_t occ0, uint16 s)</span>
+<span class="lineNum">     364 </span>            : {
+<span class="lineNum">     365 </span>            :   static const char module[] = &quot;LZWDecode&quot;;
+<span class="lineNum">     366 </span><span class="lineCov">     109005 :   LZWCodecState *sp = DecoderState(tif);</span>
+<span class="lineNum">     367 </span><span class="lineCov">     109005 :   char *op = (char*) op0;</span>
+<span class="lineNum">     368 </span><span class="lineCov">     109005 :   long occ = (long) occ0;</span>
+<span class="lineNum">     369 </span>            :   char *tp;
+<span class="lineNum">     370 </span>            :   unsigned char *bp;
+<span class="lineNum">     371 </span>            :   hcode_t code;
+<span class="lineNum">     372 </span>            :   int len;
+<span class="lineNum">     373 </span>            :   long nbits, nextbits, nbitsmask;
+<span class="lineNum">     374 </span>            :         unsigned long nextdata;
+<span class="lineNum">     375 </span>            :   code_t *codep, *free_entp, *maxcodep, *oldcodep;
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span>            :   (void) s;
+<span class="lineNum">     378 </span><span class="lineCov">     109005 :   assert(sp != NULL);</span>
+<span class="lineNum">     379 </span><span class="lineCov">     109005 :         assert(sp-&gt;dec_codetab != NULL);</span>
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span>            :   /*
+<span class="lineNum">     382 </span>            :     Fail if value does not fit in long.
+<span class="lineNum">     383 </span>            :   */
+<span class="lineNum">     384 </span><span class="lineCov">     109005 :   if ((tmsize_t) occ != occ0)</span>
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :           return (0);</span>
+<span class="lineNum">     386 </span>            :   /*
+<span class="lineNum">     387 </span>            :    * Restart interrupted output operation.
+<span class="lineNum">     388 </span>            :    */
+<span class="lineNum">     389 </span><span class="lineCov">     109005 :   if (sp-&gt;dec_restart) {</span>
+<span class="lineNum">     390 </span>            :     long residue;
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineCov">     104126 :     codep = sp-&gt;dec_codep;</span>
+<span class="lineNum">     393 </span><span class="lineCov">     104126 :     residue = codep-&gt;length - sp-&gt;dec_restart;</span>
+<span class="lineNum">     394 </span><span class="lineCov">     104126 :     if (residue &gt; occ) {</span>
+<span class="lineNum">     395 </span>            :       /*
+<span class="lineNum">     396 </span>            :        * Residue from previous decode is sufficient
+<span class="lineNum">     397 </span>            :        * to satisfy decode request.  Skip to the
+<span class="lineNum">     398 </span>            :        * start of the decoded string, place decoded
+<span class="lineNum">     399 </span>            :        * values in the output buffer, and return.
+<span class="lineNum">     400 </span>            :        */
+<span class="lineNum">     401 </span><span class="lineCov">      99868 :       sp-&gt;dec_restart += occ;</span>
+<span class="lineNum">     402 </span>            :       do {
+<span class="lineNum">     403 </span><span class="lineCov">    3160750 :         codep = codep-&gt;next;</span>
+<span class="lineNum">     404 </span><span class="lineCov">    3160750 :       } while (--residue &gt; occ &amp;&amp; codep);</span>
+<span class="lineNum">     405 </span><span class="lineCov">      99868 :       if (codep) {</span>
+<span class="lineNum">     406 </span><span class="lineCov">      99868 :         tp = op + occ;</span>
+<span class="lineNum">     407 </span>            :         do {
+<span class="lineNum">     408 </span><span class="lineCov">     176900 :           *--tp = codep-&gt;value;</span>
+<span class="lineNum">     409 </span><span class="lineCov">     176900 :           codep = codep-&gt;next;</span>
+<span class="lineNum">     410 </span><span class="lineCov">     176900 :         } while (--occ &amp;&amp; codep);</span>
+<span class="lineNum">     411 </span>            :       }
+<span class="lineNum">     412 </span><span class="lineCov">      99868 :       return (1);</span>
+<span class="lineNum">     413 </span>            :     }
+<span class="lineNum">     414 </span>            :     /*
+<span class="lineNum">     415 </span>            :      * Residue satisfies only part of the decode request.
+<span class="lineNum">     416 </span>            :      */
+<span class="lineNum">     417 </span><span class="lineCov">       4258 :     op += residue;</span>
+<span class="lineNum">     418 </span><span class="lineCov">       4258 :     occ -= residue;</span>
+<span class="lineNum">     419 </span><span class="lineCov">       4258 :     tp = op;</span>
+<span class="lineNum">     420 </span>            :     do {
+<span class="lineNum">     421 </span>            :       int t;
+<span class="lineNum">     422 </span><span class="lineCov">       6916 :       --tp;</span>
+<span class="lineNum">     423 </span><span class="lineCov">       6916 :       t = codep-&gt;value;</span>
+<span class="lineNum">     424 </span><span class="lineCov">       6916 :       codep = codep-&gt;next;</span>
+<span class="lineNum">     425 </span><span class="lineCov">       6916 :       *tp = (char)t;</span>
+<span class="lineNum">     426 </span><span class="lineCov">       6916 :     } while (--residue &amp;&amp; codep);</span>
+<span class="lineNum">     427 </span><span class="lineCov">       4258 :     sp-&gt;dec_restart = 0;</span>
+<span class="lineNum">     428 </span>            :   }
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span><span class="lineCov">       9137 :   bp = (unsigned char *)tif-&gt;tif_rawcp;</span>
+<span class="lineNum">     431 </span>            : #ifdef LZW_CHECKEOS
+<span class="lineNum">     432 </span><span class="lineCov">       9137 :   sp-&gt;dec_bitsleft += (((uint64)tif-&gt;tif_rawcc - sp-&gt;old_tif_rawcc) &lt;&lt; 3);</span>
+<span class="lineNum">     433 </span>            : #endif
+<span class="lineNum">     434 </span><span class="lineCov">       9137 :   nbits = sp-&gt;lzw_nbits;</span>
+<span class="lineNum">     435 </span><span class="lineCov">       9137 :   nextdata = sp-&gt;lzw_nextdata;</span>
+<span class="lineNum">     436 </span><span class="lineCov">       9137 :   nextbits = sp-&gt;lzw_nextbits;</span>
+<span class="lineNum">     437 </span><span class="lineCov">       9137 :   nbitsmask = sp-&gt;dec_nbitsmask;</span>
+<span class="lineNum">     438 </span><span class="lineCov">       9137 :   oldcodep = sp-&gt;dec_oldcodep;</span>
+<span class="lineNum">     439 </span><span class="lineCov">       9137 :   free_entp = sp-&gt;dec_free_entp;</span>
+<span class="lineNum">     440 </span><span class="lineCov">       9137 :   maxcodep = sp-&gt;dec_maxcodep;</span>
+<span class="lineNum">     441 </span>            : 
+<span class="lineNum">     442 </span><span class="lineCov">   19083325 :   while (occ &gt; 0) {</span>
+<span class="lineNum">     443 </span><span class="lineCov">   19069379 :     NextCode(tif, sp, bp, code, GetNextCode);</span>
+<span class="lineNum">     444 </span><span class="lineCov">   19069379 :     if (code == CODE_EOI)</span>
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     446 </span><span class="lineCov">   19069379 :     if (code == CODE_CLEAR) {</span>
+<span class="lineNum">     447 </span>            :       do {
+<span class="lineNum">     448 </span><span class="lineCov">       5642 :         free_entp = sp-&gt;dec_codetab + CODE_FIRST;</span>
+<span class="lineNum">     449 </span><span class="lineCov">       5642 :         _TIFFmemset(free_entp, 0,</span>
+<span class="lineNum">     450 </span>            :               (CSIZE - CODE_FIRST) * sizeof (code_t));
+<span class="lineNum">     451 </span><span class="lineCov">       5642 :         nbits = BITS_MIN;</span>
+<span class="lineNum">     452 </span><span class="lineCov">       5642 :         nbitsmask = MAXCODE(BITS_MIN);</span>
+<span class="lineNum">     453 </span><span class="lineCov">       5642 :         maxcodep = sp-&gt;dec_codetab + nbitsmask-1;</span>
+<span class="lineNum">     454 </span><span class="lineCov">       5642 :         NextCode(tif, sp, bp, code, GetNextCode);</span>
+<span class="lineNum">     455 </span><span class="lineCov">       5642 :       } while (code == CODE_CLEAR); /* consecutive CODE_CLEAR codes */</span>
+<span class="lineNum">     456 </span><span class="lineCov">       5642 :       if (code == CODE_EOI)</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     458 </span><span class="lineCov">       5642 :       if (code &gt; CODE_CLEAR) {</span>
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, tif-&gt;tif_name,</span>
+<span class="lineNum">     460 </span>            :         &quot;LZWDecode: Corrupted LZW table at scanline %d&quot;,
+<span class="lineNum">     461 </span>            :                tif-&gt;tif_row);
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :         return (0);</span>
+<span class="lineNum">     463 </span>            :       }
+<span class="lineNum">     464 </span><span class="lineCov">       5642 :       *op++ = (char)code;</span>
+<span class="lineNum">     465 </span><span class="lineCov">       5642 :       occ--;</span>
+<span class="lineNum">     466 </span><span class="lineCov">       5642 :       oldcodep = sp-&gt;dec_codetab + code;</span>
+<span class="lineNum">     467 </span><span class="lineCov">       5642 :       continue;</span>
+<span class="lineNum">     468 </span>            :     }
+<span class="lineNum">     469 </span><span class="lineCov">   19063737 :     codep = sp-&gt;dec_codetab + code;</span>
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span>            :     /*
+<span class="lineNum">     472 </span>            :      * Add the new entry to the code table.
+<span class="lineNum">     473 </span>            :      */
+<span class="lineNum">     474 </span><span class="lineCov">   38127474 :     if (free_entp &lt; &amp;sp-&gt;dec_codetab[0] ||</span>
+<span class="lineNum">     475 </span><span class="lineCov">   19063737 :         free_entp &gt;= &amp;sp-&gt;dec_codetab[CSIZE]) {</span>
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     477 </span>            :           &quot;Corrupted LZW table at scanline %d&quot;,
+<span class="lineNum">     478 </span>            :           tif-&gt;tif_row);
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     480 </span>            :     }
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span><span class="lineCov">   19063737 :     free_entp-&gt;next = oldcodep;</span>
+<span class="lineNum">     483 </span><span class="lineCov">   38127474 :     if (free_entp-&gt;next &lt; &amp;sp-&gt;dec_codetab[0] ||</span>
+<span class="lineNum">     484 </span><span class="lineCov">   19063737 :         free_entp-&gt;next &gt;= &amp;sp-&gt;dec_codetab[CSIZE]) {</span>
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     486 </span>            :           &quot;Corrupted LZW table at scanline %d&quot;,
+<span class="lineNum">     487 </span>            :           tif-&gt;tif_row);
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     489 </span>            :     }
+<span class="lineNum">     490 </span><span class="lineCov">   19063737 :     free_entp-&gt;firstchar = free_entp-&gt;next-&gt;firstchar;</span>
+<span class="lineNum">     491 </span><span class="lineCov">   19063737 :     free_entp-&gt;length = free_entp-&gt;next-&gt;length+1;</span>
+<span class="lineNum">     492 </span><span class="lineCov">   19063737 :     free_entp-&gt;value = (codep &lt; free_entp) ?</span>
+<span class="lineNum">     493 </span>            :         codep-&gt;firstchar : free_entp-&gt;firstchar;
+<span class="lineNum">     494 </span><span class="lineCov">   19063737 :     if (++free_entp &gt; maxcodep) {</span>
+<span class="lineNum">     495 </span><span class="lineCov">      15335 :       if (++nbits &gt; BITS_MAX)    /* should not happen */</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :         nbits = BITS_MAX;</span>
+<span class="lineNum">     497 </span><span class="lineCov">      15335 :       nbitsmask = MAXCODE(nbits);</span>
+<span class="lineNum">     498 </span><span class="lineCov">      15335 :       maxcodep = sp-&gt;dec_codetab + nbitsmask-1;</span>
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span><span class="lineCov">   19063737 :     oldcodep = codep;</span>
+<span class="lineNum">     501 </span><span class="lineCov">   19063737 :     if (code &gt;= 256) {</span>
+<span class="lineNum">     502 </span>            :       /*
+<span class="lineNum">     503 </span>            :        * Code maps to a string, copy string
+<span class="lineNum">     504 </span>            :        * value to output (written in reverse).
+<span class="lineNum">     505 </span>            :        */
+<span class="lineNum">     506 </span><span class="lineCov">   16843073 :       if(codep-&gt;length == 0) {</span>
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     508 </span>            :             &quot;Wrong length of decoded string: &quot;
+<span class="lineNum">     509 </span>            :             &quot;data probably corrupted at scanline %d&quot;,
+<span class="lineNum">     510 </span>            :             tif-&gt;tif_row);
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :         return (0);</span>
+<span class="lineNum">     512 </span>            :       }
+<span class="lineNum">     513 </span><span class="lineCov">   16843073 :       if (codep-&gt;length &gt; occ) {</span>
+<span class="lineNum">     514 </span>            :         /*
+<span class="lineNum">     515 </span>            :          * String is too long for decode buffer,
+<span class="lineNum">     516 </span>            :          * locate portion that will fit, copy to
+<span class="lineNum">     517 </span>            :          * the decode buffer, and setup restart
+<span class="lineNum">     518 </span>            :          * logic for the next decoding call.
+<span class="lineNum">     519 </span>            :          */
+<span class="lineNum">     520 </span><span class="lineCov">       4328 :         sp-&gt;dec_codep = codep;</span>
+<span class="lineNum">     521 </span>            :         do {
+<span class="lineNum">     522 </span><span class="lineCov">     187306 :           codep = codep-&gt;next;</span>
+<span class="lineNum">     523 </span><span class="lineCov">     187306 :         } while (codep &amp;&amp; codep-&gt;length &gt; occ);</span>
+<span class="lineNum">     524 </span><span class="lineCov">       4328 :         if (codep) {</span>
+<span class="lineNum">     525 </span><span class="lineCov">       4328 :           sp-&gt;dec_restart = (long)occ;</span>
+<span class="lineNum">     526 </span><span class="lineCov">       4328 :           tp = op + occ;</span>
+<span class="lineNum">     527 </span>            :           do  {
+<span class="lineNum">     528 </span><span class="lineCov">      12155 :             *--tp = codep-&gt;value;</span>
+<span class="lineNum">     529 </span><span class="lineCov">      12155 :             codep = codep-&gt;next;</span>
+<span class="lineNum">     530 </span><span class="lineCov">      12155 :           }  while (--occ &amp;&amp; codep);</span>
+<span class="lineNum">     531 </span><span class="lineCov">       4328 :           if (codep)</span>
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :             codeLoop(tif, module);</span>
+<span class="lineNum">     533 </span>            :         }
+<span class="lineNum">     534 </span><span class="lineCov">       4328 :         break;</span>
+<span class="lineNum">     535 </span>            :       }
+<span class="lineNum">     536 </span><span class="lineCov">   16838745 :       len = codep-&gt;length;</span>
+<span class="lineNum">     537 </span><span class="lineCov">   16838745 :       tp = op + len;</span>
+<span class="lineNum">     538 </span>            :       do {
+<span class="lineNum">     539 </span>            :         int t;
+<span class="lineNum">     540 </span><span class="lineCov">  176318661 :         --tp;</span>
+<span class="lineNum">     541 </span><span class="lineCov">  176318661 :         t = codep-&gt;value;</span>
+<span class="lineNum">     542 </span><span class="lineCov">  176318661 :         codep = codep-&gt;next;</span>
+<span class="lineNum">     543 </span><span class="lineCov">  176318661 :         *tp = (char)t;</span>
+<span class="lineNum">     544 </span><span class="lineCov">  176318661 :       } while (codep &amp;&amp; tp &gt; op);</span>
+<span class="lineNum">     545 </span><span class="lineCov">   16838745 :       if (codep) {</span>
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :           codeLoop(tif, module);</span>
+<span class="lineNum">     547 </span><span class="lineNoCov">          0 :           break;</span>
+<span class="lineNum">     548 </span>            :       }
+<span class="lineNum">     549 </span><span class="lineCov">   16838745 :       assert(occ &gt;= len);</span>
+<span class="lineNum">     550 </span><span class="lineCov">   16838745 :       op += len;</span>
+<span class="lineNum">     551 </span><span class="lineCov">   16838745 :       occ -= len;</span>
+<span class="lineNum">     552 </span>            :     } else {
+<span class="lineNum">     553 </span><span class="lineCov">    2220664 :       *op++ = (char)code;</span>
+<span class="lineNum">     554 </span><span class="lineCov">    2220664 :       occ--;</span>
+<span class="lineNum">     555 </span>            :     }
+<span class="lineNum">     556 </span>            :   }
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span><span class="lineCov">       9137 :   tif-&gt;tif_rawcc -= (tmsize_t)( (uint8*) bp - tif-&gt;tif_rawcp );</span>
+<span class="lineNum">     559 </span><span class="lineCov">       9137 :   tif-&gt;tif_rawcp = (uint8*) bp;</span>
+<span class="lineNum">     560 </span>            : #ifdef LZW_CHECKEOS
+<span class="lineNum">     561 </span><span class="lineCov">       9137 :   sp-&gt;old_tif_rawcc = tif-&gt;tif_rawcc;</span>
+<span class="lineNum">     562 </span>            : #endif
+<span class="lineNum">     563 </span><span class="lineCov">       9137 :   sp-&gt;lzw_nbits = (unsigned short) nbits;</span>
+<span class="lineNum">     564 </span><span class="lineCov">       9137 :   sp-&gt;lzw_nextdata = nextdata;</span>
+<span class="lineNum">     565 </span><span class="lineCov">       9137 :   sp-&gt;lzw_nextbits = nextbits;</span>
+<span class="lineNum">     566 </span><span class="lineCov">       9137 :   sp-&gt;dec_nbitsmask = nbitsmask;</span>
+<span class="lineNum">     567 </span><span class="lineCov">       9137 :   sp-&gt;dec_oldcodep = oldcodep;</span>
+<span class="lineNum">     568 </span><span class="lineCov">       9137 :   sp-&gt;dec_free_entp = free_entp;</span>
+<span class="lineNum">     569 </span><span class="lineCov">       9137 :   sp-&gt;dec_maxcodep = maxcodep;</span>
+<span class="lineNum">     570 </span>            : 
+<span class="lineNum">     571 </span><span class="lineCov">       9137 :   if (occ &gt; 0) {</span>
+<span class="lineNum">     572 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">     573 </span>            :     TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     574 </span>            :       &quot;Not enough data at scanline %d (short %I64d bytes)&quot;,
+<span class="lineNum">     575 </span>            :            tif-&gt;tif_row, (unsigned __int64) occ);
+<span class="lineNum">     576 </span>            : #else
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     578 </span>            :       &quot;Not enough data at scanline %d (short %llu bytes)&quot;,
+<span class="lineNum">     579 </span>            :            tif-&gt;tif_row, (unsigned long long) occ);
+<span class="lineNum">     580 </span>            : #endif
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">     582 </span>            :   }
+<span class="lineNum">     583 </span><span class="lineCov">       9137 :   return (1);</span>
+<span class="lineNum">     584 </span>            : }
+<span class="lineNum">     585 </span>            : 
+<span class="lineNum">     586 </span>            : #ifdef LZW_COMPAT
+<span class="lineNum">     587 </span>            : /*
+<span class="lineNum">     588 </span>            :  * Decode a &quot;hunk of data&quot; for old images.
+<span class="lineNum">     589 </span>            :  */
+<span class="lineNum">     590 </span>            : #define GetNextCodeCompat(sp, bp, code) {     \
+<span class="lineNum">     591 </span>            :   nextdata |= (unsigned long) *(bp)++ &lt;&lt; nextbits;  \
+<span class="lineNum">     592 </span>            :   nextbits += 8;            \
+<span class="lineNum">     593 </span>            :   if (nextbits &lt; nbits) {          \
+<span class="lineNum">     594 </span>            :     nextdata |= (unsigned long) *(bp)++ &lt;&lt; nextbits;\
+<span class="lineNum">     595 </span>            :     nextbits += 8;          \
+<span class="lineNum">     596 </span>            :   }             \
+<span class="lineNum">     597 </span>            :   code = (hcode_t)(nextdata &amp; nbitsmask);     \
+<span class="lineNum">     598 </span>            :   nextdata &gt;&gt;= nbits;         \
+<span class="lineNum">     599 </span>            :   nextbits -= nbits;          \
+<span class="lineNum">     600 </span>            : }
+<a name="601"><span class="lineNum">     601 </span>            : </a>
+<span class="lineNum">     602 </span>            : static int
+<span class="lineNum">     603 </span><span class="lineCov">         77 : LZWDecodeCompat(TIFF* tif, uint8* op0, tmsize_t occ0, uint16 s)</span>
+<span class="lineNum">     604 </span>            : {
+<span class="lineNum">     605 </span>            :   static const char module[] = &quot;LZWDecodeCompat&quot;;
+<span class="lineNum">     606 </span><span class="lineCov">         77 :   LZWCodecState *sp = DecoderState(tif);</span>
+<span class="lineNum">     607 </span><span class="lineCov">         77 :   char *op = (char*) op0;</span>
+<span class="lineNum">     608 </span><span class="lineCov">         77 :   long occ = (long) occ0;</span>
+<span class="lineNum">     609 </span>            :   char *tp;
+<span class="lineNum">     610 </span>            :   unsigned char *bp;
+<span class="lineNum">     611 </span>            :   int code, nbits;
+<span class="lineNum">     612 </span>            :   int len;
+<span class="lineNum">     613 </span>            :   long nextbits, nextdata, nbitsmask;
+<span class="lineNum">     614 </span>            :   code_t *codep, *free_entp, *maxcodep, *oldcodep;
+<span class="lineNum">     615 </span>            : 
+<span class="lineNum">     616 </span>            :   (void) s;
+<span class="lineNum">     617 </span><span class="lineCov">         77 :   assert(sp != NULL);</span>
+<span class="lineNum">     618 </span>            : 
+<span class="lineNum">     619 </span>            :   /*
+<span class="lineNum">     620 </span>            :     Fail if value does not fit in long.
+<span class="lineNum">     621 </span>            :   */
+<span class="lineNum">     622 </span><span class="lineCov">         77 :   if ((tmsize_t) occ != occ0)</span>
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :           return (0);</span>
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span>            :   /*
+<span class="lineNum">     626 </span>            :    * Restart interrupted output operation.
+<span class="lineNum">     627 </span>            :    */
+<span class="lineNum">     628 </span><span class="lineCov">         77 :   if (sp-&gt;dec_restart) {</span>
+<span class="lineNum">     629 </span>            :     long residue;
+<span class="lineNum">     630 </span>            : 
+<span class="lineNum">     631 </span><span class="lineNoCov">          0 :     codep = sp-&gt;dec_codep;</span>
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :     residue = codep-&gt;length - sp-&gt;dec_restart;</span>
+<span class="lineNum">     633 </span><span class="lineNoCov">          0 :     if (residue &gt; occ) {</span>
+<span class="lineNum">     634 </span>            :       /*
+<span class="lineNum">     635 </span>            :        * Residue from previous decode is sufficient
+<span class="lineNum">     636 </span>            :        * to satisfy decode request.  Skip to the
+<span class="lineNum">     637 </span>            :        * start of the decoded string, place decoded
+<span class="lineNum">     638 </span>            :        * values in the output buffer, and return.
+<span class="lineNum">     639 </span>            :        */
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :       sp-&gt;dec_restart += occ;</span>
+<span class="lineNum">     641 </span>            :       do {
+<span class="lineNum">     642 </span><span class="lineNoCov">          0 :         codep = codep-&gt;next;</span>
+<span class="lineNum">     643 </span><span class="lineNoCov">          0 :       } while (--residue &gt; occ);</span>
+<span class="lineNum">     644 </span><span class="lineNoCov">          0 :       tp = op + occ;</span>
+<span class="lineNum">     645 </span>            :       do {
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :         *--tp = codep-&gt;value;</span>
+<span class="lineNum">     647 </span><span class="lineNoCov">          0 :         codep = codep-&gt;next;</span>
+<span class="lineNum">     648 </span><span class="lineNoCov">          0 :       } while (--occ);</span>
+<span class="lineNum">     649 </span><span class="lineNoCov">          0 :       return (1);</span>
+<span class="lineNum">     650 </span>            :     }
+<span class="lineNum">     651 </span>            :     /*
+<span class="lineNum">     652 </span>            :      * Residue satisfies only part of the decode request.
+<span class="lineNum">     653 </span>            :      */
+<span class="lineNum">     654 </span><span class="lineNoCov">          0 :     op += residue;</span>
+<span class="lineNum">     655 </span><span class="lineNoCov">          0 :     occ -= residue;</span>
+<span class="lineNum">     656 </span><span class="lineNoCov">          0 :     tp = op;</span>
+<span class="lineNum">     657 </span>            :     do {
+<span class="lineNum">     658 </span><span class="lineNoCov">          0 :       *--tp = codep-&gt;value;</span>
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :       codep = codep-&gt;next;</span>
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 :     } while (--residue);</span>
+<span class="lineNum">     661 </span><span class="lineNoCov">          0 :     sp-&gt;dec_restart = 0;</span>
+<span class="lineNum">     662 </span>            :   }
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span><span class="lineCov">         77 :   bp = (unsigned char *)tif-&gt;tif_rawcp;</span>
+<span class="lineNum">     665 </span>            : #ifdef LZW_CHECKEOS
+<span class="lineNum">     666 </span><span class="lineCov">         77 :   sp-&gt;dec_bitsleft += (((uint64)tif-&gt;tif_rawcc - sp-&gt;old_tif_rawcc) &lt;&lt; 3);</span>
+<span class="lineNum">     667 </span>            : #endif
+<span class="lineNum">     668 </span><span class="lineCov">         77 :   nbits = sp-&gt;lzw_nbits;</span>
+<span class="lineNum">     669 </span><span class="lineCov">         77 :   nextdata = sp-&gt;lzw_nextdata;</span>
+<span class="lineNum">     670 </span><span class="lineCov">         77 :   nextbits = sp-&gt;lzw_nextbits;</span>
+<span class="lineNum">     671 </span><span class="lineCov">         77 :   nbitsmask = sp-&gt;dec_nbitsmask;</span>
+<span class="lineNum">     672 </span><span class="lineCov">         77 :   oldcodep = sp-&gt;dec_oldcodep;</span>
+<span class="lineNum">     673 </span><span class="lineCov">         77 :   free_entp = sp-&gt;dec_free_entp;</span>
+<span class="lineNum">     674 </span><span class="lineCov">         77 :   maxcodep = sp-&gt;dec_maxcodep;</span>
+<span class="lineNum">     675 </span>            : 
+<span class="lineNum">     676 </span><span class="lineCov">     154216 :   while (occ &gt; 0) {</span>
+<span class="lineNum">     677 </span><span class="lineCov">     154062 :     NextCode(tif, sp, bp, code, GetNextCodeCompat);</span>
+<span class="lineNum">     678 </span><span class="lineCov">     154062 :     if (code == CODE_EOI)</span>
+<span class="lineNum">     679 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     680 </span><span class="lineCov">     154062 :     if (code == CODE_CLEAR) {</span>
+<span class="lineNum">     681 </span>            :       do {
+<span class="lineNum">     682 </span><span class="lineCov">         77 :         free_entp = sp-&gt;dec_codetab + CODE_FIRST;</span>
+<span class="lineNum">     683 </span><span class="lineCov">         77 :         _TIFFmemset(free_entp, 0,</span>
+<span class="lineNum">     684 </span>            :               (CSIZE - CODE_FIRST) * sizeof (code_t));
+<span class="lineNum">     685 </span><span class="lineCov">         77 :         nbits = BITS_MIN;</span>
+<span class="lineNum">     686 </span><span class="lineCov">         77 :         nbitsmask = MAXCODE(BITS_MIN);</span>
+<span class="lineNum">     687 </span><span class="lineCov">         77 :         maxcodep = sp-&gt;dec_codetab + nbitsmask;</span>
+<span class="lineNum">     688 </span><span class="lineCov">         77 :         NextCode(tif, sp, bp, code, GetNextCodeCompat);</span>
+<span class="lineNum">     689 </span><span class="lineCov">         77 :       } while (code == CODE_CLEAR); /* consecutive CODE_CLEAR codes */</span>
+<span class="lineNum">     690 </span><span class="lineCov">         77 :       if (code == CODE_EOI)</span>
+<span class="lineNum">     691 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     692 </span><span class="lineCov">         77 :       if (code &gt; CODE_CLEAR) {</span>
+<span class="lineNum">     693 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, tif-&gt;tif_name,</span>
+<span class="lineNum">     694 </span>            :         &quot;LZWDecode: Corrupted LZW table at scanline %d&quot;,
+<span class="lineNum">     695 </span>            :                tif-&gt;tif_row);
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :         return (0);</span>
+<span class="lineNum">     697 </span>            :       }
+<span class="lineNum">     698 </span><span class="lineCov">         77 :       *op++ = (char)code;</span>
+<span class="lineNum">     699 </span><span class="lineCov">         77 :       occ--;</span>
+<span class="lineNum">     700 </span><span class="lineCov">         77 :       oldcodep = sp-&gt;dec_codetab + code;</span>
+<span class="lineNum">     701 </span><span class="lineCov">         77 :       continue;</span>
+<span class="lineNum">     702 </span>            :     }
+<span class="lineNum">     703 </span><span class="lineCov">     153985 :     codep = sp-&gt;dec_codetab + code;</span>
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span>            :     /*
+<span class="lineNum">     706 </span>            :      * Add the new entry to the code table.
+<span class="lineNum">     707 </span>            :      */
+<span class="lineNum">     708 </span><span class="lineCov">     307970 :     if (free_entp &lt; &amp;sp-&gt;dec_codetab[0] ||</span>
+<span class="lineNum">     709 </span><span class="lineCov">     153985 :         free_entp &gt;= &amp;sp-&gt;dec_codetab[CSIZE]) {</span>
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     711 </span>            :           &quot;Corrupted LZW table at scanline %d&quot;, tif-&gt;tif_row);
+<span class="lineNum">     712 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     713 </span>            :     }
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span><span class="lineCov">     153985 :     free_entp-&gt;next = oldcodep;</span>
+<span class="lineNum">     716 </span><span class="lineCov">     307970 :     if (free_entp-&gt;next &lt; &amp;sp-&gt;dec_codetab[0] ||</span>
+<span class="lineNum">     717 </span><span class="lineCov">     153985 :         free_entp-&gt;next &gt;= &amp;sp-&gt;dec_codetab[CSIZE]) {</span>
+<span class="lineNum">     718 </span><span class="lineNoCov">          0 :       TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     719 </span>            :           &quot;Corrupted LZW table at scanline %d&quot;, tif-&gt;tif_row);
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :       return (0);</span>
+<span class="lineNum">     721 </span>            :     }
+<span class="lineNum">     722 </span><span class="lineCov">     153985 :     free_entp-&gt;firstchar = free_entp-&gt;next-&gt;firstchar;</span>
+<span class="lineNum">     723 </span><span class="lineCov">     153985 :     free_entp-&gt;length = free_entp-&gt;next-&gt;length+1;</span>
+<span class="lineNum">     724 </span><span class="lineCov">     153985 :     free_entp-&gt;value = (codep &lt; free_entp) ?</span>
+<span class="lineNum">     725 </span>            :         codep-&gt;firstchar : free_entp-&gt;firstchar;
+<span class="lineNum">     726 </span><span class="lineCov">     153985 :     if (++free_entp &gt; maxcodep) {</span>
+<span class="lineNum">     727 </span><span class="lineCov">       4700 :       if (++nbits &gt; BITS_MAX)    /* should not happen */</span>
+<span class="lineNum">     728 </span><span class="lineCov">       4564 :         nbits = BITS_MAX;</span>
+<span class="lineNum">     729 </span><span class="lineCov">       4700 :       nbitsmask = MAXCODE(nbits);</span>
+<span class="lineNum">     730 </span><span class="lineCov">       4700 :       maxcodep = sp-&gt;dec_codetab + nbitsmask;</span>
+<span class="lineNum">     731 </span>            :     }
+<span class="lineNum">     732 </span><span class="lineCov">     153985 :     oldcodep = codep;</span>
+<span class="lineNum">     733 </span><span class="lineCov">     153985 :     if (code &gt;= 256) {</span>
+<span class="lineNum">     734 </span>            :       /*
+<span class="lineNum">     735 </span>            :        * Code maps to a string, copy string
+<span class="lineNum">     736 </span>            :        * value to output (written in reverse).
+<span class="lineNum">     737 </span>            :        */
+<span class="lineNum">     738 </span><span class="lineCov">      54141 :       if(codep-&gt;length == 0) {</span>
+<span class="lineNum">     739 </span><span class="lineNoCov">          0 :         TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     740 </span>            :             &quot;Wrong length of decoded &quot;
+<span class="lineNum">     741 </span>            :             &quot;string: data probably corrupted at scanline %d&quot;,
+<span class="lineNum">     742 </span>            :             tif-&gt;tif_row);
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :         return (0);</span>
+<span class="lineNum">     744 </span>            :       }
+<span class="lineNum">     745 </span><span class="lineCov">      54141 :       if (codep-&gt;length &gt; occ) {</span>
+<span class="lineNum">     746 </span>            :         /*
+<span class="lineNum">     747 </span>            :          * String is too long for decode buffer,
+<span class="lineNum">     748 </span>            :          * locate portion that will fit, copy to
+<span class="lineNum">     749 </span>            :          * the decode buffer, and setup restart
+<span class="lineNum">     750 </span>            :          * logic for the next decoding call.
+<span class="lineNum">     751 </span>            :          */
+<span class="lineNum">     752 </span><span class="lineNoCov">          0 :         sp-&gt;dec_codep = codep;</span>
+<span class="lineNum">     753 </span>            :         do {
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :           codep = codep-&gt;next;</span>
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :         } while (codep-&gt;length &gt; occ);</span>
+<span class="lineNum">     756 </span><span class="lineNoCov">          0 :         sp-&gt;dec_restart = occ;</span>
+<span class="lineNum">     757 </span><span class="lineNoCov">          0 :         tp = op + occ;</span>
+<span class="lineNum">     758 </span>            :         do  {
+<span class="lineNum">     759 </span><span class="lineNoCov">          0 :           *--tp = codep-&gt;value;</span>
+<span class="lineNum">     760 </span><span class="lineNoCov">          0 :           codep = codep-&gt;next;</span>
+<span class="lineNum">     761 </span><span class="lineNoCov">          0 :         }  while (--occ);</span>
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     763 </span>            :       }
+<span class="lineNum">     764 </span><span class="lineCov">      54141 :       len = codep-&gt;length;</span>
+<span class="lineNum">     765 </span><span class="lineCov">      54141 :       tp = op + len;</span>
+<span class="lineNum">     766 </span>            :       do {
+<span class="lineNum">     767 </span>            :         int t;
+<span class="lineNum">     768 </span><span class="lineCov">     489903 :         --tp;</span>
+<span class="lineNum">     769 </span><span class="lineCov">     489903 :         t = codep-&gt;value;</span>
+<span class="lineNum">     770 </span><span class="lineCov">     489903 :         codep = codep-&gt;next;</span>
+<span class="lineNum">     771 </span><span class="lineCov">     489903 :         *tp = (char)t;</span>
+<span class="lineNum">     772 </span><span class="lineCov">     489903 :       } while (codep &amp;&amp; tp &gt; op);</span>
+<span class="lineNum">     773 </span><span class="lineCov">      54141 :       assert(occ &gt;= len);</span>
+<span class="lineNum">     774 </span><span class="lineCov">      54141 :       op += len;</span>
+<span class="lineNum">     775 </span><span class="lineCov">      54141 :       occ -= len;</span>
+<span class="lineNum">     776 </span>            :     } else {
+<span class="lineNum">     777 </span><span class="lineCov">      99844 :       *op++ = (char)code;</span>
+<span class="lineNum">     778 </span><span class="lineCov">      99844 :       occ--;</span>
+<span class="lineNum">     779 </span>            :     }
+<span class="lineNum">     780 </span>            :   }
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span><span class="lineCov">         77 :   tif-&gt;tif_rawcc -= (tmsize_t)( (uint8*) bp - tif-&gt;tif_rawcp );</span>
+<span class="lineNum">     783 </span><span class="lineCov">         77 :   tif-&gt;tif_rawcp = (uint8*) bp;</span>
+<span class="lineNum">     784 </span>            : #ifdef LZW_CHECKEOS
+<span class="lineNum">     785 </span><span class="lineCov">         77 :   sp-&gt;old_tif_rawcc = tif-&gt;tif_rawcc;</span>
+<span class="lineNum">     786 </span>            : #endif
+<span class="lineNum">     787 </span><span class="lineCov">         77 :   sp-&gt;lzw_nbits = (unsigned short)nbits;</span>
+<span class="lineNum">     788 </span><span class="lineCov">         77 :   sp-&gt;lzw_nextdata = nextdata;</span>
+<span class="lineNum">     789 </span><span class="lineCov">         77 :   sp-&gt;lzw_nextbits = nextbits;</span>
+<span class="lineNum">     790 </span><span class="lineCov">         77 :   sp-&gt;dec_nbitsmask = nbitsmask;</span>
+<span class="lineNum">     791 </span><span class="lineCov">         77 :   sp-&gt;dec_oldcodep = oldcodep;</span>
+<span class="lineNum">     792 </span><span class="lineCov">         77 :   sp-&gt;dec_free_entp = free_entp;</span>
+<span class="lineNum">     793 </span><span class="lineCov">         77 :   sp-&gt;dec_maxcodep = maxcodep;</span>
+<span class="lineNum">     794 </span>            : 
+<span class="lineNum">     795 </span><span class="lineCov">         77 :   if (occ &gt; 0) {</span>
+<span class="lineNum">     796 </span>            : #if defined(__WIN32__) &amp;&amp; (defined(_MSC_VER) || defined(__MINGW32__))
+<span class="lineNum">     797 </span>            :     TIFFErrorExt(tif-&gt;tif_clientdata, module,
+<span class="lineNum">     798 </span>            :       &quot;Not enough data at scanline %d (short %I64d bytes)&quot;,
+<span class="lineNum">     799 </span>            :            tif-&gt;tif_row, (unsigned __int64) occ);
+<span class="lineNum">     800 </span>            : #else
+<span class="lineNum">     801 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     802 </span>            :       &quot;Not enough data at scanline %d (short %llu bytes)&quot;,
+<span class="lineNum">     803 </span>            :            tif-&gt;tif_row, (unsigned long long) occ);
+<span class="lineNum">     804 </span>            : #endif
+<span class="lineNum">     805 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">     806 </span>            :   }
+<span class="lineNum">     807 </span><span class="lineCov">         77 :   return (1);</span>
+<span class="lineNum">     808 </span>            : }
+<span class="lineNum">     809 </span>            : #endif /* LZW_COMPAT */
+<span class="lineNum">     810 </span>            : 
+<span class="lineNum">     811 </span>            : /*
+<span class="lineNum">     812 </span>            :  * LZW Encoding.
+<span class="lineNum">     813 </span>            :  */
+<a name="814"><span class="lineNum">     814 </span>            : </a>
+<span class="lineNum">     815 </span>            : static int
+<span class="lineNum">     816 </span><span class="lineCov">       8911 : LZWSetupEncode(TIFF* tif)</span>
+<span class="lineNum">     817 </span>            : {
+<span class="lineNum">     818 </span>            :   static const char module[] = &quot;LZWSetupEncode&quot;;
+<span class="lineNum">     819 </span><span class="lineCov">       8911 :   LZWCodecState* sp = EncoderState(tif);</span>
+<span class="lineNum">     820 </span>            : 
+<span class="lineNum">     821 </span><span class="lineCov">       8911 :   assert(sp != NULL);</span>
+<span class="lineNum">     822 </span><span class="lineCov">       8911 :   sp-&gt;enc_hashtab = (hash_t*) _TIFFmalloc(HSIZE*sizeof (hash_t));</span>
+<span class="lineNum">     823 </span><span class="lineCov">       8911 :   if (sp-&gt;enc_hashtab == NULL) {</span>
+<span class="lineNum">     824 </span><span class="lineNoCov">          0 :     TIFFErrorExt(tif-&gt;tif_clientdata, module,</span>
+<span class="lineNum">     825 </span>            :            &quot;No space for LZW hash table&quot;);
+<span class="lineNum">     826 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">     827 </span>            :   }
+<span class="lineNum">     828 </span><span class="lineCov">       8911 :   return (1);</span>
+<span class="lineNum">     829 </span>            : }
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span>            : /*
+<span class="lineNum">     832 </span>            :  * Reset encoding state at the start of a strip.
+<a name="833"><span class="lineNum">     833 </span>            :  */</a>
+<span class="lineNum">     834 </span>            : static int
+<span class="lineNum">     835 </span><span class="lineCov">       9105 : LZWPreEncode(TIFF* tif, uint16 s)</span>
+<span class="lineNum">     836 </span>            : {
+<span class="lineNum">     837 </span><span class="lineCov">       9105 :   LZWCodecState *sp = EncoderState(tif);</span>
+<span class="lineNum">     838 </span>            : 
+<span class="lineNum">     839 </span>            :   (void) s;
+<span class="lineNum">     840 </span><span class="lineCov">       9105 :   assert(sp != NULL);</span>
+<span class="lineNum">     841 </span>            : 
+<span class="lineNum">     842 </span><span class="lineCov">       9105 :   if( sp-&gt;enc_hashtab == NULL )</span>
+<span class="lineNum">     843 </span>            :         {
+<span class="lineNum">     844 </span><span class="lineCov">          1 :             tif-&gt;tif_setupencode( tif );</span>
+<span class="lineNum">     845 </span>            :         }
+<span class="lineNum">     846 </span>            : 
+<span class="lineNum">     847 </span><span class="lineCov">       9105 :   sp-&gt;lzw_nbits = BITS_MIN;</span>
+<span class="lineNum">     848 </span><span class="lineCov">       9105 :   sp-&gt;lzw_maxcode = MAXCODE(BITS_MIN);</span>
+<span class="lineNum">     849 </span><span class="lineCov">       9105 :   sp-&gt;lzw_free_ent = CODE_FIRST;</span>
+<span class="lineNum">     850 </span><span class="lineCov">       9105 :   sp-&gt;lzw_nextbits = 0;</span>
+<span class="lineNum">     851 </span><span class="lineCov">       9105 :   sp-&gt;lzw_nextdata = 0;</span>
+<span class="lineNum">     852 </span><span class="lineCov">       9105 :   sp-&gt;enc_checkpoint = CHECK_GAP;</span>
+<span class="lineNum">     853 </span><span class="lineCov">       9105 :   sp-&gt;enc_ratio = 0;</span>
+<span class="lineNum">     854 </span><span class="lineCov">       9105 :   sp-&gt;enc_incount = 0;</span>
+<span class="lineNum">     855 </span><span class="lineCov">       9105 :   sp-&gt;enc_outcount = 0;</span>
+<span class="lineNum">     856 </span>            :   /*
+<span class="lineNum">     857 </span>            :    * The 4 here insures there is space for 2 max-sized
+<span class="lineNum">     858 </span>            :    * codes in LZWEncode and LZWPostDecode.
+<span class="lineNum">     859 </span>            :    */
+<span class="lineNum">     860 </span><span class="lineCov">       9105 :   sp-&gt;enc_rawlimit = tif-&gt;tif_rawdata + tif-&gt;tif_rawdatasize-1 - 4;</span>
+<span class="lineNum">     861 </span><span class="lineCov">       9105 :   cl_hash(sp);    /* clear hash table */</span>
+<span class="lineNum">     862 </span><span class="lineCov">       9105 :   sp-&gt;enc_oldcode = (hcode_t) -1;  /* generates CODE_CLEAR in LZWEncode */</span>
+<span class="lineNum">     863 </span><span class="lineCov">       9105 :   return (1);</span>
+<span class="lineNum">     864 </span>            : }
+<span class="lineNum">     865 </span>            : 
+<span class="lineNum">     866 </span>            : #define CALCRATIO(sp, rat) {          \
+<span class="lineNum">     867 </span>            :   if (incount &gt; 0x007fffff) { /* NB: shift will overflow */\
+<span class="lineNum">     868 </span>            :     rat = outcount &gt;&gt; 8;        \
+<span class="lineNum">     869 </span>            :     rat = (rat == 0 ? 0x7fffffff : incount/rat);  \
+<span class="lineNum">     870 </span>            :   } else              \
+<span class="lineNum">     871 </span>            :     rat = (incount&lt;&lt;8) / outcount;      \
+<span class="lineNum">     872 </span>            : }
+<span class="lineNum">     873 </span>            : 
+<span class="lineNum">     874 </span>            : /* Explicit 0xff masking to make icc -check=conversions happy */
+<span class="lineNum">     875 </span>            : #define PutNextCode(op, c) {          \
+<span class="lineNum">     876 </span>            :   nextdata = (nextdata &lt;&lt; nbits) | c;     \
+<span class="lineNum">     877 </span>            :   nextbits += nbits;          \
+<span class="lineNum">     878 </span>            :   *op++ = (unsigned char)((nextdata &gt;&gt; (nextbits-8))&amp;0xff);   \
+<span class="lineNum">     879 </span>            :   nextbits -= 8;            \
+<span class="lineNum">     880 </span>            :   if (nextbits &gt;= 8) {         \
+<span class="lineNum">     881 </span>            :     *op++ = (unsigned char)((nextdata &gt;&gt; (nextbits-8))&amp;0xff); \
+<span class="lineNum">     882 </span>            :     nextbits -= 8;          \
+<span class="lineNum">     883 </span>            :   }             \
+<span class="lineNum">     884 </span>            :   outcount += nbits;          \
+<span class="lineNum">     885 </span>            : }
+<span class="lineNum">     886 </span>            : 
+<span class="lineNum">     887 </span>            : /*
+<span class="lineNum">     888 </span>            :  * Encode a chunk of pixels.
+<span class="lineNum">     889 </span>            :  *
+<span class="lineNum">     890 </span>            :  * Uses an open addressing double hashing (no chaining) on the 
+<span class="lineNum">     891 </span>            :  * prefix code/next character combination.  We do a variant of
+<span class="lineNum">     892 </span>            :  * Knuth's algorithm D (vol. 3, sec. 6.4) along with G. Knott's
+<span class="lineNum">     893 </span>            :  * relatively-prime secondary probe.  Here, the modular division
+<span class="lineNum">     894 </span>            :  * first probe is gives way to a faster exclusive-or manipulation. 
+<span class="lineNum">     895 </span>            :  * Also do block compression with an adaptive reset, whereby the
+<span class="lineNum">     896 </span>            :  * code table is cleared when the compression ratio decreases,
+<span class="lineNum">     897 </span>            :  * but after the table fills.  The variable-length output codes
+<span class="lineNum">     898 </span>            :  * are re-sized at this point, and a CODE_CLEAR is generated
+<span class="lineNum">     899 </span>            :  * for the decoder. 
+<a name="900"><span class="lineNum">     900 </span>            :  */</a>
+<span class="lineNum">     901 </span>            : static int
+<span class="lineNum">     902 </span><span class="lineCov">      31101 : LZWEncode(TIFF* tif, uint8* bp, tmsize_t cc, uint16 s)</span>
+<span class="lineNum">     903 </span>            : {
+<span class="lineNum">     904 </span><span class="lineCov">      31101 :   register LZWCodecState *sp = EncoderState(tif);</span>
+<span class="lineNum">     905 </span>            :   register long fcode;
+<span class="lineNum">     906 </span>            :   register hash_t *hp;
+<span class="lineNum">     907 </span>            :   register int h, c;
+<span class="lineNum">     908 </span>            :   hcode_t ent;
+<span class="lineNum">     909 </span>            :   long disp;
+<span class="lineNum">     910 </span>            :   long incount, outcount, checkpoint;
+<span class="lineNum">     911 </span>            :   unsigned long nextdata;
+<span class="lineNum">     912 </span>            :         long nextbits;
+<span class="lineNum">     913 </span>            :   int free_ent, maxcode, nbits;
+<span class="lineNum">     914 </span>            :   uint8* op;
+<span class="lineNum">     915 </span>            :   uint8* limit;
+<span class="lineNum">     916 </span>            : 
+<span class="lineNum">     917 </span>            :   (void) s;
+<span class="lineNum">     918 </span><span class="lineCov">      31101 :   if (sp == NULL)</span>
+<span class="lineNum">     919 </span><span class="lineNoCov">          0 :     return (0);</span>
+<span class="lineNum">     920 </span>            : 
+<span class="lineNum">     921 </span><span class="lineCov">      31101 :         assert(sp-&gt;enc_hashtab != NULL);</span>
+<span class="lineNum">     922 </span>            : 
+<span class="lineNum">     923 </span>            :   /*
+<span class="lineNum">     924 </span>            :    * Load local state.
+<span class="lineNum">     925 </span>            :    */
+<span class="lineNum">     926 </span><span class="lineCov">      31101 :   incount = sp-&gt;enc_incount;</span>
+<span class="lineNum">     927 </span><span class="lineCov">      31101 :   outcount = sp-&gt;enc_outcount;</span>
+<span class="lineNum">     928 </span><span class="lineCov">      31101 :   checkpoint = sp-&gt;enc_checkpoint;</span>
+<span class="lineNum">     929 </span><span class="lineCov">      31101 :   nextdata = sp-&gt;lzw_nextdata;</span>
+<span class="lineNum">     930 </span><span class="lineCov">      31101 :   nextbits = sp-&gt;lzw_nextbits;</span>
+<span class="lineNum">     931 </span><span class="lineCov">      31101 :   free_ent = sp-&gt;lzw_free_ent;</span>
+<span class="lineNum">     932 </span><span class="lineCov">      31101 :   maxcode = sp-&gt;lzw_maxcode;</span>
+<span class="lineNum">     933 </span><span class="lineCov">      31101 :   nbits = sp-&gt;lzw_nbits;</span>
+<span class="lineNum">     934 </span><span class="lineCov">      31101 :   op = tif-&gt;tif_rawcp;</span>
+<span class="lineNum">     935 </span><span class="lineCov">      31101 :   limit = sp-&gt;enc_rawlimit;</span>
+<span class="lineNum">     936 </span><span class="lineCov">      31101 :   ent = (hcode_t)sp-&gt;enc_oldcode;</span>
+<span class="lineNum">     937 </span>            : 
+<span class="lineNum">     938 </span><span class="lineCov">      31101 :   if (ent == (hcode_t) -1 &amp;&amp; cc &gt; 0) {</span>
+<span class="lineNum">     939 </span>            :     /*
+<span class="lineNum">     940 </span>            :      * NB: This is safe because it can only happen
+<span class="lineNum">     941 </span>            :      *     at the start of a strip where we know there
+<span class="lineNum">     942 </span>            :      *     is space in the data buffer.
+<span class="lineNum">     943 </span>            :      */
+<span class="lineNum">     944 </span><span class="lineCov">       9105 :     PutNextCode(op, CODE_CLEAR);</span>
+<span class="lineNum">     945 </span><span class="lineCov">       9105 :     ent = *bp++; cc--; incount++;</span>
+<span class="lineNum">     946 </span>            :   }
+<span class="lineNum">     947 </span><span class="lineCov">  215073139 :   while (cc &gt; 0) {</span>
+<span class="lineNum">     948 </span><span class="lineCov">  215010937 :     c = *bp++; cc--; incount++;</span>
+<span class="lineNum">     949 </span><span class="lineCov">  215010937 :     fcode = ((long)c &lt;&lt; BITS_MAX) + ent;</span>
+<span class="lineNum">     950 </span><span class="lineCov">  215010937 :     h = (c &lt;&lt; HSHIFT) ^ ent;  /* xor hashing */</span>
+<span class="lineNum">     951 </span>            : #ifdef _WINDOWS
+<span class="lineNum">     952 </span>            :     /*
+<span class="lineNum">     953 </span>            :      * Check hash index for an overflow.
+<span class="lineNum">     954 </span>            :      */
+<span class="lineNum">     955 </span>            :     if (h &gt;= HSIZE)
+<span class="lineNum">     956 </span>            :       h -= HSIZE;
+<span class="lineNum">     957 </span>            : #endif
+<span class="lineNum">     958 </span><span class="lineCov">  215010937 :     hp = &amp;sp-&gt;enc_hashtab[h];</span>
+<span class="lineNum">     959 </span><span class="lineCov">  215010937 :     if (hp-&gt;hash == fcode) {</span>
+<span class="lineNum">     960 </span><span class="lineCov">  173089203 :       ent = hp-&gt;code;</span>
+<span class="lineNum">     961 </span><span class="lineCov">  173089203 :       continue;</span>
+<span class="lineNum">     962 </span>            :     }
+<span class="lineNum">     963 </span><span class="lineCov">   41921734 :     if (hp-&gt;hash &gt;= 0) {</span>
+<span class="lineNum">     964 </span>            :       /*
+<span class="lineNum">     965 </span>            :        * Primary hash failed, check secondary hash.
+<span class="lineNum">     966 </span>            :        */
+<span class="lineNum">     967 </span><span class="lineCov">   27304874 :       disp = HSIZE - h;</span>
+<span class="lineNum">     968 </span><span class="lineCov">   27304874 :       if (h == 0)</span>
+<span class="lineNum">     969 </span><span class="lineCov">      11312 :         disp = 1;</span>
+<span class="lineNum">     970 </span>            :       do {
+<span class="lineNum">     971 </span>            :         /*
+<span class="lineNum">     972 </span>            :          * Avoid pointer arithmetic because of
+<span class="lineNum">     973 </span>            :          * wraparound problems with segments.
+<span class="lineNum">     974 </span>            :          */
+<span class="lineNum">     975 </span><span class="lineCov">   44597582 :         if ((h -= disp) &lt; 0)</span>
+<span class="lineNum">     976 </span><span class="lineCov">   39312427 :           h += HSIZE;</span>
+<span class="lineNum">     977 </span><span class="lineCov">   44597582 :         hp = &amp;sp-&gt;enc_hashtab[h];</span>
+<span class="lineNum">     978 </span><span class="lineCov">   44597582 :         if (hp-&gt;hash == fcode) {</span>
+<span class="lineNum">     979 </span><span class="lineCov">   22764995 :           ent = hp-&gt;code;</span>
+<span class="lineNum">     980 </span><span class="lineCov">   22764995 :           goto hit;</span>
+<span class="lineNum">     981 </span>            :         }
+<span class="lineNum">     982 </span><span class="lineCov">   21832587 :       } while (hp-&gt;hash &gt;= 0);</span>
+<span class="lineNum">     983 </span>            :     }
+<span class="lineNum">     984 </span>            :     /*
+<span class="lineNum">     985 </span>            :      * New entry, emit code and add to table.
+<span class="lineNum">     986 </span>            :      */
+<span class="lineNum">     987 </span>            :     /*
+<span class="lineNum">     988 </span>            :      * Verify there is space in the buffer for the code
+<span class="lineNum">     989 </span>            :      * and any potential Clear code that might be emitted
+<span class="lineNum">     990 </span>            :      * below.  The value of limit is setup so that there
+<span class="lineNum">     991 </span>            :      * are at least 4 bytes free--room for 2 codes.
+<span class="lineNum">     992 </span>            :      */
+<span class="lineNum">     993 </span><span class="lineCov">   19156739 :     if (op &gt; limit) {</span>
+<span class="lineNum">     994 </span><span class="lineCov">          1 :       tif-&gt;tif_rawcc = (tmsize_t)(op - tif-&gt;tif_rawdata);</span>
+<span class="lineNum">     995 </span><span class="lineCov">          1 :       if( !TIFFFlushData1(tif) )</span>
+<span class="lineNum">     996 </span><span class="lineNoCov">          0 :                             return 0;</span>
+<span class="lineNum">     997 </span><span class="lineCov">          1 :       op = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">     998 </span>            :     }
+<span class="lineNum">     999 </span><span class="lineCov">   19156739 :     PutNextCode(op, ent);</span>
+<span class="lineNum">    1000 </span><span class="lineCov">   19156739 :     ent = (hcode_t)c;</span>
+<span class="lineNum">    1001 </span><span class="lineCov">   19156739 :     hp-&gt;code = (hcode_t)(free_ent++);</span>
+<span class="lineNum">    1002 </span><span class="lineCov">   19156739 :     hp-&gt;hash = fcode;</span>
+<span class="lineNum">    1003 </span><span class="lineCov">   19156739 :     if (free_ent == CODE_MAX-1) {</span>
+<span class="lineNum">    1004 </span>            :       /* table is full, emit clear code and reset */
+<span class="lineNum">    1005 </span><span class="lineCov">       4820 :       cl_hash(sp);</span>
+<span class="lineNum">    1006 </span><span class="lineCov">       4820 :       sp-&gt;enc_ratio = 0;</span>
+<span class="lineNum">    1007 </span><span class="lineCov">       4820 :       incount = 0;</span>
+<span class="lineNum">    1008 </span><span class="lineCov">       4820 :       outcount = 0;</span>
+<span class="lineNum">    1009 </span><span class="lineCov">       4820 :       free_ent = CODE_FIRST;</span>
+<span class="lineNum">    1010 </span><span class="lineCov">       4820 :       PutNextCode(op, CODE_CLEAR);</span>
+<span class="lineNum">    1011 </span><span class="lineCov">       4820 :       nbits = BITS_MIN;</span>
+<span class="lineNum">    1012 </span><span class="lineCov">       4820 :       maxcode = MAXCODE(BITS_MIN);</span>
+<span class="lineNum">    1013 </span>            :     } else {
+<span class="lineNum">    1014 </span>            :       /*
+<span class="lineNum">    1015 </span>            :        * If the next entry is going to be too big for
+<span class="lineNum">    1016 </span>            :        * the code size, then increase it, if possible.
+<span class="lineNum">    1017 </span>            :        */
+<span class="lineNum">    1018 </span><span class="lineCov">   19151919 :       if (free_ent &gt; maxcode) {</span>
+<span class="lineNum">    1019 </span><span class="lineCov">      15425 :         nbits++;</span>
+<span class="lineNum">    1020 </span><span class="lineCov">      15425 :         assert(nbits &lt;= BITS_MAX);</span>
+<span class="lineNum">    1021 </span><span class="lineCov">      15425 :         maxcode = (int) MAXCODE(nbits);</span>
+<span class="lineNum">    1022 </span><span class="lineCov">   19136494 :       } else if (incount &gt;= checkpoint) {</span>
+<span class="lineNum">    1023 </span>            :         long rat;
+<span class="lineNum">    1024 </span>            :         /*
+<span class="lineNum">    1025 </span>            :          * Check compression ratio and, if things seem
+<span class="lineNum">    1026 </span>            :          * to be slipping, clear the hash table and
+<span class="lineNum">    1027 </span>            :          * reset state.  The compression ratio is a
+<span class="lineNum">    1028 </span>            :          * 24+8-bit fractional number.
+<span class="lineNum">    1029 </span>            :          */
+<span class="lineNum">    1030 </span><span class="lineCov">       4025 :         checkpoint = incount+CHECK_GAP;</span>
+<span class="lineNum">    1031 </span><span class="lineCov">       4025 :         CALCRATIO(sp, rat);</span>
+<span class="lineNum">    1032 </span><span class="lineCov">       4025 :         if (rat &lt;= sp-&gt;enc_ratio) {</span>
+<span class="lineNum">    1033 </span><span class="lineCov">         12 :           cl_hash(sp);</span>
+<span class="lineNum">    1034 </span><span class="lineCov">         12 :           sp-&gt;enc_ratio = 0;</span>
+<span class="lineNum">    1035 </span><span class="lineCov">         12 :           incount = 0;</span>
+<span class="lineNum">    1036 </span><span class="lineCov">         12 :           outcount = 0;</span>
+<span class="lineNum">    1037 </span><span class="lineCov">         12 :           free_ent = CODE_FIRST;</span>
+<span class="lineNum">    1038 </span><span class="lineCov">         12 :           PutNextCode(op, CODE_CLEAR);</span>
+<span class="lineNum">    1039 </span><span class="lineCov">         12 :           nbits = BITS_MIN;</span>
+<span class="lineNum">    1040 </span><span class="lineCov">         12 :           maxcode = MAXCODE(BITS_MIN);</span>
+<span class="lineNum">    1041 </span>            :         } else
+<span class="lineNum">    1042 </span><span class="lineCov">       4013 :           sp-&gt;enc_ratio = rat;</span>
+<span class="lineNum">    1043 </span>            :       }
+<span class="lineNum">    1044 </span>            :     }
+<span class="lineNum">    1045 </span>            :   hit:
+<span class="lineNum">    1046 </span>            :     ;
+<span class="lineNum">    1047 </span>            :   }
+<span class="lineNum">    1048 </span>            : 
+<span class="lineNum">    1049 </span>            :   /*
+<span class="lineNum">    1050 </span>            :    * Restore global state.
+<span class="lineNum">    1051 </span>            :    */
+<span class="lineNum">    1052 </span><span class="lineCov">      31101 :   sp-&gt;enc_incount = incount;</span>
+<span class="lineNum">    1053 </span><span class="lineCov">      31101 :   sp-&gt;enc_outcount = outcount;</span>
+<span class="lineNum">    1054 </span><span class="lineCov">      31101 :   sp-&gt;enc_checkpoint = checkpoint;</span>
+<span class="lineNum">    1055 </span><span class="lineCov">      31101 :   sp-&gt;enc_oldcode = ent;</span>
+<span class="lineNum">    1056 </span><span class="lineCov">      31101 :   sp-&gt;lzw_nextdata = nextdata;</span>
+<span class="lineNum">    1057 </span><span class="lineCov">      31101 :   sp-&gt;lzw_nextbits = nextbits;</span>
+<span class="lineNum">    1058 </span><span class="lineCov">      31101 :   sp-&gt;lzw_free_ent = (unsigned short)free_ent;</span>
+<span class="lineNum">    1059 </span><span class="lineCov">      31101 :   sp-&gt;lzw_maxcode = (unsigned short)maxcode;</span>
+<span class="lineNum">    1060 </span><span class="lineCov">      31101 :   sp-&gt;lzw_nbits = (unsigned short)nbits;</span>
+<span class="lineNum">    1061 </span><span class="lineCov">      31101 :   tif-&gt;tif_rawcp = op;</span>
+<span class="lineNum">    1062 </span><span class="lineCov">      31101 :   return (1);</span>
+<span class="lineNum">    1063 </span>            : }
+<span class="lineNum">    1064 </span>            : 
+<span class="lineNum">    1065 </span>            : /*
+<span class="lineNum">    1066 </span>            :  * Finish off an encoded strip by flushing the last
+<span class="lineNum">    1067 </span>            :  * string and tacking on an End Of Information code.
+<a name="1068"><span class="lineNum">    1068 </span>            :  */</a>
+<span class="lineNum">    1069 </span>            : static int
+<span class="lineNum">    1070 </span><span class="lineCov">       9105 : LZWPostEncode(TIFF* tif)</span>
+<span class="lineNum">    1071 </span>            : {
+<span class="lineNum">    1072 </span><span class="lineCov">       9105 :   register LZWCodecState *sp = EncoderState(tif);</span>
+<span class="lineNum">    1073 </span><span class="lineCov">       9105 :   uint8* op = tif-&gt;tif_rawcp;</span>
+<span class="lineNum">    1074 </span><span class="lineCov">       9105 :   long nextbits = sp-&gt;lzw_nextbits;</span>
+<span class="lineNum">    1075 </span><span class="lineCov">       9105 :   unsigned long nextdata = sp-&gt;lzw_nextdata;</span>
+<span class="lineNum">    1076 </span><span class="lineCov">       9105 :   long outcount = sp-&gt;enc_outcount;</span>
+<span class="lineNum">    1077 </span><span class="lineCov">       9105 :   int nbits = sp-&gt;lzw_nbits;</span>
+<span class="lineNum">    1078 </span>            : 
+<span class="lineNum">    1079 </span><span class="lineCov">       9105 :   if (op &gt; sp-&gt;enc_rawlimit) {</span>
+<span class="lineNum">    1080 </span><span class="lineNoCov">          0 :     tif-&gt;tif_rawcc = (tmsize_t)(op - tif-&gt;tif_rawdata);</span>
+<span class="lineNum">    1081 </span><span class="lineNoCov">          0 :     if( !TIFFFlushData1(tif) )</span>
+<span class="lineNum">    1082 </span><span class="lineNoCov">          0 :                     return 0;</span>
+<span class="lineNum">    1083 </span><span class="lineNoCov">          0 :     op = tif-&gt;tif_rawdata;</span>
+<span class="lineNum">    1084 </span>            :   }
+<span class="lineNum">    1085 </span><span class="lineCov">       9105 :   if (sp-&gt;enc_oldcode != (hcode_t) -1) {</span>
+<span class="lineNum">    1086 </span><span class="lineCov">       9105 :                 int free_ent = sp-&gt;lzw_free_ent;</span>
+<span class="lineNum">    1087 </span>            : 
+<span class="lineNum">    1088 </span><span class="lineCov">       9105 :     PutNextCode(op, sp-&gt;enc_oldcode);</span>
+<span class="lineNum">    1089 </span><span class="lineCov">       9105 :     sp-&gt;enc_oldcode = (hcode_t) -1;</span>
+<span class="lineNum">    1090 </span><span class="lineCov">       9105 :                 free_ent ++;</span>
+<span class="lineNum">    1091 </span>            : 
+<span class="lineNum">    1092 </span><span class="lineCov">       9105 :                 if (free_ent == CODE_MAX-1) {</span>
+<span class="lineNum">    1093 </span>            :                         /* table is full, emit clear code and reset */
+<span class="lineNum">    1094 </span><span class="lineNoCov">          0 :                         outcount = 0;</span>
+<span class="lineNum">    1095 </span><span class="lineNoCov">          0 :                         PutNextCode(op, CODE_CLEAR);</span>
+<span class="lineNum">    1096 </span><span class="lineNoCov">          0 :                         nbits = BITS_MIN;</span>
+<span class="lineNum">    1097 </span>            :                 } else {
+<span class="lineNum">    1098 </span>            :                         /*
+<span class="lineNum">    1099 </span>            :                         * If the next entry is going to be too big for
+<span class="lineNum">    1100 </span>            :                         * the code size, then increase it, if possible.
+<span class="lineNum">    1101 </span>            :                         */
+<span class="lineNum">    1102 </span><span class="lineCov">       9105 :                         if (free_ent &gt; sp-&gt;lzw_maxcode) {</span>
+<span class="lineNum">    1103 </span><span class="lineCov">          1 :                                 nbits++;</span>
+<span class="lineNum">    1104 </span><span class="lineCov">          1 :                                 assert(nbits &lt;= BITS_MAX);</span>
+<span class="lineNum">    1105 </span>            :                         }
+<span class="lineNum">    1106 </span>            :                 }
+<span class="lineNum">    1107 </span>            :   }
+<span class="lineNum">    1108 </span><span class="lineCov">       9105 :   PutNextCode(op, CODE_EOI);</span>
+<span class="lineNum">    1109 </span>            :         /* Explicit 0xff masking to make icc -check=conversions happy */
+<span class="lineNum">    1110 </span><span class="lineCov">       9105 :   if (nextbits &gt; 0) </span>
+<span class="lineNum">    1111 </span><span class="lineCov">       9094 :     *op++ = (unsigned char)((nextdata &lt;&lt; (8-nextbits))&amp;0xff);</span>
+<span class="lineNum">    1112 </span><span class="lineCov">       9105 :   tif-&gt;tif_rawcc = (tmsize_t)(op - tif-&gt;tif_rawdata);</span>
+<span class="lineNum">    1113 </span><span class="lineCov">       9105 :   return (1);</span>
+<span class="lineNum">    1114 </span>            : }
+<span class="lineNum">    1115 </span>            : 
+<span class="lineNum">    1116 </span>            : /*
+<span class="lineNum">    1117 </span>            :  * Reset encoding hash table.
+<a name="1118"><span class="lineNum">    1118 </span>            :  */</a>
+<span class="lineNum">    1119 </span>            : static void
+<span class="lineNum">    1120 </span><span class="lineCov">      13937 : cl_hash(LZWCodecState* sp)</span>
+<span class="lineNum">    1121 </span>            : {
+<span class="lineNum">    1122 </span><span class="lineCov">      13937 :   register hash_t *hp = &amp;sp-&gt;enc_hashtab[HSIZE-1];</span>
+<span class="lineNum">    1123 </span><span class="lineCov">      13937 :   register long i = HSIZE-8;</span>
+<span class="lineNum">    1124 </span>            : 
+<span class="lineNum">    1125 </span>            :   do {
+<span class="lineNum">    1126 </span><span class="lineCov">   15679125 :     i -= 8;</span>
+<span class="lineNum">    1127 </span><span class="lineCov">   15679125 :     hp[-7].hash = -1;</span>
+<span class="lineNum">    1128 </span><span class="lineCov">   15679125 :     hp[-6].hash = -1;</span>
+<span class="lineNum">    1129 </span><span class="lineCov">   15679125 :     hp[-5].hash = -1;</span>
+<span class="lineNum">    1130 </span><span class="lineCov">   15679125 :     hp[-4].hash = -1;</span>
+<span class="lineNum">    1131 </span><span class="lineCov">   15679125 :     hp[-3].hash = -1;</span>
+<span class="lineNum">    1132 </span><span class="lineCov">   15679125 :     hp[-2].hash = -1;</span>
+<span class="lineNum">    1133 </span><span class="lineCov">   15679125 :     hp[-1].hash = -1;</span>
+<span class="lineNum">    1134 </span><span class="lineCov">   15679125 :     hp[ 0].hash = -1;</span>
+<span class="lineNum">    1135 </span><span class="lineCov">   15679125 :     hp -= 8;</span>
+<span class="lineNum">    1136 </span><span class="lineCov">   15679125 :   } while (i &gt;= 0);</span>
+<span class="lineNum">    1137 </span><span class="lineCov">      27874 :   for (i += 8; i &gt; 0; i--, hp--)</span>
+<span class="lineNum">    1138 </span><span class="lineCov">      13937 :     hp-&gt;hash = -1;</span>
+<span class="lineNum">    1139 </span><span class="lineCov">      13937 : }</span>
+<a name="1140"><span class="lineNum">    1140 </span>            : </a>
+<span class="lineNum">    1141 </span>            : static void
+<span class="lineNum">    1142 </span><span class="lineCov">       9386 : LZWCleanup(TIFF* tif)</span>
+<span class="lineNum">    1143 </span>            : {
+<span class="lineNum">    1144 </span><span class="lineCov">       9386 :   (void)TIFFPredictorCleanup(tif);</span>
+<span class="lineNum">    1145 </span>            : 
+<span class="lineNum">    1146 </span><span class="lineCov">       9386 :   assert(tif-&gt;tif_data != 0);</span>
+<span class="lineNum">    1147 </span>            : 
+<span class="lineNum">    1148 </span><span class="lineCov">       9386 :   if (DecoderState(tif)-&gt;dec_codetab)</span>
+<span class="lineNum">    1149 </span><span class="lineCov">         94 :     _TIFFfree(DecoderState(tif)-&gt;dec_codetab);</span>
+<span class="lineNum">    1150 </span>            : 
+<span class="lineNum">    1151 </span><span class="lineCov">       9386 :   if (EncoderState(tif)-&gt;enc_hashtab)</span>
+<span class="lineNum">    1152 </span><span class="lineCov">       8911 :     _TIFFfree(EncoderState(tif)-&gt;enc_hashtab);</span>
+<span class="lineNum">    1153 </span>            : 
+<span class="lineNum">    1154 </span><span class="lineCov">       9386 :   _TIFFfree(tif-&gt;tif_data);</span>
+<span class="lineNum">    1155 </span><span class="lineCov">       9386 :   tif-&gt;tif_data = NULL;</span>
+<span class="lineNum">    1156 </span>            : 
+<span class="lineNum">    1157 </span><span class="lineCov">       9386 :   _TIFFSetDefaultCompressionState(tif);</span>
+<span class="lineNum">    1158 </span><span class="lineCov">       9386 : }</span>
+<a name="1159"><span class="lineNum">    1159 </span>            : </a>
+<span class="lineNum">    1160 </span>            : int
+<span class="lineNum">    1161 </span><span class="lineCov">       9386 : TIFFInitLZW(TIFF* tif, int scheme)</span>
+<span class="lineNum">    1162 </span>            : {
+<span class="lineNum">    1163 </span>            :   static const char module[] = &quot;TIFFInitLZW&quot;;
+<span class="lineNum">    1164 </span><span class="lineCov">       9386 :   assert(scheme == COMPRESSION_LZW);</span>
+<span class="lineNum">    1165 </span>            :   /*
+<span class="lineNum">    1166 </span>            :    * Allocate state block so tag methods have storage to record values.
+<span class="lineNum">    1167 </span>            :    */
+<span class="lineNum">    1168 </span><span class="lineCov">       9386 :   tif-&gt;tif_data = (uint8*) _TIFFmalloc(sizeof (LZWCodecState));</span>
+<span class="lineNum">    1169 </span><span class="lineCov">       9386 :   if (tif-&gt;tif_data == NULL)</span>
+<span class="lineNum">    1170 </span><span class="lineNoCov">          0 :     goto bad;</span>
+<span class="lineNum">    1171 </span><span class="lineCov">       9386 :   DecoderState(tif)-&gt;dec_codetab = NULL;</span>
+<span class="lineNum">    1172 </span><span class="lineCov">       9386 :   DecoderState(tif)-&gt;dec_decode = NULL;</span>
+<span class="lineNum">    1173 </span><span class="lineCov">       9386 :   EncoderState(tif)-&gt;enc_hashtab = NULL;</span>
+<span class="lineNum">    1174 </span><span class="lineCov">       9386 :         LZWState(tif)-&gt;rw_mode = tif-&gt;tif_mode;</span>
+<span class="lineNum">    1175 </span>            : 
+<span class="lineNum">    1176 </span>            :   /*
+<span class="lineNum">    1177 </span>            :    * Install codec methods.
+<span class="lineNum">    1178 </span>            :    */
+<span class="lineNum">    1179 </span><span class="lineCov">       9386 :   tif-&gt;tif_fixuptags = LZWFixupTags; </span>
+<span class="lineNum">    1180 </span><span class="lineCov">       9386 :   tif-&gt;tif_setupdecode = LZWSetupDecode;</span>
+<span class="lineNum">    1181 </span><span class="lineCov">       9386 :   tif-&gt;tif_predecode = LZWPreDecode;</span>
+<span class="lineNum">    1182 </span><span class="lineCov">       9386 :   tif-&gt;tif_decoderow = LZWDecode;</span>
+<span class="lineNum">    1183 </span><span class="lineCov">       9386 :   tif-&gt;tif_decodestrip = LZWDecode;</span>
+<span class="lineNum">    1184 </span><span class="lineCov">       9386 :   tif-&gt;tif_decodetile = LZWDecode;</span>
+<span class="lineNum">    1185 </span><span class="lineCov">       9386 :   tif-&gt;tif_setupencode = LZWSetupEncode;</span>
+<span class="lineNum">    1186 </span><span class="lineCov">       9386 :   tif-&gt;tif_preencode = LZWPreEncode;</span>
+<span class="lineNum">    1187 </span><span class="lineCov">       9386 :   tif-&gt;tif_postencode = LZWPostEncode;</span>
+<span class="lineNum">    1188 </span><span class="lineCov">       9386 :   tif-&gt;tif_encoderow = LZWEncode;</span>
+<span class="lineNum">    1189 </span><span class="lineCov">       9386 :   tif-&gt;tif_encodestrip = LZWEncode;</span>
+<span class="lineNum">    1190 </span><span class="lineCov">       9386 :   tif-&gt;tif_encodetile = LZWEncode;</span>
+<span class="lineNum">    1191 </span><span class="lineCov">       9386 :   tif-&gt;tif_cleanup = LZWCleanup;</span>
+<span class="lineNum">    1192 </span>            :   /*
+<span class="lineNum">    1193 </span>            :    * Setup predictor setup.
+<span class="lineNum">    1194 </span>            :    */
+<span class="lineNum">    1195 </span><span class="lineCov">       9386 :   (void) TIFFPredictorInit(tif);</span>
+<span class="lineNum">    1196 </span><span class="lineCov">       9386 :   return (1);</span>
+<span class="lineNum">    1197 </span>            : bad:
+<span class="lineNum">    1198 </span><span class="lineNoCov">          0 :   TIFFErrorExt(tif-&gt;tif_clientdata, module, </span>
+<span class="lineNum">    1199 </span>            :          &quot;No space for LZW state block&quot;);
+<span class="lineNum">    1200 </span><span class="lineNoCov">          0 :   return (0);</span>
+<span class="lineNum">    1201 </span>            : }
+<span class="lineNum">    1202 </span>            : 
+<span class="lineNum">    1203 </span>            : /*
+<span class="lineNum">    1204 </span>            :  * Copyright (c) 1985, 1986 The Regents of the University of California.
+<span class="lineNum">    1205 </span>            :  * All rights reserved.
+<span class="lineNum">    1206 </span>            :  *
+<span class="lineNum">    1207 </span>            :  * This code is derived from software contributed to Berkeley by
+<span class="lineNum">    1208 </span>            :  * James A. Woods, derived from original work by Spencer Thomas
+<span class="lineNum">    1209 </span>            :  * and Joseph Orost.
+<span class="lineNum">    1210 </span>            :  *
+<span class="lineNum">    1211 </span>            :  * Redistribution and use in source and binary forms are permitted
+<span class="lineNum">    1212 </span>            :  * provided that the above copyright notice and this paragraph are
+<span class="lineNum">    1213 </span>            :  * duplicated in all such forms and that any documentation,
+<span class="lineNum">    1214 </span>            :  * advertising materials, and other materials related to such
+<span class="lineNum">    1215 </span>            :  * distribution and use acknowledge that the software was developed
+<span class="lineNum">    1216 </span>            :  * by the University of California, Berkeley.  The name of the
+<span class="lineNum">    1217 </span>            :  * University may not be used to endorse or promote products derived
+<span class="lineNum">    1218 </span>            :  * from this software without specific prior written permission.
+<span class="lineNum">    1219 </span>            :  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+<span class="lineNum">    1220 </span>            :  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+<span class="lineNum">    1221 </span>            :  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+<span class="lineNum">    1222 </span>            :  */
+<span class="lineNum">    1223 </span>            : #endif /* LZW_SUPPORT */
+<span class="lineNum">    1224 </span>            : 
+<span class="lineNum">    1225 </span>            : /* vim: set ts=8 sts=8 sw=8 noet: */
+<span class="lineNum">    1226 </span>            : /*
+<span class="lineNum">    1227 </span>            :  * Local Variables:
+<span class="lineNum">    1228 </span>            :  * mode: c
+<span class="lineNum">    1229 </span>            :  * c-basic-offset: 8
+<span class="lineNum">    1230 </span>            :  * fill-column: 78
+<span class="lineNum">    1231 </span>            :  * End:
+<span class="lineNum">    1232 </span>            :  */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

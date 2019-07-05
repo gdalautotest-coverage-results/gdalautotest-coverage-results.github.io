@@ -1,0 +1,1207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/wfs/ogrwfs3driver.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/wfs</a> - ogrwfs3driver.cpp<span style="font-size: 80%;"> (source / <a href="ogrwfs3driver.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">375</td>
+            <td class="headerCovTableEntry">516</td>
+            <td class="headerCovTableEntryLo">72.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">30</td>
+            <td class="headerCovTableEntry">33</td>
+            <td class="headerCovTableEntryHi">90.9 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  WFS Translator
+<span class="lineNum">       4 </span>            :  * Purpose:  Implements OGRWFSDriver.
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, even dot rouault at spatialys dot com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2018, Even Rouault &lt;even dot rouault at spatialys dot com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;ogrsf_frmts.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;cpl_minixml.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;cpl_http.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;swq.h&quot;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #include &lt;memory&gt;
+<span class="lineNum">      36 </span>            : #include &lt;vector&gt;
+<span class="lineNum">      37 </span>            : #include &lt;set&gt;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : // g++ -Wshadow -Wextra -std=c++11 -fPIC -g -Wall ogr/ogrsf_frmts/wfs/ogrwfs3*.cpp -shared -o ogr_WFS3.so -Iport -Igcore -Iogr -Iogr/ogrsf_frmts -Iogr/ogrsf_frmts/gml -Iogr/ogrsf_frmts/wfs -L. -lgdal
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : extern &quot;C&quot; void RegisterOGRWFS3();
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : /************************************************************************/
+<span class="lineNum">      44 </span>            : /*                           OGRWFS3Dataset                             */
+<span class="lineNum">      45 </span>            : /************************************************************************/
+<span class="lineNum">      46 </span>            : class OGRWFS3Layer;
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : class OGRWFS3Dataset final: public GDALDataset
+<span class="lineNum">      49 </span>            : {
+<span class="lineNum">      50 </span>            :         friend class OGRWFS3Layer;
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            :         CPLString                              m_osRootURL;
+<span class="lineNum">      53 </span>            :         CPLString                              m_osUserPwd;
+<span class="lineNum">      54 </span>            :         int                                    m_nPageSize = 10;
+<span class="lineNum">      55 </span>            :         std::vector&lt;std::unique_ptr&lt;OGRLayer&gt;&gt; m_apoLayers;
+<span class="lineNum">      56 </span>            :         bool                                   m_bAPIDocLoaded = false;
+<span class="lineNum">      57 </span>            :         CPLJSONDocument                        m_oAPIDoc;
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span>            :         bool                    Download(
+<span class="lineNum">      60 </span>            :             const CPLString&amp; osURL,
+<span class="lineNum">      61 </span>            :             const char* pszAccept,
+<span class="lineNum">      62 </span>            :             CPLString&amp; osResult,
+<span class="lineNum">      63 </span>            :             CPLString&amp; osContentType,
+<span class="lineNum">      64 </span>            :             CPLStringList* paosHeaders = nullptr );
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            :         bool                    DownloadJSon(
+<span class="lineNum">      67 </span>            :             const CPLString&amp; osURL,
+<span class="lineNum">      68 </span>            :             CPLJSONDocument&amp; oDoc,
+<span class="lineNum">      69 </span>            :             const char* pszAccept = &quot;application/geo+json, application/json&quot;,
+<span class="lineNum">      70 </span>            :             CPLStringList* paosHeaders = nullptr);
+<a name="71"><span class="lineNum">      71 </span>            : </a>
+<a name="72"><span class="lineNum">      72 </span>            :     public:</a>
+<span class="lineNum">      73 </span><span class="lineCov">         13 :         OGRWFS3Dataset() {}</span>
+<a name="74"><span class="lineNum">      74 </span><span class="lineCov">         26 :         ~OGRWFS3Dataset() {}</span></a>
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span><span class="lineCov">          9 :         int GetLayerCount() override</span>
+<span class="lineNum">      77 </span><span class="lineCov">          9 :                             { return static_cast&lt;int&gt;(m_apoLayers.size()); }</span>
+<span class="lineNum">      78 </span>            :         OGRLayer* GetLayer(int idx) override;
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            :         bool Open(GDALOpenInfo*);
+<span class="lineNum">      81 </span>            :         const CPLJSONDocument&amp; GetAPIDoc();
+<span class="lineNum">      82 </span>            : };
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            : /************************************************************************/
+<span class="lineNum">      85 </span>            : /*                            OGRWFS3Layer                              */
+<span class="lineNum">      86 </span>            : /************************************************************************/
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span>            : class OGRWFS3Layer final: public OGRLayer
+<span class="lineNum">      89 </span>            : {
+<span class="lineNum">      90 </span>            :         OGRWFS3Dataset* m_poDS = nullptr;
+<span class="lineNum">      91 </span>            :         OGRFeatureDefn* m_poFeatureDefn = nullptr;
+<span class="lineNum">      92 </span>            :         CPLString       m_osURL;
+<span class="lineNum">      93 </span>            :         CPLString       m_osPath;
+<span class="lineNum">      94 </span>            :         OGREnvelope     m_oExtent;
+<span class="lineNum">      95 </span>            :         bool            m_bFeatureDefnEstablished = false;
+<span class="lineNum">      96 </span>            :         std::unique_ptr&lt;GDALDataset&gt; m_poUnderlyingDS;
+<span class="lineNum">      97 </span>            :         OGRLayer*       m_poUnderlyingLayer = nullptr;
+<span class="lineNum">      98 </span>            :         GIntBig         m_nFID = 1;
+<span class="lineNum">      99 </span>            :         CPLString       m_osGetURL;
+<span class="lineNum">     100 </span>            :         CPLString       m_osAttributeFilter;
+<span class="lineNum">     101 </span>            :         bool            m_bFilterMustBeClientSideEvaluated = false;
+<span class="lineNum">     102 </span>            :         bool            m_bGotQueriableAttributes = false;
+<span class="lineNum">     103 </span>            :         std::set&lt;CPLString&gt; m_aoSetQueriableAttributes;
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span>            :         void            EstablishFeatureDefn();
+<span class="lineNum">     106 </span>            :         OGRFeature     *GetNextRawFeature();
+<span class="lineNum">     107 </span>            :         CPLString       AddFilters(const CPLString&amp; osURL);
+<span class="lineNum">     108 </span>            :         CPLString       BuildFilter(swq_expr_node* poNode);
+<span class="lineNum">     109 </span>            :         bool            SupportsResultTypeHits();
+<span class="lineNum">     110 </span>            :         void            GetQueriableAttributes();
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            :     public:
+<span class="lineNum">     113 </span>            :         OGRWFS3Layer(OGRWFS3Dataset* poDS,
+<span class="lineNum">     114 </span>            :                      const CPLString&amp; osName,
+<span class="lineNum">     115 </span>            :                      const CPLString&amp; osTitle,
+<span class="lineNum">     116 </span>            :                      const CPLString&amp; osDescription,
+<span class="lineNum">     117 </span>            :                      const CPLJSONArray&amp; oBBOX,
+<span class="lineNum">     118 </span>            :                      const CPLJSONArray&amp; oLinks,
+<span class="lineNum">     119 </span>            :                      const CPLJSONArray&amp; oCRS);
+<span class="lineNum">     120 </span>            :         OGRWFS3Layer(OGRWFS3Dataset* poDS,
+<span class="lineNum">     121 </span>            :                      const CPLString&amp; osName,
+<span class="lineNum">     122 </span>            :                      const CPLString&amp; osTitle,
+<span class="lineNum">     123 </span>            :                      const CPLString&amp; osURL,
+<span class="lineNum">     124 </span>            :                      const OGREnvelope&amp; oEnvelope);
+<a name="125"><span class="lineNum">     125 </span>            :        ~OGRWFS3Layer();</a>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineCov">          1 :        const char*     GetName() override { return GetDescription(); }</span>
+<span class="lineNum">     128 </span>            :        OGRFeatureDefn* GetLayerDefn() override;
+<a name="129"><span class="lineNum">     129 </span>            :        void            ResetReading() override;</a>
+<span class="lineNum">     130 </span>            :        OGRFeature*     GetNextFeature() override;
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :        int             TestCapability(const char*) override { return false; }</span>
+<span class="lineNum">     132 </span>            :        GIntBig         GetFeatureCount(int bForce = FALSE) override;
+<a name="133"><span class="lineNum">     133 </span>            :        OGRErr          GetExtent(OGREnvelope *psExtent,</a>
+<span class="lineNum">     134 </span>            :                                  int bForce = TRUE) override;
+<span class="lineNum">     135 </span><span class="lineCov">          1 :        OGRErr          GetExtent(int iGeomField, OGREnvelope *psExtent,</span>
+<span class="lineNum">     136 </span>            :                                  int bForce) override
+<span class="lineNum">     137 </span><span class="lineCov">          1 :                 { return OGRLayer::GetExtent(iGeomField, psExtent, bForce); }</span>
+<a name="138"><span class="lineNum">     138 </span>            : </a>
+<span class="lineNum">     139 </span>            :        void            SetSpatialFilter( OGRGeometry *poGeom ) override;
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :        void            SetSpatialFilter( int iGeomField, OGRGeometry *poGeom )</span>
+<span class="lineNum">     141 </span>            :                                                                     override
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :                 { OGRLayer::SetSpatialFilter(iGeomField, poGeom); }</span>
+<span class="lineNum">     143 </span>            :        OGRErr          SetAttributeFilter( const char *pszQuery ) override;
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span>            : };
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span>            : /************************************************************************/
+<span class="lineNum">     148 </span>            : /*                              Download()                              */
+<a name="149"><span class="lineNum">     149 </span>            : /************************************************************************/</a>
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span><span class="lineCov">         31 : bool OGRWFS3Dataset::Download(</span>
+<span class="lineNum">     152 </span>            :             const CPLString&amp; osURL,
+<span class="lineNum">     153 </span>            :             const char* pszAccept,
+<span class="lineNum">     154 </span>            :             CPLString&amp; osResult,
+<span class="lineNum">     155 </span>            :             CPLString&amp; osContentType,
+<span class="lineNum">     156 </span>            :             CPLStringList* paosHeaders )
+<span class="lineNum">     157 </span>            : {
+<span class="lineNum">     158 </span>            : #ifndef REMOVE_HACK
+<span class="lineNum">     159 </span>            :     VSIStatBufL sStatBuf;
+<span class="lineNum">     160 </span><span class="lineCov">         31 :     if( VSIStatL(osURL, &amp;sStatBuf) == 0 )</span>
+<span class="lineNum">     161 </span>            :     {
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :         CPLDebug(&quot;WFS3&quot;, &quot;Reading %s&quot;, osURL.c_str());</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :         GByte* pabyRet = nullptr;</span>
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :         if( VSIIngestFile( nullptr, osURL, &amp;pabyRet, nullptr, -1) )</span>
+<span class="lineNum">     165 </span>            :         {
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :             osResult = reinterpret_cast&lt;char*&gt;(pabyRet);</span>
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :             CPLFree(pabyRet);</span>
+<span class="lineNum">     168 </span>            :         }
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     170 </span>            :     }
+<span class="lineNum">     171 </span>            : #endif
+<span class="lineNum">     172 </span>            :     char** papszOptions = CSLSetNameValue(nullptr,
+<span class="lineNum">     173 </span><span class="lineCov">         31 :             &quot;HEADERS&quot;, (CPLString(&quot;Accept: &quot;) + pszAccept).c_str());</span>
+<span class="lineNum">     174 </span><span class="lineCov">         31 :     if( !m_osUserPwd.empty() )</span>
+<span class="lineNum">     175 </span>            :     {
+<span class="lineNum">     176 </span>            :         papszOptions = CSLSetNameValue(papszOptions,
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :                                        &quot;USERPWD&quot;, m_osUserPwd.c_str());</span>
+<span class="lineNum">     178 </span>            :     }
+<span class="lineNum">     179 </span><span class="lineCov">         31 :     CPLHTTPResult* psResult = CPLHTTPFetch(osURL, papszOptions);</span>
+<span class="lineNum">     180 </span><span class="lineCov">         31 :     CSLDestroy(papszOptions);</span>
+<span class="lineNum">     181 </span><span class="lineCov">         31 :     if( !psResult )</span>
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineCov">         31 :     if( psResult-&gt;pszErrBuf != nullptr )</span>
+<span class="lineNum">     185 </span>            :     {
+<span class="lineNum">     186 </span>            :         CPLError(CE_Failure, CPLE_AppDefined, &quot;%s&quot;,
+<span class="lineNum">     187 </span>            :                 psResult-&gt;pabyData ?
+<span class="lineNum">     188 </span>            :                     reinterpret_cast&lt;const char*&gt;(psResult-&gt;pabyData) :
+<span class="lineNum">     189 </span><span class="lineCov">          1 :                 psResult-&gt;pszErrBuf);</span>
+<span class="lineNum">     190 </span><span class="lineCov">          1 :         CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">     191 </span><span class="lineCov">          1 :         return false;</span>
+<span class="lineNum">     192 </span>            :     }
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span><span class="lineCov">         30 :     if( psResult-&gt;pszContentType )</span>
+<span class="lineNum">     195 </span><span class="lineCov">         29 :         osContentType = psResult-&gt;pszContentType;</span>
+<span class="lineNum">     196 </span><span class="lineCov">         30 :     bool bFoundExpectedContentType = false;</span>
+<span class="lineNum">     197 </span>            :     // FIXME ?
+<span class="lineNum">     198 </span><span class="lineCov">         30 :     if( strstr(pszAccept, &quot;json&quot;) )</span>
+<span class="lineNum">     199 </span>            :     {
+<span class="lineNum">     200 </span><span class="lineCov">         30 :         if( strstr(osURL, &quot;raw.githubusercontent.com&quot;) &amp;&amp;</span>
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :             strstr(osURL, &quot;.json&quot;) )</span>
+<span class="lineNum">     202 </span>            :         {
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :             bFoundExpectedContentType = true;</span>
+<span class="lineNum">     204 </span>            :         }
+<span class="lineNum">     205 </span><span class="lineCov">         59 :         else if( psResult-&gt;pszContentType != nullptr &amp;&amp;</span>
+<span class="lineNum">     206 </span><span class="lineCov">         44 :             (strstr(psResult-&gt;pszContentType, &quot;application/json&quot;) != nullptr ||</span>
+<span class="lineNum">     207 </span><span class="lineCov">         15 :             strstr(psResult-&gt;pszContentType, &quot;application/geo+json&quot;) != nullptr) )</span>
+<span class="lineNum">     208 </span>            :         {
+<span class="lineNum">     209 </span><span class="lineCov">         28 :             bFoundExpectedContentType = true;</span>
+<span class="lineNum">     210 </span>            :         }
+<span class="lineNum">     211 </span>            :     }
+<span class="lineNum">     212 </span><span class="lineCov">         42 :     if( strstr(pszAccept, &quot;xml&quot;) &amp;&amp;</span>
+<span class="lineNum">     213 </span><span class="lineCov">         23 :         psResult-&gt;pszContentType != nullptr &amp;&amp;</span>
+<span class="lineNum">     214 </span><span class="lineCov">         11 :         strstr(psResult-&gt;pszContentType, &quot;text/xml&quot;) != nullptr )</span>
+<span class="lineNum">     215 </span>            :     {
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :         bFoundExpectedContentType = true;</span>
+<span class="lineNum">     217 </span>            :     }
+<span class="lineNum">     218 </span><span class="lineCov">         32 :     if( strstr(pszAccept, &quot;application/openapi+json;version=3.0&quot;) &amp;&amp;</span>
+<span class="lineNum">     219 </span><span class="lineCov">          4 :         psResult-&gt;pszContentType != nullptr &amp;&amp;</span>
+<span class="lineNum">     220 </span><span class="lineCov">          2 :         strstr(psResult-&gt;pszContentType, &quot;application/openapi+json;version=3.0&quot;) != nullptr )</span>
+<span class="lineNum">     221 </span>            :     {
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :         bFoundExpectedContentType = true;</span>
+<span class="lineNum">     223 </span>            :     }
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineCov">         30 :     if( !bFoundExpectedContentType )</span>
+<span class="lineNum">     226 </span>            :     {
+<span class="lineNum">     227 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     228 </span>            :                 &quot;Unexpected Content-Type: %s&quot;,
+<span class="lineNum">     229 </span>            :                 psResult-&gt;pszContentType ?
+<span class="lineNum">     230 </span><span class="lineCov">          2 :                     psResult-&gt;pszContentType : &quot;(null)&quot; );</span>
+<span class="lineNum">     231 </span><span class="lineCov">          2 :         CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">     232 </span><span class="lineCov">          2 :         return false;</span>
+<span class="lineNum">     233 </span>            :     }
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span><span class="lineCov">         28 :     if( psResult-&gt;pabyData == nullptr )</span>
+<span class="lineNum">     236 </span>            :     {
+<span class="lineNum">     237 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :                  &quot;Empty content returned by server&quot;);</span>
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :         CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     241 </span>            :     }
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineCov">         28 :     if( paosHeaders )</span>
+<span class="lineNum">     244 </span>            :     {
+<span class="lineNum">     245 </span><span class="lineCov">          9 :         *paosHeaders = CSLDuplicate(psResult-&gt;papszHeaders);</span>
+<span class="lineNum">     246 </span>            :     }
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineCov">         28 :     osResult = reinterpret_cast&lt;const char*&gt;(psResult-&gt;pabyData);</span>
+<span class="lineNum">     249 </span><span class="lineCov">         28 :     CPLHTTPDestroyResult(psResult);</span>
+<span class="lineNum">     250 </span><span class="lineCov">         28 :     return true;</span>
+<span class="lineNum">     251 </span>            : }
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            : /************************************************************************/
+<span class="lineNum">     255 </span>            : /*                           DownloadJSon()                             */
+<a name="256"><span class="lineNum">     256 </span>            : /************************************************************************/</a>
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineCov">         18 : bool OGRWFS3Dataset::DownloadJSon(const CPLString&amp; osURL,</span>
+<span class="lineNum">     259 </span>            :                                   CPLJSONDocument&amp; oDoc,
+<span class="lineNum">     260 </span>            :                                   const char* pszAccept,
+<span class="lineNum">     261 </span>            :                                   CPLStringList* paosHeaders)
+<span class="lineNum">     262 </span>            : {
+<span class="lineNum">     263 </span><span class="lineCov">         18 :     CPLString osResult;</span>
+<span class="lineNum">     264 </span><span class="lineCov">         36 :     CPLString osContentType;</span>
+<span class="lineNum">     265 </span><span class="lineCov">         18 :     if( !Download(osURL, pszAccept, osResult, osContentType, paosHeaders) )</span>
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     267 </span><span class="lineCov">         36 :     return oDoc.LoadMemory( osResult );</span>
+<span class="lineNum">     268 </span>            : }
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            : /************************************************************************/
+<span class="lineNum">     271 </span>            : /*                            GetAPIDoc()                               */
+<a name="272"><span class="lineNum">     272 </span>            : /************************************************************************/</a>
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span><span class="lineCov">          3 : const CPLJSONDocument&amp; OGRWFS3Dataset::GetAPIDoc()</span>
+<span class="lineNum">     275 </span>            : {
+<span class="lineNum">     276 </span><span class="lineCov">          3 :     if( m_bAPIDocLoaded )</span>
+<span class="lineNum">     277 </span><span class="lineCov">          1 :         return m_oAPIDoc;</span>
+<span class="lineNum">     278 </span><span class="lineCov">          2 :     m_bAPIDocLoaded = true;</span>
+<span class="lineNum">     279 </span>            : #ifndef REMOVE_HACK
+<span class="lineNum">     280 </span><span class="lineCov">          2 :     CPLPushErrorHandler(CPLQuietErrorHandler);</span>
+<span class="lineNum">     281 </span>            : #endif
+<span class="lineNum">     282 </span><span class="lineCov">          2 :     CPLString osURL(m_osRootURL + &quot;/api&quot;);</span>
+<span class="lineNum">     283 </span>            : #ifndef REMOVE_HACK
+<span class="lineNum">     284 </span><span class="lineCov">          2 :     osURL = CPLGetConfigOption(&quot;OGR_WFS3_API_URL&quot;, osURL.c_str());</span>
+<span class="lineNum">     285 </span>            : #endif
+<span class="lineNum">     286 </span>            :     bool bOK = DownloadJSon(osURL, m_oAPIDoc,
+<span class="lineNum">     287 </span><span class="lineCov">          2 :                      &quot;application/openapi+json;version=3.0, application/json&quot;);</span>
+<span class="lineNum">     288 </span>            : #ifndef REMOVE_HACK
+<span class="lineNum">     289 </span><span class="lineCov">          2 :     CPLPopErrorHandler();</span>
+<span class="lineNum">     290 </span><span class="lineCov">          2 :     CPLErrorReset();</span>
+<span class="lineNum">     291 </span>            : #endif
+<span class="lineNum">     292 </span><span class="lineCov">          2 :     if( bOK )</span>
+<span class="lineNum">     293 </span>            :     {
+<span class="lineNum">     294 </span><span class="lineCov">          2 :         return m_oAPIDoc;</span>
+<span class="lineNum">     295 </span>            :     }
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            : #ifndef REMOVE_HACK
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :     if( DownloadJSon(m_osRootURL + &quot;/api/&quot;, m_oAPIDoc,</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :                      &quot;application/openapi+json;version=3.0, application/json&quot;) )</span>
+<span class="lineNum">     300 </span>            :     {
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :         return m_oAPIDoc;</span>
+<span class="lineNum">     302 </span>            :     }
+<span class="lineNum">     303 </span>            : #endif
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 :     return m_oAPIDoc;</span>
+<span class="lineNum">     305 </span>            : }
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span>            : /************************************************************************/
+<span class="lineNum">     308 </span>            : /*                              Open()                                  */
+<a name="309"><span class="lineNum">     309 </span>            : /************************************************************************/</a>
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span><span class="lineCov">         13 : bool OGRWFS3Dataset::Open(GDALOpenInfo* poOpenInfo)</span>
+<span class="lineNum">     312 </span>            : {
+<span class="lineNum">     313 </span><span class="lineCov">         26 :     m_osRootURL =</span>
+<span class="lineNum">     314 </span>            :         CSLFetchNameValueDef(poOpenInfo-&gt;papszOpenOptions, &quot;URL&quot;,
+<span class="lineNum">     315 </span><span class="lineCov">         13 :             poOpenInfo-&gt;pszFilename + strlen(&quot;WFS3:&quot;));</span>
+<span class="lineNum">     316 </span>            :     m_nPageSize = atoi( CSLFetchNameValueDef(poOpenInfo-&gt;papszOpenOptions,
+<span class="lineNum">     317 </span><span class="lineCov">         13 :                             &quot;PAGE_SIZE&quot;,CPLSPrintf(&quot;%d&quot;, m_nPageSize)) );</span>
+<span class="lineNum">     318 </span><span class="lineCov">         26 :     m_osUserPwd =</span>
+<span class="lineNum">     319 </span><span class="lineCov">         13 :         CSLFetchNameValueDef(poOpenInfo-&gt;papszOpenOptions, &quot;USERPWD&quot;, &quot;&quot;);</span>
+<span class="lineNum">     320 </span><span class="lineCov">         13 :     CPLString osResult;</span>
+<span class="lineNum">     321 </span><span class="lineCov">         26 :     CPLString osContentType;</span>
+<span class="lineNum">     322 </span>            :     // FIXME: json would be preferable in first position, but
+<span class="lineNum">     323 </span>            :     // http://www.pvretano.com/cubewerx/cubeserv/default/wfs/3.0.0/foundation doesn't like it
+<span class="lineNum">     324 </span><span class="lineCov">         39 :     if( !Download(m_osRootURL + &quot;/collections&quot;,</span>
+<span class="lineNum">     325 </span>            :             &quot;text/xml, application/json&quot;,
+<span class="lineNum">     326 </span><span class="lineCov">         26 :             osResult, osContentType) )</span>
+<span class="lineNum">     327 </span><span class="lineCov">          3 :         return false;</span>
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span><span class="lineCov">         10 :     if( osContentType.find(&quot;json&quot;) != std::string::npos )</span>
+<span class="lineNum">     330 </span>            :     {
+<span class="lineNum">     331 </span><span class="lineCov">         10 :         CPLJSONDocument oDoc;</span>
+<span class="lineNum">     332 </span><span class="lineCov">         10 :         if( !oDoc.LoadMemory(osResult) )</span>
+<span class="lineNum">     333 </span>            :         {
+<span class="lineNum">     334 </span><span class="lineCov">          1 :             return false;</span>
+<span class="lineNum">     335 </span>            :         }
+<span class="lineNum">     336 </span><span class="lineCov">         16 :         CPLJSONArray oCollections = oDoc.GetRoot().GetArray(&quot;collections&quot;);</span>
+<span class="lineNum">     337 </span><span class="lineCov">          9 :         if( !oCollections.IsValid() )</span>
+<span class="lineNum">     338 </span>            :         {
+<span class="lineNum">     339 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     340 </span><span class="lineCov">          2 :                     &quot;No collections array&quot;);</span>
+<span class="lineNum">     341 </span><span class="lineCov">          2 :             return false;</span>
+<span class="lineNum">     342 </span>            :         }
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineCov">         15 :         for( int i = 0; i &lt; oCollections.Size(); i++ )</span>
+<span class="lineNum">     345 </span>            :         {
+<span class="lineNum">     346 </span><span class="lineCov">          8 :             CPLJSONObject oCollection = oCollections[i];</span>
+<span class="lineNum">     347 </span><span class="lineCov">          8 :             if( oCollection.GetType() != CPLJSONObject::Type::Object )</span>
+<span class="lineNum">     348 </span><span class="lineCov">          1 :                 continue;</span>
+<span class="lineNum">     349 </span><span class="lineCov">         13 :             CPLString osName( oCollection.GetString(&quot;name&quot;) );</span>
+<span class="lineNum">     350 </span>            : #ifndef REMOVE_HACK
+<span class="lineNum">     351 </span><span class="lineCov">          7 :             if( osName.empty() )</span>
+<span class="lineNum">     352 </span><span class="lineCov">          1 :                 osName = oCollection.GetString(&quot;collectionId&quot;);</span>
+<span class="lineNum">     353 </span>            : #endif
+<span class="lineNum">     354 </span>            :             // &quot;name&quot; will be soon be replaced by &quot;id&quot;
+<span class="lineNum">     355 </span>            :             // https://github.com/opengeospatial/WFS_FES/issues/171
+<span class="lineNum">     356 </span><span class="lineCov">          7 :             if( osName.empty() )</span>
+<span class="lineNum">     357 </span><span class="lineCov">          1 :                 osName = oCollection.GetString(&quot;id&quot;);</span>
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineCov">          7 :             if( osName.empty() )</span>
+<span class="lineNum">     360 </span><span class="lineCov">          1 :                 continue;</span>
+<span class="lineNum">     361 </span><span class="lineCov">         12 :             CPLString osTitle( oCollection.GetString(&quot;title&quot;) );</span>
+<span class="lineNum">     362 </span><span class="lineCov">         12 :             CPLString osDescription( oCollection.GetString(&quot;description&quot;) );</span>
+<span class="lineNum">     363 </span><span class="lineCov">         12 :             CPLJSONArray oBBOX = oCollection.GetArray(&quot;extent/spatial&quot;);</span>
+<span class="lineNum">     364 </span><span class="lineCov">         12 :             CPLJSONArray oLinks = oCollection.GetArray(&quot;links&quot;);</span>
+<span class="lineNum">     365 </span><span class="lineCov">         12 :             CPLJSONArray oCRS = oCollection.GetArray(&quot;crs&quot;);</span>
+<span class="lineNum">     366 </span>            :             m_apoLayers.push_back( std::unique_ptr&lt;OGRWFS3Layer&gt;( new
+<span class="lineNum">     367 </span>            :                 OGRWFS3Layer(this, osName, osTitle, osDescription,
+<span class="lineNum">     368 </span><span class="lineCov">          6 :                             oBBOX, oLinks, oCRS) ) );</span>
+<span class="lineNum">     369 </span><span class="lineCov">         13 :         }</span>
+<span class="lineNum">     370 </span>            :     }
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :     else if( osContentType.find(&quot;xml&quot;) != std::string::npos )</span>
+<span class="lineNum">     372 </span>            :     {
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :         CPLXMLNode* psDoc = CPLParseXMLString(osResult);</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :         if( !psDoc )</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :         CPLXMLTreeCloser oCloser(psDoc);</span>
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :         CPLStripXMLNamespace(psDoc, nullptr, true);</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :         CPLXMLNode* psCollections = CPLGetXMLNode(psDoc, &quot;=Collections&quot;);</span>
+<span class="lineNum">     379 </span><span class="lineNoCov">          0 :         if( !psCollections )</span>
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :         for( CPLXMLNode* psIter = psCollections-&gt;psChild;</span>
+<span class="lineNum">     382 </span>            :                                             psIter; psIter = psIter-&gt;psNext )
+<span class="lineNum">     383 </span>            :         {
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :             if( psIter-&gt;eType == CXT_Element &amp;&amp;</span>
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :                 strcmp(psIter-&gt;pszValue, &quot;Collection&quot;) == 0 )</span>
+<span class="lineNum">     386 </span>            :             {
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :                 CPLString osHref;</span>
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :                 OGREnvelope oEnvelope;</span>
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :                 for( CPLXMLNode* psCollIter = psIter-&gt;psChild;</span>
+<span class="lineNum">     390 </span>            :                                 psCollIter; psCollIter = psCollIter-&gt;psNext )
+<span class="lineNum">     391 </span>            :                 {
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 :                     if( psCollIter-&gt;eType == CXT_Element &amp;&amp;</span>
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :                         strcmp(psCollIter-&gt;pszValue, &quot;link&quot;) == 0 )</span>
+<span class="lineNum">     394 </span>            :                     {
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :                         CPLString osRel(CPLGetXMLValue(psCollIter, &quot;rel&quot;, &quot;&quot;));</span>
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :                         if( osRel == &quot;collection&quot; )</span>
+<span class="lineNum">     397 </span>            :                         {
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :                             osHref = CPLGetXMLValue(psCollIter, &quot;href&quot;, &quot;&quot;);</span>
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :                             break;</span>
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :                         }</span>
+<span class="lineNum">     401 </span>            :                     }
+<span class="lineNum">     402 </span>            :                 }
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :                 CPLString osName(CPLGetXMLValue(psIter, &quot;Name&quot;, &quot;&quot;));</span>
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :                 CPLString osTitle(CPLGetXMLValue(psIter, &quot;Title&quot;, &quot;&quot;));</span>
+<span class="lineNum">     405 </span>            :                 CPLString osLC(CPLGetXMLValue(psIter,
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :                                         &quot;WGS84BoundingBox.LowerCorner&quot;, &quot;&quot;));</span>
+<span class="lineNum">     407 </span>            :                 CPLString osUC(CPLGetXMLValue(psIter,
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :                                         &quot;WGS84BoundingBox.UpperCorner&quot;, &quot;&quot;));</span>
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :                 CPLStringList aosLC(CSLTokenizeString2(osLC, &quot; &quot;, 0));</span>
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :                 CPLStringList aosUC(CSLTokenizeString2(osUC, &quot; &quot;, 0));</span>
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :                 if( aosLC.size() == 2 &amp;&amp; aosUC.size() == 2 )</span>
+<span class="lineNum">     412 </span>            :                 {
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :                     oEnvelope.MinX = CPLAtof(aosLC[0]);</span>
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :                     oEnvelope.MinY = CPLAtof(aosLC[1]);</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :                     oEnvelope.MaxX = CPLAtof(aosUC[0]);</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :                     oEnvelope.MaxY = CPLAtof(aosUC[1]);</span>
+<span class="lineNum">     417 </span>            :                 }
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :                 if( !osHref.empty() )</span>
+<span class="lineNum">     419 </span>            :                 {
+<span class="lineNum">     420 </span>            :                     m_apoLayers.push_back( std::unique_ptr&lt;OGRWFS3Layer&gt;( new
+<span class="lineNum">     421 </span>            :                         OGRWFS3Layer(
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :                             this, osName, osTitle, osHref, oEnvelope) ) );</span>
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :                 }</span>
+<span class="lineNum">     424 </span>            :             }
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :         }</span>
+<span class="lineNum">     426 </span>            :     }
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span><span class="lineCov">         20 :     return true;</span>
+<span class="lineNum">     429 </span>            : }
+<span class="lineNum">     430 </span>            : 
+<span class="lineNum">     431 </span>            : /************************************************************************/
+<span class="lineNum">     432 </span>            : /*                             GetLayer()                               */
+<a name="433"><span class="lineNum">     433 </span>            : /************************************************************************/</a>
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span><span class="lineCov">          8 : OGRLayer* OGRWFS3Dataset::GetLayer(int nIndex)</span>
+<span class="lineNum">     436 </span>            : {
+<span class="lineNum">     437 </span><span class="lineCov">          8 :     if( nIndex &lt; 0 || nIndex &gt;= GetLayerCount() )</span>
+<span class="lineNum">     438 </span><span class="lineCov">          2 :         return nullptr;</span>
+<span class="lineNum">     439 </span><span class="lineCov">          6 :     return m_apoLayers[nIndex].get();</span>
+<span class="lineNum">     440 </span>            : }
+<span class="lineNum">     441 </span>            : 
+<span class="lineNum">     442 </span>            : /************************************************************************/
+<span class="lineNum">     443 </span>            : /*                             Identify()                               */
+<a name="444"><span class="lineNum">     444 </span>            : /************************************************************************/</a>
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span><span class="lineCov">      27026 : static int OGRWFS3DriverIdentify( GDALOpenInfo* poOpenInfo )</span>
+<span class="lineNum">     447 </span>            : 
+<span class="lineNum">     448 </span>            : {
+<span class="lineNum">     449 </span><span class="lineCov">      27026 :     return STARTS_WITH_CI(poOpenInfo-&gt;pszFilename, &quot;WFS3:&quot;);</span>
+<span class="lineNum">     450 </span>            : }
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span>            : /************************************************************************/
+<span class="lineNum">     453 </span>            : /*                           OGRWFS3Layer()                             */
+<a name="454"><span class="lineNum">     454 </span>            : /************************************************************************/</a>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          6 : OGRWFS3Layer::OGRWFS3Layer(OGRWFS3Dataset* poDS,</span>
+<span class="lineNum">     457 </span>            :                            const CPLString&amp; osName,
+<span class="lineNum">     458 </span>            :                            const CPLString&amp; osTitle,
+<span class="lineNum">     459 </span>            :                            const CPLString&amp; osDescription,
+<span class="lineNum">     460 </span>            :                            const CPLJSONArray&amp; oBBOX,
+<span class="lineNum">     461 </span>            :                            const CPLJSONArray&amp; /* oLinks */,
+<span class="lineNum">     462 </span>            :                            const CPLJSONArray&amp; oCRS) :
+<span class="lineNum">     463 </span><span class="lineCov">          6 :     m_poDS(poDS)</span>
+<span class="lineNum">     464 </span>            : {
+<span class="lineNum">     465 </span><span class="lineCov">          6 :     m_poFeatureDefn = new OGRFeatureDefn(osName);</span>
+<span class="lineNum">     466 </span><span class="lineCov">          6 :     m_poFeatureDefn-&gt;Reference();</span>
+<span class="lineNum">     467 </span><span class="lineCov">          6 :     SetDescription(osName);</span>
+<span class="lineNum">     468 </span><span class="lineCov">          6 :     if( !osTitle.empty() )</span>
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :         SetMetadataItem(&quot;TITLE&quot;, osTitle.c_str());</span>
+<span class="lineNum">     470 </span><span class="lineCov">          6 :     if( !osDescription.empty() )</span>
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :         SetMetadataItem(&quot;DESCRIPTION&quot;, osDescription.c_str());</span>
+<span class="lineNum">     472 </span><span class="lineCov">          6 :     if( oBBOX.IsValid() &amp;&amp; oBBOX.Size() == 4 )</span>
+<span class="lineNum">     473 </span>            :     {
+<span class="lineNum">     474 </span><span class="lineCov">          2 :         m_oExtent.MinX = oBBOX[0].ToDouble();</span>
+<span class="lineNum">     475 </span><span class="lineCov">          2 :         m_oExtent.MinY = oBBOX[1].ToDouble();</span>
+<span class="lineNum">     476 </span><span class="lineCov">          2 :         m_oExtent.MaxX = oBBOX[2].ToDouble();</span>
+<span class="lineNum">     477 </span><span class="lineCov">          2 :         m_oExtent.MaxY = oBBOX[3].ToDouble();</span>
+<span class="lineNum">     478 </span>            : 
+<span class="lineNum">     479 </span>            :         // Handle bbox over antimerdian, which we do not support properly
+<span class="lineNum">     480 </span>            :         // in OGR
+<span class="lineNum">     481 </span><span class="lineCov">          2 :         if( m_oExtent.MinX &gt; m_oExtent.MaxX &amp;&amp;</span>
+<span class="lineNum">     482 </span><span class="lineNoCov">          0 :             fabs(m_oExtent.MinX) &lt;= 180.0 &amp;&amp;</span>
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :             fabs(m_oExtent.MaxX) &lt;= 180.0 )</span>
+<span class="lineNum">     484 </span>            :         {
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :             m_oExtent.MinX = -180.0;</span>
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :             m_oExtent.MaxX = 180.0;</span>
+<span class="lineNum">     487 </span>            :         }
+<span class="lineNum">     488 </span>            :     }
+<span class="lineNum">     489 </span><span class="lineCov">          6 :     if( !oCRS.IsValid() || oCRS.Size() == 0 )</span>
+<span class="lineNum">     490 </span>            :     {
+<span class="lineNum">     491 </span><span class="lineCov">          6 :         OGRSpatialReference* poSRS = new OGRSpatialReference();</span>
+<span class="lineNum">     492 </span><span class="lineCov">          6 :         poSRS-&gt;SetFromUserInput(SRS_WKT_WGS84_LAT_LONG);</span>
+<span class="lineNum">     493 </span><span class="lineCov">          6 :         poSRS-&gt;SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">     494 </span><span class="lineCov">          6 :         m_poFeatureDefn-&gt;GetGeomFieldDefn(0)-&gt;SetSpatialRef(poSRS);</span>
+<span class="lineNum">     495 </span><span class="lineCov">          6 :         poSRS-&gt;Release();</span>
+<span class="lineNum">     496 </span>            :     }
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span><span class="lineCov">          6 :     m_osURL = m_poDS-&gt;m_osRootURL + &quot;/collections/&quot; + osName + &quot;/items&quot;; // FIXME</span>
+<span class="lineNum">     499 </span><span class="lineCov">          6 :     m_osPath = &quot;/collections/&quot; + osName + &quot;/items&quot;; // FIXME</span>
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span><span class="lineCov">          6 :     OGRWFS3Layer::ResetReading();</span>
+<span class="lineNum">     502 </span><span class="lineCov">          6 : }</span>
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span>            : /************************************************************************/
+<span class="lineNum">     505 </span>            : /*                           OGRWFS3Layer()                             */
+<a name="506"><span class="lineNum">     506 </span>            : /************************************************************************/</a>
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 : OGRWFS3Layer::OGRWFS3Layer(OGRWFS3Dataset* poDS,</span>
+<span class="lineNum">     509 </span>            :                            const CPLString&amp; osName,
+<span class="lineNum">     510 </span>            :                            const CPLString&amp; osTitle,
+<span class="lineNum">     511 </span>            :                            const CPLString&amp; osURL,
+<span class="lineNum">     512 </span>            :                            const OGREnvelope&amp; oEnvelope) :
+<span class="lineNum">     513 </span>            :     m_poDS(poDS),
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :     m_osURL(osURL)</span>
+<span class="lineNum">     515 </span>            : {
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :     m_poFeatureDefn = new OGRFeatureDefn(osName);</span>
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :     m_poFeatureDefn-&gt;Reference();</span>
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 :     SetDescription(osName);</span>
+<span class="lineNum">     519 </span><span class="lineNoCov">          0 :     if( !osTitle.empty() )</span>
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :         SetMetadataItem(&quot;TITLE&quot;, osTitle.c_str());</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :     if( oEnvelope.IsInit() )</span>
+<span class="lineNum">     522 </span>            :     {
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 :         m_oExtent = oEnvelope;</span>
+<span class="lineNum">     524 </span>            :     }
+<span class="lineNum">     525 </span>            : 
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :     OGRSpatialReference* poSRS = new OGRSpatialReference();</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :     poSRS-&gt;SetFromUserInput(SRS_WKT_WGS84_LAT_LONG);</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :     poSRS-&gt;SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span>
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :     m_poFeatureDefn-&gt;GetGeomFieldDefn(0)-&gt;SetSpatialRef(poSRS);</span>
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :     poSRS-&gt;Release();</span>
+<span class="lineNum">     531 </span>            : 
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :     size_t nPos = osURL.rfind('/');</span>
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :     if( nPos != std::string::npos )</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :         m_osPath = osURL.substr(nPos);</span>
+<span class="lineNum">     535 </span>            : 
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 :     ResetReading();</span>
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     538 </span>            : 
+<span class="lineNum">     539 </span>            : /************************************************************************/
+<span class="lineNum">     540 </span>            : /*                          ~OGRWFS3Layer()                             */
+<a name="541"><span class="lineNum">     541 </span>            : /************************************************************************/</a>
+<span class="lineNum">     542 </span>            : 
+<span class="lineNum">     543 </span><span class="lineCov">         18 : OGRWFS3Layer::~OGRWFS3Layer()</span>
+<span class="lineNum">     544 </span>            : {
+<span class="lineNum">     545 </span><span class="lineCov">          6 :     m_poFeatureDefn-&gt;Release();</span>
+<span class="lineNum">     546 </span><span class="lineCov">         12 : }</span>
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span>            : /************************************************************************/
+<span class="lineNum">     549 </span>            : /*                            GetLayerDefn()                            */
+<a name="550"><span class="lineNum">     550 </span>            : /************************************************************************/</a>
+<span class="lineNum">     551 </span>            : 
+<span class="lineNum">     552 </span><span class="lineCov">         13 : OGRFeatureDefn* OGRWFS3Layer::GetLayerDefn()</span>
+<span class="lineNum">     553 </span>            : {
+<span class="lineNum">     554 </span><span class="lineCov">         13 :     if( !m_bFeatureDefnEstablished )</span>
+<span class="lineNum">     555 </span><span class="lineCov">          4 :         EstablishFeatureDefn();</span>
+<span class="lineNum">     556 </span><span class="lineCov">         13 :     return m_poFeatureDefn;</span>
+<span class="lineNum">     557 </span>            : }
+<span class="lineNum">     558 </span>            : 
+<span class="lineNum">     559 </span>            : /************************************************************************/
+<span class="lineNum">     560 </span>            : /*                        EstablishFeatureDefn()                        */
+<a name="561"><span class="lineNum">     561 </span>            : /************************************************************************/</a>
+<span class="lineNum">     562 </span>            : 
+<span class="lineNum">     563 </span><span class="lineCov">          5 : void OGRWFS3Layer::EstablishFeatureDefn()</span>
+<span class="lineNum">     564 </span>            : {
+<span class="lineNum">     565 </span><span class="lineCov">          5 :     CPLAssert(!m_bFeatureDefnEstablished);</span>
+<span class="lineNum">     566 </span><span class="lineCov">          5 :     m_bFeatureDefnEstablished = true;</span>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineCov">          5 :     CPLJSONDocument oDoc;</span>
+<span class="lineNum">     569 </span><span class="lineCov">         10 :     CPLString osURL(m_osURL);</span>
+<span class="lineNum">     570 </span><span class="lineCov">         10 :     osURL = CPLURLAddKVP(osURL, &quot;limit&quot;,</span>
+<span class="lineNum">     571 </span><span class="lineCov">          5 :                             CPLSPrintf(&quot;%d&quot;, m_poDS-&gt;m_nPageSize));</span>
+<span class="lineNum">     572 </span><span class="lineCov">          5 :     if( !m_poDS-&gt;DownloadJSon(osURL, oDoc) )</span>
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     574 </span>            : 
+<span class="lineNum">     575 </span><span class="lineCov">         10 :     CPLString osTmpFilename(CPLSPrintf(&quot;/vsimem/wfs3_%p.json&quot;, this));</span>
+<span class="lineNum">     576 </span><span class="lineCov">          5 :     oDoc.Save(osTmpFilename);</span>
+<span class="lineNum">     577 </span>            :     std::unique_ptr&lt;GDALDataset&gt; poDS(
+<span class="lineNum">     578 </span>            :       reinterpret_cast&lt;GDALDataset*&gt;(
+<span class="lineNum">     579 </span>            :         GDALOpenEx(osTmpFilename, GDAL_OF_VECTOR | GDAL_OF_INTERNAL,
+<span class="lineNum">     580 </span><span class="lineCov">         10 :                    nullptr, nullptr, nullptr)));</span>
+<span class="lineNum">     581 </span><span class="lineCov">          5 :     VSIUnlink(osTmpFilename);</span>
+<span class="lineNum">     582 </span><span class="lineCov">          5 :     if( !poDS.get() )</span>
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     584 </span><span class="lineCov">          5 :     OGRLayer* poLayer = poDS-&gt;GetLayer(0);</span>
+<span class="lineNum">     585 </span><span class="lineCov">          5 :     if( !poLayer )</span>
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     587 </span><span class="lineCov">          5 :     OGRFeatureDefn* poFeatureDefn = poLayer-&gt;GetLayerDefn();</span>
+<span class="lineNum">     588 </span><span class="lineCov">          5 :     m_poFeatureDefn-&gt;SetGeomType( poFeatureDefn-&gt;GetGeomType() );</span>
+<span class="lineNum">     589 </span><span class="lineCov">         11 :     for( int i = 0; i &lt; poFeatureDefn-&gt;GetFieldCount(); i++ )</span>
+<span class="lineNum">     590 </span>            :     {
+<span class="lineNum">     591 </span><span class="lineCov">          6 :         m_poFeatureDefn-&gt;AddFieldDefn( poFeatureDefn-&gt;GetFieldDefn(i) );</span>
+<span class="lineNum">     592 </span><span class="lineCov">          5 :     }</span>
+<span class="lineNum">     593 </span>            : }
+<span class="lineNum">     594 </span>            : 
+<span class="lineNum">     595 </span>            : /************************************************************************/
+<span class="lineNum">     596 </span>            : /*                           ResetReading()                             */
+<a name="597"><span class="lineNum">     597 </span>            : /************************************************************************/</a>
+<span class="lineNum">     598 </span>            : 
+<span class="lineNum">     599 </span><span class="lineCov">         17 : void OGRWFS3Layer::ResetReading()</span>
+<span class="lineNum">     600 </span>            : {
+<span class="lineNum">     601 </span><span class="lineCov">         17 :     m_poUnderlyingDS.reset();</span>
+<span class="lineNum">     602 </span><span class="lineCov">         17 :     m_poUnderlyingLayer = nullptr;</span>
+<span class="lineNum">     603 </span><span class="lineCov">         17 :     m_nFID = 1;</span>
+<span class="lineNum">     604 </span><span class="lineCov">         17 :     m_osGetURL = m_osURL;</span>
+<span class="lineNum">     605 </span><span class="lineCov">         17 :     if( m_poDS-&gt;m_nPageSize &gt; 0 )</span>
+<span class="lineNum">     606 </span>            :     {
+<span class="lineNum">     607 </span><span class="lineCov">         34 :         m_osGetURL = CPLURLAddKVP(m_osGetURL, &quot;limit&quot;,</span>
+<span class="lineNum">     608 </span><span class="lineCov">         17 :                             CPLSPrintf(&quot;%d&quot;, m_poDS-&gt;m_nPageSize));</span>
+<span class="lineNum">     609 </span>            :     }
+<span class="lineNum">     610 </span><span class="lineCov">         17 :     m_osGetURL = AddFilters(m_osGetURL);</span>
+<span class="lineNum">     611 </span><span class="lineCov">         17 : }</span>
+<span class="lineNum">     612 </span>            : 
+<span class="lineNum">     613 </span>            : /************************************************************************/
+<span class="lineNum">     614 </span>            : /*                           AddFilters()                               */
+<a name="615"><span class="lineNum">     615 </span>            : /************************************************************************/</a>
+<span class="lineNum">     616 </span>            : 
+<span class="lineNum">     617 </span><span class="lineCov">         19 : CPLString OGRWFS3Layer::AddFilters(const CPLString&amp; osURL)</span>
+<span class="lineNum">     618 </span>            : {
+<span class="lineNum">     619 </span><span class="lineCov">         19 :     CPLString osURLNew(osURL);</span>
+<span class="lineNum">     620 </span><span class="lineCov">         19 :     if( m_poFilterGeom )</span>
+<span class="lineNum">     621 </span>            :     {
+<span class="lineNum">     622 </span><span class="lineCov">          2 :         osURLNew = CPLURLAddKVP(osURLNew, &quot;bbox&quot;,</span>
+<span class="lineNum">     623 </span>            :             CPLSPrintf(&quot;%.18g,%.18g,%.18g,%.18g&quot;,
+<span class="lineNum">     624 </span>            :                        m_sFilterEnvelope.MinX,
+<span class="lineNum">     625 </span>            :                        m_sFilterEnvelope.MinY,
+<span class="lineNum">     626 </span>            :                        m_sFilterEnvelope.MaxX,
+<span class="lineNum">     627 </span><span class="lineCov">          1 :                        m_sFilterEnvelope.MaxY));</span>
+<span class="lineNum">     628 </span>            :     }
+<span class="lineNum">     629 </span><span class="lineCov">         19 :     if( !m_osAttributeFilter.empty() )</span>
+<span class="lineNum">     630 </span>            :     {
+<span class="lineNum">     631 </span><span class="lineCov">          3 :         if( osURLNew.find('?') == std::string::npos )</span>
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :             osURLNew += &quot;?&quot;;</span>
+<span class="lineNum">     633 </span>            :         else
+<span class="lineNum">     634 </span><span class="lineCov">          3 :             osURLNew += &quot;&amp;&quot;;</span>
+<span class="lineNum">     635 </span><span class="lineCov">          3 :         osURLNew += m_osAttributeFilter;</span>
+<span class="lineNum">     636 </span>            :     }
+<span class="lineNum">     637 </span><span class="lineCov">         19 :     return osURLNew;</span>
+<span class="lineNum">     638 </span>            : }
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span>            : /************************************************************************/
+<span class="lineNum">     641 </span>            : /*                         GetNextRawFeature()                          */
+<a name="642"><span class="lineNum">     642 </span>            : /************************************************************************/</a>
+<span class="lineNum">     643 </span>            : 
+<span class="lineNum">     644 </span><span class="lineCov">         10 : OGRFeature* OGRWFS3Layer::GetNextRawFeature()</span>
+<span class="lineNum">     645 </span>            : {
+<span class="lineNum">     646 </span><span class="lineCov">         10 :     if( !m_bFeatureDefnEstablished )</span>
+<span class="lineNum">     647 </span><span class="lineNoCov">          0 :         EstablishFeatureDefn();</span>
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span><span class="lineCov">         10 :     OGRFeature* poSrcFeature = nullptr;</span>
+<span class="lineNum">     650 </span>            :     while( true )
+<span class="lineNum">     651 </span>            :     {
+<span class="lineNum">     652 </span><span class="lineCov">         12 :         if( m_poUnderlyingLayer == nullptr )</span>
+<span class="lineNum">     653 </span>            :         {
+<span class="lineNum">     654 </span><span class="lineCov">          9 :             if( m_osGetURL.empty() )</span>
+<span class="lineNum">     655 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span><span class="lineCov">          9 :             CPLJSONDocument oDoc;</span>
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span><span class="lineCov">         18 :             CPLString osURL(m_osGetURL);</span>
+<span class="lineNum">     660 </span><span class="lineCov">          9 :             m_osGetURL.clear();</span>
+<span class="lineNum">     661 </span><span class="lineCov">         18 :             CPLStringList aosHeaders;</span>
+<span class="lineNum">     662 </span><span class="lineCov">          9 :             if( !m_poDS-&gt;DownloadJSon(osURL, oDoc,</span>
+<span class="lineNum">     663 </span>            :                                       &quot;application/geo+json, application/json&quot;,
+<span class="lineNum">     664 </span><span class="lineCov">          9 :                                       &amp;aosHeaders) )</span>
+<span class="lineNum">     665 </span>            :             {
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     667 </span>            :             }
+<span class="lineNum">     668 </span>            : 
+<span class="lineNum">     669 </span><span class="lineCov">         18 :             CPLString osTmpFilename(CPLSPrintf(&quot;/vsimem/wfs3_%p.json&quot;, this));</span>
+<span class="lineNum">     670 </span><span class="lineCov">          9 :             oDoc.Save(osTmpFilename);</span>
+<span class="lineNum">     671 </span><span class="lineCov">         18 :             m_poUnderlyingDS = std::unique_ptr&lt;GDALDataset&gt;(</span>
+<span class="lineNum">     672 </span>            :             reinterpret_cast&lt;GDALDataset*&gt;(
+<span class="lineNum">     673 </span>            :                 GDALOpenEx(osTmpFilename, GDAL_OF_VECTOR | GDAL_OF_INTERNAL,
+<span class="lineNum">     674 </span><span class="lineCov">         18 :                         nullptr, nullptr, nullptr)));</span>
+<span class="lineNum">     675 </span><span class="lineCov">          9 :             VSIUnlink(osTmpFilename);</span>
+<span class="lineNum">     676 </span><span class="lineCov">          9 :             if( !m_poUnderlyingDS.get() )</span>
+<span class="lineNum">     677 </span>            :             {
+<span class="lineNum">     678 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     679 </span>            :             }
+<span class="lineNum">     680 </span><span class="lineCov">          9 :             m_poUnderlyingLayer = m_poUnderlyingDS-&gt;GetLayer(0);</span>
+<span class="lineNum">     681 </span><span class="lineCov">          9 :             if( !m_poUnderlyingLayer )</span>
+<span class="lineNum">     682 </span>            :             {
+<span class="lineNum">     683 </span><span class="lineNoCov">          0 :                 m_poUnderlyingDS.reset();</span>
+<span class="lineNum">     684 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     685 </span>            :             }
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span>            :             // To avoid issues with implementations having a non-relevant
+<span class="lineNum">     688 </span>            :             // next link, make sure the current page is not empty
+<span class="lineNum">     689 </span>            :             // We could even check that the feature count is the page size
+<span class="lineNum">     690 </span>            :             // actually
+<span class="lineNum">     691 </span><span class="lineCov">          9 :             if( m_poUnderlyingLayer-&gt;GetFeatureCount() &gt; 0 )</span>
+<span class="lineNum">     692 </span>            :             {
+<span class="lineNum">     693 </span><span class="lineCov">          9 :                 CPLJSONArray oLinks = oDoc.GetRoot().GetArray(&quot;links&quot;);</span>
+<span class="lineNum">     694 </span><span class="lineCov">          9 :                 if( oLinks.IsValid() )</span>
+<span class="lineNum">     695 </span>            :                 {
+<span class="lineNum">     696 </span><span class="lineCov">          1 :                     int nCountRelNext = 0;</span>
+<span class="lineNum">     697 </span><span class="lineCov">          1 :                     CPLString osNextURL;</span>
+<span class="lineNum">     698 </span><span class="lineCov">          1 :                     for( int i = 0; i &lt; oLinks.Size(); i++ )</span>
+<span class="lineNum">     699 </span>            :                     {
+<span class="lineNum">     700 </span><span class="lineCov">          1 :                         CPLJSONObject oLink = oLinks[i];</span>
+<span class="lineNum">     701 </span><span class="lineCov">          2 :                         if( !oLink.IsValid() ||</span>
+<span class="lineNum">     702 </span><span class="lineCov">          1 :                             oLink.GetType() != CPLJSONObject::Type::Object )</span>
+<span class="lineNum">     703 </span>            :                         {
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :                             continue;</span>
+<span class="lineNum">     705 </span>            :                         }
+<span class="lineNum">     706 </span><span class="lineCov">          1 :                         if( oLink.GetString(&quot;rel&quot;) == &quot;next&quot; )</span>
+<span class="lineNum">     707 </span>            :                         {
+<span class="lineNum">     708 </span><span class="lineCov">          1 :                             nCountRelNext ++;</span>
+<span class="lineNum">     709 </span><span class="lineCov">          1 :                             auto type = oLink.GetString(&quot;type&quot;);</span>
+<span class="lineNum">     710 </span><span class="lineCov">          1 :                             if (type == &quot;application/geo+json&quot; ||</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :                                 type == &quot;application/json&quot; )</span>
+<span class="lineNum">     712 </span>            :                             {
+<span class="lineNum">     713 </span><span class="lineCov">          1 :                                 m_osGetURL = oLink.GetString(&quot;href&quot;);</span>
+<span class="lineNum">     714 </span><span class="lineCov">          1 :                                 break;</span>
+<span class="lineNum">     715 </span>            :                             }
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :                             else if( type.empty() )</span>
+<span class="lineNum">     717 </span>            :                             {
+<span class="lineNum">     718 </span><span class="lineNoCov">          0 :                                 osNextURL = oLink.GetString(&quot;href&quot;);</span>
+<span class="lineNum">     719 </span><span class="lineNoCov">          0 :                             }</span>
+<span class="lineNum">     720 </span>            :                         }
+<span class="lineNum">     721 </span><span class="lineNoCov">          0 :                     }</span>
+<span class="lineNum">     722 </span><span class="lineCov">          1 :                     if( nCountRelNext == 1 &amp;&amp; m_osGetURL.empty() )</span>
+<span class="lineNum">     723 </span>            :                     {
+<span class="lineNum">     724 </span>            :                         // In case we go a &quot;rel&quot;: &quot;next&quot; without a &quot;type&quot;
+<span class="lineNum">     725 </span><span class="lineNoCov">          0 :                         m_osGetURL = osNextURL;</span>
+<span class="lineNum">     726 </span><span class="lineCov">          1 :                     }</span>
+<span class="lineNum">     727 </span>            :                 }
+<span class="lineNum">     728 </span>            : 
+<span class="lineNum">     729 </span><span class="lineCov">          9 :                 if( m_osGetURL.empty() )</span>
+<span class="lineNum">     730 </span>            :                 {
+<span class="lineNum">     731 </span><span class="lineCov">         39 :                     for( int i = 0; i &lt; aosHeaders.size(); i++ )</span>
+<span class="lineNum">     732 </span>            :                     {
+<span class="lineNum">     733 </span><span class="lineCov">         32 :                         CPLDebug(&quot;WFS3&quot;, &quot;%s&quot;, aosHeaders[i]);</span>
+<span class="lineNum">     734 </span><span class="lineCov">         66 :                         if( STARTS_WITH_CI(aosHeaders[i], &quot;Link=&quot;) &amp;&amp;</span>
+<span class="lineNum">     735 </span><span class="lineCov">         33 :                             strstr(aosHeaders[i], &quot;rel=\&quot;next\&quot;&quot;) &amp;&amp;</span>
+<span class="lineNum">     736 </span><span class="lineCov">          1 :                             strstr(aosHeaders[i], &quot;type=\&quot;application/geo+json\&quot;&quot;) )</span>
+<span class="lineNum">     737 </span>            :                         {
+<span class="lineNum">     738 </span><span class="lineCov">          1 :                             const char* pszStart = strchr(aosHeaders[i], '&lt;');</span>
+<span class="lineNum">     739 </span><span class="lineCov">          1 :                             if( pszStart )</span>
+<span class="lineNum">     740 </span>            :                             {
+<span class="lineNum">     741 </span><span class="lineCov">          1 :                                 const char* pszEnd = strchr(pszStart + 1, '&gt;');</span>
+<span class="lineNum">     742 </span><span class="lineCov">          1 :                                 if( pszEnd )</span>
+<span class="lineNum">     743 </span>            :                                 {
+<span class="lineNum">     744 </span><span class="lineCov">          1 :                                     m_osGetURL = pszStart + 1;</span>
+<span class="lineNum">     745 </span><span class="lineCov">          1 :                                     m_osGetURL.resize(pszEnd - pszStart - 1);</span>
+<span class="lineNum">     746 </span>            :                                 }
+<span class="lineNum">     747 </span>            :                             }
+<span class="lineNum">     748 </span><span class="lineCov">          1 :                             break;</span>
+<span class="lineNum">     749 </span>            :                         }
+<span class="lineNum">     750 </span>            :                     }
+<span class="lineNum">     751 </span>            :                 }
+<span class="lineNum">     752 </span>            : 
+<span class="lineNum">     753 </span>            :                 // If source URL is https://user:pwd@server.com/bla
+<span class="lineNum">     754 </span>            :                 // and link only contains https://server.com/bla, then insert
+<span class="lineNum">     755 </span>            :                 // into it user:pwd
+<span class="lineNum">     756 </span><span class="lineCov">          9 :                 const auto nArobaseInURLPos = osURL.find('@');</span>
+<span class="lineNum">     757 </span><span class="lineCov">         20 :                 if( !m_osGetURL.empty() &amp;&amp;</span>
+<span class="lineNum">     758 </span><span class="lineCov">          2 :                     STARTS_WITH(osURL, &quot;https://&quot;) &amp;&amp;</span>
+<span class="lineNum">     759 </span><span class="lineNoCov">          0 :                     STARTS_WITH(m_osGetURL, &quot;https://&quot;) &amp;&amp;</span>
+<span class="lineNum">     760 </span><span class="lineCov">          9 :                     nArobaseInURLPos != std::string::npos &amp;&amp;</span>
+<span class="lineNum">     761 </span><span class="lineNoCov">          0 :                     m_osGetURL.find('@') == std::string::npos )</span>
+<span class="lineNum">     762 </span>            :                 {
+<span class="lineNum">     763 </span><span class="lineNoCov">          0 :                     const auto nFirstSlashPos = osURL.find('/', strlen(&quot;https://&quot;));</span>
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :                     if( nFirstSlashPos != std::string::npos &amp;&amp;</span>
+<span class="lineNum">     765 </span>            :                         nFirstSlashPos &gt; nArobaseInURLPos )
+<span class="lineNum">     766 </span>            :                     {
+<span class="lineNum">     767 </span>            :                         auto osUserPwd = osURL.substr(strlen(&quot;https://&quot;),
+<span class="lineNum">     768 </span><span class="lineNoCov">          0 :                                         nArobaseInURLPos - strlen(&quot;https://&quot;));</span>
+<span class="lineNum">     769 </span>            :                         auto osServer = osURL.substr(nArobaseInURLPos + 1,
+<span class="lineNum">     770 </span><span class="lineNoCov">          0 :                                                      nFirstSlashPos - nArobaseInURLPos);</span>
+<span class="lineNum">     771 </span><span class="lineNoCov">          0 :                         if( STARTS_WITH(m_osGetURL, (&quot;https://&quot; + osServer).c_str()) )</span>
+<span class="lineNum">     772 </span>            :                         {
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :                             m_osGetURL = &quot;https://&quot; + osUserPwd + &quot;@&quot; +</span>
+<span class="lineNum">     774 </span><span class="lineNoCov">          0 :                                     m_osGetURL.substr(strlen(&quot;https://&quot;));</span>
+<span class="lineNum">     775 </span><span class="lineNoCov">          0 :                         }</span>
+<span class="lineNum">     776 </span>            :                     }
+<span class="lineNum">     777 </span><span class="lineCov">          9 :                 }</span>
+<span class="lineNum">     778 </span><span class="lineCov">          9 :             }</span>
+<span class="lineNum">     779 </span>            :         }
+<span class="lineNum">     780 </span>            : 
+<span class="lineNum">     781 </span><span class="lineCov">         12 :         poSrcFeature = m_poUnderlyingLayer-&gt;GetNextFeature();</span>
+<span class="lineNum">     782 </span><span class="lineCov">         12 :         if( poSrcFeature )</span>
+<span class="lineNum">     783 </span><span class="lineCov">         10 :             break;</span>
+<span class="lineNum">     784 </span><span class="lineCov">          2 :         m_poUnderlyingDS.reset();</span>
+<span class="lineNum">     785 </span><span class="lineCov">          2 :         m_poUnderlyingLayer = nullptr;</span>
+<span class="lineNum">     786 </span>            :     }
+<span class="lineNum">     787 </span>            : 
+<span class="lineNum">     788 </span><span class="lineCov">         10 :     OGRFeature* poFeature = new OGRFeature(m_poFeatureDefn);</span>
+<span class="lineNum">     789 </span><span class="lineCov">         10 :     poFeature-&gt;SetFrom(poSrcFeature);</span>
+<span class="lineNum">     790 </span><span class="lineCov">         10 :     auto poGeom = poFeature-&gt;GetGeometryRef();</span>
+<span class="lineNum">     791 </span><span class="lineCov">         10 :     if( poGeom )</span>
+<span class="lineNum">     792 </span>            :     {
+<span class="lineNum">     793 </span><span class="lineCov">          1 :         poGeom-&gt;assignSpatialReference(GetSpatialRef());</span>
+<span class="lineNum">     794 </span>            :     }
+<span class="lineNum">     795 </span><span class="lineCov">         10 :     poFeature-&gt;SetFID(m_nFID);</span>
+<span class="lineNum">     796 </span><span class="lineCov">         10 :     m_nFID ++;</span>
+<span class="lineNum">     797 </span><span class="lineCov">         10 :     delete poSrcFeature;</span>
+<span class="lineNum">     798 </span><span class="lineCov">         12 :     return poFeature;</span>
+<span class="lineNum">     799 </span>            : }
+<span class="lineNum">     800 </span>            : 
+<span class="lineNum">     801 </span>            : /************************************************************************/
+<span class="lineNum">     802 </span>            : /*                         GetNextFeature()                             */
+<a name="803"><span class="lineNum">     803 </span>            : /************************************************************************/</a>
+<span class="lineNum">     804 </span>            : 
+<span class="lineNum">     805 </span><span class="lineCov">         10 : OGRFeature* OGRWFS3Layer::GetNextFeature()</span>
+<span class="lineNum">     806 </span>            : {
+<span class="lineNum">     807 </span>            :     while( true )
+<span class="lineNum">     808 </span>            :     {
+<span class="lineNum">     809 </span><span class="lineCov">         10 :         OGRFeature  *poFeature = GetNextRawFeature();</span>
+<span class="lineNum">     810 </span><span class="lineCov">         10 :         if (poFeature == nullptr)</span>
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     812 </span>            : 
+<span class="lineNum">     813 </span><span class="lineCov">         21 :         if( (m_poFilterGeom == nullptr ||</span>
+<span class="lineNum">     814 </span><span class="lineCov">         29 :                 FilterGeometry(poFeature-&gt;GetGeometryRef())) &amp;&amp;</span>
+<span class="lineNum">     815 </span><span class="lineCov">         13 :             (m_poAttrQuery == nullptr ||</span>
+<span class="lineNum">     816 </span><span class="lineCov">          3 :                 m_poAttrQuery-&gt;Evaluate(poFeature)) )</span>
+<span class="lineNum">     817 </span>            :         {
+<span class="lineNum">     818 </span><span class="lineCov">          9 :             return poFeature;</span>
+<span class="lineNum">     819 </span>            :         }
+<span class="lineNum">     820 </span>            :         else
+<span class="lineNum">     821 </span>            :         {
+<span class="lineNum">     822 </span><span class="lineCov">          1 :             delete poFeature;</span>
+<span class="lineNum">     823 </span>            :         }
+<span class="lineNum">     824 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     825 </span>            : }
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span>            : /************************************************************************/
+<span class="lineNum">     828 </span>            : /*                      SupportsResultTypeHits()                        */
+<a name="829"><span class="lineNum">     829 </span>            : /************************************************************************/</a>
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span><span class="lineCov">          2 : bool OGRWFS3Layer::SupportsResultTypeHits()</span>
+<span class="lineNum">     832 </span>            : {
+<span class="lineNum">     833 </span><span class="lineCov">          2 :     CPLJSONDocument oDoc = m_poDS-&gt;GetAPIDoc();</span>
+<span class="lineNum">     834 </span><span class="lineCov">          2 :     if( oDoc.GetRoot().GetString(&quot;openapi&quot;).empty() )</span>
+<span class="lineNum">     835 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     836 </span>            : 
+<span class="lineNum">     837 </span>            :     CPLJSONArray oParameters = oDoc.GetRoot().GetObj(&quot;paths&quot;)
+<span class="lineNum">     838 </span>            :                                   .GetObj(m_osPath)
+<span class="lineNum">     839 </span>            :                                   .GetObj(&quot;get&quot;)
+<span class="lineNum">     840 </span><span class="lineCov">          4 :                                   .GetArray(&quot;parameters&quot;);</span>
+<span class="lineNum">     841 </span><span class="lineCov">          2 :     if( !oParameters.IsValid() )</span>
+<span class="lineNum">     842 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     843 </span><span class="lineCov">          2 :     for( int i = 0; i &lt; oParameters.Size(); i++ )</span>
+<span class="lineNum">     844 </span>            :     {
+<span class="lineNum">     845 </span><span class="lineCov">          2 :         CPLJSONObject oParam = oParameters[i];</span>
+<span class="lineNum">     846 </span><span class="lineCov">          2 :         CPLString osRef = oParam.GetString(&quot;$ref&quot;);</span>
+<span class="lineNum">     847 </span><span class="lineCov">          2 :         if( !osRef.empty() &amp;&amp; osRef.find(&quot;#/&quot;) == 0 )</span>
+<span class="lineNum">     848 </span>            :         {
+<span class="lineNum">     849 </span><span class="lineCov">          2 :             oParam = oDoc.GetRoot().GetObj(osRef.substr(2));</span>
+<span class="lineNum">     850 </span>            : #ifndef REMOVE_HACK
+<span class="lineNum">     851 </span>            :             // Needed for http://www.pvretano.com/cubewerx/cubeserv/default/wfs/3.0.0/foundation/api
+<span class="lineNum">     852 </span>            :             // that doesn't define #/components/parameters/resultType
+<span class="lineNum">     853 </span><span class="lineCov">          2 :             if( osRef == &quot;#/components/parameters/resultType&quot; )</span>
+<span class="lineNum">     854 </span><span class="lineCov">          2 :                 return true;</span>
+<span class="lineNum">     855 </span>            : #endif
+<span class="lineNum">     856 </span>            :         }
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 :         if( oParam.GetString(&quot;name&quot;) == &quot;resultType&quot; &amp;&amp;</span>
+<span class="lineNum">     858 </span><span class="lineNoCov">          0 :             oParam.GetString(&quot;in&quot;) == &quot;query&quot; )</span>
+<span class="lineNum">     859 </span>            :         {
+<span class="lineNum">     860 </span><span class="lineNoCov">          0 :             CPLJSONArray oEnum = oParam.GetArray(&quot;schema/enum&quot;);</span>
+<span class="lineNum">     861 </span><span class="lineNoCov">          0 :             for( int j = 0; j &lt; oEnum.Size(); j++ )</span>
+<span class="lineNum">     862 </span>            :             {
+<span class="lineNum">     863 </span><span class="lineNoCov">          0 :                 if( oEnum[j].ToString() == &quot;hits&quot; )</span>
+<span class="lineNum">     864 </span><span class="lineNoCov">          0 :                     return true;</span>
+<span class="lineNum">     865 </span>            :             }
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     867 </span>            :         }
+<span class="lineNum">     868 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     869 </span>            : 
+<span class="lineNum">     870 </span><span class="lineCov">          2 :     return false;</span>
+<span class="lineNum">     871 </span>            : }
+<span class="lineNum">     872 </span>            : 
+<span class="lineNum">     873 </span>            : /************************************************************************/
+<span class="lineNum">     874 </span>            : /*                         GetFeatureCount()                            */
+<a name="875"><span class="lineNum">     875 </span>            : /************************************************************************/</a>
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span><span class="lineCov">          2 : GIntBig OGRWFS3Layer::GetFeatureCount(int bForce)</span>
+<span class="lineNum">     878 </span>            : {
+<span class="lineNum">     879 </span><span class="lineCov">          2 :     if( SupportsResultTypeHits() &amp;&amp; !m_bFilterMustBeClientSideEvaluated )</span>
+<span class="lineNum">     880 </span>            :     {
+<span class="lineNum">     881 </span><span class="lineCov">          2 :         CPLString osURL(m_osURL);</span>
+<span class="lineNum">     882 </span><span class="lineCov">          2 :         osURL = CPLURLAddKVP(osURL, &quot;resultType&quot;, &quot;hits&quot;);</span>
+<span class="lineNum">     883 </span><span class="lineCov">          2 :         osURL = AddFilters(osURL);</span>
+<span class="lineNum">     884 </span>            : #ifndef REMOVE_HACK
+<span class="lineNum">     885 </span><span class="lineCov">          2 :         bool bGMLRequest = m_osURL.find(&quot;cubeserv&quot;) != std::string::npos;</span>
+<span class="lineNum">     886 </span>            : #else
+<span class="lineNum">     887 </span>            :         constexpr bool bGMLRequest = false;
+<span class="lineNum">     888 </span>            : #endif
+<span class="lineNum">     889 </span><span class="lineCov">          2 :         if( bGMLRequest )</span>
+<span class="lineNum">     890 </span>            :         {
+<span class="lineNum">     891 </span><span class="lineNoCov">          0 :             CPLString osResult;</span>
+<span class="lineNum">     892 </span><span class="lineNoCov">          0 :             CPLString osContentType;</span>
+<span class="lineNum">     893 </span><span class="lineNoCov">          0 :             if( m_poDS-&gt;Download(osURL, &quot;text/xml&quot;, osResult, osContentType) )</span>
+<span class="lineNum">     894 </span>            :             {
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :                 CPLXMLNode* psDoc = CPLParseXMLString(osResult);</span>
+<span class="lineNum">     896 </span><span class="lineNoCov">          0 :                 if( psDoc )</span>
+<span class="lineNum">     897 </span>            :                 {
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 :                     CPLXMLTreeCloser oCloser(psDoc);</span>
+<span class="lineNum">     899 </span><span class="lineNoCov">          0 :                     CPLStripXMLNamespace(psDoc, nullptr, true);</span>
+<span class="lineNum">     900 </span>            :                     CPLString osNumberMatched =
+<span class="lineNum">     901 </span>            :                         CPLGetXMLValue(psDoc,
+<span class="lineNum">     902 </span><span class="lineNoCov">          0 :                                        &quot;=FeatureCollection.numberMatched&quot;, &quot;&quot;);</span>
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :                     if( !osNumberMatched.empty() )</span>
+<span class="lineNum">     904 </span><span class="lineNoCov">          0 :                         return CPLAtoGIntBig(osNumberMatched);</span>
+<span class="lineNum">     905 </span>            :                 }
+<span class="lineNum">     906 </span><span class="lineNoCov">          0 :             }</span>
+<span class="lineNum">     907 </span>            :         }
+<span class="lineNum">     908 </span>            :         else
+<span class="lineNum">     909 </span>            :         {
+<span class="lineNum">     910 </span><span class="lineCov">          2 :             CPLJSONDocument oDoc;</span>
+<span class="lineNum">     911 </span><span class="lineCov">          2 :             if( m_poDS-&gt;DownloadJSon(osURL, oDoc) )</span>
+<span class="lineNum">     912 </span>            :             {
+<span class="lineNum">     913 </span><span class="lineCov">          2 :                 GIntBig nFeatures = oDoc.GetRoot().GetLong(&quot;numberMatched&quot;, -1);</span>
+<span class="lineNum">     914 </span><span class="lineCov">          2 :                 if( nFeatures &gt;= 0 )</span>
+<span class="lineNum">     915 </span><span class="lineCov">          2 :                     return nFeatures;</span>
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :             }</span>
+<span class="lineNum">     917 </span><span class="lineNoCov">          0 :         }</span>
+<span class="lineNum">     918 </span>            :     }
+<span class="lineNum">     919 </span>            : 
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 :     return OGRLayer::GetFeatureCount(bForce);</span>
+<span class="lineNum">     921 </span>            : }
+<span class="lineNum">     922 </span>            : 
+<span class="lineNum">     923 </span>            : /************************************************************************/
+<span class="lineNum">     924 </span>            : /*                             GetExtent()                              */
+<a name="925"><span class="lineNum">     925 </span>            : /************************************************************************/</a>
+<span class="lineNum">     926 </span>            : 
+<span class="lineNum">     927 </span><span class="lineCov">          1 : OGRErr OGRWFS3Layer::GetExtent(OGREnvelope* psEnvelope, int bForce)</span>
+<span class="lineNum">     928 </span>            : {
+<span class="lineNum">     929 </span><span class="lineCov">          1 :     if( m_oExtent.IsInit() )</span>
+<span class="lineNum">     930 </span>            :     {
+<span class="lineNum">     931 </span><span class="lineCov">          1 :         *psEnvelope = m_oExtent;</span>
+<span class="lineNum">     932 </span><span class="lineCov">          1 :         return OGRERR_NONE;</span>
+<span class="lineNum">     933 </span>            :     }
+<span class="lineNum">     934 </span><span class="lineNoCov">          0 :     return OGRLayer::GetExtent(psEnvelope, bForce);</span>
+<span class="lineNum">     935 </span>            : }
+<span class="lineNum">     936 </span>            : 
+<span class="lineNum">     937 </span>            : /************************************************************************/
+<span class="lineNum">     938 </span>            : /*                          SetSpatialFilter()                          */
+<a name="939"><span class="lineNum">     939 </span>            : /************************************************************************/</a>
+<span class="lineNum">     940 </span>            : 
+<span class="lineNum">     941 </span><span class="lineCov">          2 : void OGRWFS3Layer::SetSpatialFilter(  OGRGeometry *poGeomIn )</span>
+<span class="lineNum">     942 </span>            : {
+<span class="lineNum">     943 </span><span class="lineCov">          2 :     InstallFilter( poGeomIn );</span>
+<span class="lineNum">     944 </span>            : 
+<span class="lineNum">     945 </span><span class="lineCov">          2 :     ResetReading();</span>
+<span class="lineNum">     946 </span><span class="lineCov">          2 : }</span>
+<span class="lineNum">     947 </span>            : 
+<span class="lineNum">     948 </span>            : /************************************************************************/
+<span class="lineNum">     949 </span>            : /*                          SetSpatialFilter()                          */
+<a name="950"><span class="lineNum">     950 </span>            : /************************************************************************/</a>
+<span class="lineNum">     951 </span>            : 
+<span class="lineNum">     952 </span><span class="lineCov">          6 : CPLString OGRWFS3Layer::BuildFilter(swq_expr_node* poNode)</span>
+<span class="lineNum">     953 </span>            : {
+<span class="lineNum">     954 </span><span class="lineCov">         12 :     if( poNode-&gt;eNodeType == SNT_OPERATION &amp;&amp;</span>
+<span class="lineNum">     955 </span><span class="lineCov">          8 :         poNode-&gt;nOperation == SWQ_AND &amp;&amp; poNode-&gt;nSubExprCount == 2 )</span>
+<span class="lineNum">     956 </span>            :     {
+<span class="lineNum">     957 </span>            :          // For AND, we can deal with a failure in one of the branch
+<span class="lineNum">     958 </span>            :         // since client-side will do that extra filtering
+<span class="lineNum">     959 </span><span class="lineCov">          2 :         CPLString osFilter1 = BuildFilter(poNode-&gt;papoSubExpr[0]);</span>
+<span class="lineNum">     960 </span><span class="lineCov">          4 :         CPLString osFilter2 = BuildFilter(poNode-&gt;papoSubExpr[1]);</span>
+<span class="lineNum">     961 </span><span class="lineCov">          2 :         if( !osFilter1.empty() &amp;&amp; !osFilter2.empty() )</span>
+<span class="lineNum">     962 </span>            :         {
+<span class="lineNum">     963 </span><span class="lineCov">          1 :             return osFilter1 + &quot;&amp;&quot; + osFilter2;</span>
+<span class="lineNum">     964 </span>            :         }
+<span class="lineNum">     965 </span><span class="lineCov">          1 :         else if( !osFilter1.empty() )</span>
+<span class="lineNum">     966 </span><span class="lineCov">          1 :             return osFilter1;</span>
+<span class="lineNum">     967 </span>            :         else
+<span class="lineNum">     968 </span><span class="lineCov">          2 :             return osFilter2;</span>
+<span class="lineNum">     969 </span>            :     }
+<span class="lineNum">     970 </span><span class="lineCov">          8 :     else if (poNode-&gt;eNodeType == SNT_OPERATION &amp;&amp;</span>
+<span class="lineNum">     971 </span><span class="lineCov">          7 :              poNode-&gt;nOperation == SWQ_EQ &amp;&amp;</span>
+<span class="lineNum">     972 </span><span class="lineCov">          6 :              poNode-&gt;nSubExprCount == 2 &amp;&amp;</span>
+<span class="lineNum">     973 </span><span class="lineCov">          6 :              poNode-&gt;papoSubExpr[0]-&gt;eNodeType == SNT_COLUMN &amp;&amp;</span>
+<span class="lineNum">     974 </span><span class="lineCov">          3 :              poNode-&gt;papoSubExpr[1]-&gt;eNodeType == SNT_CONSTANT )</span>
+<span class="lineNum">     975 </span>            :     {
+<span class="lineNum">     976 </span><span class="lineCov">          3 :         const int nFieldIdx = poNode-&gt;papoSubExpr[0]-&gt;field_index;</span>
+<span class="lineNum">     977 </span><span class="lineCov">          3 :         OGRFieldDefn* poFieldDefn = GetLayerDefn()-&gt;GetFieldDefn(nFieldIdx);</span>
+<span class="lineNum">     978 </span><span class="lineCov">         15 :         if( poFieldDefn &amp;&amp;</span>
+<span class="lineNum">     979 </span><span class="lineCov">         15 :             m_aoSetQueriableAttributes.find(poFieldDefn-&gt;GetNameRef()) !=</span>
+<span class="lineNum">     980 </span><span class="lineCov">          3 :                 m_aoSetQueriableAttributes.end() )</span>
+<span class="lineNum">     981 </span>            :         {
+<span class="lineNum">     982 </span><span class="lineCov">          2 :             if( poNode-&gt;papoSubExpr[1]-&gt;field_type == SWQ_STRING )</span>
+<span class="lineNum">     983 </span>            :             {
+<span class="lineNum">     984 </span>            :                 char* pszEscapedValue = CPLEscapeString(
+<span class="lineNum">     985 </span><span class="lineCov">          1 :                     poNode-&gt;papoSubExpr[1]-&gt;string_value, -1, CPLES_URL);</span>
+<span class="lineNum">     986 </span><span class="lineCov">          1 :                 CPLString osRet(poFieldDefn-&gt;GetNameRef());</span>
+<span class="lineNum">     987 </span><span class="lineCov">          1 :                 osRet += &quot;=&quot;;</span>
+<span class="lineNum">     988 </span><span class="lineCov">          1 :                 osRet += pszEscapedValue;</span>
+<span class="lineNum">     989 </span><span class="lineCov">          1 :                 CPLFree(pszEscapedValue);</span>
+<span class="lineNum">     990 </span><span class="lineCov">          1 :                 return osRet;</span>
+<span class="lineNum">     991 </span>            :             }
+<span class="lineNum">     992 </span><span class="lineCov">          1 :             if( poNode-&gt;papoSubExpr[1]-&gt;field_type == SWQ_INTEGER )</span>
+<span class="lineNum">     993 </span>            :             {
+<span class="lineNum">     994 </span><span class="lineCov">          1 :                 CPLString osRet(poFieldDefn-&gt;GetNameRef());</span>
+<span class="lineNum">     995 </span><span class="lineCov">          1 :                 osRet += &quot;=&quot;;</span>
+<span class="lineNum">     996 </span><span class="lineCov">          1 :                 osRet += CPLSPrintf(CPL_FRMT_GIB,</span>
+<span class="lineNum">     997 </span><span class="lineCov">          2 :                                     poNode-&gt;papoSubExpr[1]-&gt;int_value);</span>
+<span class="lineNum">     998 </span><span class="lineCov">          1 :                 return osRet;</span>
+<span class="lineNum">     999 </span>            :             }
+<span class="lineNum">    1000 </span>            :         }
+<span class="lineNum">    1001 </span>            :     }
+<span class="lineNum">    1002 </span><span class="lineCov">          2 :     m_bFilterMustBeClientSideEvaluated = true;</span>
+<span class="lineNum">    1003 </span><span class="lineCov">          2 :     return CPLString();</span>
+<span class="lineNum">    1004 </span>            : }
+<span class="lineNum">    1005 </span>            : 
+<span class="lineNum">    1006 </span>            : /************************************************************************/
+<span class="lineNum">    1007 </span>            : /*                        GetQueriableAttributes()                      */
+<a name="1008"><span class="lineNum">    1008 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1009 </span>            : 
+<span class="lineNum">    1010 </span><span class="lineCov">          2 : void OGRWFS3Layer::GetQueriableAttributes()</span>
+<span class="lineNum">    1011 </span>            : {
+<span class="lineNum">    1012 </span><span class="lineCov">          2 :     if( m_bGotQueriableAttributes )</span>
+<span class="lineNum">    1013 </span><span class="lineCov">          2 :         return;</span>
+<span class="lineNum">    1014 </span><span class="lineCov">          1 :     m_bGotQueriableAttributes = true;</span>
+<span class="lineNum">    1015 </span><span class="lineCov">          1 :     CPLJSONDocument oDoc = m_poDS-&gt;GetAPIDoc();</span>
+<span class="lineNum">    1016 </span><span class="lineCov">          1 :     if( oDoc.GetRoot().GetString(&quot;openapi&quot;).empty() )</span>
+<span class="lineNum">    1017 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1018 </span>            : 
+<span class="lineNum">    1019 </span>            :     CPLJSONArray oParameters = oDoc.GetRoot().GetObj(&quot;paths&quot;)
+<span class="lineNum">    1020 </span>            :                                   .GetObj(m_osPath)
+<span class="lineNum">    1021 </span>            :                                   .GetObj(&quot;get&quot;)
+<span class="lineNum">    1022 </span><span class="lineCov">          2 :                                   .GetArray(&quot;parameters&quot;);</span>
+<span class="lineNum">    1023 </span><span class="lineCov">          1 :     if( !oParameters.IsValid() )</span>
+<span class="lineNum">    1024 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1025 </span><span class="lineCov">          3 :     for( int i = 0; i &lt; oParameters.Size(); i++ )</span>
+<span class="lineNum">    1026 </span>            :     {
+<span class="lineNum">    1027 </span><span class="lineCov">          2 :         CPLJSONObject oParam = oParameters[i];</span>
+<span class="lineNum">    1028 </span><span class="lineCov">          4 :         CPLString osRef = oParam.GetString(&quot;$ref&quot;);</span>
+<span class="lineNum">    1029 </span><span class="lineCov">          2 :         if( !osRef.empty() &amp;&amp; osRef.find(&quot;#/&quot;) == 0 )</span>
+<span class="lineNum">    1030 </span>            :         {
+<span class="lineNum">    1031 </span><span class="lineNoCov">          0 :             oParam = oDoc.GetRoot().GetObj(osRef.substr(2));</span>
+<span class="lineNum">    1032 </span>            :         }
+<span class="lineNum">    1033 </span><span class="lineCov">          8 :         if( oParam.GetString(&quot;in&quot;) == &quot;query&quot; &amp;&amp;</span>
+<span class="lineNum">    1034 </span><span class="lineCov">          2 :             GetLayerDefn()-&gt;GetFieldIndex(</span>
+<span class="lineNum">    1035 </span><span class="lineCov">          6 :                                 oParam.GetString(&quot;name&quot;).c_str()) &gt;= 0 )</span>
+<span class="lineNum">    1036 </span>            :         {
+<span class="lineNum">    1037 </span><span class="lineCov">          2 :             m_aoSetQueriableAttributes.insert(oParam.GetString(&quot;name&quot;));</span>
+<span class="lineNum">    1038 </span>            :         }
+<span class="lineNum">    1039 </span><span class="lineCov">          3 :     }</span>
+<span class="lineNum">    1040 </span>            : }
+<span class="lineNum">    1041 </span>            : 
+<span class="lineNum">    1042 </span>            : /************************************************************************/
+<span class="lineNum">    1043 </span>            : /*                         SetAttributeFilter()                         */
+<a name="1044"><span class="lineNum">    1044 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1045 </span>            : 
+<span class="lineNum">    1046 </span><span class="lineCov">          3 : OGRErr OGRWFS3Layer::SetAttributeFilter( const char *pszQuery )</span>
+<span class="lineNum">    1047 </span>            : 
+<span class="lineNum">    1048 </span>            : {
+<span class="lineNum">    1049 </span><span class="lineCov">          3 :     if( !m_bFeatureDefnEstablished )</span>
+<span class="lineNum">    1050 </span><span class="lineCov">          1 :         EstablishFeatureDefn();</span>
+<span class="lineNum">    1051 </span>            : 
+<span class="lineNum">    1052 </span><span class="lineCov">          3 :     OGRErr eErr = OGRLayer::SetAttributeFilter(pszQuery);</span>
+<span class="lineNum">    1053 </span>            : 
+<span class="lineNum">    1054 </span><span class="lineCov">          3 :     m_osAttributeFilter.clear();</span>
+<span class="lineNum">    1055 </span><span class="lineCov">          3 :     m_bFilterMustBeClientSideEvaluated = false;</span>
+<span class="lineNum">    1056 </span><span class="lineCov">          3 :     if( m_poAttrQuery != nullptr )</span>
+<span class="lineNum">    1057 </span>            :     {
+<span class="lineNum">    1058 </span><span class="lineCov">          2 :         GetQueriableAttributes();</span>
+<span class="lineNum">    1059 </span>            : 
+<span class="lineNum">    1060 </span><span class="lineCov">          2 :         swq_expr_node* poNode = (swq_expr_node*) m_poAttrQuery-&gt;GetSWQExpr();</span>
+<span class="lineNum">    1061 </span>            : 
+<span class="lineNum">    1062 </span><span class="lineCov">          2 :         poNode-&gt;ReplaceBetweenByGEAndLERecurse();</span>
+<span class="lineNum">    1063 </span>            : 
+<span class="lineNum">    1064 </span><span class="lineCov">          2 :         m_osAttributeFilter = BuildFilter(poNode);</span>
+<span class="lineNum">    1065 </span><span class="lineCov">          2 :         if( m_osAttributeFilter.empty() )</span>
+<span class="lineNum">    1066 </span>            :         {
+<span class="lineNum">    1067 </span>            :             CPLDebug(&quot;WFS3&quot;,
+<span class="lineNum">    1068 </span><span class="lineCov">          1 :                         &quot;Full filter will be evaluated on client side.&quot;);</span>
+<span class="lineNum">    1069 </span>            :         }
+<span class="lineNum">    1070 </span><span class="lineCov">          1 :         else if( m_bFilterMustBeClientSideEvaluated )</span>
+<span class="lineNum">    1071 </span>            :         {
+<span class="lineNum">    1072 </span>            :             CPLDebug(&quot;WFS3&quot;,
+<span class="lineNum">    1073 </span><span class="lineCov">          1 :                 &quot;Only part of the filter will be evaluated on server side.&quot;);</span>
+<span class="lineNum">    1074 </span>            :         }
+<span class="lineNum">    1075 </span>            :     }
+<span class="lineNum">    1076 </span>            : 
+<span class="lineNum">    1077 </span><span class="lineCov">          3 :     ResetReading();</span>
+<span class="lineNum">    1078 </span>            : 
+<span class="lineNum">    1079 </span><span class="lineCov">          3 :     return eErr;</span>
+<span class="lineNum">    1080 </span>            : }
+<span class="lineNum">    1081 </span>            : 
+<span class="lineNum">    1082 </span>            : /************************************************************************/
+<span class="lineNum">    1083 </span>            : /*                                Open()                                */
+<a name="1084"><span class="lineNum">    1084 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1085 </span>            : 
+<span class="lineNum">    1086 </span><span class="lineCov">       1140 : static GDALDataset *OGRWFS3DriverOpen( GDALOpenInfo* poOpenInfo )</span>
+<span class="lineNum">    1087 </span>            : 
+<span class="lineNum">    1088 </span>            : {
+<span class="lineNum">    1089 </span><span class="lineCov">       1140 :     if( !OGRWFS3DriverIdentify(poOpenInfo) || poOpenInfo-&gt;eAccess == GA_Update )</span>
+<span class="lineNum">    1090 </span><span class="lineCov">       1127 :         return nullptr;</span>
+<span class="lineNum">    1091 </span><span class="lineCov">         13 :     std::unique_ptr&lt;OGRWFS3Dataset&gt; poDataset(new OGRWFS3Dataset());</span>
+<span class="lineNum">    1092 </span><span class="lineCov">         13 :     if( !poDataset-&gt;Open(poOpenInfo) )</span>
+<span class="lineNum">    1093 </span><span class="lineCov">          6 :         return nullptr;</span>
+<span class="lineNum">    1094 </span><span class="lineCov">          7 :     return poDataset.release();</span>
+<span class="lineNum">    1095 </span>            : }
+<span class="lineNum">    1096 </span>            : 
+<span class="lineNum">    1097 </span>            : /************************************************************************/
+<span class="lineNum">    1098 </span>            : /*                           RegisterOGRWFS()                           */
+<a name="1099"><span class="lineNum">    1099 </span>            : /************************************************************************/</a>
+<span class="lineNum">    1100 </span>            : 
+<span class="lineNum">    1101 </span><span class="lineCov">       1109 : void RegisterOGRWFS3()</span>
+<span class="lineNum">    1102 </span>            : 
+<span class="lineNum">    1103 </span>            : {
+<span class="lineNum">    1104 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( &quot;WFS3&quot; ) != nullptr )</span>
+<span class="lineNum">    1105 </span><span class="lineCov">       1231 :         return;</span>
+<span class="lineNum">    1106 </span>            : 
+<span class="lineNum">    1107 </span><span class="lineCov">        987 :     GDALDriver *poDriver = new GDALDriver();</span>
+<span class="lineNum">    1108 </span>            : 
+<span class="lineNum">    1109 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( &quot;WFS3&quot; );</span>
+<span class="lineNum">    1110 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VECTOR, &quot;YES&quot; );</span>
+<span class="lineNum">    1111 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME,
+<span class="lineNum">    1112 </span><span class="lineCov">        987 :                                &quot;OGC WFS 3 client (Web Feature Service)&quot; );</span>
+<span class="lineNum">    1113 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_HELPTOPIC, &quot;drv_wfs3.html&quot; );</span>
+<span class="lineNum">    1114 </span>            : 
+<span class="lineNum">    1115 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_CONNECTION_PREFIX, &quot;WFS3:&quot; );</span>
+<span class="lineNum">    1116 </span>            : 
+<span class="lineNum">    1117 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_OPENOPTIONLIST,
+<span class="lineNum">    1118 </span>            : &quot;&lt;OpenOptionList&gt;&quot;
+<span class="lineNum">    1119 </span>            : &quot;  &lt;Option name='URL' type='string' &quot;
+<span class="lineNum">    1120 </span>            :         &quot;description='URL to the WFS server endpoint' required='true'/&gt;&quot;
+<span class="lineNum">    1121 </span>            : &quot;  &lt;Option name='PAGE_SIZE' type='int' &quot;
+<span class="lineNum">    1122 </span>            :         &quot;description='Maximum number of features to retrieve in a single request'/&gt;&quot;
+<span class="lineNum">    1123 </span>            : &quot;  &lt;Option name='USERPWD' type='string' &quot;
+<span class="lineNum">    1124 </span>            :         &quot;description='Basic authentication as username:password'/&gt;&quot;
+<span class="lineNum">    1125 </span><span class="lineCov">        987 : &quot;&lt;/OpenOptionList&gt;&quot; );</span>
+<span class="lineNum">    1126 </span>            : 
+<span class="lineNum">    1127 </span><span class="lineCov">        987 :     poDriver-&gt;pfnIdentify = OGRWFS3DriverIdentify;</span>
+<span class="lineNum">    1128 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = OGRWFS3DriverOpen;</span>
+<span class="lineNum">    1129 </span>            : 
+<span class="lineNum">    1130 </span><span class="lineCov">        987 :     GetGDALDriverManager()-&gt;RegisterDriver( poDriver );</span>
+<span class="lineNum">    1131 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

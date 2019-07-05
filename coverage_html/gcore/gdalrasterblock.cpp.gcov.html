@@ -1,0 +1,1299 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - gcore/gdalrasterblock.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">gcore</a> - gdalrasterblock.cpp<span style="font-size: 80%;"> (source / <a href="gdalrasterblock.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">250</td>
+            <td class="headerCovTableEntry">288</td>
+            <td class="headerCovTableEntryMed">86.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">27</td>
+            <td class="headerCovTableEntry">30</td>
+            <td class="headerCovTableEntryHi">90.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL Core
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of GDALRasterBlock class and related global
+<span class="lineNum">       5 </span>            :  *           raster block cache management.
+<span class="lineNum">       6 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  **********************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 1998, Frank Warmerdam &lt;warmerdam@pobox.com&gt;
+<span class="lineNum">      10 </span>            :  * Copyright (c) 2008-2013, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      11 </span>            :  *
+<span class="lineNum">      12 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      13 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      14 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      15 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      16 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      17 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      18 </span>            :  *
+<span class="lineNum">      19 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      20 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      21 </span>            :  *
+<span class="lineNum">      22 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      23 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      24 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      25 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      26 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      27 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      28 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      29 </span>            :  ****************************************************************************/
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;gdal_priv.h&quot;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      36 </span>            : #include &lt;climits&gt;
+<span class="lineNum">      37 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : #include &quot;cpl_atomic_ops.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;cpl_multiproc.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : static bool bCacheMaxInitialized = false;
+<span class="lineNum">      49 </span>            : // Will later be overridden by the default 5% if GDAL_CACHEMAX not defined.
+<span class="lineNum">      50 </span>            : static GIntBig nCacheMax = 40 * 1024 * 1024;
+<span class="lineNum">      51 </span>            : static volatile GIntBig nCacheUsed = 0;
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : static GDALRasterBlock *poOldest = nullptr;  // Tail.
+<span class="lineNum">      54 </span>            : static GDALRasterBlock *poNewest = nullptr;  // Head.
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : static int nDisableDirtyBlockFlushCounter = 0;
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span>            : #if 0
+<span class="lineNum">      59 </span>            : static CPLMutex *hRBLock = nullptr;
+<span class="lineNum">      60 </span>            : #define INITIALIZE_LOCK CPLMutexHolderD( &amp;hRBLock )
+<span class="lineNum">      61 </span>            : #define TAKE_LOCK       CPLMutexHolderOptionalLockD( hRBLock )
+<span class="lineNum">      62 </span>            : #define DESTROY_LOCK    CPLDestroyMutex( hRBLock )
+<span class="lineNum">      63 </span>            : #else
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            : static CPLLock* hRBLock = nullptr;
+<a name="66"><span class="lineNum">      66 </span>            : static bool bDebugContention = false;</a>
+<span class="lineNum">      67 </span>            : static bool bSleepsForBockCacheDebug = false;
+<span class="lineNum">      68 </span><span class="lineCov">       4314 : static CPLLockType GetLockType()</span>
+<span class="lineNum">      69 </span>            : {
+<span class="lineNum">      70 </span>            :     static int nLockType = -1;
+<span class="lineNum">      71 </span><span class="lineCov">       4314 :     if( nLockType &lt; 0 )</span>
+<span class="lineNum">      72 </span>            :     {
+<span class="lineNum">      73 </span>            :         const char* pszLockType =
+<span class="lineNum">      74 </span><span class="lineCov">        319 :             CPLGetConfigOption(&quot;GDAL_RB_LOCK_TYPE&quot;, &quot;ADAPTIVE&quot;);</span>
+<span class="lineNum">      75 </span><span class="lineCov">        319 :         if( EQUAL(pszLockType, &quot;ADAPTIVE&quot;) )</span>
+<span class="lineNum">      76 </span><span class="lineCov">        317 :             nLockType = LOCK_ADAPTIVE_MUTEX;</span>
+<span class="lineNum">      77 </span><span class="lineCov">          2 :         else if( EQUAL(pszLockType, &quot;RECURSIVE&quot;) )</span>
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :             nLockType = LOCK_RECURSIVE_MUTEX;</span>
+<span class="lineNum">      79 </span><span class="lineCov">          2 :         else if( EQUAL(pszLockType, &quot;SPIN&quot;) )</span>
+<span class="lineNum">      80 </span><span class="lineCov">          2 :             nLockType = LOCK_SPIN;</span>
+<span class="lineNum">      81 </span>            :         else
+<span class="lineNum">      82 </span>            :         {
+<span class="lineNum">      83 </span>            :             CPLError(
+<span class="lineNum">      84 </span>            :                 CE_Warning, CPLE_NotSupported,
+<span class="lineNum">      85 </span>            :                 &quot;GDAL_RB_LOCK_TYPE=%s not supported. Falling back to ADAPTIVE&quot;,
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :                 pszLockType);</span>
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :             nLockType = LOCK_ADAPTIVE_MUTEX;</span>
+<span class="lineNum">      88 </span>            :         }
+<span class="lineNum">      89 </span>            :         bDebugContention = CPLTestBool(
+<span class="lineNum">      90 </span><span class="lineCov">        319 :             CPLGetConfigOption(&quot;GDAL_RB_LOCK_DEBUG_CONTENTION&quot;, &quot;NO&quot;));</span>
+<span class="lineNum">      91 </span>            :     }
+<span class="lineNum">      92 </span><span class="lineCov">       4314 :     return static_cast&lt;CPLLockType&gt;(nLockType);</span>
+<span class="lineNum">      93 </span>            : }
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            : #define INITIALIZE_LOCK         CPLLockHolderD( &amp;hRBLock, GetLockType() ); \
+<span class="lineNum">      96 </span>            :                                 CPLLockSetDebugPerf(hRBLock, bDebugContention)
+<span class="lineNum">      97 </span>            : #define TAKE_LOCK               CPLLockHolderOptionalLockD( hRBLock )
+<span class="lineNum">      98 </span>            : #define DESTROY_LOCK            CPLDestroyLock( hRBLock )
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            : #endif
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            : //#define ENABLE_DEBUG
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            : /************************************************************************/
+<span class="lineNum">     105 </span>            : /*                          GDALSetCacheMax()                           */
+<span class="lineNum">     106 </span>            : /************************************************************************/
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            : /**
+<span class="lineNum">     109 </span>            :  * \brief Set maximum cache memory.
+<span class="lineNum">     110 </span>            :  *
+<span class="lineNum">     111 </span>            :  * This function sets the maximum amount of memory that GDAL is permitted
+<span class="lineNum">     112 </span>            :  * to use for GDALRasterBlock caching. The unit of the value is bytes.
+<span class="lineNum">     113 </span>            :  *
+<span class="lineNum">     114 </span>            :  * The maximum value is 2GB, due to the use of a signed 32 bit integer.
+<span class="lineNum">     115 </span>            :  * Use GDALSetCacheMax64() to be able to set a higher value.
+<span class="lineNum">     116 </span>            :  *
+<span class="lineNum">     117 </span>            :  * @param nNewSizeInBytes the maximum number of bytes for caching.
+<a name="118"><span class="lineNum">     118 </span>            :  */</a>
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span><span class="lineCov">         12 : void CPL_STDCALL GDALSetCacheMax( int nNewSizeInBytes )</span>
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            : {
+<span class="lineNum">     123 </span><span class="lineCov">         12 :     GDALSetCacheMax64(nNewSizeInBytes);</span>
+<span class="lineNum">     124 </span><span class="lineCov">         12 : }</span>
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            : /************************************************************************/
+<span class="lineNum">     127 </span>            : /*                        GDALSetCacheMax64()                           */
+<span class="lineNum">     128 </span>            : /************************************************************************/
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span>            : /**
+<span class="lineNum">     131 </span>            :  * \brief Set maximum cache memory.
+<span class="lineNum">     132 </span>            :  *
+<span class="lineNum">     133 </span>            :  * This function sets the maximum amount of memory that GDAL is permitted
+<span class="lineNum">     134 </span>            :  * to use for GDALRasterBlock caching. The unit of the value is bytes.
+<span class="lineNum">     135 </span>            :  *
+<span class="lineNum">     136 </span>            :  * Note: On 32 bit platforms, the maximum amount of memory that can be addressed
+<span class="lineNum">     137 </span>            :  * by a process might be 2 GB or 3 GB, depending on the operating system
+<span class="lineNum">     138 </span>            :  * capabilities. This function will not make any attempt to check the
+<span class="lineNum">     139 </span>            :  * consistency of the passed value with the effective capabilities of the OS.
+<span class="lineNum">     140 </span>            :  *
+<span class="lineNum">     141 </span>            :  * @param nNewSizeInBytes the maximum number of bytes for caching.
+<span class="lineNum">     142 </span>            :  *
+<span class="lineNum">     143 </span>            :  * @since GDAL 1.8.0
+<a name="144"><span class="lineNum">     144 </span>            :  */</a>
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span><span class="lineCov">         71 : void CPL_STDCALL GDALSetCacheMax64( GIntBig nNewSizeInBytes )</span>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            : {
+<span class="lineNum">     149 </span>            : #if 0
+<span class="lineNum">     150 </span>            :     if( nNewSizeInBytes == 12346789 )
+<span class="lineNum">     151 </span>            :     {
+<span class="lineNum">     152 </span>            :         GDALRasterBlock::DumpAll();
+<span class="lineNum">     153 </span>            :         return;
+<span class="lineNum">     154 </span>            :     }
+<span class="lineNum">     155 </span>            : #endif
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            :     {
+<span class="lineNum">     158 </span><span class="lineCov">         71 :         INITIALIZE_LOCK;</span>
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span><span class="lineCov">         71 :     bCacheMaxInitialized = true;</span>
+<span class="lineNum">     161 </span><span class="lineCov">         71 :     nCacheMax = nNewSizeInBytes;</span>
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     164 </span>            : /*      Flush blocks till we are under the new limit or till we         */
+<span class="lineNum">     165 </span>            : /*      can't seem to flush anymore.                                    */
+<span class="lineNum">     166 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     167 </span><span class="lineCov">       4070 :     while( nCacheUsed &gt; nCacheMax )</span>
+<span class="lineNum">     168 </span>            :     {
+<span class="lineNum">     169 </span><span class="lineCov">       3928 :         const GIntBig nOldCacheUsed = nCacheUsed;</span>
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span><span class="lineCov">       3928 :         GDALFlushCacheBlock();</span>
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span><span class="lineCov">       3928 :         if( nCacheUsed == nOldCacheUsed )</span>
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     175 </span>            :     }
+<span class="lineNum">     176 </span><span class="lineCov">         71 : }</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            : /************************************************************************/
+<span class="lineNum">     179 </span>            : /*                          GDALGetCacheMax()                           */
+<span class="lineNum">     180 </span>            : /************************************************************************/
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span>            : /**
+<span class="lineNum">     183 </span>            :  * \brief Get maximum cache memory.
+<span class="lineNum">     184 </span>            :  *
+<span class="lineNum">     185 </span>            :  * Gets the maximum amount of memory available to the GDALRasterBlock
+<span class="lineNum">     186 </span>            :  * caching system for caching GDAL read/write imagery.
+<span class="lineNum">     187 </span>            :  *
+<span class="lineNum">     188 </span>            :  * The first type this function is called, it will read the GDAL_CACHEMAX
+<span class="lineNum">     189 </span>            :  * configuration option to initialize the maximum cache memory.
+<span class="lineNum">     190 </span>            :  * Starting with GDAL 2.1, the value can be expressed as x% of the usable
+<span class="lineNum">     191 </span>            :  * physical RAM (which may potentially be used by other processes). Otherwise
+<span class="lineNum">     192 </span>            :  * it is expected to be a value in MB.
+<span class="lineNum">     193 </span>            :  *
+<span class="lineNum">     194 </span>            :  * This function cannot return a value higher than 2 GB. Use
+<span class="lineNum">     195 </span>            :  * GDALGetCacheMax64() to get a non-truncated value.
+<span class="lineNum">     196 </span>            :  *
+<span class="lineNum">     197 </span>            :  * @return maximum in bytes.
+<a name="198"><span class="lineNum">     198 </span>            :  */</a>
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 : int CPL_STDCALL GDALGetCacheMax()</span>
+<span class="lineNum">     201 </span>            : {
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :     GIntBig nRes = GDALGetCacheMax64();</span>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :     if (nRes &gt; INT_MAX)</span>
+<span class="lineNum">     204 </span>            :     {
+<span class="lineNum">     205 </span>            :         static bool bHasWarned = false;
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :         if (!bHasWarned)</span>
+<span class="lineNum">     207 </span>            :         {
+<span class="lineNum">     208 </span>            :             CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     209 </span>            :                       &quot;Cache max value doesn't fit on a 32 bit integer. &quot;
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :                       &quot;Call GDALGetCacheMax64() instead&quot; );</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :             bHasWarned = true;</span>
+<span class="lineNum">     212 </span>            :         }
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :         nRes = INT_MAX;</span>
+<span class="lineNum">     214 </span>            :     }
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :     return static_cast&lt;int&gt;(nRes);</span>
+<span class="lineNum">     216 </span>            : }
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            : /************************************************************************/
+<span class="lineNum">     219 </span>            : /*                         GDALGetCacheMax64()                          */
+<span class="lineNum">     220 </span>            : /************************************************************************/
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span>            : /**
+<span class="lineNum">     223 </span>            :  * \brief Get maximum cache memory.
+<span class="lineNum">     224 </span>            :  *
+<span class="lineNum">     225 </span>            :  * Gets the maximum amount of memory available to the GDALRasterBlock
+<span class="lineNum">     226 </span>            :  * caching system for caching GDAL read/write imagery.
+<span class="lineNum">     227 </span>            :  *
+<span class="lineNum">     228 </span>            :  * The first type this function is called, it will read the GDAL_CACHEMAX
+<span class="lineNum">     229 </span>            :  * configuration option to initialize the maximum cache memory.
+<span class="lineNum">     230 </span>            :  * Starting with GDAL 2.1, the value can be expressed as x% of the usable
+<span class="lineNum">     231 </span>            :  * physical RAM (which may potentially be used by other processes). Otherwise
+<span class="lineNum">     232 </span>            :  * it is expected to be a value in MB.
+<span class="lineNum">     233 </span>            :  *
+<span class="lineNum">     234 </span>            :  * @return maximum in bytes.
+<span class="lineNum">     235 </span>            :  *
+<span class="lineNum">     236 </span>            :  * @since GDAL 1.8.0
+<a name="237"><span class="lineNum">     237 </span>            :  */</a>
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span><span class="lineCov">    3036458 : GIntBig CPL_STDCALL GDALGetCacheMax64()</span>
+<span class="lineNum">     240 </span>            : {
+<span class="lineNum">     241 </span><span class="lineCov">    3036458 :     if( !bCacheMaxInitialized )</span>
+<span class="lineNum">     242 </span>            :     {
+<span class="lineNum">     243 </span>            :         {
+<span class="lineNum">     244 </span><span class="lineCov">        307 :             INITIALIZE_LOCK;</span>
+<span class="lineNum">     245 </span>            :         }
+<span class="lineNum">     246 </span>            :         bSleepsForBockCacheDebug = CPLTestBool(
+<span class="lineNum">     247 </span><span class="lineCov">        307 :             CPLGetConfigOption(&quot;GDAL_DEBUG_BLOCK_CACHE&quot;, &quot;NO&quot;));</span>
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span><span class="lineCov">        307 :         const char* pszCacheMax = CPLGetConfigOption(&quot;GDAL_CACHEMAX&quot;,&quot;5%&quot;);</span>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            :         GIntBig nNewCacheMax;
+<span class="lineNum">     252 </span><span class="lineCov">        307 :         if( strchr(pszCacheMax, '%') != nullptr )</span>
+<span class="lineNum">     253 </span>            :         {
+<span class="lineNum">     254 </span><span class="lineCov">        295 :             GIntBig nUsablePhysicalRAM = CPLGetUsablePhysicalRAM();</span>
+<span class="lineNum">     255 </span><span class="lineCov">        295 :             if( nUsablePhysicalRAM &gt; 0 )</span>
+<span class="lineNum">     256 </span>            :             {
+<span class="lineNum">     257 </span>            :                 // For some reason, coverity pretends that this will overflow.
+<span class="lineNum">     258 </span>            :                 // &quot;Multiply operation overflows on operands static_cast&lt;double&gt;(
+<span class="lineNum">     259 </span>            :                 // nUsablePhysicalRAM ) and CPLAtof(pszCacheMax). Example values for
+<span class="lineNum">     260 </span>            :                 // operands: CPLAtof( pszCacheMax ) = 2251799813685248,
+<span class="lineNum">     261 </span>            :                 // static_cast&lt;double&gt;(nUsablePhysicalRAM) = -9223372036854775808.&quot;
+<span class="lineNum">     262 </span>            :                 // coverity[overflow]
+<span class="lineNum">     263 </span>            :                 double dfCacheMax =
+<span class="lineNum">     264 </span><span class="lineCov">        590 :                     static_cast&lt;double&gt;(nUsablePhysicalRAM) *</span>
+<span class="lineNum">     265 </span><span class="lineCov">        590 :                     CPLAtof(pszCacheMax) / 100.0;</span>
+<span class="lineNum">     266 </span><span class="lineCov">        295 :                 if( dfCacheMax &gt;= 0 &amp;&amp; dfCacheMax &lt; 1e15 )</span>
+<span class="lineNum">     267 </span><span class="lineCov">        295 :                     nNewCacheMax = static_cast&lt;GIntBig&gt;(dfCacheMax);</span>
+<span class="lineNum">     268 </span>            :                 else
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :                     nNewCacheMax = nCacheMax;</span>
+<span class="lineNum">     270 </span>            :             }
+<span class="lineNum">     271 </span>            :             else
+<span class="lineNum">     272 </span>            :             {
+<span class="lineNum">     273 </span>            :                 CPLDebug(&quot;GDAL&quot;,
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :                          &quot;Cannot determine usable physical RAM.&quot;);</span>
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 :                 nNewCacheMax = nCacheMax;</span>
+<span class="lineNum">     276 </span>            :             }
+<span class="lineNum">     277 </span>            :         }
+<span class="lineNum">     278 </span>            :         else
+<span class="lineNum">     279 </span>            :         {
+<span class="lineNum">     280 </span><span class="lineCov">         12 :             nNewCacheMax = CPLAtoGIntBig(pszCacheMax);</span>
+<span class="lineNum">     281 </span><span class="lineCov">         12 :             if( nNewCacheMax &lt; 100000 )</span>
+<span class="lineNum">     282 </span>            :             {
+<span class="lineNum">     283 </span><span class="lineCov">         12 :                 if (nNewCacheMax &lt; 0)</span>
+<span class="lineNum">     284 </span>            :                 {
+<span class="lineNum">     285 </span>            :                     CPLError(
+<span class="lineNum">     286 </span>            :                         CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     287 </span>            :                         &quot;Invalid value for GDAL_CACHEMAX. &quot;
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :                         &quot;Using default value.&quot;);</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :                     GIntBig nUsablePhysicalRAM = CPLGetUsablePhysicalRAM();</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :                     if( nUsablePhysicalRAM )</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :                         nNewCacheMax = nUsablePhysicalRAM / 20;</span>
+<span class="lineNum">     292 </span>            :                     else
+<span class="lineNum">     293 </span>            :                     {
+<span class="lineNum">     294 </span>            :                         CPLDebug(&quot;GDAL&quot;,
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :                                  &quot;Cannot determine usable physical RAM.&quot;);</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :                         nNewCacheMax = nCacheMax;</span>
+<span class="lineNum">     297 </span>            :                     }
+<span class="lineNum">     298 </span>            :                 }
+<span class="lineNum">     299 </span>            :                 else
+<span class="lineNum">     300 </span>            :                 {
+<span class="lineNum">     301 </span><span class="lineCov">         12 :                     nNewCacheMax *= 1024 * 1024;</span>
+<span class="lineNum">     302 </span>            :                 }
+<span class="lineNum">     303 </span>            :             }
+<span class="lineNum">     304 </span>            :         }
+<span class="lineNum">     305 </span><span class="lineCov">        307 :         nCacheMax = nNewCacheMax;</span>
+<span class="lineNum">     306 </span>            :         CPLDebug( &quot;GDAL&quot;, &quot;GDAL_CACHEMAX = &quot; CPL_FRMT_GIB &quot; MB&quot;,
+<span class="lineNum">     307 </span><span class="lineCov">        307 :                   nCacheMax / (1024 * 1024));</span>
+<span class="lineNum">     308 </span><span class="lineCov">        307 :         bCacheMaxInitialized = true;</span>
+<span class="lineNum">     309 </span>            :     }
+<span class="lineNum">     310 </span>            :     // coverity[overflow_sink]
+<span class="lineNum">     311 </span><span class="lineCov">    3036458 :     return nCacheMax;</span>
+<span class="lineNum">     312 </span>            : }
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            : /************************************************************************/
+<span class="lineNum">     315 </span>            : /*                          GDALGetCacheUsed()                          */
+<span class="lineNum">     316 </span>            : /************************************************************************/
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span>            : /**
+<span class="lineNum">     319 </span>            :  * \brief Get cache memory used.
+<span class="lineNum">     320 </span>            :  *
+<span class="lineNum">     321 </span>            :  * @return the number of bytes of memory currently in use by the
+<span class="lineNum">     322 </span>            :  * GDALRasterBlock memory caching.
+<a name="323"><span class="lineNum">     323 </span>            :  */</a>
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 : int CPL_STDCALL GDALGetCacheUsed()</span>
+<span class="lineNum">     326 </span>            : {
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :     if (nCacheUsed &gt; INT_MAX)</span>
+<span class="lineNum">     328 </span>            :     {
+<span class="lineNum">     329 </span>            :         static bool bHasWarned = false;
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :         if (!bHasWarned)</span>
+<span class="lineNum">     331 </span>            :         {
+<span class="lineNum">     332 </span>            :             CPLError( CE_Warning, CPLE_AppDefined,
+<span class="lineNum">     333 </span>            :                       &quot;Cache used value doesn't fit on a 32 bit integer. &quot;
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :                       &quot;Call GDALGetCacheUsed64() instead&quot; );</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :             bHasWarned = true;</span>
+<span class="lineNum">     336 </span>            :         }
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :         return INT_MAX;</span>
+<span class="lineNum">     338 </span>            :     }
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :     return static_cast&lt;int&gt;(nCacheUsed);</span>
+<span class="lineNum">     340 </span>            : }
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span>            : /************************************************************************/
+<span class="lineNum">     343 </span>            : /*                        GDALGetCacheUsed64()                          */
+<span class="lineNum">     344 </span>            : /************************************************************************/
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span>            : /**
+<span class="lineNum">     347 </span>            :  * \brief Get cache memory used.
+<span class="lineNum">     348 </span>            :  *
+<span class="lineNum">     349 </span>            :  * @return the number of bytes of memory currently in use by the
+<span class="lineNum">     350 </span>            :  * GDALRasterBlock memory caching.
+<span class="lineNum">     351 </span>            :  *
+<span class="lineNum">     352 </span>            :  * @since GDAL 1.8.0
+<a name="353"><span class="lineNum">     353 </span>            :  */</a>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineCov">         11 : GIntBig CPL_STDCALL GDALGetCacheUsed64() { return nCacheUsed; }</span>
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span>            : /************************************************************************/
+<span class="lineNum">     358 </span>            : /*                        GDALFlushCacheBlock()                         */
+<span class="lineNum">     359 </span>            : /*                                                                      */
+<span class="lineNum">     360 </span>            : /*      The workhorse of cache management!                              */
+<span class="lineNum">     361 </span>            : /************************************************************************/
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span>            : /**
+<span class="lineNum">     364 </span>            :  * \brief Try to flush one cached raster block
+<span class="lineNum">     365 </span>            :  *
+<span class="lineNum">     366 </span>            :  * This function will search the first unlocked raster block and will
+<span class="lineNum">     367 </span>            :  * flush it to release the associated memory.
+<span class="lineNum">     368 </span>            :  *
+<span class="lineNum">     369 </span>            :  * @return TRUE if one block was flushed, FALSE if there are no cached blocks
+<a name="370"><span class="lineNum">     370 </span>            :  *         or if they are currently locked.</a>
+<span class="lineNum">     371 </span>            :  */
+<span class="lineNum">     372 </span><span class="lineCov">       3935 : int CPL_STDCALL GDALFlushCacheBlock()</span>
+<span class="lineNum">     373 </span>            : 
+<span class="lineNum">     374 </span>            : {
+<span class="lineNum">     375 </span><span class="lineCov">       3935 :     return GDALRasterBlock::FlushCacheBlock();</span>
+<span class="lineNum">     376 </span>            : }
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span>            : /************************************************************************/
+<span class="lineNum">     379 </span>            : /* ==================================================================== */
+<span class="lineNum">     380 </span>            : /*                           GDALRasterBlock                            */
+<span class="lineNum">     381 </span>            : /* ==================================================================== */
+<span class="lineNum">     382 </span>            : /************************************************************************/
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span>            : /**
+<span class="lineNum">     385 </span>            :  * \class GDALRasterBlock &quot;gdal_priv.h&quot;
+<span class="lineNum">     386 </span>            :  *
+<span class="lineNum">     387 </span>            :  * GDALRasterBlock objects hold one block of raster data for one band
+<span class="lineNum">     388 </span>            :  * that is currently stored in the GDAL raster cache.  The cache holds
+<span class="lineNum">     389 </span>            :  * some blocks of raster data for zero or more GDALRasterBand objects
+<span class="lineNum">     390 </span>            :  * across zero or more GDALDataset objects in a global raster cache with
+<span class="lineNum">     391 </span>            :  * a least recently used (LRU) list and an upper cache limit (see
+<span class="lineNum">     392 </span>            :  * GDALSetCacheMax()) under which the cache size is normally kept.
+<span class="lineNum">     393 </span>            :  *
+<span class="lineNum">     394 </span>            :  * Some blocks in the cache may be modified relative to the state on disk
+<span class="lineNum">     395 </span>            :  * (they are marked &quot;Dirty&quot;) and must be flushed to disk before they can
+<span class="lineNum">     396 </span>            :  * be discarded.  Other (Clean) blocks may just be discarded if their memory
+<span class="lineNum">     397 </span>            :  * needs to be recovered.
+<span class="lineNum">     398 </span>            :  *
+<span class="lineNum">     399 </span>            :  * In normal situations applications do not interact directly with the
+<span class="lineNum">     400 </span>            :  * GDALRasterBlock - instead it it utilized by the RasterIO() interfaces
+<span class="lineNum">     401 </span>            :  * to implement caching.
+<span class="lineNum">     402 </span>            :  *
+<span class="lineNum">     403 </span>            :  * Some driver classes are implemented in a fashion that completely avoids
+<span class="lineNum">     404 </span>            :  * use of the GDAL raster cache (and GDALRasterBlock) though this is not very
+<span class="lineNum">     405 </span>            :  * common.
+<span class="lineNum">     406 </span>            :  */
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span>            : /************************************************************************/
+<span class="lineNum">     409 </span>            : /*                          FlushCacheBlock()                           */
+<span class="lineNum">     410 </span>            : /*                                                                      */
+<span class="lineNum">     411 </span>            : /*      Note, if we have a lot of blocks locked for a long time, this    */
+<span class="lineNum">     412 </span>            : /*      method is going to get slow because it will have to traverse    */
+<span class="lineNum">     413 </span>            : /*      the linked list a long ways looking for a flushing              */
+<span class="lineNum">     414 </span>            : /*      candidate.   It might help to re-touch locked blocks to push    */
+<span class="lineNum">     415 </span>            : /*      them to the top of the list.                                    */
+<span class="lineNum">     416 </span>            : /************************************************************************/
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span>            : /**
+<span class="lineNum">     419 </span>            :  * \brief Attempt to flush at least one block from the cache.
+<span class="lineNum">     420 </span>            :  *
+<span class="lineNum">     421 </span>            :  * This static method is normally used to recover memory when a request
+<span class="lineNum">     422 </span>            :  * for a new cache block would put cache memory use over the established
+<span class="lineNum">     423 </span>            :  * limit.
+<span class="lineNum">     424 </span>            :  *
+<span class="lineNum">     425 </span>            :  * C++ analog to the C function GDALFlushCacheBlock().
+<span class="lineNum">     426 </span>            :  *
+<span class="lineNum">     427 </span>            :  * @param bDirtyBlocksOnly Only flushes dirty blocks.
+<span class="lineNum">     428 </span>            :  * @return TRUE if successful or FALSE if no flushable block is found.
+<a name="429"><span class="lineNum">     429 </span>            :  */</a>
+<span class="lineNum">     430 </span>            : 
+<span class="lineNum">     431 </span><span class="lineCov">       3936 : int GDALRasterBlock::FlushCacheBlock( int bDirtyBlocksOnly )</span>
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span>            : {
+<span class="lineNum">     434 </span>            :     GDALRasterBlock *poTarget;
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span>            :     {
+<span class="lineNum">     437 </span><span class="lineCov">       3936 :         INITIALIZE_LOCK;</span>
+<span class="lineNum">     438 </span><span class="lineCov">       3936 :         poTarget = poOldest;</span>
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span><span class="lineCov">       7873 :         while( poTarget != nullptr )</span>
+<span class="lineNum">     441 </span>            :         {
+<span class="lineNum">     442 </span><span class="lineCov">       7870 :             if( !bDirtyBlocksOnly ||</span>
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :                 (poTarget-&gt;GetDirty() &amp;&amp; nDisableDirtyBlockFlushCounter == 0) )</span>
+<span class="lineNum">     444 </span>            :             {
+<span class="lineNum">     445 </span><span class="lineCov">       3935 :                 if( CPLAtomicCompareAndExchange(</span>
+<span class="lineNum">     446 </span><span class="lineCov">       3935 :                         &amp;(poTarget-&gt;nLockCount), 0, -1) )</span>
+<span class="lineNum">     447 </span><span class="lineCov">       3934 :                     break;</span>
+<span class="lineNum">     448 </span>            :             }
+<span class="lineNum">     449 </span><span class="lineCov">          1 :             poTarget = poTarget-&gt;poPrevious;</span>
+<span class="lineNum">     450 </span>            :         }
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span><span class="lineCov">       3936 :         if( poTarget == nullptr )</span>
+<span class="lineNum">     453 </span><span class="lineCov">          2 :             return FALSE;</span>
+<span class="lineNum">     454 </span><span class="lineCov">       3934 :         if( bSleepsForBockCacheDebug )</span>
+<span class="lineNum">     455 </span>            :             CPLSleep(CPLAtof(
+<span class="lineNum">     456 </span>            :                 CPLGetConfigOption(
+<span class="lineNum">     457 </span><span class="lineCov">          6 :                     &quot;GDAL_RB_FLUSHBLOCK_SLEEP_AFTER_DROP_LOCK&quot;, &quot;0&quot;)));</span>
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span><span class="lineCov">       3934 :         poTarget-&gt;Detach_unlocked();</span>
+<span class="lineNum">     460 </span><span class="lineCov">       3934 :         poTarget-&gt;GetBand()-&gt;UnreferenceBlock(poTarget);</span>
+<span class="lineNum">     461 </span>            :     }
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span><span class="lineCov">       3934 :     if( bSleepsForBockCacheDebug )</span>
+<span class="lineNum">     464 </span>            :         CPLSleep(CPLAtof(
+<span class="lineNum">     465 </span><span class="lineCov">          6 :             CPLGetConfigOption(&quot;GDAL_RB_FLUSHBLOCK_SLEEP_AFTER_RB_LOCK&quot;, &quot;0&quot;)));</span>
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span><span class="lineCov">       3934 :     if( poTarget-&gt;GetDirty() )</span>
+<span class="lineNum">     468 </span>            :     {
+<span class="lineNum">     469 </span><span class="lineCov">         30 :         const CPLErr eErr = poTarget-&gt;Write();</span>
+<span class="lineNum">     470 </span><span class="lineCov">         30 :         if( eErr != CE_None )</span>
+<span class="lineNum">     471 </span>            :         {
+<span class="lineNum">     472 </span>            :             // Save the error for later reporting.
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :             poTarget-&gt;GetBand()-&gt;SetFlushBlockErr(eErr);</span>
+<span class="lineNum">     474 </span>            :         }
+<span class="lineNum">     475 </span>            :     }
+<span class="lineNum">     476 </span>            : 
+<span class="lineNum">     477 </span><span class="lineCov">       3934 :     VSIFreeAligned(poTarget-&gt;pData);</span>
+<span class="lineNum">     478 </span><span class="lineCov">       3934 :     poTarget-&gt;pData = nullptr;</span>
+<span class="lineNum">     479 </span><span class="lineCov">       3934 :     poTarget-&gt;GetBand()-&gt;AddBlockToFreeList(poTarget);</span>
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span><span class="lineCov">       3934 :     return TRUE;</span>
+<span class="lineNum">     482 </span>            : }
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span>            : /************************************************************************/
+<span class="lineNum">     485 </span>            : /*                          FlushDirtyBlocks()                          */
+<span class="lineNum">     486 </span>            : /************************************************************************/
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span>            : /**
+<span class="lineNum">     489 </span>            :  * \brief Flush all dirty blocks from cache.
+<span class="lineNum">     490 </span>            :  *
+<span class="lineNum">     491 </span>            :  * This static method is normally used to recover memory and is especially
+<span class="lineNum">     492 </span>            :  * useful when doing multi-threaded code that can trigger the block cache.
+<span class="lineNum">     493 </span>            :  *
+<span class="lineNum">     494 </span>            :  * Due to the current design of the block cache, dirty blocks belonging to a
+<span class="lineNum">     495 </span>            :  * same dataset could be pushed simultaneously to the IWriteBlock() method of
+<span class="lineNum">     496 </span>            :  * that dataset from different threads, causing races.
+<span class="lineNum">     497 </span>            :  *
+<span class="lineNum">     498 </span>            :  * Calling this method before that code can help workarounding that issue,
+<span class="lineNum">     499 </span>            :  * in a multiple readers, one writer scenario.
+<span class="lineNum">     500 </span>            :  *
+<span class="lineNum">     501 </span>            :  * @since GDAL 2.0
+<a name="502"><span class="lineNum">     502 </span>            :  */</a>
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span><span class="lineCov">          1 : void GDALRasterBlock::FlushDirtyBlocks()</span>
+<span class="lineNum">     505 </span>            : 
+<span class="lineNum">     506 </span>            : {
+<span class="lineNum">     507 </span><span class="lineCov">          1 :     while( FlushCacheBlock(TRUE) )</span>
+<span class="lineNum">     508 </span>            :     {
+<span class="lineNum">     509 </span>            :         /* go on */
+<span class="lineNum">     510 </span>            :     }
+<span class="lineNum">     511 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     512 </span>            : 
+<span class="lineNum">     513 </span>            : /************************************************************************/
+<span class="lineNum">     514 </span>            : /*                      EnterDisableDirtyBlockFlush()                   */
+<span class="lineNum">     515 </span>            : /************************************************************************/
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span>            : /**
+<span class="lineNum">     518 </span>            :  * \brief Starts preventing dirty blocks from being flushed
+<span class="lineNum">     519 </span>            :  *
+<span class="lineNum">     520 </span>            :  * This static method is used to prevent dirty blocks from being flushed.
+<span class="lineNum">     521 </span>            :  * This might be useful when in a IWriteBlock() method, whose implementation
+<span class="lineNum">     522 </span>            :  * can directly/indirectly cause the block cache to evict new blocks, to
+<span class="lineNum">     523 </span>            :  * be recursively called on the same dataset.
+<span class="lineNum">     524 </span>            :  *
+<span class="lineNum">     525 </span>            :  * This method implements a reference counter and is thread-safe.
+<span class="lineNum">     526 </span>            :  *
+<span class="lineNum">     527 </span>            :  * This call must be paired with a corresponding LeaveDisableDirtyBlockFlush().
+<span class="lineNum">     528 </span>            :  *
+<span class="lineNum">     529 </span>            :  * @since GDAL 2.2.2
+<a name="530"><span class="lineNum">     530 </span>            :  */</a>
+<span class="lineNum">     531 </span>            : 
+<span class="lineNum">     532 </span><span class="lineCov">      11992 : void GDALRasterBlock::EnterDisableDirtyBlockFlush()</span>
+<span class="lineNum">     533 </span>            : {
+<span class="lineNum">     534 </span><span class="lineCov">      11992 :     CPLAtomicInc(&amp;nDisableDirtyBlockFlushCounter);</span>
+<span class="lineNum">     535 </span><span class="lineCov">      11992 : }</span>
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span>            : /************************************************************************/
+<span class="lineNum">     538 </span>            : /*                      LeaveDisableDirtyBlockFlush()                   */
+<span class="lineNum">     539 </span>            : /************************************************************************/
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span>            : /**
+<span class="lineNum">     542 </span>            :  * \brief Ends preventing dirty blocks from being flushed.
+<span class="lineNum">     543 </span>            :  *
+<span class="lineNum">     544 </span>            :  * Undoes the effect of EnterDisableDirtyBlockFlush().
+<span class="lineNum">     545 </span>            :  *
+<span class="lineNum">     546 </span>            :  * @since GDAL 2.2.2
+<a name="547"><span class="lineNum">     547 </span>            :  */</a>
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span><span class="lineCov">      11992 : void GDALRasterBlock::LeaveDisableDirtyBlockFlush()</span>
+<span class="lineNum">     550 </span>            : {
+<span class="lineNum">     551 </span><span class="lineCov">      11992 :     CPLAtomicDec(&amp;nDisableDirtyBlockFlushCounter);</span>
+<span class="lineNum">     552 </span><span class="lineCov">      11992 : }</span>
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span>            : /************************************************************************/
+<span class="lineNum">     555 </span>            : /*                          GDALRasterBlock()                           */
+<span class="lineNum">     556 </span>            : /************************************************************************/
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span>            : /**
+<span class="lineNum">     559 </span>            :  * @brief GDALRasterBlock Constructor
+<span class="lineNum">     560 </span>            :  *
+<span class="lineNum">     561 </span>            :  * Normally only called from GDALRasterBand::GetLockedBlockRef().
+<span class="lineNum">     562 </span>            :  *
+<span class="lineNum">     563 </span>            :  * @param poBandIn the raster band used as source of raster block
+<span class="lineNum">     564 </span>            :  * being constructed.
+<span class="lineNum">     565 </span>            :  *
+<span class="lineNum">     566 </span>            :  * @param nXOffIn the horizontal block offset, with zero indicating
+<span class="lineNum">     567 </span>            :  * the left most block, 1 the next block and so forth.
+<span class="lineNum">     568 </span>            :  *
+<span class="lineNum">     569 </span>            :  * @param nYOffIn the vertical block offset, with zero indicating
+<span class="lineNum">     570 </span>            :  * the top most block, 1 the next block and so forth.
+<a name="571"><span class="lineNum">     571 </span>            :  */</a>
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span><span class="lineCov">    2733886 : GDALRasterBlock::GDALRasterBlock( GDALRasterBand *poBandIn,</span>
+<span class="lineNum">     574 </span>            :                                   int nXOffIn, int nYOffIn ) :
+<span class="lineNum">     575 </span><span class="lineCov">    2733886 :     eType(poBandIn-&gt;GetRasterDataType()),</span>
+<span class="lineNum">     576 </span>            :     bDirty(false),
+<span class="lineNum">     577 </span>            :     nLockCount(0),
+<span class="lineNum">     578 </span>            :     nXOff(nXOffIn),
+<span class="lineNum">     579 </span>            :     nYOff(nYOffIn),
+<span class="lineNum">     580 </span>            :     nXSize(0),
+<span class="lineNum">     581 </span>            :     nYSize(0),
+<span class="lineNum">     582 </span>            :     pData(nullptr),
+<span class="lineNum">     583 </span>            :     poBand(poBandIn),
+<span class="lineNum">     584 </span>            :     poNext(nullptr),
+<span class="lineNum">     585 </span>            :     poPrevious(nullptr),
+<span class="lineNum">     586 </span><span class="lineCov">    5467772 :     bMustDetach(true)</span>
+<span class="lineNum">     587 </span>            : {
+<span class="lineNum">     588 </span><span class="lineCov">    2733886 :     CPLAssert( poBandIn != nullptr );</span>
+<span class="lineNum">     589 </span><span class="lineCov">    2733886 :     poBand-&gt;GetBlockSize( &amp;nXSize, &amp;nYSize );</span>
+<span class="lineNum">     590 </span><span class="lineCov">    2733893 : }</span>
+<span class="lineNum">     591 </span>            : 
+<span class="lineNum">     592 </span>            : /************************************************************************/
+<span class="lineNum">     593 </span>            : /*                          GDALRasterBlock()                           */
+<span class="lineNum">     594 </span>            : /************************************************************************/
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span>            : /**
+<span class="lineNum">     597 </span>            :  * @brief GDALRasterBlock Constructor (for GDALHashSetBandBlockAccess purpose)
+<span class="lineNum">     598 </span>            :  *
+<span class="lineNum">     599 </span>            :  * Normally only called from GDALHashSetBandBlockAccess class. Such a block
+<span class="lineNum">     600 </span>            :  * is completely non functional and only meant as being used to do a look-up
+<span class="lineNum">     601 </span>            :  * in the hash set of GDALHashSetBandBlockAccess
+<span class="lineNum">     602 </span>            :  *
+<span class="lineNum">     603 </span>            :  * @param nXOffIn the horizontal block offset, with zero indicating
+<span class="lineNum">     604 </span>            :  * the left most block, 1 the next block and so forth.
+<span class="lineNum">     605 </span>            :  *
+<span class="lineNum">     606 </span>            :  * @param nYOffIn the vertical block offset, with zero indicating
+<span class="lineNum">     607 </span>            :  * the top most block, 1 the next block and so forth.
+<a name="608"><span class="lineNum">     608 </span>            :  */</a>
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineCov">    3358403 : GDALRasterBlock::GDALRasterBlock( int nXOffIn, int nYOffIn ) :</span>
+<span class="lineNum">     611 </span>            :     eType(GDT_Unknown),
+<span class="lineNum">     612 </span>            :     bDirty(false),
+<span class="lineNum">     613 </span>            :     nLockCount(0),
+<span class="lineNum">     614 </span>            :     nXOff(nXOffIn),
+<span class="lineNum">     615 </span>            :     nYOff(nYOffIn),
+<span class="lineNum">     616 </span>            :     nXSize(0),
+<span class="lineNum">     617 </span>            :     nYSize(0),
+<span class="lineNum">     618 </span>            :     pData(nullptr),
+<span class="lineNum">     619 </span>            :     poBand(nullptr),
+<span class="lineNum">     620 </span>            :     poNext(nullptr),
+<span class="lineNum">     621 </span>            :     poPrevious(nullptr),
+<span class="lineNum">     622 </span><span class="lineCov">    3358403 :     bMustDetach(false)</span>
+<span class="lineNum">     623 </span><span class="lineCov">    3358403 : {}</span>
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span>            : /************************************************************************/
+<span class="lineNum">     626 </span>            : /*                                  RecycleFor()                        */
+<span class="lineNum">     627 </span>            : /************************************************************************/
+<span class="lineNum">     628 </span>            : 
+<span class="lineNum">     629 </span>            : /**
+<span class="lineNum">     630 </span>            :  * Recycle an existing block (of the same band)
+<span class="lineNum">     631 </span>            :  *
+<span class="lineNum">     632 </span>            :  * Normally called from GDALAbstractBandBlockCache::CreateBlock().
+<a name="633"><span class="lineNum">     633 </span>            :  */</a>
+<span class="lineNum">     634 </span>            : 
+<span class="lineNum">     635 </span><span class="lineCov">      76585 : void GDALRasterBlock::RecycleFor( int nXOffIn, int nYOffIn )</span>
+<span class="lineNum">     636 </span>            : {
+<span class="lineNum">     637 </span><span class="lineCov">      76585 :     CPLAssert(pData == nullptr);</span>
+<span class="lineNum">     638 </span><span class="lineCov">      76585 :     pData = nullptr;</span>
+<span class="lineNum">     639 </span><span class="lineCov">      76585 :     bDirty = false;</span>
+<span class="lineNum">     640 </span><span class="lineCov">      76585 :     nLockCount = 0;</span>
+<span class="lineNum">     641 </span>            : 
+<span class="lineNum">     642 </span><span class="lineCov">      76585 :     poNext = nullptr;</span>
+<span class="lineNum">     643 </span><span class="lineCov">      76585 :     poPrevious = nullptr;</span>
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span><span class="lineCov">      76585 :     nXOff = nXOffIn;</span>
+<span class="lineNum">     646 </span><span class="lineCov">      76585 :     nYOff = nYOffIn;</span>
+<span class="lineNum">     647 </span><span class="lineCov">      76585 :     bMustDetach = true;</span>
+<span class="lineNum">     648 </span><span class="lineCov">      76585 : }</span>
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span>            : /************************************************************************/
+<span class="lineNum">     651 </span>            : /*                          ~GDALRasterBlock()                          */
+<span class="lineNum">     652 </span>            : /************************************************************************/
+<span class="lineNum">     653 </span>            : 
+<span class="lineNum">     654 </span>            : /**
+<span class="lineNum">     655 </span>            :  * Block destructor.
+<span class="lineNum">     656 </span>            :  *
+<span class="lineNum">     657 </span>            :  * Normally called from GDALRasterBand::FlushBlock().
+<a name="658"><span class="lineNum">     658 </span>            :  */</a>
+<span class="lineNum">     659 </span>            : 
+<span class="lineNum">     660 </span><span class="lineCov">    8826196 : GDALRasterBlock::~GDALRasterBlock()</span>
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span>            : {
+<span class="lineNum">     663 </span><span class="lineCov">    6092302 :     Detach();</span>
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span><span class="lineCov">    6092301 :     if( pData != nullptr )</span>
+<span class="lineNum">     666 </span>            :     {
+<span class="lineNum">     667 </span><span class="lineCov">    2425033 :         VSIFreeAligned( pData );</span>
+<span class="lineNum">     668 </span>            :     }
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span><span class="lineCov">    6092300 :     CPLAssert( nLockCount &lt;= 0 );</span>
+<span class="lineNum">     671 </span>            : 
+<span class="lineNum">     672 </span>            : #ifdef ENABLE_DEBUG
+<span class="lineNum">     673 </span>            :     Verify();
+<span class="lineNum">     674 </span>            : #endif
+<span class="lineNum">     675 </span><span class="lineCov">    8826194 : }</span>
+<span class="lineNum">     676 </span>            : 
+<span class="lineNum">     677 </span>            : /************************************************************************/
+<span class="lineNum">     678 </span>            : /*                        GetEffectiveBlockSize()                       */
+<a name="679"><span class="lineNum">     679 </span>            : /************************************************************************/</a>
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span><span class="lineCov">    5620980 : static size_t GetEffectiveBlockSize(GPtrDiff_t nBlockSize)</span>
+<span class="lineNum">     682 </span>            : {
+<span class="lineNum">     683 </span>            :     // The real cost of a block allocation is more than just nBlockSize
+<span class="lineNum">     684 </span>            :     // As we allocate with 64-byte alignment, use 64 as a multiple.
+<span class="lineNum">     685 </span>            :     // We arbitrarily add 2 * sizeof(GDALRasterBlock) to account for that
+<span class="lineNum">     686 </span>            :     return static_cast&lt;size_t&gt;(
+<span class="lineNum">     687 </span>            :         std::min(static_cast&lt;GUIntBig&gt;(UINT_MAX),
+<span class="lineNum">     688 </span><span class="lineCov">   11241960 :                     static_cast&lt;GUIntBig&gt;(DIV_ROUND_UP(nBlockSize, 64)) * 64 +</span>
+<span class="lineNum">     689 </span><span class="lineCov">   11241960 :                         2 * sizeof(GDALRasterBlock)));</span>
+<span class="lineNum">     690 </span>            : }
+<span class="lineNum">     691 </span>            : 
+<span class="lineNum">     692 </span>            : /************************************************************************/
+<span class="lineNum">     693 </span>            : /*                               Detach()                               */
+<span class="lineNum">     694 </span>            : /************************************************************************/
+<span class="lineNum">     695 </span>            : 
+<span class="lineNum">     696 </span>            : /**
+<span class="lineNum">     697 </span>            :  * Remove block from cache.
+<span class="lineNum">     698 </span>            :  *
+<span class="lineNum">     699 </span>            :  * This method removes the current block from the linked list used to keep
+<span class="lineNum">     700 </span>            :  * track of all cached blocks in order of age.  It does not affect whether
+<span class="lineNum">     701 </span>            :  * the block is referenced by a GDALRasterBand nor does it destroy or flush
+<span class="lineNum">     702 </span>            :  * the block.
+<a name="703"><span class="lineNum">     703 </span>            :  */</a>
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span><span class="lineCov">    6756480 : void GDALRasterBlock::Detach()</span>
+<span class="lineNum">     706 </span>            : 
+<span class="lineNum">     707 </span>            : {
+<span class="lineNum">     708 </span><span class="lineCov">    6756480 :     if( bMustDetach )</span>
+<span class="lineNum">     709 </span>            :     {
+<span class="lineNum">     710 </span><span class="lineCov">    2425030 :         TAKE_LOCK;</span>
+<span class="lineNum">     711 </span><span class="lineCov">    2425033 :         Detach_unlocked();</span>
+<span class="lineNum">     712 </span>            :     }
+<a name="713"><span class="lineNum">     713 </span><span class="lineCov">    6756483 : }</span></a>
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span><span class="lineCov">    2810490 : void GDALRasterBlock::Detach_unlocked()</span>
+<span class="lineNum">     716 </span>            : {
+<span class="lineNum">     717 </span><span class="lineCov">    2810490 :     if( poOldest == this )</span>
+<span class="lineNum">     718 </span><span class="lineCov">    2432990 :         poOldest = poPrevious;</span>
+<span class="lineNum">     719 </span>            : 
+<span class="lineNum">     720 </span><span class="lineCov">    2810490 :     if( poNewest == this )</span>
+<span class="lineNum">     721 </span>            :     {
+<span class="lineNum">     722 </span><span class="lineCov">      37665 :         poNewest = poNext;</span>
+<span class="lineNum">     723 </span>            :     }
+<span class="lineNum">     724 </span>            : 
+<span class="lineNum">     725 </span><span class="lineCov">    2810490 :     if( poPrevious != nullptr )</span>
+<span class="lineNum">     726 </span><span class="lineCov">    2772825 :         poPrevious-&gt;poNext = poNext;</span>
+<span class="lineNum">     727 </span>            : 
+<span class="lineNum">     728 </span><span class="lineCov">    2810490 :     if( poNext != nullptr )</span>
+<span class="lineNum">     729 </span><span class="lineCov">     377500 :         poNext-&gt;poPrevious = poPrevious;</span>
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span><span class="lineCov">    2810490 :     poPrevious = nullptr;</span>
+<span class="lineNum">     732 </span><span class="lineCov">    2810490 :     poNext = nullptr;</span>
+<span class="lineNum">     733 </span><span class="lineCov">    2810490 :     bMustDetach = false;</span>
+<span class="lineNum">     734 </span>            : 
+<span class="lineNum">     735 </span><span class="lineCov">    2810490 :     if( pData )</span>
+<span class="lineNum">     736 </span><span class="lineCov">    2810490 :         nCacheUsed -= GetEffectiveBlockSize(GetBlockSize());</span>
+<span class="lineNum">     737 </span>            : 
+<span class="lineNum">     738 </span>            : #ifdef ENABLE_DEBUG
+<span class="lineNum">     739 </span>            :     Verify();
+<span class="lineNum">     740 </span>            : #endif
+<span class="lineNum">     741 </span><span class="lineCov">    2810490 : }</span>
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span>            : /************************************************************************/
+<span class="lineNum">     744 </span>            : /*                               Verify()                               */
+<span class="lineNum">     745 </span>            : /************************************************************************/
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span>            : /**
+<span class="lineNum">     748 </span>            :  * Confirms (via assertions) that the block cache linked list is in a
+<span class="lineNum">     749 </span>            :  * consistent state.
+<span class="lineNum">     750 </span>            :  */
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span>            : #ifdef ENABLE_DEBUG
+<span class="lineNum">     753 </span>            : void GDALRasterBlock::Verify()
+<span class="lineNum">     754 </span>            : 
+<span class="lineNum">     755 </span>            : {
+<span class="lineNum">     756 </span>            :     TAKE_LOCK;
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span>            :     CPLAssert( (poNewest == nullptr &amp;&amp; poOldest == nullptr)
+<span class="lineNum">     759 </span>            :                || (poNewest != nullptr &amp;&amp; poOldest != nullptr) );
+<span class="lineNum">     760 </span>            : 
+<span class="lineNum">     761 </span>            :     if( poNewest != nullptr )
+<span class="lineNum">     762 </span>            :     {
+<span class="lineNum">     763 </span>            :         CPLAssert( poNewest-&gt;poPrevious == nullptr );
+<span class="lineNum">     764 </span>            :         CPLAssert( poOldest-&gt;poNext == nullptr );
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span>            :         GDALRasterBlock* poLast = nullptr;
+<span class="lineNum">     767 </span>            :         for( GDALRasterBlock *poBlock = poNewest;
+<span class="lineNum">     768 </span>            :              poBlock != nullptr;
+<span class="lineNum">     769 </span>            :              poBlock = poBlock-&gt;poNext )
+<span class="lineNum">     770 </span>            :         {
+<span class="lineNum">     771 </span>            :             CPLAssert( poBlock-&gt;poPrevious == poLast );
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span>            :             poLast = poBlock;
+<span class="lineNum">     774 </span>            :         }
+<span class="lineNum">     775 </span>            : 
+<span class="lineNum">     776 </span>            :         CPLAssert( poOldest == poLast );
+<span class="lineNum">     777 </span>            :     }
+<span class="lineNum">     778 </span>            : }
+<a name="779"><span class="lineNum">     779 </span>            : </a>
+<span class="lineNum">     780 </span>            : #else
+<span class="lineNum">     781 </span><span class="lineNoCov">          0 : void GDALRasterBlock::Verify() {}</span>
+<span class="lineNum">     782 </span>            : #endif
+<span class="lineNum">     783 </span>            : 
+<span class="lineNum">     784 </span>            : #ifdef notdef
+<span class="lineNum">     785 </span>            : void GDALRasterBlock::CheckNonOrphanedBlocks( GDALRasterBand* poBand )
+<span class="lineNum">     786 </span>            : {
+<span class="lineNum">     787 </span>            :     TAKE_LOCK;
+<span class="lineNum">     788 </span>            :     for( GDALRasterBlock *poBlock = poNewest;
+<span class="lineNum">     789 </span>            :                           poBlock != nullptr;
+<span class="lineNum">     790 </span>            :                           poBlock = poBlock-&gt;poNext )
+<span class="lineNum">     791 </span>            :     {
+<span class="lineNum">     792 </span>            :         if ( poBlock-&gt;GetBand() == poBand )
+<span class="lineNum">     793 </span>            :         {
+<span class="lineNum">     794 </span>            :             printf(&quot;Cache has still blocks of band %p\n&quot;, poBand);/*ok*/
+<span class="lineNum">     795 </span>            :             printf(&quot;Band : %d\n&quot;, poBand-&gt;GetBand());/*ok*/
+<span class="lineNum">     796 </span>            :             printf(&quot;nRasterXSize = %d\n&quot;, poBand-&gt;GetXSize());/*ok*/
+<span class="lineNum">     797 </span>            :             printf(&quot;nRasterYSize = %d\n&quot;, poBand-&gt;GetYSize());/*ok*/
+<span class="lineNum">     798 </span>            :             int nBlockXSize, nBlockYSize;
+<span class="lineNum">     799 </span>            :             poBand-&gt;GetBlockSize(&amp;nBlockXSize, &amp;nBlockYSize);
+<span class="lineNum">     800 </span>            :             printf(&quot;nBlockXSize = %d\n&quot;, nBlockXSize);/*ok*/
+<span class="lineNum">     801 </span>            :             printf(&quot;nBlockYSize = %d\n&quot;, nBlockYSize);/*ok*/
+<span class="lineNum">     802 </span>            :             printf(&quot;Dataset : %p\n&quot;, poBand-&gt;GetDataset());/*ok*/
+<span class="lineNum">     803 </span>            :             if( poBand-&gt;GetDataset() )
+<span class="lineNum">     804 </span>            :                 printf(&quot;Dataset : %s\n&quot;,/*ok*/
+<span class="lineNum">     805 </span>            :                        poBand-&gt;GetDataset()-&gt;GetDescription());
+<span class="lineNum">     806 </span>            :         }
+<span class="lineNum">     807 </span>            :     }
+<span class="lineNum">     808 </span>            : }
+<span class="lineNum">     809 </span>            : #endif
+<span class="lineNum">     810 </span>            : 
+<span class="lineNum">     811 </span>            : /************************************************************************/
+<span class="lineNum">     812 </span>            : /*                               Write()                                */
+<span class="lineNum">     813 </span>            : /************************************************************************/
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span>            : /**
+<span class="lineNum">     816 </span>            :  * Force writing of the current block, if dirty.
+<span class="lineNum">     817 </span>            :  *
+<span class="lineNum">     818 </span>            :  * The block is written using GDALRasterBand::IWriteBlock() on its
+<span class="lineNum">     819 </span>            :  * corresponding band object.  Even if the write fails the block will
+<span class="lineNum">     820 </span>            :  * be marked clean.
+<span class="lineNum">     821 </span>            :  *
+<span class="lineNum">     822 </span>            :  * @return CE_None otherwise the error returned by IWriteBlock().
+<a name="823"><span class="lineNum">     823 </span>            :  */</a>
+<span class="lineNum">     824 </span>            : 
+<span class="lineNum">     825 </span><span class="lineCov">     142517 : CPLErr GDALRasterBlock::Write()</span>
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span>            : {
+<span class="lineNum">     828 </span><span class="lineCov">     142517 :     if( !GetDirty() )</span>
+<span class="lineNum">     829 </span><span class="lineNoCov">          0 :         return CE_None;</span>
+<span class="lineNum">     830 </span>            : 
+<span class="lineNum">     831 </span><span class="lineCov">     142518 :     if( poBand == nullptr )</span>
+<span class="lineNum">     832 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span><span class="lineCov">     142518 :     MarkClean();</span>
+<span class="lineNum">     835 </span>            : 
+<span class="lineNum">     836 </span><span class="lineCov">     142517 :     if (poBand-&gt;eFlushBlockErr == CE_None)</span>
+<span class="lineNum">     837 </span>            :     {
+<span class="lineNum">     838 </span><span class="lineCov">     142517 :         int bCallLeaveReadWrite = poBand-&gt;EnterReadWrite(GF_Write);</span>
+<span class="lineNum">     839 </span><span class="lineCov">     142517 :         CPLErr eErr = poBand-&gt;IWriteBlock( nXOff, nYOff, pData );</span>
+<span class="lineNum">     840 </span><span class="lineCov">     142517 :         if( bCallLeaveReadWrite ) poBand-&gt;LeaveReadWrite();</span>
+<span class="lineNum">     841 </span><span class="lineCov">     142517 :         return eErr;</span>
+<span class="lineNum">     842 </span>            :     }
+<span class="lineNum">     843 </span>            :     else
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :         return poBand-&gt;eFlushBlockErr;</span>
+<span class="lineNum">     845 </span>            : }
+<span class="lineNum">     846 </span>            : 
+<span class="lineNum">     847 </span>            : /************************************************************************/
+<span class="lineNum">     848 </span>            : /*                               Touch()                                */
+<span class="lineNum">     849 </span>            : /************************************************************************/
+<span class="lineNum">     850 </span>            : 
+<span class="lineNum">     851 </span>            : /**
+<span class="lineNum">     852 </span>            :  * Push block to top of LRU (least-recently used) list.
+<span class="lineNum">     853 </span>            :  *
+<span class="lineNum">     854 </span>            :  * This method is normally called when a block is used to keep track
+<span class="lineNum">     855 </span>            :  * that it has been recently used.
+<a name="856"><span class="lineNum">     856 </span>            :  */</a>
+<span class="lineNum">     857 </span>            : 
+<span class="lineNum">     858 </span><span class="lineCov">    9483413 : void GDALRasterBlock::Touch()</span>
+<span class="lineNum">     859 </span>            : 
+<span class="lineNum">     860 </span>            : {
+<span class="lineNum">     861 </span>            :     // Can be safely tested outside the lock
+<span class="lineNum">     862 </span><span class="lineCov">    9483413 :     if( poNewest == this )</span>
+<span class="lineNum">     863 </span><span class="lineCov">   10250204 :         return;</span>
+<span class="lineNum">     864 </span>            : 
+<span class="lineNum">     865 </span><span class="lineCov">    8716632 :     TAKE_LOCK;</span>
+<span class="lineNum">     866 </span><span class="lineCov">    8716642 :     Touch_unlocked();</span>
+<a name="867"><span class="lineNum">     867 </span>            : }</a>
+<span class="lineNum">     868 </span>            : 
+<span class="lineNum">     869 </span><span class="lineCov">   11527132 : void GDALRasterBlock::Touch_unlocked()</span>
+<span class="lineNum">     870 </span>            : 
+<span class="lineNum">     871 </span>            : {
+<span class="lineNum">     872 </span>            :     // Could happen even if tested in Touch() before taking the lock
+<span class="lineNum">     873 </span>            :     // Scenario would be :
+<span class="lineNum">     874 </span>            :     // 0. this is the second block (the one pointed by poNewest-&gt;poNext)
+<span class="lineNum">     875 </span>            :     // 1. Thread 1 calls Touch() and poNewest != this at that point
+<span class="lineNum">     876 </span>            :     // 2. Thread 2 detaches poNewest
+<span class="lineNum">     877 </span>            :     // 3. Thread 1 arrives here
+<span class="lineNum">     878 </span><span class="lineCov">   11527132 :     if( poNewest == this )</span>
+<span class="lineNum">     879 </span><span class="lineCov">   11527132 :         return;</span>
+<span class="lineNum">     880 </span>            : 
+<span class="lineNum">     881 </span>            :     // We should not try to touch a block that has been detached.
+<span class="lineNum">     882 </span>            :     // If that happen, corruption has already occurred.
+<span class="lineNum">     883 </span><span class="lineCov">   11527132 :     CPLAssert(bMustDetach);</span>
+<span class="lineNum">     884 </span>            : 
+<span class="lineNum">     885 </span><span class="lineCov">   11527132 :     if( poOldest == this )</span>
+<span class="lineNum">     886 </span><span class="lineCov">    1735163 :         poOldest = this-&gt;poPrevious;</span>
+<span class="lineNum">     887 </span>            : 
+<span class="lineNum">     888 </span><span class="lineCov">   11527132 :     if( poPrevious != nullptr )</span>
+<span class="lineNum">     889 </span><span class="lineCov">    8716642 :         poPrevious-&gt;poNext = poNext;</span>
+<span class="lineNum">     890 </span>            : 
+<span class="lineNum">     891 </span><span class="lineCov">   11527132 :     if( poNext != nullptr )</span>
+<span class="lineNum">     892 </span><span class="lineCov">    6981479 :         poNext-&gt;poPrevious = poPrevious;</span>
+<span class="lineNum">     893 </span>            : 
+<span class="lineNum">     894 </span><span class="lineCov">   11527132 :     poPrevious = nullptr;</span>
+<span class="lineNum">     895 </span><span class="lineCov">   11527132 :     poNext = poNewest;</span>
+<span class="lineNum">     896 </span>            : 
+<span class="lineNum">     897 </span><span class="lineCov">   11527132 :     if( poNewest != nullptr )</span>
+<span class="lineNum">     898 </span>            :     {
+<span class="lineNum">     899 </span><span class="lineCov">   11508376 :         CPLAssert( poNewest-&gt;poPrevious == nullptr );</span>
+<span class="lineNum">     900 </span><span class="lineCov">   11508376 :         poNewest-&gt;poPrevious = this;</span>
+<span class="lineNum">     901 </span>            :     }
+<span class="lineNum">     902 </span><span class="lineCov">   11527132 :     poNewest = this;</span>
+<span class="lineNum">     903 </span>            : 
+<span class="lineNum">     904 </span><span class="lineCov">   11527132 :     if( poOldest == nullptr )</span>
+<span class="lineNum">     905 </span>            :     {
+<span class="lineNum">     906 </span><span class="lineCov">      18756 :         CPLAssert( poPrevious == nullptr &amp;&amp; poNext == nullptr );</span>
+<span class="lineNum">     907 </span><span class="lineCov">      18756 :         poOldest = this;</span>
+<span class="lineNum">     908 </span>            :     }
+<span class="lineNum">     909 </span>            : #ifdef ENABLE_DEBUG
+<span class="lineNum">     910 </span>            :     Verify();
+<span class="lineNum">     911 </span>            : #endif
+<span class="lineNum">     912 </span>            : }
+<span class="lineNum">     913 </span>            : 
+<span class="lineNum">     914 </span>            : /************************************************************************/
+<span class="lineNum">     915 </span>            : /*                            Internalize()                             */
+<span class="lineNum">     916 </span>            : /************************************************************************/
+<span class="lineNum">     917 </span>            : 
+<span class="lineNum">     918 </span>            : /**
+<span class="lineNum">     919 </span>            :  * Allocate memory for block.
+<span class="lineNum">     920 </span>            :  *
+<span class="lineNum">     921 </span>            :  * This method allocates memory for the block, and attempts to flush other
+<span class="lineNum">     922 </span>            :  * blocks, if necessary, to bring the total cache size back within the limits.
+<span class="lineNum">     923 </span>            :  * The newly allocated block is touched and will be considered most recently
+<span class="lineNum">     924 </span>            :  * used in the LRU list.
+<span class="lineNum">     925 </span>            :  *
+<span class="lineNum">     926 </span>            :  * @return CE_None on success or CE_Failure if memory allocation fails.
+<a name="927"><span class="lineNum">     927 </span>            :  */</a>
+<span class="lineNum">     928 </span>            : 
+<span class="lineNum">     929 </span><span class="lineCov">    2810458 : CPLErr GDALRasterBlock::Internalize()</span>
+<span class="lineNum">     930 </span>            : 
+<span class="lineNum">     931 </span>            : {
+<span class="lineNum">     932 </span><span class="lineCov">    2810458 :     CPLAssert( pData == nullptr );</span>
+<span class="lineNum">     933 </span>            : 
+<span class="lineNum">     934 </span><span class="lineCov">    2810458 :     void        *pNewData = nullptr;</span>
+<span class="lineNum">     935 </span>            : 
+<span class="lineNum">     936 </span>            :     // This call will initialize the hRBLock mutex. Other call places can
+<span class="lineNum">     937 </span>            :     // only be called if we have go through there.
+<span class="lineNum">     938 </span><span class="lineCov">    2810458 :     const GIntBig nCurCacheMax = GDALGetCacheMax64();</span>
+<span class="lineNum">     939 </span>            : 
+<span class="lineNum">     940 </span>            :     // No risk of overflow as it is checked in GDALRasterBand::InitBlockInfo().
+<span class="lineNum">     941 </span><span class="lineCov">    2810458 :     const auto nSizeInBytes = GetBlockSize();</span>
+<span class="lineNum">     942 </span>            : 
+<span class="lineNum">     943 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     944 </span>            : /*      Flush old blocks if we are nearing our memory limit.            */
+<span class="lineNum">     945 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     946 </span><span class="lineCov">    2810467 :     bool bFirstIter = true;</span>
+<span class="lineNum">     947 </span><span class="lineCov">    2810467 :     bool bLoopAgain = false;</span>
+<span class="lineNum">     948 </span><span class="lineCov">    2810558 :     do</span>
+<span class="lineNum">     949 </span>            :     {
+<span class="lineNum">     950 </span><span class="lineCov">    2810535 :         bLoopAgain = false;</span>
+<span class="lineNum">     951 </span><span class="lineCov">    2810535 :         GDALRasterBlock* apoBlocksToFree[64] = { nullptr };</span>
+<span class="lineNum">     952 </span><span class="lineCov">    2810535 :         int nBlocksToFree = 0;</span>
+<span class="lineNum">     953 </span>            :         {
+<span class="lineNum">     954 </span><span class="lineCov">    2810535 :             TAKE_LOCK;</span>
+<span class="lineNum">     955 </span>            : 
+<span class="lineNum">     956 </span><span class="lineCov">    2810560 :             if( bFirstIter )</span>
+<span class="lineNum">     957 </span><span class="lineCov">    2810490 :                 nCacheUsed += GetEffectiveBlockSize(nSizeInBytes);</span>
+<span class="lineNum">     958 </span><span class="lineCov">    2810560 :             GDALRasterBlock *poTarget = poOldest;</span>
+<span class="lineNum">     959 </span><span class="lineCov">    5998140 :             while( nCacheUsed &gt; nCurCacheMax )</span>
+<span class="lineNum">     960 </span>            :             {
+<span class="lineNum">     961 </span><span class="lineCov">     830305 :                 while( poTarget != nullptr )</span>
+<span class="lineNum">     962 </span>            :                 {
+<span class="lineNum">     963 </span><span class="lineCov">     401088 :                     if( !poTarget-&gt;GetDirty() ||</span>
+<span class="lineNum">     964 </span><span class="lineCov">       4504 :                         nDisableDirtyBlockFlushCounter == 0 )</span>
+<span class="lineNum">     965 </span>            :                     {
+<span class="lineNum">     966 </span><span class="lineCov">     396584 :                         if( CPLAtomicCompareAndExchange(</span>
+<span class="lineNum">     967 </span><span class="lineCov">     396584 :                                 &amp;(poTarget-&gt;nLockCount), 0, -1) )</span>
+<span class="lineNum">     968 </span><span class="lineCov">     381523 :                             break;</span>
+<span class="lineNum">     969 </span>            :                     }
+<span class="lineNum">     970 </span><span class="lineCov">      15061 :                     poTarget = poTarget-&gt;poPrevious;</span>
+<span class="lineNum">     971 </span>            :                 }
+<span class="lineNum">     972 </span>            : 
+<span class="lineNum">     973 </span><span class="lineCov">     407622 :                 if( poTarget != nullptr )</span>
+<span class="lineNum">     974 </span>            :                 {
+<span class="lineNum">     975 </span><span class="lineCov">     381523 :                     if( bSleepsForBockCacheDebug )</span>
+<span class="lineNum">     976 </span>            :                         CPLSleep(CPLAtof(
+<span class="lineNum">     977 </span>            :                             CPLGetConfigOption(
+<span class="lineNum">     978 </span>            :                                 &quot;GDAL_RB_INTERNALIZE_SLEEP_AFTER_DROP_LOCK&quot;,
+<span class="lineNum">     979 </span><span class="lineCov">          1 :                                 &quot;0&quot;)));</span>
+<span class="lineNum">     980 </span>            : 
+<span class="lineNum">     981 </span><span class="lineCov">     381523 :                     GDALRasterBlock* _poPrevious = poTarget-&gt;poPrevious;</span>
+<span class="lineNum">     982 </span>            : 
+<span class="lineNum">     983 </span><span class="lineCov">     381523 :                     poTarget-&gt;Detach_unlocked();</span>
+<span class="lineNum">     984 </span><span class="lineCov">     381523 :                     poTarget-&gt;GetBand()-&gt;UnreferenceBlock(poTarget);</span>
+<span class="lineNum">     985 </span>            : 
+<span class="lineNum">     986 </span><span class="lineCov">     381523 :                     apoBlocksToFree[nBlocksToFree++] = poTarget;</span>
+<span class="lineNum">     987 </span><span class="lineCov">     381523 :                     if( poTarget-&gt;GetDirty() )</span>
+<span class="lineNum">     988 </span>            :                     {
+<span class="lineNum">     989 </span>            :                         // Only free one dirty block at a time so that
+<span class="lineNum">     990 </span>            :                         // other dirty blocks of other bands with the same
+<span class="lineNum">     991 </span>            :                         // coordinates can be found with TryGetLockedBlock()
+<span class="lineNum">     992 </span><span class="lineCov">       4503 :                         bLoopAgain = nCacheUsed &gt; nCurCacheMax;</span>
+<span class="lineNum">     993 </span><span class="lineCov">       4503 :                         break;</span>
+<span class="lineNum">     994 </span>            :                     }
+<span class="lineNum">     995 </span><span class="lineCov">     377020 :                     if( nBlocksToFree == 64 )</span>
+<span class="lineNum">     996 </span>            :                     {
+<span class="lineNum">     997 </span><span class="lineNoCov">          0 :                         bLoopAgain = ( nCacheUsed &gt; nCurCacheMax );</span>
+<span class="lineNum">     998 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">     999 </span>            :                     }
+<span class="lineNum">    1000 </span>            : 
+<span class="lineNum">    1001 </span><span class="lineCov">     377020 :                     poTarget = _poPrevious;</span>
+<span class="lineNum">    1002 </span>            :                 }
+<span class="lineNum">    1003 </span>            :                 else
+<span class="lineNum">    1004 </span>            :                 {
+<span class="lineNum">    1005 </span><span class="lineCov">      26099 :                     break;</span>
+<span class="lineNum">    1006 </span>            :                 }
+<span class="lineNum">    1007 </span>            :             }
+<span class="lineNum">    1008 </span>            : 
+<span class="lineNum">    1009 </span>            :         /* ------------------------------------------------------------------ */
+<span class="lineNum">    1010 </span>            :         /*      Add this block to the list.                                   */
+<span class="lineNum">    1011 </span>            :         /* ------------------------------------------------------------------ */
+<span class="lineNum">    1012 </span><span class="lineCov">    2810560 :             if( !bLoopAgain )</span>
+<span class="lineNum">    1013 </span><span class="lineCov">    2810490 :                 Touch_unlocked();</span>
+<span class="lineNum">    1014 </span>            :         }
+<span class="lineNum">    1015 </span>            : 
+<span class="lineNum">    1016 </span><span class="lineCov">    2810559 :         bFirstIter = false;</span>
+<span class="lineNum">    1017 </span>            : 
+<span class="lineNum">    1018 </span>            :         // Now free blocks we have detached and removed from their band.
+<span class="lineNum">    1019 </span><span class="lineCov">    3192081 :         for( int i = 0; i &lt; nBlocksToFree; ++i)</span>
+<span class="lineNum">    1020 </span>            :         {
+<span class="lineNum">    1021 </span><span class="lineCov">     381523 :             GDALRasterBlock * const poBlock = apoBlocksToFree[i];</span>
+<span class="lineNum">    1022 </span>            : 
+<span class="lineNum">    1023 </span><span class="lineCov">     381523 :             if( poBlock-&gt;GetDirty() )</span>
+<span class="lineNum">    1024 </span>            :             {
+<span class="lineNum">    1025 </span><span class="lineCov">       4503 :                 CPLErr eErr = poBlock-&gt;Write();</span>
+<span class="lineNum">    1026 </span><span class="lineCov">       4503 :                 if( eErr != CE_None )</span>
+<span class="lineNum">    1027 </span>            :                 {
+<span class="lineNum">    1028 </span>            :                     // Save the error for later reporting.
+<span class="lineNum">    1029 </span><span class="lineNoCov">          0 :                     poBlock-&gt;GetBand()-&gt;SetFlushBlockErr(eErr);</span>
+<span class="lineNum">    1030 </span>            :                 }
+<span class="lineNum">    1031 </span>            :             }
+<span class="lineNum">    1032 </span>            : 
+<span class="lineNum">    1033 </span>            :             // Try to recycle the data of an existing block.
+<span class="lineNum">    1034 </span><span class="lineCov">     381523 :             void* pDataBlock = poBlock-&gt;pData;</span>
+<span class="lineNum">    1035 </span><span class="lineCov">     762510 :             if( pNewData == nullptr &amp;&amp; pDataBlock != nullptr &amp;&amp;</span>
+<span class="lineNum">    1036 </span><span class="lineCov">     380987 :                 poBlock-&gt;GetBlockSize() == nSizeInBytes )</span>
+<span class="lineNum">    1037 </span>            :             {
+<span class="lineNum">    1038 </span><span class="lineCov">     380767 :                 pNewData = pDataBlock;</span>
+<span class="lineNum">    1039 </span>            :             }
+<span class="lineNum">    1040 </span>            :             else
+<span class="lineNum">    1041 </span>            :             {
+<span class="lineNum">    1042 </span><span class="lineCov">        756 :                 VSIFreeAligned(poBlock-&gt;pData);</span>
+<span class="lineNum">    1043 </span>            :             }
+<span class="lineNum">    1044 </span><span class="lineCov">     381523 :             poBlock-&gt;pData = nullptr;</span>
+<span class="lineNum">    1045 </span>            : 
+<span class="lineNum">    1046 </span><span class="lineCov">     381523 :             poBlock-&gt;GetBand()-&gt;AddBlockToFreeList(poBlock);</span>
+<span class="lineNum">    1047 </span>            :         }
+<span class="lineNum">    1048 </span>            :     }
+<span class="lineNum">    1049 </span>            :     while(bLoopAgain);
+<span class="lineNum">    1050 </span>            : 
+<span class="lineNum">    1051 </span><span class="lineCov">    2810490 :     if( pNewData == nullptr )</span>
+<span class="lineNum">    1052 </span>            :     {
+<span class="lineNum">    1053 </span><span class="lineCov">    2429723 :         pNewData = VSI_MALLOC_ALIGNED_AUTO_VERBOSE( nSizeInBytes );</span>
+<span class="lineNum">    1054 </span><span class="lineCov">    2429722 :         if( pNewData == nullptr )</span>
+<span class="lineNum">    1055 </span>            :         {
+<span class="lineNum">    1056 </span><span class="lineNoCov">          0 :             return( CE_Failure );</span>
+<span class="lineNum">    1057 </span>            :         }
+<span class="lineNum">    1058 </span>            :     }
+<span class="lineNum">    1059 </span>            : 
+<span class="lineNum">    1060 </span><span class="lineCov">    2810489 :     pData = pNewData;</span>
+<span class="lineNum">    1061 </span>            : 
+<span class="lineNum">    1062 </span><span class="lineCov">    2810489 :     return CE_None;</span>
+<span class="lineNum">    1063 </span>            : }
+<span class="lineNum">    1064 </span>            : 
+<span class="lineNum">    1065 </span>            : /************************************************************************/
+<span class="lineNum">    1066 </span>            : /*                             MarkDirty()                              */
+<span class="lineNum">    1067 </span>            : /************************************************************************/
+<span class="lineNum">    1068 </span>            : 
+<span class="lineNum">    1069 </span>            : /**
+<span class="lineNum">    1070 </span>            :  * Mark the block as modified.
+<span class="lineNum">    1071 </span>            :  *
+<span class="lineNum">    1072 </span>            :  * A dirty block is one that has been modified and will need to be written
+<span class="lineNum">    1073 </span>            :  * to disk before it can be flushed.
+<a name="1074"><span class="lineNum">    1074 </span>            :  */</a>
+<span class="lineNum">    1075 </span>            : 
+<span class="lineNum">    1076 </span><span class="lineCov">    4592276 : void GDALRasterBlock::MarkDirty()</span>
+<span class="lineNum">    1077 </span>            : {
+<span class="lineNum">    1078 </span><span class="lineCov">    4592276 :     if( poBand )</span>
+<span class="lineNum">    1079 </span>            :     {
+<span class="lineNum">    1080 </span><span class="lineCov">    4592276 :         poBand-&gt;InitRWLock();</span>
+<span class="lineNum">    1081 </span><span class="lineCov">    4592277 :         if( !bDirty )</span>
+<span class="lineNum">    1082 </span><span class="lineCov">     184633 :             poBand-&gt;IncDirtyBlocks(1);</span>
+<span class="lineNum">    1083 </span>            :     }
+<span class="lineNum">    1084 </span><span class="lineCov">    4592278 :     bDirty = true;</span>
+<span class="lineNum">    1085 </span><span class="lineCov">    4592278 : }</span>
+<span class="lineNum">    1086 </span>            : 
+<span class="lineNum">    1087 </span>            : /************************************************************************/
+<span class="lineNum">    1088 </span>            : /*                             MarkClean()                              */
+<span class="lineNum">    1089 </span>            : /************************************************************************/
+<span class="lineNum">    1090 </span>            : 
+<span class="lineNum">    1091 </span>            : /**
+<span class="lineNum">    1092 </span>            :  * Mark the block as unmodified.
+<span class="lineNum">    1093 </span>            :  *
+<span class="lineNum">    1094 </span>            :  * A dirty block is one that has been modified and will need to be written
+<span class="lineNum">    1095 </span>            :  * to disk before it can be flushed.
+<a name="1096"><span class="lineNum">    1096 </span>            :  */</a>
+<span class="lineNum">    1097 </span>            : 
+<span class="lineNum">    1098 </span><span class="lineCov">     183918 : void GDALRasterBlock::MarkClean()</span>
+<span class="lineNum">    1099 </span>            : {
+<span class="lineNum">    1100 </span><span class="lineCov">     183918 :     if( bDirty &amp;&amp; poBand )</span>
+<span class="lineNum">    1101 </span><span class="lineCov">     183890 :         poBand-&gt;IncDirtyBlocks(-1);</span>
+<span class="lineNum">    1102 </span><span class="lineCov">     183916 :     bDirty = false;</span>
+<span class="lineNum">    1103 </span><span class="lineCov">     183916 : }</span>
+<span class="lineNum">    1104 </span>            : 
+<span class="lineNum">    1105 </span>            : /************************************************************************/
+<span class="lineNum">    1106 </span>            : /*                          DestroyRBMutex()                           */
+<span class="lineNum">    1107 </span>            : /************************************************************************/
+<a name="1108"><span class="lineNum">    1108 </span>            : </a>
+<span class="lineNum">    1109 </span>            : /*! @cond Doxygen_Suppress */
+<span class="lineNum">    1110 </span><span class="lineCov">        719 : void GDALRasterBlock::DestroyRBMutex()</span>
+<span class="lineNum">    1111 </span>            : {
+<span class="lineNum">    1112 </span><span class="lineCov">        719 :     if( hRBLock != nullptr )</span>
+<span class="lineNum">    1113 </span><span class="lineCov">        245 :         DESTROY_LOCK;</span>
+<span class="lineNum">    1114 </span><span class="lineCov">        719 :     hRBLock = nullptr;</span>
+<span class="lineNum">    1115 </span><span class="lineCov">        719 : }</span>
+<span class="lineNum">    1116 </span>            : /*! @endcond */
+<span class="lineNum">    1117 </span>            : 
+<span class="lineNum">    1118 </span>            : /************************************************************************/
+<span class="lineNum">    1119 </span>            : /*                              TakeLock()                              */
+<span class="lineNum">    1120 </span>            : /************************************************************************/
+<span class="lineNum">    1121 </span>            : 
+<span class="lineNum">    1122 </span>            : /**
+<span class="lineNum">    1123 </span>            :  * Take a lock and Touch().
+<span class="lineNum">    1124 </span>            :  *
+<span class="lineNum">    1125 </span>            :  * Should only be used by GDALArrayBandBlockCache::TryGetLockedBlockRef()
+<span class="lineNum">    1126 </span>            :  * and GDALHashSetBandBlockCache::TryGetLockedBlockRef()
+<span class="lineNum">    1127 </span>            :  *
+<span class="lineNum">    1128 </span>            :  * @return TRUE if the lock has been successfully acquired. If FALSE, the
+<span class="lineNum">    1129 </span>            :  *         block is being evicted by another thread, and so should be
+<span class="lineNum">    1130 </span>            :  *         considered as invalid.
+<a name="1131"><span class="lineNum">    1131 </span>            :  */</a>
+<span class="lineNum">    1132 </span>            : 
+<span class="lineNum">    1133 </span><span class="lineCov">    9483388 : int GDALRasterBlock::TakeLock()</span>
+<span class="lineNum">    1134 </span>            : {
+<span class="lineNum">    1135 </span><span class="lineCov">    9483388 :     const int nLockVal = AddLock();</span>
+<span class="lineNum">    1136 </span><span class="lineCov">    9483421 :     CPLAssert(nLockVal &gt;= 0);</span>
+<span class="lineNum">    1137 </span><span class="lineCov">    9483421 :     if( bSleepsForBockCacheDebug )</span>
+<span class="lineNum">    1138 </span>            :         CPLSleep(CPLAtof(
+<span class="lineNum">    1139 </span><span class="lineCov">          3 :             CPLGetConfigOption(&quot;GDAL_RB_TRYGET_SLEEP_AFTER_TAKE_LOCK&quot;, &quot;0&quot;)));</span>
+<span class="lineNum">    1140 </span><span class="lineCov">    9483402 :     if( nLockVal == 0 )</span>
+<span class="lineNum">    1141 </span>            :     {
+<span class="lineNum">    1142 </span>            :         // The block is being evicted by GDALRasterBlock::Internalize()
+<span class="lineNum">    1143 </span>            :         // or FlushCacheBlock()
+<span class="lineNum">    1144 </span>            : 
+<span class="lineNum">    1145 </span>            : #ifdef DEBUG
+<span class="lineNum">    1146 </span>            :         CPLDebug(
+<span class="lineNum">    1147 </span>            :             &quot;GDAL&quot;,
+<span class="lineNum">    1148 </span>            :             &quot;TakeLock(%p): Block(%d,%d,%p) is being evicted while trying to &quot;
+<span class="lineNum">    1149 </span>            :             &quot;reacquire it.&quot;,
+<span class="lineNum">    1150 </span><span class="lineCov">          2 :             reinterpret_cast&lt;void *&gt;(CPLGetPID()), nXOff, nYOff, poBand );</span>
+<span class="lineNum">    1151 </span>            : #endif
+<span class="lineNum">    1152 </span><span class="lineCov">          2 :         DropLock();</span>
+<span class="lineNum">    1153 </span>            : 
+<span class="lineNum">    1154 </span><span class="lineCov">          2 :         return FALSE;</span>
+<span class="lineNum">    1155 </span>            :     }
+<span class="lineNum">    1156 </span><span class="lineCov">    9483400 :     Touch();</span>
+<span class="lineNum">    1157 </span><span class="lineCov">    9483423 :     return TRUE;</span>
+<span class="lineNum">    1158 </span>            : }
+<span class="lineNum">    1159 </span>            : 
+<span class="lineNum">    1160 </span>            : /************************************************************************/
+<span class="lineNum">    1161 </span>            : /*                      DropLockForRemovalFromStorage()                 */
+<span class="lineNum">    1162 </span>            : /************************************************************************/
+<span class="lineNum">    1163 </span>            : 
+<span class="lineNum">    1164 </span>            : /**
+<span class="lineNum">    1165 </span>            :  * Drop a lock before removing the block from the band storage.
+<span class="lineNum">    1166 </span>            :  *
+<span class="lineNum">    1167 </span>            :  * Should only be used by GDALArrayBandBlockCache::FlushBlock()
+<span class="lineNum">    1168 </span>            :  * and GDALHashSetBandBlockCache::FlushBlock()
+<span class="lineNum">    1169 </span>            :  *
+<span class="lineNum">    1170 </span>            :  * @return TRUE if the lock has been successfully dropped.
+<a name="1171"><span class="lineNum">    1171 </span>            :  */</a>
+<span class="lineNum">    1172 </span>            : 
+<span class="lineNum">    1173 </span><span class="lineCov">    2425031 : int GDALRasterBlock::DropLockForRemovalFromStorage()</span>
+<span class="lineNum">    1174 </span>            : {
+<span class="lineNum">    1175 </span>            :     // Detect potential conflict with GDALRasterBlock::Internalize()
+<span class="lineNum">    1176 </span>            :     // or FlushCacheBlock()
+<span class="lineNum">    1177 </span><span class="lineCov">    2425031 :     if( CPLAtomicCompareAndExchange(&amp;nLockCount, 0, -1) )</span>
+<span class="lineNum">    1178 </span><span class="lineCov">    2425033 :         return TRUE;</span>
+<span class="lineNum">    1179 </span>            : #ifdef DEBUG
+<span class="lineNum">    1180 </span>            :     CPLDebug(
+<span class="lineNum">    1181 </span>            :         &quot;GDAL&quot;,
+<span class="lineNum">    1182 </span>            :         &quot;DropLockForRemovalFromStorage(%p): Block(%d,%d,%p) was attempted &quot;
+<span class="lineNum">    1183 </span>            :         &quot;to be flushed from band but it is flushed by global cache.&quot;,
+<span class="lineNum">    1184 </span><span class="lineCov">          2 :         reinterpret_cast&lt;void *&gt;(CPLGetPID()), nXOff, nYOff, poBand );</span>
+<span class="lineNum">    1185 </span>            : #endif
+<span class="lineNum">    1186 </span>            : 
+<span class="lineNum">    1187 </span>            :     // Wait for the block for having been unreferenced.
+<span class="lineNum">    1188 </span><span class="lineCov">          2 :     TAKE_LOCK;</span>
+<span class="lineNum">    1189 </span>            : 
+<span class="lineNum">    1190 </span><span class="lineCov">          2 :     return FALSE;</span>
+<span class="lineNum">    1191 </span>            : }
+<span class="lineNum">    1192 </span>            : 
+<span class="lineNum">    1193 </span>            : #if 0
+<span class="lineNum">    1194 </span>            : void GDALRasterBlock::DumpAll()
+<span class="lineNum">    1195 </span>            : {
+<span class="lineNum">    1196 </span>            :     int iBlock = 0;
+<span class="lineNum">    1197 </span>            :     for( GDALRasterBlock *poBlock = poNewest;
+<span class="lineNum">    1198 </span>            :          poBlock != nullptr;
+<span class="lineNum">    1199 </span>            :          poBlock = poBlock-&gt;poNext )
+<span class="lineNum">    1200 </span>            :     {
+<span class="lineNum">    1201 </span>            :         printf(&quot;Block %d\n&quot;, iBlock);/*ok*/
+<span class="lineNum">    1202 </span>            :         poBlock-&gt;DumpBlock();
+<span class="lineNum">    1203 </span>            :         printf(&quot;\n&quot;);/*ok*/
+<span class="lineNum">    1204 </span>            :         iBlock++;
+<span class="lineNum">    1205 </span>            :     }
+<span class="lineNum">    1206 </span>            : }
+<span class="lineNum">    1207 </span>            : 
+<span class="lineNum">    1208 </span>            : void GDALRasterBlock::DumpBlock()
+<span class="lineNum">    1209 </span>            : {
+<span class="lineNum">    1210 </span>            :     printf(&quot;  Lock count = %d\n&quot;, nLockCount);/*ok*/
+<span class="lineNum">    1211 </span>            :     printf(&quot;  bDirty = %d\n&quot;, static_cast&lt;int&gt;(bDirty));/*ok*/
+<span class="lineNum">    1212 </span>            :     printf(&quot;  nXOff = %d\n&quot;, nXOff);/*ok*/
+<span class="lineNum">    1213 </span>            :     printf(&quot;  nYOff = %d\n&quot;, nYOff);/*ok*/
+<span class="lineNum">    1214 </span>            :     printf(&quot;  nXSize = %d\n&quot;, nXSize);/*ok*/
+<span class="lineNum">    1215 </span>            :     printf(&quot;  nYSize = %d\n&quot;, nYSize);/*ok*/
+<span class="lineNum">    1216 </span>            :     printf(&quot;  eType = %d\n&quot;, eType);/*ok*/
+<span class="lineNum">    1217 </span>            :     printf(&quot;  Band %p\n&quot;, GetBand());/*ok*/
+<span class="lineNum">    1218 </span>            :     printf(&quot;  Band %d\n&quot;, GetBand()-&gt;GetBand());/*ok*/
+<span class="lineNum">    1219 </span>            :     if( GetBand()-&gt;GetDataset() )
+<span class="lineNum">    1220 </span>            :         printf(&quot;  Dataset = %s\n&quot;,/*ok*/
+<span class="lineNum">    1221 </span>            :                GetBand()-&gt;GetDataset()-&gt;GetDescription());
+<span class="lineNum">    1222 </span>            : }
+<span class="lineNum">    1223 </span>            : #endif  // if 0
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

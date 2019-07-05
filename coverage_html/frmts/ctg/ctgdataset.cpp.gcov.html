@@ -1,0 +1,673 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/ctg/ctgdataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/ctg</a> - ctgdataset.cpp<span style="font-size: 80%;"> (source / <a href="ctgdataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">156</td>
+            <td class="headerCovTableEntry">202</td>
+            <td class="headerCovTableEntryMed">77.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntryMed">88.2 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  CTG driver
+<span class="lineNum">       4 </span>            :  * Purpose:  GDALDataset driver for CTG dataset.
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2011, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;gdal_frmts.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;gdal_pam.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;ogr_spatialref.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : constexpr int HEADER_LINE_COUNT = 5;
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : typedef struct
+<span class="lineNum">      38 </span>            : {
+<span class="lineNum">      39 </span>            :     int nCode;
+<span class="lineNum">      40 </span>            :     const char* pszDesc;
+<span class="lineNum">      41 </span>            : } LULCDescStruct;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : static const LULCDescStruct asLULCDesc[] =
+<span class="lineNum">      44 </span>            : {
+<span class="lineNum">      45 </span>            :     {1, &quot;Urban or Built-Up Land&quot; },
+<span class="lineNum">      46 </span>            :     {2, &quot;Agricultural Land&quot; },
+<span class="lineNum">      47 </span>            :     {3, &quot;Rangeland&quot; },
+<span class="lineNum">      48 </span>            :     {4, &quot;Forest Land&quot; },
+<span class="lineNum">      49 </span>            :     {5, &quot;Water&quot; },
+<span class="lineNum">      50 </span>            :     {6, &quot;Wetland&quot; },
+<span class="lineNum">      51 </span>            :     {7, &quot;Barren Land&quot; },
+<span class="lineNum">      52 </span>            :     {8, &quot;Tundra&quot; },
+<span class="lineNum">      53 </span>            :     {9, &quot;Perennial Snow and Ice&quot; },
+<span class="lineNum">      54 </span>            :     {11, &quot;Residential&quot; },
+<span class="lineNum">      55 </span>            :     {12, &quot;Commercial Services&quot; },
+<span class="lineNum">      56 </span>            :     {13, &quot;Industrial&quot; },
+<span class="lineNum">      57 </span>            :     {14, &quot;Transportation, Communications&quot; },
+<span class="lineNum">      58 </span>            :     {15, &quot;Industrial and Commercial&quot; },
+<span class="lineNum">      59 </span>            :     {16, &quot;Mixed Urban or Built-Up Land&quot; },
+<span class="lineNum">      60 </span>            :     {17, &quot;Other Urban or Built-Up Land&quot; },
+<span class="lineNum">      61 </span>            :     {21, &quot;Cropland and Pasture&quot; },
+<span class="lineNum">      62 </span>            :     {22, &quot;Orchards, Groves, Vineyards, Nurseries&quot; },
+<span class="lineNum">      63 </span>            :     {23, &quot;Confined Feeding Operations&quot; },
+<span class="lineNum">      64 </span>            :     {24, &quot;Other Agricultural Land&quot; },
+<span class="lineNum">      65 </span>            :     {31, &quot;Herbaceous Rangeland&quot; },
+<span class="lineNum">      66 </span>            :     {32, &quot;Shrub and Brush Rangeland&quot; },
+<span class="lineNum">      67 </span>            :     {33, &quot;Mixed Rangeland&quot; },
+<span class="lineNum">      68 </span>            :     {41, &quot;Deciduous Forest Land&quot; },
+<span class="lineNum">      69 </span>            :     {42, &quot;Evergreen Forest Land&quot; },
+<span class="lineNum">      70 </span>            :     {43, &quot;Mixed Forest Land&quot; },
+<span class="lineNum">      71 </span>            :     {51, &quot;Streams and Canals&quot; },
+<span class="lineNum">      72 </span>            :     {52, &quot;Lakes&quot; },
+<span class="lineNum">      73 </span>            :     {53, &quot;Reservoirs&quot; },
+<span class="lineNum">      74 </span>            :     {54, &quot;Bays and Estuaries&quot; },
+<span class="lineNum">      75 </span>            :     {61, &quot;Forested Wetlands&quot; },
+<span class="lineNum">      76 </span>            :     {62, &quot;Nonforested Wetlands&quot; },
+<span class="lineNum">      77 </span>            :     {71, &quot;Dry Salt Flats&quot; },
+<span class="lineNum">      78 </span>            :     {72, &quot;Beaches&quot; },
+<span class="lineNum">      79 </span>            :     {73, &quot;Sandy Areas Other than Beaches&quot; },
+<span class="lineNum">      80 </span>            :     {74, &quot;Bare Exposed Rock&quot; },
+<span class="lineNum">      81 </span>            :     {75, &quot;Strip Mines, Quarries, and Gravel Pits&quot; },
+<span class="lineNum">      82 </span>            :     {76, &quot;Transitional Areas&quot; },
+<span class="lineNum">      83 </span>            :     {77, &quot;Mixed Barren Land&quot; },
+<span class="lineNum">      84 </span>            :     {81, &quot;Shrub and Brush Tundra&quot; },
+<span class="lineNum">      85 </span>            :     {82, &quot;Herbaceous Tundra&quot; },
+<span class="lineNum">      86 </span>            :     {83, &quot;Bare Ground&quot; },
+<span class="lineNum">      87 </span>            :     {84, &quot;Wet Tundra&quot; },
+<span class="lineNum">      88 </span>            :     {85, &quot;Mixed Tundra&quot; },
+<span class="lineNum">      89 </span>            :     {91, &quot;Perennial Snowfields&quot; },
+<span class="lineNum">      90 </span>            :     {92, &quot;Glaciers&quot; }
+<span class="lineNum">      91 </span>            : };
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            : static const char* const apszBandDescription[] =
+<span class="lineNum">      94 </span>            : {
+<span class="lineNum">      95 </span>            :     &quot;Land Use and Land Cover&quot;,
+<span class="lineNum">      96 </span>            :     &quot;Political units&quot;,
+<span class="lineNum">      97 </span>            :     &quot;Census county subdivisions and SMSA tracts&quot;,
+<span class="lineNum">      98 </span>            :     &quot;Hydrologic units&quot;,
+<span class="lineNum">      99 </span>            :     &quot;Federal land ownership&quot;,
+<span class="lineNum">     100 </span>            :     &quot;State land ownership&quot;
+<span class="lineNum">     101 </span>            : };
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            : /************************************************************************/
+<span class="lineNum">     104 </span>            : /* ==================================================================== */
+<span class="lineNum">     105 </span>            : /*                              CTGDataset                              */
+<span class="lineNum">     106 </span>            : /* ==================================================================== */
+<span class="lineNum">     107 </span>            : /************************************************************************/
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span>            : class CTGRasterBand;
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            : class CTGDataset : public GDALPamDataset
+<span class="lineNum">     112 </span>            : {
+<span class="lineNum">     113 </span>            :     friend class CTGRasterBand;
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            :     VSILFILE   *fp;
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            :     int         nNWEasting, nNWNorthing, nCellSize, nUTMZone;
+<span class="lineNum">     118 </span>            :     char       *pszProjection;
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span>            :     int         bHasReadImagery;
+<span class="lineNum">     121 </span>            :     GByte      *pabyImage;
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            :     int         ReadImagery();
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span>            :     static const char* ExtractField(char* szOutput, const char* pszBuffer,
+<span class="lineNum">     126 </span>            :                                        int nOffset, int nLength);
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span>            :   public:
+<span class="lineNum">     129 </span>            :     CTGDataset();
+<span class="lineNum">     130 </span>            :     ~CTGDataset() override;
+<span class="lineNum">     131 </span>            : 
+<a name="132"><span class="lineNum">     132 </span>            :     CPLErr GetGeoTransform( double * ) override;</a>
+<span class="lineNum">     133 </span>            :     const char* _GetProjectionRef() override;
+<span class="lineNum">     134 </span><span class="lineCov">          1 :     const OGRSpatialReference* GetSpatialRef() const override {</span>
+<span class="lineNum">     135 </span><span class="lineCov">          1 :         return GetSpatialRefFromOldGetProjectionRef();</span>
+<span class="lineNum">     136 </span>            :     }
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            :     static GDALDataset *Open( GDALOpenInfo * );
+<span class="lineNum">     139 </span>            :     static int          Identify( GDALOpenInfo * );
+<span class="lineNum">     140 </span>            : };
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span>            : /************************************************************************/
+<span class="lineNum">     143 </span>            : /* ==================================================================== */
+<span class="lineNum">     144 </span>            : /*                            CTGRasterBand                             */
+<span class="lineNum">     145 </span>            : /* ==================================================================== */
+<span class="lineNum">     146 </span>            : /************************************************************************/
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            : class CTGRasterBand : public GDALPamRasterBand
+<span class="lineNum">     149 </span>            : {
+<span class="lineNum">     150 </span>            :     friend class CTGDataset;
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            :     char** papszCategories;
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            :   public:
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span>            :     CTGRasterBand( CTGDataset *, int );
+<span class="lineNum">     157 </span>            :     ~CTGRasterBand() override;
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :     CPLErr IReadBlock( int, int, void * ) override;
+<span class="lineNum">     160 </span>            :     double GetNoDataValue( int *pbSuccess = nullptr ) override;
+<span class="lineNum">     161 </span>            :     char **GetCategoryNames() override;
+<span class="lineNum">     162 </span>            : };
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            : /************************************************************************/
+<span class="lineNum">     165 </span>            : /*                           CTGRasterBand()                            */
+<a name="166"><span class="lineNum">     166 </span>            : /************************************************************************/</a>
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span><span class="lineCov">         12 : CTGRasterBand::CTGRasterBand( CTGDataset *poDSIn, int nBandIn ) :</span>
+<span class="lineNum">     169 </span><span class="lineCov">         12 :     papszCategories(nullptr)</span>
+<span class="lineNum">     170 </span>            : {
+<span class="lineNum">     171 </span><span class="lineCov">         12 :     poDS = poDSIn;</span>
+<span class="lineNum">     172 </span><span class="lineCov">         12 :     nBand = nBandIn;</span>
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span><span class="lineCov">         12 :     eDataType = GDT_Int32;</span>
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span><span class="lineCov">         12 :     nBlockXSize = poDS-&gt;GetRasterXSize();</span>
+<span class="lineNum">     177 </span><span class="lineCov">         12 :     nBlockYSize = poDS-&gt;GetRasterYSize();</span>
+<span class="lineNum">     178 </span><span class="lineCov">         12 : }</span>
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span>            : /************************************************************************/
+<span class="lineNum">     181 </span>            : /*                          ~CTGRasterBand()                            */
+<a name="182"><span class="lineNum">     182 </span>            : /************************************************************************/</a>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineCov">         36 : CTGRasterBand::~CTGRasterBand()</span>
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span>            : {
+<span class="lineNum">     187 </span><span class="lineCov">         12 :     CSLDestroy(papszCategories);</span>
+<span class="lineNum">     188 </span><span class="lineCov">         24 : }</span>
+<span class="lineNum">     189 </span>            : /************************************************************************/
+<span class="lineNum">     190 </span>            : /*                             IReadBlock()                             */
+<a name="191"><span class="lineNum">     191 </span>            : /************************************************************************/</a>
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span><span class="lineCov">          1 : CPLErr CTGRasterBand::IReadBlock( CPL_UNUSED int nBlockXOff,</span>
+<span class="lineNum">     194 </span>            :                                   CPL_UNUSED int nBlockYOff,
+<span class="lineNum">     195 </span>            :                                   void * pImage )
+<span class="lineNum">     196 </span>            : {
+<span class="lineNum">     197 </span><span class="lineCov">          1 :     CTGDataset* poGDS = (CTGDataset* ) poDS;</span>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineCov">          1 :     poGDS-&gt;ReadImagery();</span>
+<span class="lineNum">     200 </span>            :     memcpy(pImage,
+<span class="lineNum">     201 </span><span class="lineCov">          2 :            poGDS-&gt;pabyImage + (nBand - 1) * nBlockXSize * nBlockYSize * sizeof(int),</span>
+<span class="lineNum">     202 </span><span class="lineCov">          3 :            nBlockXSize * nBlockYSize * sizeof(int));</span>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineCov">          1 :     return CE_None;</span>
+<span class="lineNum">     205 </span>            : }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            : /************************************************************************/
+<span class="lineNum">     208 </span>            : /*                           GetNoDataValue()                           */
+<a name="209"><span class="lineNum">     209 </span>            : /************************************************************************/</a>
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 : double CTGRasterBand::GetNoDataValue( int *pbSuccess )</span>
+<span class="lineNum">     212 </span>            : {
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :     if (pbSuccess)</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :         *pbSuccess = TRUE;</span>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :     return 0.0;</span>
+<span class="lineNum">     217 </span>            : }
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            : /************************************************************************/
+<span class="lineNum">     220 </span>            : /*                          GetCategoryNames()                          */
+<a name="221"><span class="lineNum">     221 </span>            : /************************************************************************/</a>
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 : char **CTGRasterBand::GetCategoryNames()</span>
+<span class="lineNum">     224 </span>            : {
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :     if (nBand != 1)</span>
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :     if (papszCategories != nullptr)</span>
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :         return papszCategories;</span>
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :     int nasLULCDescSize = (int)(sizeof(asLULCDesc) / sizeof(asLULCDesc[0]));</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :     int nCategoriesSize = asLULCDesc[nasLULCDescSize - 1].nCode;</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :     papszCategories = (char**)CPLCalloc(nCategoriesSize + 2, sizeof(char*));</span>
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :     for(int i=0;i&lt;nasLULCDescSize;i++)</span>
+<span class="lineNum">     235 </span>            :     {
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :         papszCategories[asLULCDesc[i].nCode] = CPLStrdup(asLULCDesc[i].pszDesc);</span>
+<span class="lineNum">     237 </span>            :     }
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :     for(int i=0;i&lt;nCategoriesSize;i++)</span>
+<span class="lineNum">     239 </span>            :     {
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :         if (papszCategories[i] == nullptr)</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :             papszCategories[i] = CPLStrdup(&quot;&quot;);</span>
+<span class="lineNum">     242 </span>            :     }
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :     papszCategories[nCategoriesSize + 1] = nullptr;</span>
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :     return papszCategories;</span>
+<span class="lineNum">     246 </span>            : }
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            : /************************************************************************/
+<span class="lineNum">     249 </span>            : /*                            ~CTGDataset()                            */
+<a name="250"><span class="lineNum">     250 </span>            : /************************************************************************/</a>
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span><span class="lineCov">          2 : CTGDataset::CTGDataset() :</span>
+<span class="lineNum">     253 </span>            :     fp(nullptr),
+<span class="lineNum">     254 </span>            :     nNWEasting(0),
+<span class="lineNum">     255 </span>            :     nNWNorthing(0),
+<span class="lineNum">     256 </span>            :     nCellSize(0),
+<span class="lineNum">     257 </span>            :     nUTMZone(0),
+<span class="lineNum">     258 </span>            :     pszProjection(nullptr),
+<span class="lineNum">     259 </span>            :     bHasReadImagery(FALSE),
+<span class="lineNum">     260 </span><span class="lineCov">          2 :     pabyImage(nullptr)</span>
+<span class="lineNum">     261 </span><span class="lineCov">          2 : {}</span>
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span>            : /************************************************************************/
+<span class="lineNum">     264 </span>            : /*                            ~CTGDataset()                            */
+<a name="265"><span class="lineNum">     265 </span>            : /************************************************************************/</a>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span><span class="lineCov">          6 : CTGDataset::~CTGDataset()</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            : {
+<span class="lineNum">     270 </span><span class="lineCov">          2 :     CPLFree(pszProjection);</span>
+<span class="lineNum">     271 </span><span class="lineCov">          2 :     CPLFree(pabyImage);</span>
+<span class="lineNum">     272 </span><span class="lineCov">          2 :     if( fp != nullptr )</span>
+<span class="lineNum">     273 </span><span class="lineCov">          2 :         VSIFCloseL(fp);</span>
+<span class="lineNum">     274 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span>            : /************************************************************************/
+<span class="lineNum">     277 </span>            : /*                              ExtractField()                          */
+<a name="278"><span class="lineNum">     278 </span>            : /************************************************************************/</a>
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span><span class="lineCov">         57 : const char* CTGDataset::ExtractField(char* szField, const char* pszBuffer,</span>
+<span class="lineNum">     281 </span>            :                                      int nOffset, int nLength)
+<span class="lineNum">     282 </span>            : {
+<span class="lineNum">     283 </span><span class="lineCov">         57 :     CPLAssert(nLength &lt;= 10);</span>
+<span class="lineNum">     284 </span><span class="lineCov">         57 :     memcpy(szField, pszBuffer + nOffset, nLength);</span>
+<span class="lineNum">     285 </span><span class="lineCov">         57 :     szField[nLength] = 0;</span>
+<span class="lineNum">     286 </span><span class="lineCov">         57 :     return szField;</span>
+<span class="lineNum">     287 </span>            : }
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span>            : /************************************************************************/
+<span class="lineNum">     290 </span>            : /*                            ReadImagery()                             */
+<a name="291"><span class="lineNum">     291 </span>            : /************************************************************************/</a>
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span><span class="lineCov">          1 : int CTGDataset::ReadImagery()</span>
+<span class="lineNum">     294 </span>            : {
+<span class="lineNum">     295 </span><span class="lineCov">          1 :     if (bHasReadImagery)</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :         return TRUE;</span>
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span><span class="lineCov">          1 :     bHasReadImagery = TRUE;</span>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span>            :     char szLine[81];
+<span class="lineNum">     301 </span>            :     char szField[11];
+<span class="lineNum">     302 </span><span class="lineCov">          1 :     szLine[80] = 0;</span>
+<span class="lineNum">     303 </span><span class="lineCov">          1 :     int nLine = HEADER_LINE_COUNT;</span>
+<span class="lineNum">     304 </span><span class="lineCov">          1 :     VSIFSeekL(fp, nLine * 80, SEEK_SET);</span>
+<span class="lineNum">     305 </span><span class="lineCov">          1 :     int nCells = nRasterXSize * nRasterYSize;</span>
+<span class="lineNum">     306 </span><span class="lineCov">          3 :     while(VSIFReadL(szLine, 1, 80, fp) == 80)</span>
+<span class="lineNum">     307 </span>            :     {
+<span class="lineNum">     308 </span><span class="lineCov">          1 :         int nZone = atoi(ExtractField(szField, szLine, 0, 3));</span>
+<span class="lineNum">     309 </span><span class="lineCov">          1 :         if (nZone != nUTMZone)</span>
+<span class="lineNum">     310 </span>            :         {
+<span class="lineNum">     311 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     312 </span>            :                      &quot;Read error at line %d, %s. Did not expected UTM zone %d&quot;,
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 :                      nLine, szLine, nZone);</span>
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     315 </span>            :         }
+<span class="lineNum">     316 </span><span class="lineCov">          1 :         int nX = atoi(ExtractField(szField, szLine, 3, 8)) - nCellSize / 2;</span>
+<span class="lineNum">     317 </span><span class="lineCov">          1 :         int nY = atoi(ExtractField(szField, szLine, 11, 8)) + nCellSize / 2;</span>
+<span class="lineNum">     318 </span><span class="lineCov">          1 :         GIntBig nDiffX = static_cast&lt;GIntBig&gt;(nX) - nNWEasting;</span>
+<span class="lineNum">     319 </span><span class="lineCov">          1 :         GIntBig nDiffY = static_cast&lt;GIntBig&gt;(nNWNorthing) - nY;</span>
+<span class="lineNum">     320 </span><span class="lineCov">          1 :         if (nDiffX &lt; 0 || (nDiffX % nCellSize) != 0 ||</span>
+<span class="lineNum">     321 </span><span class="lineCov">          1 :             nDiffY &lt; 0 || (nDiffY % nCellSize) != 0)</span>
+<span class="lineNum">     322 </span>            :         {
+<span class="lineNum">     323 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     324 </span>            :                      &quot;Read error at line %d, %s. Unexpected cell coordinates&quot;,
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :                      nLine, szLine);</span>
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     327 </span>            :         }
+<span class="lineNum">     328 </span><span class="lineCov">          1 :         GIntBig nCellX = nDiffX / nCellSize;</span>
+<span class="lineNum">     329 </span><span class="lineCov">          1 :         GIntBig nCellY = nDiffY / nCellSize;</span>
+<span class="lineNum">     330 </span><span class="lineCov">          1 :         if (nCellX &gt;= nRasterXSize || nCellY &gt;= nRasterYSize)</span>
+<span class="lineNum">     331 </span>            :         {
+<span class="lineNum">     332 </span>            :             CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     333 </span>            :                      &quot;Read error at line %d, %s. Unexpected cell coordinates&quot;,
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :                      nLine, szLine);</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :             return FALSE;</span>
+<span class="lineNum">     336 </span>            :         }
+<span class="lineNum">     337 </span><span class="lineCov">          7 :         for(int i=0;i&lt;6;i++)</span>
+<span class="lineNum">     338 </span>            :         {
+<span class="lineNum">     339 </span><span class="lineCov">          6 :             int nVal = atoi(ExtractField(szField, szLine, 20 + 10*i, 10));</span>
+<span class="lineNum">     340 </span><span class="lineCov">          6 :             if (nVal &gt;= 2000000000)</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :                 nVal = 0;</span>
+<span class="lineNum">     342 </span><span class="lineCov">          6 :             ((int*)pabyImage)[i * nCells + nCellY * nRasterXSize + nCellX] = nVal;</span>
+<span class="lineNum">     343 </span>            :         }
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineCov">          1 :         nLine ++;</span>
+<span class="lineNum">     346 </span>            :     }
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span><span class="lineCov">          1 :     return TRUE;</span>
+<span class="lineNum">     349 </span>            : }
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span>            : /************************************************************************/
+<span class="lineNum">     352 </span>            : /*                             Identify()                               */
+<a name="353"><span class="lineNum">     353 </span>            : /************************************************************************/</a>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineCov">      39631 : int CTGDataset::Identify( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     356 </span>            : {
+<span class="lineNum">     357 </span><span class="lineCov">      39631 :     CPLString osFilename(poOpenInfo-&gt;pszFilename);</span>
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineCov">      39643 :     GDALOpenInfo* poOpenInfoToDelete = nullptr;</span>
+<span class="lineNum">     360 </span>            :     /*  GZipped grid_cell.gz files are common, so automagically open them */
+<span class="lineNum">     361 </span>            :     /*  if the /vsigzip/ has not been explicitly passed */
+<span class="lineNum">     362 </span><span class="lineCov">      39643 :     const char* pszFilename = CPLGetFilename(poOpenInfo-&gt;pszFilename);</span>
+<span class="lineNum">     363 </span><span class="lineCov">      79275 :     if ((EQUAL(pszFilename, &quot;grid_cell.gz&quot;) ||</span>
+<span class="lineNum">     364 </span><span class="lineCov">      79273 :          EQUAL(pszFilename, &quot;grid_cell1.gz&quot;) ||</span>
+<span class="lineNum">     365 </span><span class="lineCov">      39637 :          EQUAL(pszFilename, &quot;grid_cell2.gz&quot;)) &amp;&amp;</span>
+<span class="lineNum">     366 </span><span class="lineCov">          3 :         !STARTS_WITH_CI(poOpenInfo-&gt;pszFilename, &quot;/vsigzip/&quot;))</span>
+<span class="lineNum">     367 </span>            :     {
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :         osFilename = &quot;/vsigzip/&quot;;</span>
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :         osFilename += poOpenInfo-&gt;pszFilename;</span>
+<span class="lineNum">     370 </span>            :         poOpenInfo = poOpenInfoToDelete =
+<span class="lineNum">     371 </span>            :                 new GDALOpenInfo(osFilename.c_str(), GA_ReadOnly,
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :                                  poOpenInfo-&gt;GetSiblingFiles());</span>
+<span class="lineNum">     373 </span>            :     }
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span><span class="lineCov">      39627 :     if (poOpenInfo-&gt;nHeaderBytes &lt; HEADER_LINE_COUNT * 80)</span>
+<span class="lineNum">     376 </span>            :     {
+<span class="lineNum">     377 </span><span class="lineCov">      37025 :         delete poOpenInfoToDelete;</span>
+<span class="lineNum">     378 </span><span class="lineCov">      37022 :         return FALSE;</span>
+<span class="lineNum">     379 </span>            :     }
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     382 </span>            : /*      Check that it looks roughly as a CTG dataset                    */
+<span class="lineNum">     383 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     384 </span><span class="lineCov">       2602 :     const char* pszData = (const char*)poOpenInfo-&gt;pabyHeader;</span>
+<span class="lineNum">     385 </span><span class="lineCov">       5142 :     for(int i=0;i&lt;4 * 80;i++)</span>
+<span class="lineNum">     386 </span>            :     {
+<span class="lineNum">     387 </span><span class="lineCov">       9206 :         if (!((pszData[i] &gt;= '0' &amp;&amp; pszData[i] &lt;= '9') ||</span>
+<span class="lineNum">     388 </span><span class="lineCov">       6670 :               pszData[i] == ' ' || pszData[i] == '-'))</span>
+<span class="lineNum">     389 </span>            :         {
+<span class="lineNum">     390 </span><span class="lineCov">       2596 :             delete poOpenInfoToDelete;</span>
+<span class="lineNum">     391 </span><span class="lineCov">       2596 :             return FALSE;</span>
+<span class="lineNum">     392 </span>            :         }
+<span class="lineNum">     393 </span>            :     }
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            :     char szField[11];
+<span class="lineNum">     396 </span><span class="lineCov">          6 :     int nRows = atoi(ExtractField(szField, pszData, 0, 10));</span>
+<span class="lineNum">     397 </span><span class="lineCov">          6 :     int nCols = atoi(ExtractField(szField, pszData, 20, 10));</span>
+<span class="lineNum">     398 </span><span class="lineCov">          6 :     int nMinColIndex = atoi(ExtractField(szField, pszData+80, 0, 5));</span>
+<span class="lineNum">     399 </span><span class="lineCov">          6 :     int nMinRowIndex = atoi(ExtractField(szField, pszData+80, 5, 5));</span>
+<span class="lineNum">     400 </span><span class="lineCov">          6 :     int nMaxColIndex = atoi(ExtractField(szField, pszData+80, 10, 5));</span>
+<span class="lineNum">     401 </span><span class="lineCov">          6 :     int nMaxRowIndex = atoi(ExtractField(szField, pszData+80, 15, 5));</span>
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span><span class="lineCov">          6 :     if (nRows &lt;= 0 || nCols &lt;= 0 ||</span>
+<span class="lineNum">     404 </span><span class="lineCov">          4 :         nMinColIndex != 1 || nMinRowIndex != 1 ||</span>
+<span class="lineNum">     405 </span><span class="lineCov">          4 :         nMaxRowIndex != nRows || nMaxColIndex != nCols)</span>
+<span class="lineNum">     406 </span>            :     {
+<span class="lineNum">     407 </span><span class="lineCov">          2 :         delete poOpenInfoToDelete;</span>
+<span class="lineNum">     408 </span><span class="lineCov">          2 :         return FALSE;</span>
+<span class="lineNum">     409 </span>            :     }
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span><span class="lineCov">          4 :     delete poOpenInfoToDelete;</span>
+<span class="lineNum">     412 </span><span class="lineCov">          4 :     return TRUE;</span>
+<span class="lineNum">     413 </span>            : }
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span>            : /************************************************************************/
+<span class="lineNum">     416 </span>            : /*                                Open()                                */
+<a name="417"><span class="lineNum">     417 </span>            : /************************************************************************/</a>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineCov">       7323 : GDALDataset *CTGDataset::Open( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span>            : {
+<span class="lineNum">     422 </span><span class="lineCov">       7323 :     if (!Identify(poOpenInfo))</span>
+<span class="lineNum">     423 </span><span class="lineCov">       7332 :         return nullptr;</span>
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span><span class="lineCov">          2 :     CPLString osFilename(poOpenInfo-&gt;pszFilename);</span>
+<span class="lineNum">     426 </span>            : 
+<span class="lineNum">     427 </span>            :     /*  GZipped grid_cell.gz files are common, so automagically open them */
+<span class="lineNum">     428 </span>            :     /*  if the /vsigzip/ has not been explicitly passed */
+<span class="lineNum">     429 </span><span class="lineCov">          2 :     const char* pszFilename = CPLGetFilename(poOpenInfo-&gt;pszFilename);</span>
+<span class="lineNum">     430 </span><span class="lineCov">          4 :     if ((EQUAL(pszFilename, &quot;grid_cell.gz&quot;) ||</span>
+<span class="lineNum">     431 </span><span class="lineCov">          4 :          EQUAL(pszFilename, &quot;grid_cell1.gz&quot;) ||</span>
+<span class="lineNum">     432 </span><span class="lineCov">          2 :          EQUAL(pszFilename, &quot;grid_cell2.gz&quot;)) &amp;&amp;</span>
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :         !STARTS_WITH_CI(poOpenInfo-&gt;pszFilename, &quot;/vsigzip/&quot;))</span>
+<span class="lineNum">     434 </span>            :     {
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :         osFilename = &quot;/vsigzip/&quot;;</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :         osFilename += poOpenInfo-&gt;pszFilename;</span>
+<span class="lineNum">     437 </span>            :     }
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span><span class="lineCov">          2 :     if (poOpenInfo-&gt;eAccess == GA_Update)</span>
+<span class="lineNum">     440 </span>            :     {
+<span class="lineNum">     441 </span>            :         CPLError( CE_Failure, CPLE_NotSupported,
+<span class="lineNum">     442 </span>            :                   &quot;The CTG driver does not support update access to existing&quot;
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :                   &quot; datasets.\n&quot; );</span>
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     445 </span>            :     }
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     448 </span>            : /*      Find dataset characteristics                                    */
+<span class="lineNum">     449 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     450 </span><span class="lineCov">          2 :     VSILFILE* fp = VSIFOpenL(osFilename.c_str(), &quot;rb&quot;);</span>
+<span class="lineNum">     451 </span><span class="lineCov">          2 :     if (fp == nullptr)</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span>            :     char szHeader[HEADER_LINE_COUNT * 80+1];
+<span class="lineNum">     455 </span><span class="lineCov">          2 :     szHeader[HEADER_LINE_COUNT * 80] = 0;</span>
+<span class="lineNum">     456 </span><span class="lineCov">          2 :     if (VSIFReadL(szHeader, 1, HEADER_LINE_COUNT * 80, fp) != HEADER_LINE_COUNT * 80)</span>
+<span class="lineNum">     457 </span>            :     {
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :         VSIFCloseL(fp);</span>
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     460 </span>            :     }
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span><span class="lineCov">        144 :     for(int i=HEADER_LINE_COUNT * 80 - 1;i&gt;=0;i--)</span>
+<span class="lineNum">     463 </span>            :     {
+<span class="lineNum">     464 </span><span class="lineCov">        144 :         if (szHeader[i] == ' ')</span>
+<span class="lineNum">     465 </span><span class="lineCov">        142 :             szHeader[i] = 0;</span>
+<span class="lineNum">     466 </span>            :         else
+<span class="lineNum">     467 </span><span class="lineCov">          2 :             break;</span>
+<span class="lineNum">     468 </span>            :     }
+<span class="lineNum">     469 </span>            : 
+<span class="lineNum">     470 </span>            :     char szField[11];
+<span class="lineNum">     471 </span><span class="lineCov">          2 :     int nRows = atoi(ExtractField(szField, szHeader, 0, 10));</span>
+<span class="lineNum">     472 </span><span class="lineCov">          2 :     int nCols = atoi(ExtractField(szField, szHeader, 20, 10));</span>
+<span class="lineNum">     473 </span>            : 
+<span class="lineNum">     474 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     475 </span>            : /*      Create a corresponding GDALDataset.                             */
+<span class="lineNum">     476 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     477 </span><span class="lineCov">          2 :     CTGDataset *poDS = new CTGDataset();</span>
+<span class="lineNum">     478 </span><span class="lineCov">          2 :     poDS-&gt;fp = fp;</span>
+<span class="lineNum">     479 </span><span class="lineCov">          2 :     fp = nullptr;</span>
+<span class="lineNum">     480 </span><span class="lineCov">          2 :     poDS-&gt;nRasterXSize = nCols;</span>
+<span class="lineNum">     481 </span><span class="lineCov">          2 :     poDS-&gt;nRasterYSize = nRows;</span>
+<span class="lineNum">     482 </span>            : 
+<span class="lineNum">     483 </span><span class="lineCov">          2 :     poDS-&gt;SetMetadataItem(&quot;TITLE&quot;, szHeader + 4 * 80);</span>
+<span class="lineNum">     484 </span>            : 
+<span class="lineNum">     485 </span><span class="lineCov">          2 :     poDS-&gt;nCellSize = atoi(ExtractField(szField, szHeader, 35, 5));</span>
+<span class="lineNum">     486 </span><span class="lineCov">          2 :     if (poDS-&gt;nCellSize &lt;= 0 || poDS-&gt;nCellSize &gt;= 10000)</span>
+<span class="lineNum">     487 </span>            :     {
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">     489 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     490 </span>            :     }
+<span class="lineNum">     491 </span><span class="lineCov">          2 :     poDS-&gt;nNWEasting = atoi(ExtractField(szField, szHeader + 3*80, 40, 10));</span>
+<span class="lineNum">     492 </span><span class="lineCov">          2 :     poDS-&gt;nNWNorthing = atoi(ExtractField(szField, szHeader + 3*80, 50, 10));</span>
+<span class="lineNum">     493 </span><span class="lineCov">          2 :     poDS-&gt;nUTMZone = atoi(ExtractField(szField, szHeader, 50, 5));</span>
+<span class="lineNum">     494 </span><span class="lineCov">          2 :     if (poDS-&gt;nUTMZone &lt;= 0 || poDS-&gt;nUTMZone &gt; 60)</span>
+<span class="lineNum">     495 </span>            :     {
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">     497 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     498 </span>            :     }
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span><span class="lineCov">          4 :     OGRSpatialReference oSRS;</span>
+<span class="lineNum">     501 </span><span class="lineCov">          2 :     oSRS.importFromEPSG(32600 + poDS-&gt;nUTMZone);</span>
+<span class="lineNum">     502 </span><span class="lineCov">          2 :     oSRS.exportToWkt(&amp;poDS-&gt;pszProjection);</span>
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span><span class="lineCov">          2 :     if (!GDALCheckDatasetDimensions(poDS-&gt;nRasterXSize, poDS-&gt;nRasterYSize))</span>
+<span class="lineNum">     505 </span>            :     {
+<span class="lineNum">     506 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     508 </span>            :     }
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     511 </span>            : /*      Read the imagery                                                */
+<span class="lineNum">     512 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     513 </span><span class="lineCov">          2 :     GByte* pabyImage = (GByte*)VSICalloc(nCols * nRows, 6 * sizeof(int));</span>
+<span class="lineNum">     514 </span><span class="lineCov">          2 :     if (pabyImage == nullptr)</span>
+<span class="lineNum">     515 </span>            :     {
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     518 </span>            :     }
+<span class="lineNum">     519 </span><span class="lineCov">          2 :     poDS-&gt;pabyImage = pabyImage;</span>
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     522 </span>            : /*      Create band information objects.                                */
+<span class="lineNum">     523 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     524 </span><span class="lineCov">          2 :     poDS-&gt;nBands = 6;</span>
+<span class="lineNum">     525 </span><span class="lineCov">         14 :     for( int i = 0; i &lt; poDS-&gt;nBands; i++ )</span>
+<span class="lineNum">     526 </span>            :     {
+<span class="lineNum">     527 </span><span class="lineCov">         12 :         poDS-&gt;SetBand( i+1, new CTGRasterBand( poDS, i+1 ) );</span>
+<span class="lineNum">     528 </span><span class="lineCov">         12 :         poDS-&gt;GetRasterBand(i+1)-&gt;SetDescription(apszBandDescription[i]);</span>
+<span class="lineNum">     529 </span>            :     }
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     532 </span>            : /*      Initialize any PAM information.                                 */
+<span class="lineNum">     533 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     534 </span><span class="lineCov">          2 :     poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     535 </span><span class="lineCov">          2 :     poDS-&gt;TryLoadXML();</span>
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     538 </span>            : /*      Support overviews.                                              */
+<span class="lineNum">     539 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     540 </span><span class="lineCov">          2 :     poDS-&gt;oOvManager.Initialize( poDS, poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     541 </span>            : 
+<span class="lineNum">     542 </span><span class="lineCov">          4 :     return poDS;</span>
+<span class="lineNum">     543 </span>            : }
+<span class="lineNum">     544 </span>            : 
+<span class="lineNum">     545 </span>            : /************************************************************************/
+<span class="lineNum">     546 </span>            : /*                          GetGeoTransform()                           */
+<a name="547"><span class="lineNum">     547 </span>            : /************************************************************************/</a>
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span><span class="lineCov">          1 : CPLErr CTGDataset::GetGeoTransform( double * padfTransform )</span>
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span>            : {
+<span class="lineNum">     552 </span><span class="lineCov">          1 :     padfTransform[0] = static_cast&lt;double&gt;(nNWEasting) - nCellSize / 2;</span>
+<span class="lineNum">     553 </span><span class="lineCov">          1 :     padfTransform[1] = nCellSize;</span>
+<span class="lineNum">     554 </span><span class="lineCov">          1 :     padfTransform[2] = 0;</span>
+<span class="lineNum">     555 </span><span class="lineCov">          1 :     padfTransform[3] = static_cast&lt;double&gt;(nNWNorthing) + nCellSize / 2;</span>
+<span class="lineNum">     556 </span><span class="lineCov">          1 :     padfTransform[4] = 0.;</span>
+<span class="lineNum">     557 </span><span class="lineCov">          1 :     padfTransform[5] = -nCellSize;</span>
+<span class="lineNum">     558 </span>            : 
+<span class="lineNum">     559 </span><span class="lineCov">          1 :     return CE_None;</span>
+<span class="lineNum">     560 </span>            : }
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span>            : /************************************************************************/
+<span class="lineNum">     563 </span>            : /*                         GetProjectionRef()                           */
+<a name="564"><span class="lineNum">     564 </span>            : /************************************************************************/</a>
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span><span class="lineCov">          1 : const char* CTGDataset::_GetProjectionRef()</span>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span>            : {
+<span class="lineNum">     569 </span><span class="lineCov">          1 :     return pszProjection;</span>
+<span class="lineNum">     570 </span>            : }
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span>            : /************************************************************************/
+<span class="lineNum">     573 </span>            : /*                         GDALRegister_CTG()                           */
+<a name="574"><span class="lineNum">     574 </span>            : /************************************************************************/</a>
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineCov">       1109 : void GDALRegister_CTG()</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span>            : {
+<span class="lineNum">     579 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( &quot;CTG&quot; ) != nullptr )</span>
+<span class="lineNum">     580 </span><span class="lineCov">       1231 :       return;</span>
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span><span class="lineCov">        987 :     GDALDriver *poDriver = new GDALDriver();</span>
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( &quot;CTG&quot; );</span>
+<span class="lineNum">     585 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">     586 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME,
+<span class="lineNum">     587 </span><span class="lineCov">        987 :                                &quot;USGS LULC Composite Theme Grid&quot; );</span>
+<span class="lineNum">     588 </span>            :     poDriver-&gt;SetMetadataItem( GDAL_DMD_HELPTOPIC,
+<span class="lineNum">     589 </span><span class="lineCov">        987 :                                &quot;frmt_various.html#CTG&quot; );</span>
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VIRTUALIO, &quot;YES&quot; );</span>
+<span class="lineNum">     592 </span>            : 
+<span class="lineNum">     593 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = CTGDataset::Open;</span>
+<span class="lineNum">     594 </span><span class="lineCov">        987 :     poDriver-&gt;pfnIdentify = CTGDataset::Identify;</span>
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span><span class="lineCov">        987 :     GetGDALDriverManager()-&gt;RegisterDriver( poDriver );</span>
+<span class="lineNum">     597 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

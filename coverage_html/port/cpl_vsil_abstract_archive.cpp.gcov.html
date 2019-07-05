@@ -1,0 +1,960 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - port/cpl_vsil_abstract_archive.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">port</a> - cpl_vsil_abstract_archive.cpp<span style="font-size: 80%;"> (source / <a href="cpl_vsil_abstract_archive.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">333</td>
+            <td class="headerCovTableEntry">371</td>
+            <td class="headerCovTableEntryMed">89.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntryLo">66.7 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  CPL - Common Portability Library
+<span class="lineNum">       4 </span>            :  * Purpose:  Implement VSI large file api for archive files.
+<span class="lineNum">       5 </span>            :  * Author:   Even Rouault, even.rouault at spatialys.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2010-2014, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      11 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      12 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      13 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      14 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      15 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      18 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      19 </span>            :  *
+<span class="lineNum">      20 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      21 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      22 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      23 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      24 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      25 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      26 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      27 </span>            :  ****************************************************************************/
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;cpl_vsi_virtual.h&quot;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      33 </span>            : #if HAVE_SYS_STAT_H
+<span class="lineNum">      34 </span>            : #  include &lt;sys/stat.h&gt;
+<span class="lineNum">      35 </span>            : #endif
+<span class="lineNum">      36 </span>            : #include &lt;ctime&gt;
+<span class="lineNum">      37 </span>            : #include &lt;map&gt;
+<span class="lineNum">      38 </span>            : #include &lt;set&gt;
+<span class="lineNum">      39 </span>            : #include &lt;string&gt;
+<span class="lineNum">      40 </span>            : #include &lt;utility&gt;
+<span class="lineNum">      41 </span>            : #include &lt;vector&gt;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;cpl_multiproc.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      47 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            : //! @cond Doxygen_Suppress
+<span class="lineNum">      50 </span>            : 
+<a name="51"><span class="lineNum">      51 </span>            : CPL_CVSID(&quot;$Id$&quot;)</a>
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineCov">     536005 : static bool IsEitherSlash( char c )</span>
+<span class="lineNum">      54 </span>            : {
+<span class="lineNum">      55 </span><span class="lineCov">     536005 :     return c == '/' || c == '\\';</span>
+<span class="lineNum">      56 </span>            : }
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span>            : /************************************************************************/
+<span class="lineNum">      59 </span>            : /*                    ~VSIArchiveEntryFileOffset()                      */
+<a name="60"><span class="lineNum">      60 </span>            : /************************************************************************/</a>
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span><span class="lineCov">       1543 : VSIArchiveEntryFileOffset::~VSIArchiveEntryFileOffset() {}</span>
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : /************************************************************************/
+<span class="lineNum">      65 </span>            : /*                        ~VSIArchiveReader()                           */
+<a name="66"><span class="lineNum">      66 </span>            : /************************************************************************/</a>
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span><span class="lineCov">       3063 : VSIArchiveReader::~VSIArchiveReader() {}</span>
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : /************************************************************************/
+<span class="lineNum">      71 </span>            : /*                        ~VSIArchiveContent()                          */
+<a name="72"><span class="lineNum">      72 </span>            : /************************************************************************/</a>
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span><span class="lineCov">         64 : VSIArchiveContent::~VSIArchiveContent()</span>
+<span class="lineNum">      75 </span>            : {
+<span class="lineNum">      76 </span><span class="lineCov">       1674 :     for( int i = 0; i &lt; nEntries; i++ )</span>
+<span class="lineNum">      77 </span>            :     {
+<span class="lineNum">      78 </span><span class="lineCov">       1610 :         delete entries[i].file_pos;</span>
+<span class="lineNum">      79 </span><span class="lineCov">       1610 :         CPLFree(entries[i].fileName);</span>
+<span class="lineNum">      80 </span>            :     }
+<span class="lineNum">      81 </span><span class="lineCov">         64 :     CPLFree(entries);</span>
+<span class="lineNum">      82 </span><span class="lineCov">         64 : }</span>
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            : /************************************************************************/
+<span class="lineNum">      85 </span>            : /*                   VSIArchiveFilesystemHandler()                      */
+<a name="86"><span class="lineNum">      86 </span>            : /************************************************************************/</a>
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span><span class="lineCov">       1976 : VSIArchiveFilesystemHandler::VSIArchiveFilesystemHandler()</span>
+<span class="lineNum">      89 </span>            : {
+<span class="lineNum">      90 </span><span class="lineCov">       1976 :     hMutex = nullptr;</span>
+<span class="lineNum">      91 </span><span class="lineCov">       1976 : }</span>
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            : /************************************************************************/
+<span class="lineNum">      94 </span>            : /*                   ~VSIArchiveFilesystemHandler()                     */
+<a name="95"><span class="lineNum">      95 </span>            : /************************************************************************/</a>
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span><span class="lineCov">       2876 : VSIArchiveFilesystemHandler::~VSIArchiveFilesystemHandler()</span>
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span>            : {
+<span class="lineNum">     100 </span><span class="lineCov">       1486 :     for( const auto&amp; iter : oFileList )</span>
+<span class="lineNum">     101 </span>            :     {
+<span class="lineNum">     102 </span><span class="lineCov">         48 :         delete iter.second;</span>
+<span class="lineNum">     103 </span>            :     }
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span><span class="lineCov">       1438 :     if( hMutex != nullptr )</span>
+<span class="lineNum">     106 </span><span class="lineCov">         15 :         CPLDestroyMutex( hMutex );</span>
+<span class="lineNum">     107 </span><span class="lineCov">       1438 :     hMutex = nullptr;</span>
+<span class="lineNum">     108 </span><span class="lineCov">       1438 : }</span>
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            : /************************************************************************/
+<span class="lineNum">     112 </span>            : /*                       GetStrippedFilename()                          */
+<a name="113"><span class="lineNum">     113 </span>            : /************************************************************************/</a>
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span><span class="lineCov">       2740 : static CPLString GetStrippedFilename(const CPLString&amp; osFileName,</span>
+<span class="lineNum">     116 </span>            :                                      bool&amp; bIsDir)
+<span class="lineNum">     117 </span>            : {
+<span class="lineNum">     118 </span><span class="lineCov">       2740 :     bIsDir = false;</span>
+<span class="lineNum">     119 </span><span class="lineCov">       2740 :     const char* fileName = osFileName.c_str();</span>
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            :     // Remove ./ pattern at the beginning of a filename.
+<span class="lineNum">     122 </span><span class="lineCov">       2740 :     if( fileName[0] == '.' &amp;&amp; fileName[1] == '/' )</span>
+<span class="lineNum">     123 </span>            :     {
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :         fileName += 2;</span>
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :         if( fileName[0] == '\0' )</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :             return CPLString();</span>
+<span class="lineNum">     127 </span>            :     }
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span><span class="lineCov">       2740 :     char* pszStrippedFileName = CPLStrdup(fileName);</span>
+<span class="lineNum">     130 </span><span class="lineCov">       2740 :     char* pszIter = nullptr;</span>
+<span class="lineNum">     131 </span><span class="lineCov">      91631 :     for( pszIter = pszStrippedFileName; *pszIter; pszIter++ )</span>
+<span class="lineNum">     132 </span>            :     {
+<span class="lineNum">     133 </span><span class="lineCov">      88891 :         if( *pszIter == '\\' )</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :             *pszIter = '/';</span>
+<span class="lineNum">     135 </span>            :     }
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span><span class="lineCov">       2740 :     const size_t nLen = strlen(fileName);</span>
+<span class="lineNum">     138 </span><span class="lineCov">       2740 :     bIsDir = nLen &gt; 0 &amp;&amp; fileName[nLen-1] == '/';</span>
+<span class="lineNum">     139 </span><span class="lineCov">       2740 :     if( bIsDir )</span>
+<span class="lineNum">     140 </span>            :     {
+<span class="lineNum">     141 </span>            :         // Remove trailing slash.
+<span class="lineNum">     142 </span><span class="lineCov">        105 :         pszStrippedFileName[nLen-1] = '\0';</span>
+<span class="lineNum">     143 </span>            :     }
+<span class="lineNum">     144 </span><span class="lineCov">       2740 :     CPLString osRet(pszStrippedFileName);</span>
+<span class="lineNum">     145 </span><span class="lineCov">       2740 :     CPLFree(pszStrippedFileName);</span>
+<span class="lineNum">     146 </span><span class="lineCov">       2740 :     return osRet;</span>
+<span class="lineNum">     147 </span>            : }
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            : /************************************************************************/
+<span class="lineNum">     150 </span>            : /*                       GetContentOfArchive()                          */
+<a name="151"><span class="lineNum">     151 </span>            : /************************************************************************/</a>
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span><span class="lineCov">       5471 : const VSIArchiveContent* VSIArchiveFilesystemHandler::GetContentOfArchive(</span>
+<span class="lineNum">     154 </span>            :     const char* archiveFilename, VSIArchiveReader* poReader )
+<span class="lineNum">     155 </span>            : {
+<span class="lineNum">     156 </span><span class="lineCov">       5471 :     CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span>            :     VSIStatBufL sStat;
+<span class="lineNum">     159 </span><span class="lineCov">       5471 :     if( VSIStatL(archiveFilename, &amp;sStat) != 0 )</span>
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span><span class="lineCov">       5471 :     if( oFileList.find(archiveFilename) != oFileList.end() )</span>
+<span class="lineNum">     163 </span>            :     {
+<span class="lineNum">     164 </span><span class="lineCov">       5340 :         VSIArchiveContent* content = oFileList[archiveFilename];</span>
+<span class="lineNum">     165 </span><span class="lineCov">      10678 :         if( static_cast&lt;time_t&gt;(sStat.st_mtime) &gt; content-&gt;mTime ||</span>
+<span class="lineNum">     166 </span><span class="lineCov">       5338 :             static_cast&lt;vsi_l_offset&gt;(sStat.st_size) != content-&gt;nFileSize)</span>
+<span class="lineNum">     167 </span>            :         {
+<span class="lineNum">     168 </span>            :             CPLDebug(&quot;VSIArchive&quot;,
+<span class="lineNum">     169 </span>            :                      &quot;The content of %s has changed since it was cached&quot;,
+<span class="lineNum">     170 </span><span class="lineCov">         10 :                      archiveFilename);</span>
+<span class="lineNum">     171 </span><span class="lineCov">         10 :             delete content;</span>
+<span class="lineNum">     172 </span><span class="lineCov">         10 :             oFileList.erase(archiveFilename);</span>
+<span class="lineNum">     173 </span>            :         }
+<span class="lineNum">     174 </span>            :         else
+<span class="lineNum">     175 </span>            :         {
+<span class="lineNum">     176 </span><span class="lineCov">       5330 :             return content;</span>
+<span class="lineNum">     177 </span>            :         }
+<span class="lineNum">     178 </span>            :     }
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span><span class="lineCov">        141 :     bool bMustClose = poReader == nullptr;</span>
+<span class="lineNum">     181 </span><span class="lineCov">        141 :     if( poReader == nullptr )</span>
+<span class="lineNum">     182 </span>            :     {
+<span class="lineNum">     183 </span><span class="lineCov">        140 :         poReader = CreateReader(archiveFilename);</span>
+<span class="lineNum">     184 </span><span class="lineCov">        140 :         if( !poReader )</span>
+<span class="lineNum">     185 </span><span class="lineCov">          5 :             return nullptr;</span>
+<span class="lineNum">     186 </span>            :     }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineCov">        136 :     if( poReader-&gt;GotoFirstFile() == FALSE )</span>
+<span class="lineNum">     189 </span>            :     {
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :         if( bMustClose )</span>
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :             delete(poReader);</span>
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     193 </span>            :     }
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span><span class="lineCov">        136 :     VSIArchiveContent* content = new VSIArchiveContent;</span>
+<span class="lineNum">     196 </span><span class="lineCov">        136 :     content-&gt;mTime = sStat.st_mtime;</span>
+<span class="lineNum">     197 </span><span class="lineCov">        136 :     content-&gt;nFileSize = static_cast&lt;vsi_l_offset&gt;(sStat.st_size);</span>
+<span class="lineNum">     198 </span><span class="lineCov">        136 :     content-&gt;nEntries = 0;</span>
+<span class="lineNum">     199 </span><span class="lineCov">        136 :     content-&gt;entries = nullptr;</span>
+<span class="lineNum">     200 </span><span class="lineCov">        136 :     oFileList[archiveFilename] = content;</span>
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span><span class="lineCov">        272 :     std::set&lt;CPLString&gt; oSet;</span>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineCov">       2646 :     do</span>
+<span class="lineNum">     205 </span>            :     {
+<span class="lineNum">     206 </span><span class="lineCov">       2646 :         const CPLString osFileName = poReader-&gt;GetFileName();</span>
+<span class="lineNum">     207 </span><span class="lineCov">       2646 :         bool bIsDir = false;</span>
+<span class="lineNum">     208 </span>            :         const CPLString osStrippedFilename =
+<span class="lineNum">     209 </span><span class="lineCov">       5292 :                                 GetStrippedFilename(osFileName, bIsDir);</span>
+<span class="lineNum">     210 </span><span class="lineCov">       2646 :         if( osStrippedFilename.empty() )</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span><span class="lineCov">       2646 :         if( oSet.find(osStrippedFilename) == oSet.end() )</span>
+<span class="lineNum">     214 </span>            :         {
+<span class="lineNum">     215 </span><span class="lineCov">       2646 :             oSet.insert(osStrippedFilename);</span>
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            :             // Add intermediate directory structure.
+<span class="lineNum">     218 </span><span class="lineCov">       2646 :             const char* pszBegin = osStrippedFilename.c_str();</span>
+<span class="lineNum">     219 </span><span class="lineCov">      90255 :             for( const char* pszIter = pszBegin; *pszIter; pszIter++ )</span>
+<span class="lineNum">     220 </span>            :             {
+<span class="lineNum">     221 </span><span class="lineCov">      87609 :                 if( *pszIter == '/' )</span>
+<span class="lineNum">     222 </span>            :                 {
+<span class="lineNum">     223 </span><span class="lineCov">       3375 :                     char* pszStrippedFileName2 = CPLStrdup(osStrippedFilename);</span>
+<span class="lineNum">     224 </span><span class="lineCov">       3375 :                     pszStrippedFileName2[pszIter - pszBegin] = 0;</span>
+<span class="lineNum">     225 </span><span class="lineCov">       3375 :                     if( oSet.find(pszStrippedFileName2) == oSet.end() )</span>
+<span class="lineNum">     226 </span>            :                     {
+<span class="lineNum">     227 </span><span class="lineCov">       1155 :                         oSet.insert(pszStrippedFileName2);</span>
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            :                         content-&gt;entries = static_cast&lt;VSIArchiveEntry *&gt;(
+<span class="lineNum">     230 </span>            :                             CPLRealloc(
+<span class="lineNum">     231 </span>            :                                 content-&gt;entries,
+<span class="lineNum">     232 </span>            :                                 sizeof(VSIArchiveEntry) *
+<span class="lineNum">     233 </span><span class="lineCov">       1155 :                                 (content-&gt;nEntries + 1)));</span>
+<span class="lineNum">     234 </span><span class="lineCov">       1155 :                         content-&gt;entries[content-&gt;nEntries].fileName =</span>
+<span class="lineNum">     235 </span><span class="lineCov">       1155 :                             pszStrippedFileName2;</span>
+<span class="lineNum">     236 </span><span class="lineCov">       1155 :                         content-&gt;entries[content-&gt;nEntries].nModifiedTime =</span>
+<span class="lineNum">     237 </span><span class="lineCov">       1155 :                             poReader-&gt;GetModifiedTime();</span>
+<span class="lineNum">     238 </span><span class="lineCov">       1155 :                         content-&gt;entries[content-&gt;nEntries].uncompressed_size =</span>
+<span class="lineNum">     239 </span><span class="lineCov">       1155 :                             0;</span>
+<span class="lineNum">     240 </span><span class="lineCov">       1155 :                         content-&gt;entries[content-&gt;nEntries].bIsDir = TRUE;</span>
+<span class="lineNum">     241 </span><span class="lineCov">       1155 :                         content-&gt;entries[content-&gt;nEntries].file_pos = nullptr;</span>
+<span class="lineNum">     242 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     243 </span>            :                         const int nEntries = content-&gt;nEntries;
+<span class="lineNum">     244 </span>            :                         CPLDebug(
+<span class="lineNum">     245 </span>            :                             &quot;VSIArchive&quot;, &quot;[%d] %s : &quot; CPL_FRMT_GUIB &quot; bytes&quot;,
+<span class="lineNum">     246 </span>            :                             content-&gt;nEntries + 1,
+<span class="lineNum">     247 </span>            :                             content-&gt;entries[nEntries].fileName,
+<span class="lineNum">     248 </span>            :                             content-&gt;entries[nEntries].uncompressed_size);
+<span class="lineNum">     249 </span>            : #endif
+<span class="lineNum">     250 </span><span class="lineCov">       1155 :                         content-&gt;nEntries++;</span>
+<span class="lineNum">     251 </span>            :                     }
+<span class="lineNum">     252 </span>            :                     else
+<span class="lineNum">     253 </span>            :                     {
+<span class="lineNum">     254 </span><span class="lineCov">       2220 :                         CPLFree(pszStrippedFileName2);</span>
+<span class="lineNum">     255 </span>            :                     }
+<span class="lineNum">     256 </span>            :                 }
+<span class="lineNum">     257 </span>            :             }
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span>            :             content-&gt;entries = static_cast&lt;VSIArchiveEntry *&gt;(
+<span class="lineNum">     260 </span>            :                 CPLRealloc(content-&gt;entries,
+<span class="lineNum">     261 </span><span class="lineCov">       2646 :                            sizeof(VSIArchiveEntry) * (content-&gt;nEntries + 1)));</span>
+<span class="lineNum">     262 </span><span class="lineCov">       2646 :             content-&gt;entries[content-&gt;nEntries].fileName =</span>
+<span class="lineNum">     263 </span><span class="lineCov">       2646 :                 CPLStrdup(osStrippedFilename);</span>
+<span class="lineNum">     264 </span><span class="lineCov">       2646 :             content-&gt;entries[content-&gt;nEntries].nModifiedTime =</span>
+<span class="lineNum">     265 </span><span class="lineCov">       2646 :                 poReader-&gt;GetModifiedTime();</span>
+<span class="lineNum">     266 </span><span class="lineCov">       2646 :             content-&gt;entries[content-&gt;nEntries].uncompressed_size =</span>
+<span class="lineNum">     267 </span><span class="lineCov">       2646 :                 poReader-&gt;GetFileSize();</span>
+<span class="lineNum">     268 </span><span class="lineCov">       2646 :             content-&gt;entries[content-&gt;nEntries].bIsDir = bIsDir;</span>
+<span class="lineNum">     269 </span><span class="lineCov">       2646 :             content-&gt;entries[content-&gt;nEntries].file_pos =</span>
+<span class="lineNum">     270 </span><span class="lineCov">       2646 :                 poReader-&gt;GetFileOffset();</span>
+<span class="lineNum">     271 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     272 </span>            :             CPLDebug(&quot;VSIArchive&quot;, &quot;[%d] %s : &quot; CPL_FRMT_GUIB &quot; bytes&quot;,
+<span class="lineNum">     273 </span>            :                      content-&gt;nEntries+1,
+<span class="lineNum">     274 </span>            :                      content-&gt;entries[content-&gt;nEntries].fileName,
+<span class="lineNum">     275 </span>            :                      content-&gt;entries[content-&gt;nEntries].uncompressed_size);
+<span class="lineNum">     276 </span>            : #endif
+<span class="lineNum">     277 </span><span class="lineCov">       2646 :             content-&gt;nEntries++;</span>
+<span class="lineNum">     278 </span><span class="lineCov">       2646 :         }</span>
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span><span class="lineCov">       2646 :     } while( poReader-&gt;GotoNextFile() );</span>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineCov">        136 :     if( bMustClose )</span>
+<span class="lineNum">     283 </span><span class="lineCov">        135 :         delete(poReader);</span>
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span><span class="lineCov">       5607 :     return content;</span>
+<span class="lineNum">     286 </span>            : }
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            : /************************************************************************/
+<span class="lineNum">     289 </span>            : /*                        FindFileInArchive()                           */
+<span class="lineNum">     290 </span>            : /************************************************************************/
+<a name="291"><span class="lineNum">     291 </span>            : </a>
+<span class="lineNum">     292 </span>            : int
+<span class="lineNum">     293 </span><span class="lineCov">       4290 : VSIArchiveFilesystemHandler::FindFileInArchive(</span>
+<span class="lineNum">     294 </span>            :     const char* archiveFilename,
+<span class="lineNum">     295 </span>            :     const char* fileInArchiveName,
+<span class="lineNum">     296 </span>            :     const VSIArchiveEntry** archiveEntry )
+<span class="lineNum">     297 </span>            : {
+<span class="lineNum">     298 </span><span class="lineCov">       4290 :     if( fileInArchiveName == nullptr )</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span><span class="lineCov">       4290 :     const VSIArchiveContent* content = GetContentOfArchive(archiveFilename);</span>
+<span class="lineNum">     302 </span><span class="lineCov">       4290 :     if( content )</span>
+<span class="lineNum">     303 </span>            :     {
+<span class="lineNum">     304 </span><span class="lineCov">     710119 :         for( int i = 0; i &lt; content-&gt;nEntries; i++ )</span>
+<span class="lineNum">     305 </span>            :         {
+<span class="lineNum">     306 </span><span class="lineCov">     709891 :             if( strcmp(fileInArchiveName, content-&gt;entries[i].fileName) == 0)</span>
+<span class="lineNum">     307 </span>            :             {
+<span class="lineNum">     308 </span><span class="lineCov">       4061 :                 if( archiveEntry )</span>
+<span class="lineNum">     309 </span><span class="lineCov">       4061 :                     *archiveEntry = &amp;content-&gt;entries[i];</span>
+<span class="lineNum">     310 </span><span class="lineCov">       4061 :                 return TRUE;</span>
+<span class="lineNum">     311 </span>            :             }
+<span class="lineNum">     312 </span>            :         }
+<span class="lineNum">     313 </span>            :     }
+<span class="lineNum">     314 </span><span class="lineCov">        229 :     return FALSE;</span>
+<span class="lineNum">     315 </span>            : }
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            : /************************************************************************/
+<span class="lineNum">     318 </span>            : /*                           CompactFilename()                          */
+<a name="319"><span class="lineNum">     319 </span>            : /************************************************************************/</a>
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineCov">       8552 : static CPLString CompactFilename( const char* pszArchiveInFileNameIn )</span>
+<span class="lineNum">     322 </span>            : {
+<span class="lineNum">     323 </span><span class="lineCov">       8552 :     char* pszArchiveInFileName = CPLStrdup(pszArchiveInFileNameIn);</span>
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span>            :     // Replace a/../b by b and foo/a/../b by foo/b.
+<span class="lineNum">     326 </span>            :     while( true )
+<span class="lineNum">     327 </span>            :     {
+<span class="lineNum">     328 </span><span class="lineCov">       8552 :         char* pszPrevDir = strstr(pszArchiveInFileName, &quot;/../&quot;);</span>
+<span class="lineNum">     329 </span><span class="lineCov">       8552 :         if( pszPrevDir == nullptr || pszPrevDir == pszArchiveInFileName )</span>
+<span class="lineNum">     330 </span>            :             break;
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :         char* pszPrevSlash = pszPrevDir - 1;</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :         while( pszPrevSlash != pszArchiveInFileName &amp;&amp;</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :                *pszPrevSlash != '/' )</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :             pszPrevSlash--;</span>
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :         if( pszPrevSlash == pszArchiveInFileName )</span>
+<span class="lineNum">     337 </span>            :             memmove(pszArchiveInFileName,
+<span class="lineNum">     338 </span>            :                     pszPrevDir + 4,
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :                     strlen(pszPrevDir + 4) + 1);</span>
+<span class="lineNum">     340 </span>            :         else
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :             memmove(pszPrevSlash + 1,</span>
+<span class="lineNum">     342 </span>            :                     pszPrevDir + 4,
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :                     strlen(pszPrevDir + 4) + 1);</span>
+<span class="lineNum">     344 </span>            :     }
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span><span class="lineCov">       8552 :     CPLString osFileInArchive = pszArchiveInFileName;</span>
+<span class="lineNum">     347 </span><span class="lineCov">       8552 :     CPLFree(pszArchiveInFileName);</span>
+<span class="lineNum">     348 </span><span class="lineCov">       8552 :     return osFileInArchive;</span>
+<span class="lineNum">     349 </span>            : }
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span>            : /************************************************************************/
+<span class="lineNum">     352 </span>            : /*                           SplitFilename()                            */
+<a name="353"><span class="lineNum">     353 </span>            : /************************************************************************/</a>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineCov">       9163 : char* VSIArchiveFilesystemHandler::SplitFilename( const char *pszFilename,</span>
+<span class="lineNum">     356 </span>            :                                                   CPLString &amp;osFileInArchive,
+<span class="lineNum">     357 </span>            :                                                   int bCheckMainFileExists )
+<span class="lineNum">     358 </span>            : {
+<span class="lineNum">     359 </span>            :     // TODO(schwehr): Cleanup redundant calls to GetPrefix and strlen.
+<span class="lineNum">     360 </span><span class="lineCov">       9163 :     if( strcmp(pszFilename, GetPrefix()) == 0 )</span>
+<span class="lineNum">     361 </span><span class="lineCov">          4 :         return nullptr;</span>
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span><span class="lineCov">       9159 :     int i = 0;</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            :     // Detect extended syntax: /vsiXXX/{archive_filename}/file_in_archive.
+<span class="lineNum">     366 </span><span class="lineCov">       9159 :     if( pszFilename[strlen(GetPrefix()) + 1] == '{' )</span>
+<span class="lineNum">     367 </span>            :     {
+<span class="lineNum">     368 </span><span class="lineCov">        790 :         pszFilename += strlen(GetPrefix()) + 1;</span>
+<span class="lineNum">     369 </span><span class="lineCov">        790 :         int nCountCurlies = 0;</span>
+<span class="lineNum">     370 </span><span class="lineCov">      38335 :         while( pszFilename[i] )</span>
+<span class="lineNum">     371 </span>            :         {
+<span class="lineNum">     372 </span><span class="lineCov">      37544 :             if( pszFilename[i] == '{' )</span>
+<span class="lineNum">     373 </span><span class="lineCov">        791 :                 nCountCurlies++;</span>
+<span class="lineNum">     374 </span><span class="lineCov">      36753 :             else if( pszFilename[i] == '}' )</span>
+<span class="lineNum">     375 </span>            :             {
+<span class="lineNum">     376 </span><span class="lineCov">        790 :                 nCountCurlies--;</span>
+<span class="lineNum">     377 </span><span class="lineCov">        790 :                 if( nCountCurlies == 0 )</span>
+<span class="lineNum">     378 </span><span class="lineCov">        789 :                     break;</span>
+<span class="lineNum">     379 </span>            :             }
+<span class="lineNum">     380 </span><span class="lineCov">      36755 :             i++;</span>
+<span class="lineNum">     381 </span>            :         }
+<span class="lineNum">     382 </span><span class="lineCov">        790 :         if( nCountCurlies &gt; 0 )</span>
+<span class="lineNum">     383 </span><span class="lineCov">          1 :             return nullptr;</span>
+<span class="lineNum">     384 </span><span class="lineCov">        789 :         char* archiveFilename = CPLStrdup(pszFilename + 1);</span>
+<span class="lineNum">     385 </span><span class="lineCov">        789 :         archiveFilename[i - 1] = 0;</span>
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span><span class="lineCov">        789 :         bool bArchiveFileExists = false;</span>
+<span class="lineNum">     388 </span><span class="lineCov">        789 :         if( !bCheckMainFileExists )</span>
+<span class="lineNum">     389 </span>            :         {
+<span class="lineNum">     390 </span><span class="lineCov">        128 :             bArchiveFileExists = true;</span>
+<span class="lineNum">     391 </span>            :         }
+<span class="lineNum">     392 </span>            :         else
+<span class="lineNum">     393 </span>            :         {
+<span class="lineNum">     394 </span><span class="lineCov">        661 :             CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">        661 :             if( oFileList.find(archiveFilename) != oFileList.end() )</span>
+<span class="lineNum">     397 </span>            :             {
+<span class="lineNum">     398 </span><span class="lineCov">        620 :                 bArchiveFileExists = true;</span>
+<span class="lineNum">     399 </span><span class="lineCov">        661 :             }</span>
+<span class="lineNum">     400 </span>            :         }
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span><span class="lineCov">        789 :         if( !bArchiveFileExists )</span>
+<span class="lineNum">     403 </span>            :         {
+<span class="lineNum">     404 </span>            :             VSIStatBufL statBuf;
+<span class="lineNum">     405 </span>            :             VSIFilesystemHandler *poFSHandler =
+<span class="lineNum">     406 </span><span class="lineCov">         41 :                 VSIFileManager::GetHandler( archiveFilename );</span>
+<span class="lineNum">     407 </span><span class="lineCov">         41 :             if( poFSHandler-&gt;Stat(</span>
+<span class="lineNum">     408 </span>            :                     archiveFilename, &amp;statBuf,
+<span class="lineNum">     409 </span><span class="lineCov">         81 :                     VSI_STAT_EXISTS_FLAG | VSI_STAT_NATURE_FLAG) == 0 &amp;&amp;</span>
+<span class="lineNum">     410 </span><span class="lineCov">         40 :                 !VSI_ISDIR(statBuf.st_mode) )</span>
+<span class="lineNum">     411 </span>            :             {
+<span class="lineNum">     412 </span><span class="lineCov">         40 :                 bArchiveFileExists = true;</span>
+<span class="lineNum">     413 </span>            :             }
+<span class="lineNum">     414 </span>            :         }
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span><span class="lineCov">        789 :         if( bArchiveFileExists )</span>
+<span class="lineNum">     417 </span>            :         {
+<span class="lineNum">     418 </span><span class="lineCov">        788 :             if( IsEitherSlash(pszFilename[i + 1]) )</span>
+<span class="lineNum">     419 </span>            :             {
+<span class="lineNum">     420 </span><span class="lineCov">        681 :                 osFileInArchive = CompactFilename(pszFilename + i + 2);</span>
+<span class="lineNum">     421 </span>            :             }
+<span class="lineNum">     422 </span><span class="lineCov">        107 :             else if( pszFilename[i+1] == '\0' )</span>
+<span class="lineNum">     423 </span>            :             {
+<span class="lineNum">     424 </span><span class="lineCov">        106 :                 osFileInArchive = &quot;&quot;;</span>
+<span class="lineNum">     425 </span>            :             }
+<span class="lineNum">     426 </span>            :             else
+<span class="lineNum">     427 </span>            :             {
+<span class="lineNum">     428 </span><span class="lineCov">          1 :                 CPLFree(archiveFilename);</span>
+<span class="lineNum">     429 </span><span class="lineCov">          1 :                 return nullptr;</span>
+<span class="lineNum">     430 </span>            :             }
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span>            :             // Remove trailing slash.
+<span class="lineNum">     433 </span><span class="lineCov">        787 :             if( !osFileInArchive.empty() )</span>
+<span class="lineNum">     434 </span>            :             {
+<span class="lineNum">     435 </span><span class="lineCov">        677 :                 const char lastC = osFileInArchive.back();</span>
+<span class="lineNum">     436 </span><span class="lineCov">        677 :                 if( IsEitherSlash(lastC) )</span>
+<span class="lineNum">     437 </span><span class="lineCov">          2 :                     osFileInArchive.resize(osFileInArchive.size() - 1);</span>
+<span class="lineNum">     438 </span>            :             }
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span><span class="lineCov">        787 :             return archiveFilename;</span>
+<span class="lineNum">     441 </span>            :         }
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span><span class="lineCov">          1 :         CPLFree(archiveFilename);</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :         return nullptr;</span>
+<span class="lineNum">     445 </span>            :     }
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            :     // Allow natural chaining of VSI drivers without requiring double slash.
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineCov">       8369 :     CPLString osDoubleVsi(GetPrefix());</span>
+<span class="lineNum">     450 </span><span class="lineCov">       8369 :     osDoubleVsi += &quot;/vsi&quot;;</span>
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span><span class="lineCov">       8369 :     if( strncmp(pszFilename, osDoubleVsi.c_str(), osDoubleVsi.size()) == 0 )</span>
+<span class="lineNum">     453 </span><span class="lineCov">       4067 :         pszFilename += strlen(GetPrefix());</span>
+<span class="lineNum">     454 </span>            :     else
+<span class="lineNum">     455 </span><span class="lineCov">       4302 :         pszFilename += strlen(GetPrefix()) + 1;</span>
+<span class="lineNum">     456 </span>            : 
+<span class="lineNum">     457 </span>            :     // Parsing strings like /vsitar//vsitar//vsitar//vsitar//vsitar//vsitar//vsitar//vsitar/a.tgzb.tgzc.tgzd.tgze.tgzf.tgz.h.tgz.i.tgz
+<span class="lineNum">     458 </span>            :     // takes a huge amount of time, so limit the number of nesting of such
+<span class="lineNum">     459 </span>            :     // file systems.
+<span class="lineNum">     460 </span><span class="lineCov">       8369 :     int* pnCounter = static_cast&lt;int*&gt;(CPLGetTLS(CTLS_ABSTRACTARCHIVE_SPLIT));</span>
+<span class="lineNum">     461 </span><span class="lineCov">       8369 :     if( pnCounter == nullptr )</span>
+<span class="lineNum">     462 </span>            :     {
+<span class="lineNum">     463 </span><span class="lineCov">         14 :         pnCounter = static_cast&lt;int*&gt;(CPLMalloc(sizeof(int)));</span>
+<span class="lineNum">     464 </span><span class="lineCov">         14 :         *pnCounter = 0;</span>
+<span class="lineNum">     465 </span><span class="lineCov">         14 :         CPLSetTLS(CTLS_ABSTRACTARCHIVE_SPLIT, pnCounter, TRUE);</span>
+<span class="lineNum">     466 </span>            :     }
+<span class="lineNum">     467 </span><span class="lineCov">       8369 :     if( *pnCounter == 3 )</span>
+<span class="lineNum">     468 </span>            :     {
+<span class="lineNum">     469 </span>            :         CPLError(CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     470 </span>            :                  &quot;Too deep recursion level in &quot;
+<span class="lineNum">     471 </span><span class="lineCov">         64 :                  &quot;VSIArchiveFilesystemHandler::SplitFilename()&quot;);</span>
+<span class="lineNum">     472 </span><span class="lineCov">         64 :         return nullptr;</span>
+<span class="lineNum">     473 </span>            :     }
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineCov">      16610 :     const std::vector&lt;CPLString&gt; oExtensions = GetExtensions();</span>
+<span class="lineNum">     476 </span><span class="lineCov">       8305 :     int nAttempts = 0;</span>
+<span class="lineNum">     477 </span><span class="lineCov">     192513 :     while( pszFilename[i] )</span>
+<span class="lineNum">     478 </span>            :     {
+<span class="lineNum">     479 </span><span class="lineCov">     184105 :         int nToSkip = 0;</span>
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span><span class="lineCov">    3699549 :         for( std::vector&lt;CPLString&gt;::const_iterator iter = oExtensions.begin();</span>
+<span class="lineNum">     482 </span><span class="lineCov">    2466366 :              iter != oExtensions.end();</span>
+<span class="lineNum">     483 </span>            :              ++iter )
+<span class="lineNum">     484 </span>            :         {
+<span class="lineNum">     485 </span><span class="lineCov">    1057414 :             const CPLString&amp; osExtension = *iter;</span>
+<span class="lineNum">     486 </span><span class="lineCov">    1057414 :             if( EQUALN(pszFilename + i,</span>
+<span class="lineNum">     487 </span>            :                        osExtension.c_str(),
+<span class="lineNum">     488 </span>            :                        osExtension.size()) )
+<span class="lineNum">     489 </span>            :             {
+<span class="lineNum">     490 </span><span class="lineCov">       8336 :                 nToSkip = static_cast&lt;int&gt;(osExtension.size());</span>
+<span class="lineNum">     491 </span><span class="lineCov">       8336 :                 break;</span>
+<span class="lineNum">     492 </span>            :             }
+<span class="lineNum">     493 </span>            :         }
+<span class="lineNum">     494 </span>            : 
+<span class="lineNum">     495 </span>            : #ifdef DEBUG
+<span class="lineNum">     496 </span>            :         // For AFL, so that .cur_input is detected as the archive filename.
+<span class="lineNum">     497 </span><span class="lineCov">     184105 :         if( EQUALN( pszFilename + i, &quot;.cur_input&quot;, strlen(&quot;.cur_input&quot;) ) )</span>
+<span class="lineNum">     498 </span>            :         {
+<span class="lineNum">     499 </span><span class="lineCov">         13 :             nToSkip = static_cast&lt;int&gt;(strlen(&quot;.cur_input&quot;));</span>
+<span class="lineNum">     500 </span>            :         }
+<span class="lineNum">     501 </span>            : #endif
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span><span class="lineCov">     184105 :         if( nToSkip != 0 )</span>
+<span class="lineNum">     504 </span>            :         {
+<span class="lineNum">     505 </span><span class="lineCov">       8349 :             nAttempts ++;</span>
+<span class="lineNum">     506 </span>            :             // Arbitrary threshold to avoid DoS with things like
+<span class="lineNum">     507 </span>            :             // /vsitar/my.tar/my.tar/my.tar/my.tar/my.tar/my.tar/my.tar
+<span class="lineNum">     508 </span><span class="lineCov">       8349 :             if( nAttempts == 5 )</span>
+<span class="lineNum">     509 </span>            :             {
+<span class="lineNum">     510 </span><span class="lineCov">         21 :                 break;</span>
+<span class="lineNum">     511 </span>            :             }
+<span class="lineNum">     512 </span>            :             VSIStatBufL statBuf;
+<span class="lineNum">     513 </span><span class="lineCov">       8328 :             char* archiveFilename = CPLStrdup(pszFilename);</span>
+<span class="lineNum">     514 </span><span class="lineCov">       8328 :             bool bArchiveFileExists = false;</span>
+<span class="lineNum">     515 </span>            : 
+<span class="lineNum">     516 </span><span class="lineCov">       8328 :             if( IsEitherSlash(archiveFilename[i + nToSkip]) )</span>
+<span class="lineNum">     517 </span>            :             {
+<span class="lineNum">     518 </span><span class="lineCov">       7885 :                 archiveFilename[i + nToSkip] = 0;</span>
+<span class="lineNum">     519 </span>            :             }
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span><span class="lineCov">       8328 :             if( !bCheckMainFileExists )</span>
+<span class="lineNum">     522 </span>            :             {
+<span class="lineNum">     523 </span><span class="lineCov">        541 :                 bArchiveFileExists = true;</span>
+<span class="lineNum">     524 </span>            :             }
+<span class="lineNum">     525 </span>            :             else
+<span class="lineNum">     526 </span>            :             {
+<span class="lineNum">     527 </span><span class="lineCov">       7787 :                 CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineCov">       7787 :                 if( oFileList.find(archiveFilename) != oFileList.end() )</span>
+<span class="lineNum">     530 </span>            :                 {
+<span class="lineNum">     531 </span><span class="lineCov">       7362 :                     bArchiveFileExists = true;</span>
+<span class="lineNum">     532 </span><span class="lineCov">       7787 :                 }</span>
+<span class="lineNum">     533 </span>            :             }
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span><span class="lineCov">       8328 :             if( !bArchiveFileExists )</span>
+<span class="lineNum">     536 </span>            :             {
+<span class="lineNum">     537 </span><span class="lineCov">        425 :                 (*pnCounter) ++;</span>
+<span class="lineNum">     538 </span>            : 
+<span class="lineNum">     539 </span>            :                 VSIFilesystemHandler *poFSHandler =
+<span class="lineNum">     540 </span><span class="lineCov">        425 :                     VSIFileManager::GetHandler( archiveFilename );</span>
+<span class="lineNum">     541 </span><span class="lineCov">        425 :                 if( poFSHandler-&gt;Stat(</span>
+<span class="lineNum">     542 </span>            :                         archiveFilename, &amp;statBuf,
+<span class="lineNum">     543 </span><span class="lineCov">        703 :                         VSI_STAT_EXISTS_FLAG | VSI_STAT_NATURE_FLAG) == 0 &amp;&amp;</span>
+<span class="lineNum">     544 </span><span class="lineCov">        278 :                     !VSI_ISDIR(statBuf.st_mode))</span>
+<span class="lineNum">     545 </span>            :                 {
+<span class="lineNum">     546 </span><span class="lineCov">        278 :                     bArchiveFileExists = true;</span>
+<span class="lineNum">     547 </span>            :                 }
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span><span class="lineCov">        425 :                 (*pnCounter) --;</span>
+<span class="lineNum">     550 </span>            :             }
+<span class="lineNum">     551 </span>            : 
+<span class="lineNum">     552 </span><span class="lineCov">       8328 :             if( bArchiveFileExists )</span>
+<span class="lineNum">     553 </span>            :             {
+<span class="lineNum">     554 </span><span class="lineCov">       8181 :                 if( IsEitherSlash(pszFilename[i + nToSkip]) )</span>
+<span class="lineNum">     555 </span>            :                 {
+<span class="lineNum">     556 </span><span class="lineCov">      15742 :                     osFileInArchive =</span>
+<span class="lineNum">     557 </span><span class="lineCov">      15742 :                         CompactFilename(pszFilename + i + nToSkip + 1);</span>
+<span class="lineNum">     558 </span>            :                 }
+<span class="lineNum">     559 </span>            :                 else
+<span class="lineNum">     560 </span>            :                 {
+<span class="lineNum">     561 </span><span class="lineCov">        310 :                     osFileInArchive = &quot;&quot;;</span>
+<span class="lineNum">     562 </span>            :                 }
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span>            :                 // Remove trailing slash.
+<span class="lineNum">     565 </span><span class="lineCov">       8181 :                 if( !osFileInArchive.empty() )</span>
+<span class="lineNum">     566 </span>            :                 {
+<span class="lineNum">     567 </span><span class="lineCov">       7871 :                     const char lastC = osFileInArchive.back();</span>
+<span class="lineNum">     568 </span><span class="lineCov">       7871 :                     if( IsEitherSlash(lastC) )</span>
+<span class="lineNum">     569 </span><span class="lineCov">          9 :                         osFileInArchive.resize(osFileInArchive.size() - 1);</span>
+<span class="lineNum">     570 </span>            :                 }
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span><span class="lineCov">       8181 :                 return archiveFilename;</span>
+<span class="lineNum">     573 </span>            :             }
+<span class="lineNum">     574 </span><span class="lineCov">        147 :             CPLFree(archiveFilename);</span>
+<span class="lineNum">     575 </span>            :         }
+<span class="lineNum">     576 </span><span class="lineCov">     175903 :         i++;</span>
+<span class="lineNum">     577 </span>            :     }
+<span class="lineNum">     578 </span><span class="lineCov">       8493 :     return nullptr;</span>
+<span class="lineNum">     579 </span>            : }
+<span class="lineNum">     580 </span>            : 
+<span class="lineNum">     581 </span>            : /************************************************************************/
+<span class="lineNum">     582 </span>            : /*                           OpenArchiveFile()                          */
+<span class="lineNum">     583 </span>            : /************************************************************************/
+<a name="584"><span class="lineNum">     584 </span>            : </a>
+<span class="lineNum">     585 </span>            : VSIArchiveReader *
+<span class="lineNum">     586 </span><span class="lineCov">       2875 : VSIArchiveFilesystemHandler::OpenArchiveFile( const char* archiveFilename,</span>
+<span class="lineNum">     587 </span>            :                                               const char* fileInArchiveName )
+<span class="lineNum">     588 </span>            : {
+<span class="lineNum">     589 </span><span class="lineCov">       2875 :     VSIArchiveReader* poReader = CreateReader(archiveFilename);</span>
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span><span class="lineCov">       2875 :     if( poReader == nullptr )</span>
+<span class="lineNum">     592 </span>            :     {
+<span class="lineNum">     593 </span><span class="lineCov">          5 :         return nullptr;</span>
+<span class="lineNum">     594 </span>            :     }
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span><span class="lineCov">       2870 :     if( fileInArchiveName == nullptr || strlen(fileInArchiveName) == 0 )</span>
+<span class="lineNum">     597 </span>            :     {
+<span class="lineNum">     598 </span><span class="lineCov">         55 :         if( poReader-&gt;GotoFirstFile() == FALSE )</span>
+<span class="lineNum">     599 </span>            :         {
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :             delete(poReader);</span>
+<span class="lineNum">     601 </span><span class="lineCov">          1 :             return nullptr;</span>
+<span class="lineNum">     602 </span>            :         }
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span>            :         // Skip optional leading subdir.
+<span class="lineNum">     605 </span><span class="lineCov">         55 :         const CPLString osFileName = poReader-&gt;GetFileName();</span>
+<span class="lineNum">     606 </span><span class="lineCov">         55 :         if( osFileName.empty() || IsEitherSlash(osFileName.back()) )</span>
+<span class="lineNum">     607 </span>            :         {
+<span class="lineNum">     608 </span><span class="lineCov">          2 :             if( poReader-&gt;GotoNextFile() == FALSE )</span>
+<span class="lineNum">     609 </span>            :             {
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :                 delete(poReader);</span>
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     612 </span>            :             }
+<span class="lineNum">     613 </span>            :         }
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span><span class="lineCov">         55 :         if( poReader-&gt;GotoNextFile() )</span>
+<span class="lineNum">     616 </span>            :         {
+<span class="lineNum">     617 </span><span class="lineCov">          1 :             CPLString msg;</span>
+<span class="lineNum">     618 </span>            :             msg.Printf(&quot;Support only 1 file in archive file %s when &quot;
+<span class="lineNum">     619 </span>            :                        &quot;no explicit in-archive filename is specified&quot;,
+<span class="lineNum">     620 </span><span class="lineCov">          1 :                        archiveFilename);</span>
+<span class="lineNum">     621 </span>            :             const VSIArchiveContent* content =
+<span class="lineNum">     622 </span><span class="lineCov">          1 :                 GetContentOfArchive(archiveFilename, poReader);</span>
+<span class="lineNum">     623 </span><span class="lineCov">          1 :             if( content )</span>
+<span class="lineNum">     624 </span>            :             {
+<span class="lineNum">     625 </span><span class="lineCov">          1 :                 msg += &quot;\nYou could try one of the following :\n&quot;;</span>
+<span class="lineNum">     626 </span><span class="lineCov">          6 :                 for( int i=0; i &lt; content-&gt;nEntries; i++ )</span>
+<span class="lineNum">     627 </span>            :                 {
+<span class="lineNum">     628 </span><span class="lineCov">          5 :                     msg += CPLString().Printf(</span>
+<span class="lineNum">     629 </span><span class="lineCov">          5 :                         &quot;  %s/{%s}/%s\n&quot;, GetPrefix(),</span>
+<span class="lineNum">     630 </span><span class="lineCov">         15 :                         archiveFilename, content-&gt;entries[i].fileName);</span>
+<span class="lineNum">     631 </span>            :                 }
+<span class="lineNum">     632 </span>            :             }
+<span class="lineNum">     633 </span>            : 
+<span class="lineNum">     634 </span><span class="lineCov">          1 :             CPLError(CE_Failure, CPLE_NotSupported, &quot;%s&quot;, msg.c_str());</span>
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span><span class="lineCov">          1 :             delete(poReader);</span>
+<span class="lineNum">     637 </span><span class="lineCov">          1 :             return nullptr;</span>
+<span class="lineNum">     638 </span><span class="lineCov">         54 :         }</span>
+<span class="lineNum">     639 </span>            :     }
+<span class="lineNum">     640 </span>            :     else
+<span class="lineNum">     641 </span>            :     {
+<span class="lineNum">     642 </span>            :         // Optimization: instead of iterating over all files which can be
+<span class="lineNum">     643 </span>            :         // slow on .tar.gz files, try reading the first one first.
+<span class="lineNum">     644 </span>            :         // This can help if it is really huge.
+<span class="lineNum">     645 </span>            :         {
+<span class="lineNum">     646 </span><span class="lineCov">       2815 :             CPLMutexHolder oHolder( &amp;hMutex );</span>
+<span class="lineNum">     647 </span>            : 
+<span class="lineNum">     648 </span><span class="lineCov">       2815 :             if( oFileList.find(archiveFilename) == oFileList.end() )</span>
+<span class="lineNum">     649 </span>            :             {
+<span class="lineNum">     650 </span><span class="lineCov">         94 :                 if( poReader-&gt;GotoFirstFile() == FALSE )</span>
+<span class="lineNum">     651 </span>            :                 {
+<span class="lineNum">     652 </span><span class="lineNoCov">          0 :                     delete(poReader);</span>
+<span class="lineNum">     653 </span><span class="lineCov">         24 :                     return nullptr;</span>
+<span class="lineNum">     654 </span>            :                 }
+<span class="lineNum">     655 </span>            : 
+<span class="lineNum">     656 </span><span class="lineCov">         94 :                 const CPLString osFileName = poReader-&gt;GetFileName();</span>
+<span class="lineNum">     657 </span><span class="lineCov">         94 :                 bool bIsDir = false;</span>
+<span class="lineNum">     658 </span>            :                 const CPLString osStrippedFilename =
+<span class="lineNum">     659 </span><span class="lineCov">        164 :                             GetStrippedFilename(osFileName, bIsDir);</span>
+<span class="lineNum">     660 </span><span class="lineCov">         94 :                 if( !osStrippedFilename.empty() )</span>
+<span class="lineNum">     661 </span>            :                 {
+<span class="lineNum">     662 </span>            :                     const bool bMatch = strcmp(osStrippedFilename,
+<span class="lineNum">     663 </span><span class="lineCov">         94 :                                                fileInArchiveName) == 0;</span>
+<span class="lineNum">     664 </span><span class="lineCov">         94 :                     if( bMatch )</span>
+<span class="lineNum">     665 </span>            :                     {
+<span class="lineNum">     666 </span><span class="lineCov">         24 :                         if( bIsDir )</span>
+<span class="lineNum">     667 </span>            :                         {
+<span class="lineNum">     668 </span><span class="lineNoCov">          0 :                             delete(poReader);</span>
+<span class="lineNum">     669 </span><span class="lineNoCov">          0 :                             return nullptr;</span>
+<span class="lineNum">     670 </span>            :                         }
+<span class="lineNum">     671 </span><span class="lineCov">         24 :                         return poReader;</span>
+<span class="lineNum">     672 </span>            :                     }
+<span class="lineNum">     673 </span><span class="lineCov">         70 :                 }</span>
+<span class="lineNum">     674 </span><span class="lineCov">       2791 :             }</span>
+<span class="lineNum">     675 </span>            :         }
+<span class="lineNum">     676 </span>            : 
+<span class="lineNum">     677 </span><span class="lineCov">       2791 :         const VSIArchiveEntry* archiveEntry = nullptr;</span>
+<span class="lineNum">     678 </span><span class="lineCov">       2791 :         if( FindFileInArchive(archiveFilename, fileInArchiveName,</span>
+<span class="lineNum">     679 </span><span class="lineCov">       2791 :                               &amp;archiveEntry) == FALSE ||</span>
+<span class="lineNum">     680 </span>            :             archiveEntry-&gt;bIsDir )
+<span class="lineNum">     681 </span>            :         {
+<span class="lineNum">     682 </span><span class="lineCov">        173 :             delete(poReader);</span>
+<span class="lineNum">     683 </span><span class="lineCov">        173 :             return nullptr;</span>
+<span class="lineNum">     684 </span>            :         }
+<span class="lineNum">     685 </span><span class="lineCov">       2618 :         if( !poReader-&gt;GotoFileOffset(archiveEntry-&gt;file_pos) )</span>
+<span class="lineNum">     686 </span>            :         {
+<span class="lineNum">     687 </span><span class="lineNoCov">          0 :             delete poReader;</span>
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     689 </span>            :         }
+<span class="lineNum">     690 </span>            :     }
+<span class="lineNum">     691 </span><span class="lineCov">       2672 :     return poReader;</span>
+<span class="lineNum">     692 </span>            : }
+<span class="lineNum">     693 </span>            : 
+<span class="lineNum">     694 </span>            : /************************************************************************/
+<span class="lineNum">     695 </span>            : /*                                 Stat()                               */
+<a name="696"><span class="lineNum">     696 </span>            : /************************************************************************/</a>
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span><span class="lineCov">       1632 : int VSIArchiveFilesystemHandler::Stat( const char *pszFilename,</span>
+<span class="lineNum">     699 </span>            :                                        VSIStatBufL *pStatBuf,
+<span class="lineNum">     700 </span>            :                                        int /* nFlags */ )
+<span class="lineNum">     701 </span>            : {
+<span class="lineNum">     702 </span><span class="lineCov">       1632 :     memset(pStatBuf, 0, sizeof(VSIStatBufL));</span>
+<span class="lineNum">     703 </span>            : 
+<span class="lineNum">     704 </span><span class="lineCov">       1632 :     CPLString osFileInArchive;</span>
+<span class="lineNum">     705 </span><span class="lineCov">       1632 :     char* archiveFilename = SplitFilename(pszFilename, osFileInArchive, TRUE);</span>
+<span class="lineNum">     706 </span><span class="lineCov">       1632 :     if( archiveFilename == nullptr )</span>
+<span class="lineNum">     707 </span><span class="lineCov">         85 :         return -1;</span>
+<span class="lineNum">     708 </span>            : 
+<span class="lineNum">     709 </span><span class="lineCov">       1547 :     int ret = -1;</span>
+<span class="lineNum">     710 </span><span class="lineCov">       1547 :     if( !osFileInArchive.empty() )</span>
+<span class="lineNum">     711 </span>            :     {
+<span class="lineNum">     712 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     713 </span>            :         CPLDebug(&quot;VSIArchive&quot;, &quot;Looking for %s %s&quot;,
+<span class="lineNum">     714 </span>            :                  archiveFilename, osFileInArchive.c_str());
+<span class="lineNum">     715 </span>            : #endif
+<span class="lineNum">     716 </span>            : 
+<span class="lineNum">     717 </span><span class="lineCov">       1499 :         const VSIArchiveEntry* archiveEntry = nullptr;</span>
+<span class="lineNum">     718 </span><span class="lineCov">       1499 :         if( FindFileInArchive(archiveFilename, osFileInArchive, &amp;archiveEntry) )</span>
+<span class="lineNum">     719 </span>            :         {
+<span class="lineNum">     720 </span>            :             // Patching st_size with uncompressed file size.
+<span class="lineNum">     721 </span><span class="lineCov">       1441 :             pStatBuf-&gt;st_size = archiveEntry-&gt;uncompressed_size;</span>
+<span class="lineNum">     722 </span><span class="lineCov">       1441 :             pStatBuf-&gt;st_mtime = static_cast&lt;time_t&gt;(archiveEntry-&gt;nModifiedTime);</span>
+<span class="lineNum">     723 </span><span class="lineCov">       1441 :             if( archiveEntry-&gt;bIsDir )</span>
+<span class="lineNum">     724 </span><span class="lineCov">       1046 :                 pStatBuf-&gt;st_mode = S_IFDIR;</span>
+<span class="lineNum">     725 </span>            :             else
+<span class="lineNum">     726 </span><span class="lineCov">        395 :                 pStatBuf-&gt;st_mode = S_IFREG;</span>
+<span class="lineNum">     727 </span><span class="lineCov">       1441 :             ret = 0;</span>
+<span class="lineNum">     728 </span>            :         }
+<span class="lineNum">     729 </span>            :     }
+<span class="lineNum">     730 </span>            :     else
+<span class="lineNum">     731 </span>            :     {
+<span class="lineNum">     732 </span><span class="lineCov">         48 :         VSIArchiveReader* poReader = CreateReader(archiveFilename);</span>
+<span class="lineNum">     733 </span><span class="lineCov">         48 :         CPLFree(archiveFilename);</span>
+<span class="lineNum">     734 </span><span class="lineCov">         48 :         archiveFilename = nullptr;</span>
+<span class="lineNum">     735 </span>            : 
+<span class="lineNum">     736 </span><span class="lineCov">         48 :         if( poReader != nullptr &amp;&amp; poReader-&gt;GotoFirstFile() )</span>
+<span class="lineNum">     737 </span>            :         {
+<span class="lineNum">     738 </span>            :             // Skip optional leading subdir.
+<span class="lineNum">     739 </span><span class="lineCov">         43 :             const CPLString osFileName = poReader-&gt;GetFileName();</span>
+<span class="lineNum">     740 </span><span class="lineCov">         43 :             if( IsEitherSlash(osFileName.back()) )</span>
+<span class="lineNum">     741 </span>            :             {
+<span class="lineNum">     742 </span><span class="lineCov">          7 :                 if( poReader-&gt;GotoNextFile() == FALSE )</span>
+<span class="lineNum">     743 </span>            :                 {
+<span class="lineNum">     744 </span><span class="lineNoCov">          0 :                     delete(poReader);</span>
+<span class="lineNum">     745 </span><span class="lineNoCov">          0 :                     return -1;</span>
+<span class="lineNum">     746 </span>            :                 }
+<span class="lineNum">     747 </span>            :             }
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span><span class="lineCov">         43 :             if( poReader-&gt;GotoNextFile() )</span>
+<span class="lineNum">     750 </span>            :             {
+<span class="lineNum">     751 </span>            :                 // Several files in archive --&gt; treat as dir.
+<span class="lineNum">     752 </span><span class="lineCov">         31 :                 pStatBuf-&gt;st_size = 0;</span>
+<span class="lineNum">     753 </span><span class="lineCov">         31 :                 pStatBuf-&gt;st_mode = S_IFDIR;</span>
+<span class="lineNum">     754 </span>            :             }
+<span class="lineNum">     755 </span>            :             else
+<span class="lineNum">     756 </span>            :             {
+<span class="lineNum">     757 </span>            :                 // Patching st_size with uncompressed file size.
+<span class="lineNum">     758 </span><span class="lineCov">         12 :                 pStatBuf-&gt;st_size = poReader-&gt;GetFileSize();</span>
+<span class="lineNum">     759 </span><span class="lineCov">         12 :                 pStatBuf-&gt;st_mtime = static_cast&lt;time_t&gt;(poReader-&gt;GetModifiedTime());</span>
+<span class="lineNum">     760 </span><span class="lineCov">         12 :                 pStatBuf-&gt;st_mode = S_IFREG;</span>
+<span class="lineNum">     761 </span>            :             }
+<span class="lineNum">     762 </span>            : 
+<span class="lineNum">     763 </span><span class="lineCov">         43 :             ret = 0;</span>
+<span class="lineNum">     764 </span>            :         }
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span><span class="lineCov">         48 :         delete(poReader);</span>
+<span class="lineNum">     767 </span>            :     }
+<span class="lineNum">     768 </span>            : 
+<span class="lineNum">     769 </span><span class="lineCov">       1547 :     CPLFree(archiveFilename);</span>
+<span class="lineNum">     770 </span><span class="lineCov">       1547 :     return ret;</span>
+<span class="lineNum">     771 </span>            : }
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span>            : /************************************************************************/
+<span class="lineNum">     774 </span>            : /*                              Unlink()                                */
+<a name="775"><span class="lineNum">     775 </span>            : /************************************************************************/</a>
+<span class="lineNum">     776 </span>            : 
+<span class="lineNum">     777 </span><span class="lineNoCov">          0 : int VSIArchiveFilesystemHandler::Unlink( const char * /* pszFilename */ )</span>
+<span class="lineNum">     778 </span>            : {
+<span class="lineNum">     779 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     780 </span>            : }
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span>            : /************************************************************************/
+<span class="lineNum">     783 </span>            : /*                             Rename()                                 */
+<a name="784"><span class="lineNum">     784 </span>            : /************************************************************************/</a>
+<span class="lineNum">     785 </span>            : 
+<span class="lineNum">     786 </span><span class="lineNoCov">          0 : int VSIArchiveFilesystemHandler::Rename( const char * /* oldpath */,</span>
+<span class="lineNum">     787 </span>            :                                          const char * /* newpath */ )
+<span class="lineNum">     788 </span>            : {
+<span class="lineNum">     789 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     790 </span>            : }
+<span class="lineNum">     791 </span>            : 
+<span class="lineNum">     792 </span>            : /************************************************************************/
+<span class="lineNum">     793 </span>            : /*                             Mkdir()                                  */
+<a name="794"><span class="lineNum">     794 </span>            : /************************************************************************/</a>
+<span class="lineNum">     795 </span>            : 
+<span class="lineNum">     796 </span><span class="lineNoCov">          0 : int VSIArchiveFilesystemHandler::Mkdir( const char * /* pszDirname */,</span>
+<span class="lineNum">     797 </span>            :                                         long /* nMode */ )
+<span class="lineNum">     798 </span>            : {
+<span class="lineNum">     799 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     800 </span>            : }
+<span class="lineNum">     801 </span>            : 
+<span class="lineNum">     802 </span>            : /************************************************************************/
+<span class="lineNum">     803 </span>            : /*                             Rmdir()                                  */
+<a name="804"><span class="lineNum">     804 </span>            : /************************************************************************/</a>
+<span class="lineNum">     805 </span>            : 
+<span class="lineNum">     806 </span><span class="lineNoCov">          0 : int VSIArchiveFilesystemHandler::Rmdir( const char * /* pszDirname */ )</span>
+<span class="lineNum">     807 </span>            : {
+<span class="lineNum">     808 </span><span class="lineNoCov">          0 :     return -1;</span>
+<span class="lineNum">     809 </span>            : }
+<span class="lineNum">     810 </span>            : 
+<span class="lineNum">     811 </span>            : /************************************************************************/
+<span class="lineNum">     812 </span>            : /*                             ReadDirEx()                              */
+<a name="813"><span class="lineNum">     813 </span>            : /************************************************************************/</a>
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span><span class="lineCov">       1180 : char** VSIArchiveFilesystemHandler::ReadDirEx( const char *pszDirname,</span>
+<span class="lineNum">     816 </span>            :                                                int nMaxFiles )
+<span class="lineNum">     817 </span>            : {
+<span class="lineNum">     818 </span><span class="lineCov">       1180 :     CPLString osInArchiveSubDir;</span>
+<span class="lineNum">     819 </span><span class="lineCov">       1180 :     char* archiveFilename = SplitFilename(pszDirname, osInArchiveSubDir, TRUE);</span>
+<span class="lineNum">     820 </span><span class="lineCov">       1180 :     if( archiveFilename == nullptr )</span>
+<span class="lineNum">     821 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     822 </span>            : 
+<span class="lineNum">     823 </span><span class="lineCov">       1180 :     const int lenInArchiveSubDir = static_cast&lt;int&gt;(osInArchiveSubDir.size());</span>
+<span class="lineNum">     824 </span>            : 
+<span class="lineNum">     825 </span><span class="lineCov">       2360 :     CPLStringList oDir;</span>
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span><span class="lineCov">       1180 :     const VSIArchiveContent* content = GetContentOfArchive(archiveFilename);</span>
+<span class="lineNum">     828 </span><span class="lineCov">       1180 :     if( !content )</span>
+<span class="lineNum">     829 </span>            :     {
+<span class="lineNum">     830 </span><span class="lineCov">          4 :         CPLFree(archiveFilename);</span>
+<span class="lineNum">     831 </span><span class="lineCov">          4 :         return nullptr;</span>
+<span class="lineNum">     832 </span>            :     }
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     835 </span>            :     CPLDebug(&quot;VSIArchive&quot;, &quot;Read dir %s&quot;, pszDirname);
+<span class="lineNum">     836 </span>            : #endif
+<span class="lineNum">     837 </span><span class="lineCov">    1018187 :     for( int i = 0; i &lt; content-&gt;nEntries; i++ )</span>
+<span class="lineNum">     838 </span>            :     {
+<span class="lineNum">     839 </span><span class="lineCov">    1017012 :         const char* fileName = content-&gt;entries[i].fileName;</span>
+<span class="lineNum">     840 </span>            :         /* Only list entries at the same level of inArchiveSubDir */
+<span class="lineNum">     841 </span><span class="lineCov">    2026580 :         if( lenInArchiveSubDir != 0 &amp;&amp;</span>
+<span class="lineNum">     842 </span><span class="lineCov">    1519630 :             strncmp(fileName, osInArchiveSubDir, lenInArchiveSubDir) == 0 &amp;&amp;</span>
+<span class="lineNum">     843 </span><span class="lineCov">    2036078 :             IsEitherSlash(fileName[lenInArchiveSubDir]) &amp;&amp;</span>
+<span class="lineNum">     844 </span><span class="lineCov">     509004 :             fileName[lenInArchiveSubDir + 1] != 0 )</span>
+<span class="lineNum">     845 </span>            :         {
+<span class="lineNum">     846 </span><span class="lineCov">     509004 :             const char* slash = strchr(fileName + lenInArchiveSubDir + 1, '/');</span>
+<span class="lineNum">     847 </span><span class="lineCov">     509004 :             if( slash == nullptr )</span>
+<span class="lineNum">     848 </span><span class="lineCov">       9502 :                 slash = strchr(fileName + lenInArchiveSubDir + 1, '\\');</span>
+<span class="lineNum">     849 </span><span class="lineCov">     509004 :             if( slash == nullptr || slash[1] == 0 )</span>
+<span class="lineNum">     850 </span>            :             {
+<span class="lineNum">     851 </span><span class="lineCov">       9502 :                 char* tmpFileName = CPLStrdup(fileName);</span>
+<span class="lineNum">     852 </span><span class="lineCov">       9502 :                 if( slash != nullptr )</span>
+<span class="lineNum">     853 </span>            :                 {
+<span class="lineNum">     854 </span><span class="lineNoCov">          0 :                     tmpFileName[strlen(tmpFileName)-1] = 0;</span>
+<span class="lineNum">     855 </span>            :                 }
+<span class="lineNum">     856 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     857 </span>            :                 CPLDebug(&quot;VSIArchive&quot;, &quot;Add %s as in directory %s&quot;,
+<span class="lineNum">     858 </span>            :                          tmpFileName + lenInArchiveSubDir + 1, pszDirname);
+<span class="lineNum">     859 </span>            : #endif
+<span class="lineNum">     860 </span><span class="lineCov">       9502 :                 oDir.AddString(tmpFileName + lenInArchiveSubDir + 1);</span>
+<span class="lineNum">     861 </span><span class="lineCov">       9502 :                 CPLFree(tmpFileName);</span>
+<span class="lineNum">     862 </span>            :             }
+<span class="lineNum">     863 </span>            :         }
+<span class="lineNum">     864 </span><span class="lineCov">     515452 :         else if( lenInArchiveSubDir == 0 &amp;&amp;</span>
+<span class="lineNum">     865 </span><span class="lineCov">       7935 :                  strchr(fileName, '/') == nullptr &amp;&amp;</span>
+<span class="lineNum">     866 </span><span class="lineCov">        491 :                  strchr(fileName, '\\') == nullptr )</span>
+<span class="lineNum">     867 </span>            :         {
+<span class="lineNum">     868 </span>            :             // Only list toplevel files and directories.
+<span class="lineNum">     869 </span>            : #ifdef DEBUG_VERBOSE
+<span class="lineNum">     870 </span>            :             CPLDebug(&quot;VSIArchive&quot;, &quot;Add %s as in directory %s&quot;,
+<span class="lineNum">     871 </span>            :                      fileName, pszDirname);
+<span class="lineNum">     872 </span>            : #endif
+<span class="lineNum">     873 </span><span class="lineCov">        491 :             oDir.AddString(fileName);</span>
+<span class="lineNum">     874 </span>            :         }
+<span class="lineNum">     875 </span>            : 
+<span class="lineNum">     876 </span><span class="lineCov">    1017012 :         if( nMaxFiles &gt; 0 &amp;&amp; oDir.Count() &gt; nMaxFiles )</span>
+<span class="lineNum">     877 </span><span class="lineCov">          1 :             break;</span>
+<span class="lineNum">     878 </span>            :     }
+<span class="lineNum">     879 </span>            : 
+<span class="lineNum">     880 </span><span class="lineCov">       1176 :     CPLFree(archiveFilename);</span>
+<span class="lineNum">     881 </span><span class="lineCov">       2356 :     return oDir.StealList();</span>
+<span class="lineNum">     882 </span>            : }
+<span class="lineNum">     883 </span>            : 
+<span class="lineNum">     884 </span>            : //! @endcond
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

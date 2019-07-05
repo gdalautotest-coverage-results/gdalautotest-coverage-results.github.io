@@ -1,0 +1,547 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - frmts/raw/ctable2dataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">frmts/raw</a> - ctable2dataset.cpp<span style="font-size: 80%;"> (source / <a href="ctable2dataset.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">146</td>
+            <td class="headerCovTableEntry">166</td>
+            <td class="headerCovTableEntryMed">88.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">10</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryMed">83.3 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  Horizontal Datum Formats
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of the CTable2 format, a PROJ.4 specific format
+<span class="lineNum">       5 </span>            :  *           that is more compact (due to a lack of unused error band) than NTv2
+<span class="lineNum">       6 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  ******************************************************************************
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2012, Frank Warmerdam
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdal_frmts.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;ogr_srs_api.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;rawdataset.h&quot;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : /************************************************************************/
+<span class="lineNum">      38 </span>            : /* ==================================================================== */
+<span class="lineNum">      39 </span>            : /*                              CTable2Dataset                          */
+<span class="lineNum">      40 </span>            : /* ==================================================================== */
+<span class="lineNum">      41 </span>            : /************************************************************************/
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : class CTable2Dataset final: public RawDataset
+<span class="lineNum">      44 </span>            : {
+<span class="lineNum">      45 </span>            :     VSILFILE    *fpImage;  // image data file.
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            :     double      adfGeoTransform[6];
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            :     CPL_DISALLOW_COPY_ASSIGN(CTable2Dataset)
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            :   public:
+<span class="lineNum">      52 </span>            :     CTable2Dataset();
+<span class="lineNum">      53 </span>            :     ~CTable2Dataset() override;
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            :     CPLErr SetGeoTransform( double * padfTransform ) override;
+<a name="56"><span class="lineNum">      56 </span>            :     CPLErr GetGeoTransform( double * padfTransform ) override;</a>
+<span class="lineNum">      57 </span>            :     const char *_GetProjectionRef() override;
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :     const OGRSpatialReference* GetSpatialRef() const override {</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :         return GetSpatialRefFromOldGetProjectionRef();</span>
+<span class="lineNum">      60 </span>            :     }
+<span class="lineNum">      61 </span>            :     void   FlushCache(void) override;
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            :     static GDALDataset *Open( GDALOpenInfo * );
+<span class="lineNum">      64 </span>            :     static int          Identify( GDALOpenInfo * );
+<span class="lineNum">      65 </span>            :     static GDALDataset *Create( const char * pszFilename,
+<span class="lineNum">      66 </span>            :                                 int nXSize, int nYSize, int nBands,
+<span class="lineNum">      67 </span>            :                                 GDALDataType eType, char ** papszOptions );
+<span class="lineNum">      68 </span>            : };
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : /************************************************************************/
+<span class="lineNum">      71 </span>            : /* ==================================================================== */
+<span class="lineNum">      72 </span>            : /*                              CTable2Dataset                          */
+<span class="lineNum">      73 </span>            : /* ==================================================================== */
+<span class="lineNum">      74 </span>            : /************************************************************************/
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span>            : /************************************************************************/
+<span class="lineNum">      77 </span>            : /*                             CTable2Dataset()                          */
+<a name="78"><span class="lineNum">      78 </span>            : /************************************************************************/</a>
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span><span class="lineCov">          4 : CTable2Dataset::CTable2Dataset() :</span>
+<span class="lineNum">      81 </span><span class="lineCov">          4 :     fpImage(nullptr)</span>
+<span class="lineNum">      82 </span>            : {
+<span class="lineNum">      83 </span><span class="lineCov">          4 :     memset( adfGeoTransform, 0, sizeof(adfGeoTransform) );</span>
+<span class="lineNum">      84 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            : /************************************************************************/
+<span class="lineNum">      87 </span>            : /*                            ~CTable2Dataset()                          */
+<a name="88"><span class="lineNum">      88 </span>            : /************************************************************************/</a>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineCov">         12 : CTable2Dataset::~CTable2Dataset()</span>
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            : {
+<span class="lineNum">      93 </span><span class="lineCov">          4 :     CTable2Dataset::FlushCache();</span>
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span><span class="lineCov">          4 :     if( fpImage != nullptr )</span>
+<span class="lineNum">      96 </span>            :     {
+<span class="lineNum">      97 </span><span class="lineCov">          4 :         if( VSIFCloseL( fpImage ) != 0 )</span>
+<span class="lineNum">      98 </span>            :         {
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :             CPLError(CE_Failure, CPLE_FileIO, &quot;I/O error&quot;);</span>
+<span class="lineNum">     100 </span>            :         }
+<span class="lineNum">     101 </span>            :     }
+<span class="lineNum">     102 </span><span class="lineCov">          8 : }</span>
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            : /************************************************************************/
+<span class="lineNum">     105 </span>            : /*                             FlushCache()                             */
+<a name="106"><span class="lineNum">     106 </span>            : /************************************************************************/</a>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span><span class="lineCov">          4 : void CTable2Dataset::FlushCache()</span>
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span>            : {
+<span class="lineNum">     111 </span><span class="lineCov">          4 :     RawDataset::FlushCache();</span>
+<span class="lineNum">     112 </span><span class="lineCov">          4 : }</span>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span>            : /************************************************************************/
+<span class="lineNum">     115 </span>            : /*                              Identify()                              */
+<a name="116"><span class="lineNum">     116 </span>            : /************************************************************************/</a>
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span><span class="lineCov">      41173 : int CTable2Dataset::Identify( GDALOpenInfo *poOpenInfo )</span>
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span>            : {
+<span class="lineNum">     121 </span><span class="lineCov">      41173 :     if( poOpenInfo-&gt;nHeaderBytes &lt; 64 )</span>
+<span class="lineNum">     122 </span><span class="lineCov">      36744 :         return FALSE;</span>
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span><span class="lineCov">       4429 :     if( !STARTS_WITH_CI(</span>
+<span class="lineNum">     125 </span>            :            reinterpret_cast&lt;const char *&gt;( poOpenInfo-&gt;pabyHeader + 0 ),
+<span class="lineNum">     126 </span>            :            &quot;CTABLE V2&quot;) )
+<span class="lineNum">     127 </span><span class="lineCov">       4421 :         return FALSE;</span>
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span><span class="lineCov">          8 :     return TRUE;</span>
+<span class="lineNum">     130 </span>            : }
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            : /************************************************************************/
+<span class="lineNum">     133 </span>            : /*                                Open()                                */
+<a name="134"><span class="lineNum">     134 </span>            : /************************************************************************/</a>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineCov">       8090 : GDALDataset *CTable2Dataset::Open( GDALOpenInfo * poOpenInfo )</span>
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            : {
+<span class="lineNum">     139 </span><span class="lineCov">       8090 :     if( !Identify( poOpenInfo ) )</span>
+<span class="lineNum">     140 </span><span class="lineCov">       8084 :         return nullptr;</span>
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     143 </span>            : /*      Create a corresponding GDALDataset.                             */
+<span class="lineNum">     144 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     145 </span><span class="lineCov">          4 :     CTable2Dataset *poDS = new CTable2Dataset();</span>
+<span class="lineNum">     146 </span><span class="lineCov">          4 :     poDS-&gt;eAccess = poOpenInfo-&gt;eAccess;</span>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     149 </span>            : /*      Open the file.                                                  */
+<span class="lineNum">     150 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     151 </span><span class="lineCov">          4 :     CPLString osFilename = poOpenInfo-&gt;pszFilename;</span>
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span><span class="lineCov">          4 :     if( poOpenInfo-&gt;eAccess == GA_ReadOnly )</span>
+<span class="lineNum">     154 </span><span class="lineCov">          2 :         poDS-&gt;fpImage = VSIFOpenL( osFilename, &quot;rb&quot; );</span>
+<span class="lineNum">     155 </span>            :     else
+<span class="lineNum">     156 </span><span class="lineCov">          2 :         poDS-&gt;fpImage = VSIFOpenL( osFilename, &quot;rb+&quot; );</span>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineCov">          4 :     if( poDS-&gt;fpImage == nullptr )</span>
+<span class="lineNum">     159 </span>            :     {
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     162 </span>            :     }
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     165 </span>            : /*      Read the file header.                                           */
+<span class="lineNum">     166 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span><span class="lineCov">          4 :     CPL_IGNORE_RET_VAL(VSIFSeekL( poDS-&gt;fpImage, 0, SEEK_SET ));</span>
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span><span class="lineCov">          4 :     char achHeader[160] = { '\0' };</span>
+<span class="lineNum">     171 </span><span class="lineCov">          4 :     CPL_IGNORE_RET_VAL(VSIFReadL( achHeader, 1, 160, poDS-&gt;fpImage ));</span>
+<span class="lineNum">     172 </span><span class="lineCov">          4 :     achHeader[16+79] = '\0';</span>
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span><span class="lineCov">          8 :     CPLString osDescription = reinterpret_cast&lt;const char *&gt;( achHeader + 16 );</span>
+<span class="lineNum">     175 </span><span class="lineCov">          4 :     osDescription.Trim();</span>
+<span class="lineNum">     176 </span><span class="lineCov">          4 :     poDS-&gt;SetMetadataItem( &quot;DESCRIPTION&quot;, osDescription );</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     179 </span>            : /*      Convert from LSB to local machine byte order.                   */
+<span class="lineNum">     180 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     181 </span><span class="lineCov">          4 :     CPL_LSBPTR64( achHeader + 96 );</span>
+<span class="lineNum">     182 </span><span class="lineCov">          4 :     CPL_LSBPTR64( achHeader + 104 );</span>
+<span class="lineNum">     183 </span><span class="lineCov">          4 :     CPL_LSBPTR64( achHeader + 112 );</span>
+<span class="lineNum">     184 </span><span class="lineCov">          4 :     CPL_LSBPTR64( achHeader + 120 );</span>
+<span class="lineNum">     185 </span><span class="lineCov">          4 :     CPL_LSBPTR32( achHeader + 128 );</span>
+<span class="lineNum">     186 </span><span class="lineCov">          4 :     CPL_LSBPTR32( achHeader + 132 );</span>
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     189 </span>            : /*      Extract size, and geotransform.                                 */
+<span class="lineNum">     190 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     191 </span>            :     int nRasterXSize, nRasterYSize;
+<span class="lineNum">     192 </span><span class="lineCov">          4 :     memcpy( &amp;nRasterXSize, achHeader + 128, 4 );</span>
+<span class="lineNum">     193 </span><span class="lineCov">          4 :     memcpy( &amp;nRasterYSize, achHeader + 132, 4 );</span>
+<span class="lineNum">     194 </span><span class="lineCov">          8 :     if (!GDALCheckDatasetDimensions(nRasterXSize, nRasterYSize) ||</span>
+<span class="lineNum">     195 </span>            :         /* to avoid overflow in later -8 * nRasterXSize computation */
+<span class="lineNum">     196 </span><span class="lineCov">          4 :         nRasterXSize &gt;= INT_MAX / 8 )</span>
+<span class="lineNum">     197 </span>            :     {
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :         delete poDS;</span>
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     200 </span>            :     }
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span><span class="lineCov">          4 :     poDS-&gt;nRasterXSize = nRasterXSize;</span>
+<span class="lineNum">     203 </span><span class="lineCov">          4 :     poDS-&gt;nRasterYSize = nRasterYSize;</span>
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span>            :     double adfValues[4];
+<span class="lineNum">     206 </span><span class="lineCov">          4 :     memcpy( adfValues, achHeader + 96, sizeof(double)*4 );</span>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineCov">         20 :     for( int i = 0; i &lt; 4; i++ )</span>
+<span class="lineNum">     209 </span><span class="lineCov">         16 :         adfValues[i] *= 180/M_PI; // Radians to degrees.</span>
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span><span class="lineCov">          4 :     poDS-&gt;adfGeoTransform[0] = adfValues[0] - adfValues[2]*0.5;</span>
+<span class="lineNum">     212 </span><span class="lineCov">          4 :     poDS-&gt;adfGeoTransform[1] = adfValues[2];</span>
+<span class="lineNum">     213 </span><span class="lineCov">          4 :     poDS-&gt;adfGeoTransform[2] = 0.0;</span>
+<span class="lineNum">     214 </span><span class="lineCov">          4 :     poDS-&gt;adfGeoTransform[3] = adfValues[1] + adfValues[3]*(nRasterYSize-0.5);</span>
+<span class="lineNum">     215 </span><span class="lineCov">          4 :     poDS-&gt;adfGeoTransform[4] = 0.0;</span>
+<span class="lineNum">     216 </span><span class="lineCov">          4 :     poDS-&gt;adfGeoTransform[5] = -adfValues[3];</span>
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     219 </span>            : /*      Setup the bands.                                                */
+<span class="lineNum">     220 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     221 </span>            :     RawRasterBand *poBand =
+<span class="lineNum">     222 </span>            :         new RawRasterBand( poDS, 1, poDS-&gt;fpImage,
+<span class="lineNum">     223 </span><span class="lineCov">          8 :                            160 + 4 + static_cast&lt;vsi_l_offset&gt;(nRasterXSize) *</span>
+<span class="lineNum">     224 </span><span class="lineCov">          8 :                                 (nRasterYSize-1) * 2 * 4,</span>
+<span class="lineNum">     225 </span>            :                            8, -8 * nRasterXSize,
+<span class="lineNum">     226 </span><span class="lineCov">          8 :                            GDT_Float32, CPL_IS_LSB, RawRasterBand::OwnFP::NO );</span>
+<span class="lineNum">     227 </span><span class="lineCov">          4 :     poBand-&gt;SetDescription( &quot;Latitude Offset (radians)&quot; );</span>
+<span class="lineNum">     228 </span><span class="lineCov">          4 :     poDS-&gt;SetBand( 1, poBand );</span>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span>            :     poBand =
+<span class="lineNum">     231 </span>            :         new RawRasterBand( poDS, 2, poDS-&gt;fpImage,
+<span class="lineNum">     232 </span><span class="lineCov">          8 :                            160 + static_cast&lt;vsi_l_offset&gt;(nRasterXSize) *</span>
+<span class="lineNum">     233 </span><span class="lineCov">          4 :                                 (nRasterYSize-1) * 2 * 4,</span>
+<span class="lineNum">     234 </span>            :                            8, -8 * nRasterXSize,
+<span class="lineNum">     235 </span><span class="lineCov">          8 :                            GDT_Float32, CPL_IS_LSB, RawRasterBand::OwnFP::NO );</span>
+<span class="lineNum">     236 </span><span class="lineCov">          4 :     poBand-&gt;SetDescription( &quot;Longitude Offset (radians)&quot; );</span>
+<span class="lineNum">     237 </span><span class="lineCov">          4 :     poDS-&gt;SetBand( 2, poBand );</span>
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     240 </span>            : /*      Initialize any PAM information.                                 */
+<span class="lineNum">     241 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     242 </span><span class="lineCov">          4 :     poDS-&gt;SetDescription( poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     243 </span><span class="lineCov">          4 :     poDS-&gt;TryLoadXML();</span>
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     246 </span>            : /*      Check for overviews.                                            */
+<span class="lineNum">     247 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     248 </span><span class="lineCov">          4 :     poDS-&gt;oOvManager.Initialize( poDS, poOpenInfo-&gt;pszFilename );</span>
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span><span class="lineCov">          8 :     return poDS;</span>
+<span class="lineNum">     251 </span>            : }
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span>            : /************************************************************************/
+<span class="lineNum">     254 </span>            : /*                          GetGeoTransform()                           */
+<a name="255"><span class="lineNum">     255 </span>            : /************************************************************************/</a>
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span><span class="lineCov">          2 : CPLErr CTable2Dataset::GetGeoTransform( double * padfTransform )</span>
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span>            : {
+<span class="lineNum">     260 </span><span class="lineCov">          2 :     memcpy( padfTransform, adfGeoTransform, sizeof(double)*6 );</span>
+<span class="lineNum">     261 </span><span class="lineCov">          2 :     return CE_None;</span>
+<span class="lineNum">     262 </span>            : }
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span>            : /************************************************************************/
+<span class="lineNum">     265 </span>            : /*                          SetGeoTransform()                           */
+<a name="266"><span class="lineNum">     266 </span>            : /************************************************************************/</a>
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span><span class="lineCov">          2 : CPLErr CTable2Dataset::SetGeoTransform( double * padfTransform )</span>
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            : {
+<span class="lineNum">     271 </span><span class="lineCov">          2 :     if( eAccess == GA_ReadOnly )</span>
+<span class="lineNum">     272 </span>            :     {
+<span class="lineNum">     273 </span>            :         CPLError( CE_Failure, CPLE_NoWriteAccess,
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :                   &quot;Unable to update geotransform on readonly file.&quot; );</span>
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     276 </span>            :     }
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span><span class="lineCov">          2 :     if( padfTransform[2] != 0.0 || padfTransform[4] != 0.0 )</span>
+<span class="lineNum">     279 </span>            :     {
+<span class="lineNum">     280 </span>            :         CPLError(
+<span class="lineNum">     281 </span>            :             CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :             &quot;Rotated and sheared geotransforms not supported for CTable2.&quot; );</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :         return CE_Failure;</span>
+<span class="lineNum">     284 </span>            :     }
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span><span class="lineCov">          2 :     memcpy( adfGeoTransform, padfTransform, sizeof(double)*6 );</span>
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     289 </span>            : /*      Update grid header.                                             */
+<span class="lineNum">     290 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     291 </span><span class="lineCov">          2 :     const double dfDegToRad = M_PI / 180.0;</span>
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span>            :     // read grid header
+<span class="lineNum">     294 </span><span class="lineCov">          2 :     CPL_IGNORE_RET_VAL(VSIFSeekL( fpImage, 0, SEEK_SET ));</span>
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span><span class="lineCov">          2 :     char achHeader[160] = { '\0' };</span>
+<span class="lineNum">     297 </span><span class="lineCov">          2 :     CPL_IGNORE_RET_VAL(VSIFReadL( achHeader, 1, sizeof(achHeader), fpImage ));</span>
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span>            :     // lower left origin (longitude, center of pixel, radians)
+<span class="lineNum">     300 </span><span class="lineCov">          2 :     double dfValue = (adfGeoTransform[0] + adfGeoTransform[1]*0.5) * dfDegToRad;</span>
+<span class="lineNum">     301 </span><span class="lineCov">          2 :     CPL_LSBPTR64( &amp;dfValue );</span>
+<span class="lineNum">     302 </span><span class="lineCov">          2 :     memcpy( achHeader + 96, &amp;dfValue, 8 );</span>
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            :     // lower left origin (latitude, center of pixel, radians)
+<span class="lineNum">     305 </span><span class="lineCov">          2 :     dfValue = (adfGeoTransform[3] + adfGeoTransform[5] * (nRasterYSize-0.5))</span>
+<span class="lineNum">     306 </span><span class="lineCov">          2 :         * dfDegToRad;</span>
+<span class="lineNum">     307 </span><span class="lineCov">          2 :     CPL_LSBPTR64( &amp;dfValue );</span>
+<span class="lineNum">     308 </span><span class="lineCov">          2 :     memcpy( achHeader + 104, &amp;dfValue, 8 );</span>
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span>            :     // pixel width (radians)
+<span class="lineNum">     311 </span><span class="lineCov">          2 :     dfValue = adfGeoTransform[1] * dfDegToRad;</span>
+<span class="lineNum">     312 </span><span class="lineCov">          2 :     CPL_LSBPTR64( &amp;dfValue );</span>
+<span class="lineNum">     313 </span><span class="lineCov">          2 :     memcpy( achHeader + 112, &amp;dfValue, 8 );</span>
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            :     // pixel height (radians)
+<span class="lineNum">     316 </span><span class="lineCov">          2 :     dfValue = adfGeoTransform[5] * -1 * dfDegToRad;</span>
+<span class="lineNum">     317 </span><span class="lineCov">          2 :     CPL_LSBPTR64( &amp;dfValue );</span>
+<span class="lineNum">     318 </span><span class="lineCov">          2 :     memcpy( achHeader + 120, &amp;dfValue, 8 );</span>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span>            :     // write grid header.
+<span class="lineNum">     321 </span><span class="lineCov">          2 :     CPL_IGNORE_RET_VAL(VSIFSeekL( fpImage, 0, SEEK_SET ));</span>
+<span class="lineNum">     322 </span><span class="lineCov">          2 :     CPL_IGNORE_RET_VAL(VSIFWriteL( achHeader, 11, 16, fpImage ));</span>
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span><span class="lineCov">          2 :     return CE_None;</span>
+<span class="lineNum">     325 </span>            : }
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            : /************************************************************************/
+<span class="lineNum">     328 </span>            : /*                          GetProjectionRef()                          */
+<a name="329"><span class="lineNum">     329 </span>            : /************************************************************************/</a>
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 : const char *CTable2Dataset::_GetProjectionRef()</span>
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            : {
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :     return SRS_WKT_WGS84_LAT_LONG;</span>
+<span class="lineNum">     335 </span>            : }
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span>            : /************************************************************************/
+<span class="lineNum">     338 </span>            : /*                               Create()                               */
+<a name="339"><span class="lineNum">     339 </span>            : /************************************************************************/</a>
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span><span class="lineCov">         28 : GDALDataset *CTable2Dataset::Create( const char * pszFilename,</span>
+<span class="lineNum">     342 </span>            :                                      int nXSize,
+<span class="lineNum">     343 </span>            :                                      int nYSize,
+<span class="lineNum">     344 </span>            :                                      CPL_UNUSED int nBands,
+<span class="lineNum">     345 </span>            :                                      GDALDataType eType,
+<span class="lineNum">     346 </span>            :                                      char ** papszOptions )
+<span class="lineNum">     347 </span>            : {
+<span class="lineNum">     348 </span><span class="lineCov">         28 :     if( eType != GDT_Float32 )</span>
+<span class="lineNum">     349 </span>            :     {
+<span class="lineNum">     350 </span>            :         CPLError(
+<span class="lineNum">     351 </span>            :             CE_Failure, CPLE_AppDefined,
+<span class="lineNum">     352 </span>            :             &quot;Attempt to create CTable2 file with unsupported data type '%s'.&quot;,
+<span class="lineNum">     353 </span><span class="lineCov">         26 :             GDALGetDataTypeName( eType ) );</span>
+<span class="lineNum">     354 </span><span class="lineCov">         26 :         return nullptr;</span>
+<span class="lineNum">     355 </span>            :     }
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     358 </span>            : /*      Try to open or create file.                                     */
+<span class="lineNum">     359 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     360 </span><span class="lineCov">          2 :     VSILFILE *fp = VSIFOpenL( pszFilename, &quot;wb&quot; );</span>
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span><span class="lineCov">          2 :     if( fp == nullptr )</span>
+<span class="lineNum">     363 </span>            :     {
+<span class="lineNum">     364 </span>            :         CPLError( CE_Failure, CPLE_OpenFailed,
+<span class="lineNum">     365 </span>            :                   &quot;Attempt to create file `%s' failed.\n&quot;,
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :                   pszFilename );</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     368 </span>            :     }
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     371 </span>            : /*      Create a file header, with a defaulted georeferencing.          */
+<span class="lineNum">     372 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     373 </span><span class="lineCov">          2 :     char achHeader[160] = { '\0' };</span>
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span><span class="lineCov">          2 :     memset( achHeader, 0, sizeof(achHeader));</span>
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineCov">          2 :     memcpy( achHeader+0, &quot;CTABLE V2.0     &quot;, 16 );</span>
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span><span class="lineCov">          2 :     if( CSLFetchNameValue( papszOptions, &quot;DESCRIPTION&quot; ) != nullptr )</span>
+<span class="lineNum">     380 </span>            :         strncpy( achHeader + 16,
+<span class="lineNum">     381 </span>            :                  CSLFetchNameValue( papszOptions, &quot;DESCRIPTION&quot; ),
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :                  80 );</span>
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span>            :     // lower left origin (longitude, center of pixel, radians)
+<span class="lineNum">     385 </span><span class="lineCov">          2 :     double dfValue = 0;</span>
+<span class="lineNum">     386 </span><span class="lineCov">          2 :     CPL_LSBPTR64( &amp;dfValue );</span>
+<span class="lineNum">     387 </span><span class="lineCov">          2 :     memcpy( achHeader + 96, &amp;dfValue, 8 );</span>
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span>            :     // lower left origin (latitude, center of pixel, radians)
+<span class="lineNum">     390 </span><span class="lineCov">          2 :     dfValue = 0;</span>
+<span class="lineNum">     391 </span><span class="lineCov">          2 :     CPL_LSBPTR64( &amp;dfValue );</span>
+<span class="lineNum">     392 </span><span class="lineCov">          2 :     memcpy( achHeader + 104, &amp;dfValue, 8 );</span>
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span>            :     // pixel width (radians)
+<span class="lineNum">     395 </span><span class="lineCov">          2 :     dfValue = 0.01 * M_PI / 180.0;</span>
+<span class="lineNum">     396 </span><span class="lineCov">          2 :     CPL_LSBPTR64( &amp;dfValue );</span>
+<span class="lineNum">     397 </span><span class="lineCov">          2 :     memcpy( achHeader + 112, &amp;dfValue, 8 );</span>
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span>            :     // pixel height (radians)
+<span class="lineNum">     400 </span><span class="lineCov">          2 :     dfValue = 0.01 * M_PI / 180.0;</span>
+<span class="lineNum">     401 </span><span class="lineCov">          2 :     CPL_LSBPTR64( &amp;dfValue );</span>
+<span class="lineNum">     402 </span><span class="lineCov">          2 :     memcpy( achHeader + 120, &amp;dfValue, 8 );</span>
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            :     // raster width in pixels
+<span class="lineNum">     405 </span><span class="lineCov">          2 :     int nValue32 = nXSize;</span>
+<span class="lineNum">     406 </span><span class="lineCov">          2 :     CPL_LSBPTR32( &amp;nValue32 );</span>
+<span class="lineNum">     407 </span><span class="lineCov">          2 :     memcpy( achHeader + 128, &amp;nValue32, 4 );</span>
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span>            :     // raster width in pixels
+<span class="lineNum">     410 </span><span class="lineCov">          2 :     nValue32 = nYSize;</span>
+<span class="lineNum">     411 </span><span class="lineCov">          2 :     CPL_LSBPTR32( &amp;nValue32 );</span>
+<span class="lineNum">     412 </span><span class="lineCov">          2 :     memcpy( achHeader + 132, &amp;nValue32, 4 );</span>
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineCov">          2 :     CPL_IGNORE_RET_VAL(VSIFWriteL( achHeader, 1, sizeof(achHeader), fp ));</span>
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     417 </span>            : /*      Write zeroed grid data.                                         */
+<span class="lineNum">     418 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     419 </span><span class="lineCov">          2 :     float *pafLine = static_cast&lt;float *&gt;(CPLCalloc(sizeof(float)*2,nXSize));</span>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span><span class="lineCov">        202 :     for( int i = 0; i &lt; nYSize; i++ )</span>
+<span class="lineNum">     422 </span>            :     {
+<span class="lineNum">     423 </span><span class="lineCov">        200 :         if( static_cast&lt;int&gt;( VSIFWriteL(</span>
+<span class="lineNum">     424 </span><span class="lineCov">        200 :                pafLine, sizeof(float)*2, nXSize, fp ) ) != nXSize )</span>
+<span class="lineNum">     425 </span>            :         {
+<span class="lineNum">     426 </span>            :             CPLError( CE_Failure, CPLE_FileIO,
+<span class="lineNum">     427 </span>            :                       &quot;Write failed at line %d, perhaps the disk is full?&quot;,
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :                       i );</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     430 </span>            :         }
+<span class="lineNum">     431 </span>            :     }
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     434 </span>            : /*      Cleanup and return.                                             */
+<span class="lineNum">     435 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     436 </span><span class="lineCov">          2 :     CPLFree( pafLine );</span>
+<span class="lineNum">     437 </span>            : 
+<span class="lineNum">     438 </span><span class="lineCov">          2 :     if( VSIFCloseL( fp ) != 0 )</span>
+<span class="lineNum">     439 </span>            :     {
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_FileIO, &quot;I/O error&quot;);</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     442 </span>            :     }
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span><span class="lineCov">          2 :     return static_cast&lt;GDALDataset *&gt;(GDALOpen( pszFilename, GA_Update ));</span>
+<span class="lineNum">     445 </span>            : }
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            : /************************************************************************/
+<span class="lineNum">     448 </span>            : /*                         GDALRegister_CTable2()                       */
+<a name="449"><span class="lineNum">     449 </span>            : /************************************************************************/</a>
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span><span class="lineCov">       1109 : void GDALRegister_CTable2()</span>
+<span class="lineNum">     452 </span>            : 
+<span class="lineNum">     453 </span>            : {
+<span class="lineNum">     454 </span><span class="lineCov">       1109 :     if( GDALGetDriverByName( &quot;CTable2&quot; ) != nullptr )</span>
+<span class="lineNum">     455 </span><span class="lineCov">       1231 :       return;</span>
+<span class="lineNum">     456 </span>            : 
+<span class="lineNum">     457 </span><span class="lineCov">        987 :     GDALDriver *poDriver = new GDALDriver();</span>
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span><span class="lineCov">        987 :     poDriver-&gt;SetDescription( &quot;CTable2&quot; );</span>
+<span class="lineNum">     460 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_RASTER, &quot;YES&quot; );</span>
+<span class="lineNum">     461 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_LONGNAME, &quot;CTable2 Datum Grid Shift&quot; );</span>
+<span class="lineNum">     462 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DCAP_VIRTUALIO, &quot;YES&quot; );</span>
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span><span class="lineCov">        987 :     poDriver-&gt;SetMetadataItem( GDAL_DMD_CREATIONDATATYPES, &quot;Float32&quot; );</span>
+<span class="lineNum">     465 </span>            : 
+<span class="lineNum">     466 </span><span class="lineCov">        987 :     poDriver-&gt;pfnOpen = CTable2Dataset::Open;</span>
+<span class="lineNum">     467 </span><span class="lineCov">        987 :     poDriver-&gt;pfnIdentify = CTable2Dataset::Identify;</span>
+<span class="lineNum">     468 </span><span class="lineCov">        987 :     poDriver-&gt;pfnCreate = CTable2Dataset::Create;</span>
+<span class="lineNum">     469 </span>            : 
+<span class="lineNum">     470 </span><span class="lineCov">        987 :     GetGDALDriverManager()-&gt;RegisterDriver( poDriver );</span>
+<span class="lineNum">     471 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

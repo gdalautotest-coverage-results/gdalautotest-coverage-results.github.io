@@ -1,0 +1,556 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - gcore/gdalopeninfo.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">gcore</a> - gdalopeninfo.cpp<span style="font-size: 80%;"> (source / <a href="gdalopeninfo.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">167</td>
+            <td class="headerCovTableEntry">172</td>
+            <td class="headerCovTableEntryHi">97.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL Core
+<span class="lineNum">       4 </span>            :  * Purpose:  Implementation of GDALOpenInfo class.
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  **********************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2002, Frank Warmerdam
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2008-2012, Even Rouault &lt;even dot rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;gdal_priv.h&quot;  // Must be included first for mingw VSIStatBufL.
+<span class="lineNum">      31 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cstdlib&gt;
+<span class="lineNum">      34 </span>            : #include &lt;cstring&gt;
+<span class="lineNum">      35 </span>            : #ifdef HAVE_UNISTD_H
+<span class="lineNum">      36 </span>            : #include &lt;unistd.h&gt;
+<span class="lineNum">      37 </span>            : #endif
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      40 </span>            : #include &lt;map&gt;
+<span class="lineNum">      41 </span>            : #include &lt;mutex&gt;
+<span class="lineNum">      42 </span>            : #include &lt;vector&gt;
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : #include &quot;cpl_config.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      46 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      47 </span>            : #include &quot;cpl_string.h&quot;
+<span class="lineNum">      48 </span>            : #include &quot;cpl_vsi.h&quot;
+<span class="lineNum">      49 </span>            : #include &quot;gdal.h&quot;
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : // Keep in sync prototype of those 2 functions between gdalopeninfo.cpp,
+<span class="lineNum">      54 </span>            : // ogrsqlitedatasource.cpp and ogrgeopackagedatasource.cpp
+<span class="lineNum">      55 </span>            : void GDALOpenInfoDeclareFileNotToOpen(const char* pszFilename,
+<span class="lineNum">      56 </span>            :                                        const GByte* pabyHeader,
+<span class="lineNum">      57 </span>            :                                        int nHeaderBytes);
+<span class="lineNum">      58 </span>            : void GDALOpenInfoUnDeclareFileNotToOpen(const char* pszFilename);
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span>            : /************************************************************************/
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span>            : /* This whole section helps for SQLite/GPKG, especially with write-ahead
+<span class="lineNum">      63 </span>            :  * log enabled. The issue is that sqlite3 relies on POSIX advisory locks to
+<span class="lineNum">      64 </span>            :  * properly work and decide when to create/delete the wal related files.
+<span class="lineNum">      65 </span>            :  * One issue with POSIX advisory locks is that if within the same process
+<span class="lineNum">      66 </span>            :  * you do
+<span class="lineNum">      67 </span>            :  * f1 = open('somefile')
+<span class="lineNum">      68 </span>            :  * set locks on f1
+<span class="lineNum">      69 </span>            :  * f2 = open('somefile')
+<span class="lineNum">      70 </span>            :  * close(f2)
+<span class="lineNum">      71 </span>            :  * The close(f2) will cancel the locks set on f1. The work on f1 is done by
+<span class="lineNum">      72 </span>            :  * libsqlite3 whereas the work on f2 is done by GDALOpenInfo.
+<span class="lineNum">      73 </span>            :  * So as soon as sqlite3 has opened a file we should make sure not to re-open
+<span class="lineNum">      74 </span>            :  * it (actually close it) ourselves.
+<span class="lineNum">      75 </span>            :  */
+<a name="76"><span class="lineNum">      76 </span>            : </a>
+<span class="lineNum">      77 </span>            : namespace {
+<span class="lineNum">      78 </span><span class="lineCov">       4800 : struct FileNotToOpen</span>
+<span class="lineNum">      79 </span>            : {
+<span class="lineNum">      80 </span>            :     CPLString osFilename{};
+<span class="lineNum">      81 </span>            :     int       nRefCount{};
+<span class="lineNum">      82 </span>            :     GByte    *pabyHeader{nullptr};
+<span class="lineNum">      83 </span>            :     int       nHeaderBytes{0};
+<span class="lineNum">      84 </span>            : };
+<span class="lineNum">      85 </span>            : }
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            : static std::mutex sFNTOMutex;
+<a name="88"><span class="lineNum">      88 </span>            : static std::map&lt;CPLString, FileNotToOpen&gt;* pMapFNTO = nullptr;</a>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineCov">        993 : void GDALOpenInfoDeclareFileNotToOpen(const char* pszFilename,</span>
+<span class="lineNum">      91 </span>            :                                        const GByte* pabyHeader,
+<span class="lineNum">      92 </span>            :                                        int nHeaderBytes)
+<span class="lineNum">      93 </span>            : {
+<span class="lineNum">      94 </span><span class="lineCov">        993 :     std::lock_guard&lt;std::mutex&gt; oLock(sFNTOMutex);</span>
+<span class="lineNum">      95 </span><span class="lineCov">        993 :     if( pMapFNTO == nullptr )</span>
+<span class="lineNum">      96 </span><span class="lineCov">        740 :         pMapFNTO = new std::map&lt;CPLString, FileNotToOpen&gt;();</span>
+<span class="lineNum">      97 </span><span class="lineCov">        993 :     auto oIter = pMapFNTO-&gt;find(pszFilename);</span>
+<span class="lineNum">      98 </span><span class="lineCov">        993 :     if( oIter != pMapFNTO-&gt;end() )</span>
+<span class="lineNum">      99 </span>            :     {
+<span class="lineNum">     100 </span><span class="lineCov">         33 :         oIter-&gt;second.nRefCount ++;</span>
+<span class="lineNum">     101 </span>            :     }
+<span class="lineNum">     102 </span>            :     else
+<span class="lineNum">     103 </span>            :     {
+<span class="lineNum">     104 </span><span class="lineCov">        960 :         FileNotToOpen fnto;</span>
+<span class="lineNum">     105 </span><span class="lineCov">        960 :         fnto.osFilename = pszFilename;</span>
+<span class="lineNum">     106 </span><span class="lineCov">        960 :         fnto.nRefCount = 1;</span>
+<span class="lineNum">     107 </span><span class="lineCov">        960 :         fnto.pabyHeader = static_cast&lt;GByte*&gt;(CPLMalloc(nHeaderBytes + 1));</span>
+<span class="lineNum">     108 </span><span class="lineCov">        960 :         memcpy(fnto.pabyHeader, pabyHeader, nHeaderBytes);</span>
+<span class="lineNum">     109 </span><span class="lineCov">        960 :         fnto.pabyHeader[nHeaderBytes] = 0;</span>
+<span class="lineNum">     110 </span><span class="lineCov">        960 :         fnto.nHeaderBytes = nHeaderBytes;</span>
+<span class="lineNum">     111 </span><span class="lineCov">        960 :         (*pMapFNTO)[pszFilename] = fnto;</span>
+<span class="lineNum">     112 </span><span class="lineCov">        993 :     }</span>
+<a name="113"><span class="lineNum">     113 </span><span class="lineCov">        993 : }</span></a>
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span><span class="lineCov">        993 : void GDALOpenInfoUnDeclareFileNotToOpen(const char* pszFilename)</span>
+<span class="lineNum">     116 </span>            : {
+<span class="lineNum">     117 </span><span class="lineCov">        993 :     std::lock_guard&lt;std::mutex&gt; oLock(sFNTOMutex);</span>
+<span class="lineNum">     118 </span><span class="lineCov">        993 :     CPLAssert(pMapFNTO);</span>
+<span class="lineNum">     119 </span><span class="lineCov">        993 :     auto oIter = pMapFNTO-&gt;find(pszFilename);</span>
+<span class="lineNum">     120 </span><span class="lineCov">        993 :     CPLAssert( oIter != pMapFNTO-&gt;end() );</span>
+<span class="lineNum">     121 </span><span class="lineCov">        993 :     oIter-&gt;second.nRefCount --;</span>
+<span class="lineNum">     122 </span><span class="lineCov">        993 :     if( oIter-&gt;second.nRefCount == 0 )</span>
+<span class="lineNum">     123 </span>            :     {
+<span class="lineNum">     124 </span><span class="lineCov">        960 :         CPLFree(oIter-&gt;second.pabyHeader);</span>
+<span class="lineNum">     125 </span><span class="lineCov">        960 :         pMapFNTO-&gt;erase(oIter);</span>
+<span class="lineNum">     126 </span>            :     }
+<span class="lineNum">     127 </span><span class="lineCov">        993 :     if( pMapFNTO-&gt;empty() )</span>
+<span class="lineNum">     128 </span>            :     {
+<span class="lineNum">     129 </span><span class="lineCov">        740 :         delete pMapFNTO;</span>
+<span class="lineNum">     130 </span><span class="lineCov">        740 :         pMapFNTO = nullptr;</span>
+<span class="lineNum">     131 </span><span class="lineCov">        993 :     }</span>
+<a name="132"><span class="lineNum">     132 </span><span class="lineCov">        993 : }</span></a>
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span><span class="lineCov">      55698 : static GByte* GDALOpenInfoGetFileNotToOpen(const char* pszFilename,</span>
+<span class="lineNum">     135 </span>            :                                            int* pnHeaderBytes)
+<span class="lineNum">     136 </span>            : {
+<span class="lineNum">     137 </span><span class="lineCov">      55698 :     std::lock_guard&lt;std::mutex&gt; oLock(sFNTOMutex);</span>
+<span class="lineNum">     138 </span><span class="lineCov">      55700 :     *pnHeaderBytes = 0;</span>
+<span class="lineNum">     139 </span><span class="lineCov">      55700 :     if( pMapFNTO == nullptr )</span>
+<span class="lineNum">     140 </span>            :     {
+<span class="lineNum">     141 </span><span class="lineCov">      51390 :         return nullptr;</span>
+<span class="lineNum">     142 </span>            :     }
+<span class="lineNum">     143 </span><span class="lineCov">       4310 :     auto oIter = pMapFNTO-&gt;find(pszFilename);</span>
+<span class="lineNum">     144 </span><span class="lineCov">       4310 :     if( oIter == pMapFNTO-&gt;end() )</span>
+<span class="lineNum">     145 </span>            :     {
+<span class="lineNum">     146 </span><span class="lineCov">       3166 :         return nullptr;</span>
+<span class="lineNum">     147 </span>            :     }
+<span class="lineNum">     148 </span><span class="lineCov">       1144 :     *pnHeaderBytes = oIter-&gt;second.nHeaderBytes;</span>
+<span class="lineNum">     149 </span><span class="lineCov">       1144 :     GByte* pabyHeader = static_cast&lt;GByte*&gt;(CPLMalloc(*pnHeaderBytes + 1));</span>
+<span class="lineNum">     150 </span><span class="lineCov">       1144 :     memcpy(pabyHeader, oIter-&gt;second.pabyHeader, *pnHeaderBytes);</span>
+<span class="lineNum">     151 </span><span class="lineCov">       1144 :     pabyHeader[*pnHeaderBytes] = 0;</span>
+<span class="lineNum">     152 </span><span class="lineCov">       1144 :     return pabyHeader;</span>
+<span class="lineNum">     153 </span>            : }
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            : /************************************************************************/
+<span class="lineNum">     156 </span>            : /* ==================================================================== */
+<span class="lineNum">     157 </span>            : /*                             GDALOpenInfo                             */
+<span class="lineNum">     158 </span>            : /* ==================================================================== */
+<span class="lineNum">     159 </span>            : /************************************************************************/
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            : /************************************************************************/
+<span class="lineNum">     162 </span>            : /*                            GDALOpenInfo()                            */
+<span class="lineNum">     163 </span>            : /************************************************************************/
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            : /** Constructor/
+<span class="lineNum">     166 </span>            :  * @param pszFilenameIn filename
+<span class="lineNum">     167 </span>            :  * @param nOpenFlagsIn open flags
+<a name="168"><span class="lineNum">     168 </span>            :  * @param papszSiblingsIn list of sibling files, or NULL.</a>
+<span class="lineNum">     169 </span>            :  */
+<span class="lineNum">     170 </span><span class="lineCov">      55828 : GDALOpenInfo::GDALOpenInfo( const char * pszFilenameIn, int nOpenFlagsIn,</span>
+<span class="lineNum">     171 </span>            :                             const char * const * papszSiblingsIn ) :
+<span class="lineNum">     172 </span>            :     bHasGotSiblingFiles(false),
+<span class="lineNum">     173 </span>            :     papszSiblingFiles(nullptr),
+<span class="lineNum">     174 </span>            :     nHeaderBytesTried(0),
+<span class="lineNum">     175 </span><span class="lineCov">      55828 :     pszFilename(CPLStrdup(pszFilenameIn)),</span>
+<span class="lineNum">     176 </span>            :     papszOpenOptions(nullptr),
+<span class="lineNum">     177 </span><span class="lineCov">      55827 :     eAccess(nOpenFlagsIn &amp; GDAL_OF_UPDATE ? GA_Update : GA_ReadOnly),</span>
+<span class="lineNum">     178 </span>            :     nOpenFlags(nOpenFlagsIn),
+<span class="lineNum">     179 </span>            :     bStatOK(FALSE),
+<span class="lineNum">     180 </span>            :     bIsDirectory(FALSE),
+<span class="lineNum">     181 </span>            :     fpL(nullptr),
+<span class="lineNum">     182 </span>            :     nHeaderBytes(0),
+<span class="lineNum">     183 </span>            :     pabyHeader(nullptr),
+<span class="lineNum">     184 </span><span class="lineCov">     167482 :     papszAllowedDrivers(nullptr)</span>
+<span class="lineNum">     185 </span>            : {
+<span class="lineNum">     186 </span><span class="lineCov">      55827 :     if( STARTS_WITH(pszFilename, &quot;MVT:/vsi&quot;) )</span>
+<span class="lineNum">     187 </span><span class="lineCov">      55946 :         return;</span>
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     190 </span>            : /*      Ensure that C: is treated as C:\ so we can stat it on           */
+<span class="lineNum">     191 </span>            : /*      Windows.  Similar to what is done in CPLStat().                 */
+<span class="lineNum">     192 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     193 </span>            : #ifdef WIN32
+<span class="lineNum">     194 </span>            :     if( strlen(pszFilenameIn) == 2 &amp;&amp; pszFilenameIn[1] == ':' )
+<span class="lineNum">     195 </span>            :     {
+<span class="lineNum">     196 </span>            :         char    szAltPath[10];
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            :         strcpy( szAltPath, pszFilenameIn );
+<span class="lineNum">     199 </span>            :         strcat( szAltPath, &quot;\\&quot; );
+<span class="lineNum">     200 </span>            :         CPLFree( pszFilename );
+<span class="lineNum">     201 </span>            :         pszFilename = CPLStrdup( szAltPath );
+<span class="lineNum">     202 </span>            :     }
+<span class="lineNum">     203 </span>            : #endif  // WIN32
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     206 </span>            : /*      Collect information about the file.                             */
+<span class="lineNum">     207 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span>            : #ifdef HAVE_READLINK
+<span class="lineNum">     210 </span><span class="lineCov">      55696 :     bool bHasRetried = false;</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            : retry:  // TODO(schwehr): Stop using goto.
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            : #endif  // HAVE_READLINK
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            : #ifdef __FreeBSD__
+<span class="lineNum">     217 </span>            :     /* FreeBSD 8 oddity: fopen(a_directory, &quot;rb&quot;) returns non NULL */
+<span class="lineNum">     218 </span>            :     bool bPotentialDirectory = (eAccess == GA_ReadOnly);
+<span class="lineNum">     219 </span>            : #else
+<span class="lineNum">     220 </span><span class="lineCov">      55698 :     bool bPotentialDirectory = false;</span>
+<span class="lineNum">     221 </span>            : #endif  // __FreeBDS__
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span>            :     /* Check if the filename might be a directory of a special virtual file system */
+<span class="lineNum">     224 </span><span class="lineCov">     111337 :     if( STARTS_WITH(pszFilename, &quot;/vsizip/&quot;) ||</span>
+<span class="lineNum">     225 </span><span class="lineCov">      55639 :         STARTS_WITH(pszFilename, &quot;/vsitar/&quot;) )</span>
+<span class="lineNum">     226 </span>            :     {
+<span class="lineNum">     227 </span><span class="lineCov">         73 :         const char* pszExt = CPLGetExtension(pszFilename);</span>
+<span class="lineNum">     228 </span><span class="lineCov">        207 :         if( EQUAL(pszExt, &quot;zip&quot;) || EQUAL(pszExt, &quot;tar&quot;) || EQUAL(pszExt, &quot;gz&quot;)</span>
+<span class="lineNum">     229 </span><span class="lineCov">         56 :             || pszFilename[strlen(pszFilename)-1] == '}'</span>
+<span class="lineNum">     230 </span>            : #ifdef DEBUG
+<span class="lineNum">     231 </span>            :             // For AFL, so that .cur_input is detected as the archive filename.
+<span class="lineNum">     232 </span><span class="lineCov">        112 :             || EQUAL( CPLGetFilename(pszFilename), &quot;.cur_input&quot; )</span>
+<span class="lineNum">     233 </span>            : #endif  // DEBUG
+<span class="lineNum">     234 </span>            :           )
+<span class="lineNum">     235 </span>            :         {
+<span class="lineNum">     236 </span><span class="lineCov">         41 :             bPotentialDirectory = true;</span>
+<span class="lineNum">     237 </span><span class="lineCov">         74 :         }</span>
+<span class="lineNum">     238 </span>            :     }
+<span class="lineNum">     239 </span><span class="lineCov">      55625 :     else if( STARTS_WITH(pszFilename, &quot;/vsicurl/&quot;) )</span>
+<span class="lineNum">     240 </span>            :     {
+<span class="lineNum">     241 </span><span class="lineCov">         19 :         bPotentialDirectory = true;</span>
+<span class="lineNum">     242 </span>            :     }
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span><span class="lineCov">      55699 :     if( bPotentialDirectory )</span>
+<span class="lineNum">     245 </span>            :     {
+<span class="lineNum">     246 </span><span class="lineCov">         60 :         int nStatFlags = VSI_STAT_EXISTS_FLAG | VSI_STAT_NATURE_FLAG;</span>
+<span class="lineNum">     247 </span><span class="lineCov">         60 :         if(nOpenFlagsIn &amp; GDAL_OF_VERBOSE_ERROR)</span>
+<span class="lineNum">     248 </span><span class="lineCov">         17 :             nStatFlags |= VSI_STAT_SET_ERROR_FLAG;</span>
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span>            :         // For those special files, opening them with VSIFOpenL() might result
+<span class="lineNum">     251 </span>            :         // in content, even if they should be considered as directories, so
+<span class="lineNum">     252 </span>            :         // use stat.
+<span class="lineNum">     253 </span>            :         VSIStatBufL sStat;
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span><span class="lineCov">         60 :         if(VSIStatExL( pszFilename, &amp;sStat, nStatFlags) == 0) {</span>
+<span class="lineNum">     256 </span><span class="lineCov">         54 :             bStatOK = TRUE;</span>
+<span class="lineNum">     257 </span><span class="lineCov">         54 :             if( VSI_ISDIR( sStat.st_mode ) )</span>
+<span class="lineNum">     258 </span><span class="lineCov">         27 :                 bIsDirectory = TRUE;</span>
+<span class="lineNum">     259 </span>            :         }
+<span class="lineNum">     260 </span>            :     }
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span><span class="lineCov">      55699 :     pabyHeader = GDALOpenInfoGetFileNotToOpen(pszFilename, &amp;nHeaderBytes);</span>
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span><span class="lineCov">      55719 :     if( !bIsDirectory &amp;&amp; pabyHeader == nullptr ) {</span>
+<span class="lineNum">     265 </span><span class="lineCov">      54529 :         fpL = VSIFOpenExL( pszFilename, (eAccess == GA_Update) ? &quot;r+b&quot; : &quot;rb&quot;, (nOpenFlagsIn &amp; GDAL_OF_VERBOSE_ERROR) &gt; 0);</span>
+<span class="lineNum">     266 </span>            :     }
+<span class="lineNum">     267 </span><span class="lineCov">      55718 :     if( pabyHeader )</span>
+<span class="lineNum">     268 </span>            :     {
+<span class="lineNum">     269 </span><span class="lineCov">       1164 :         bStatOK = TRUE;</span>
+<span class="lineNum">     270 </span><span class="lineCov">       1164 :         nHeaderBytesTried = nHeaderBytes;</span>
+<span class="lineNum">     271 </span>            :     }
+<span class="lineNum">     272 </span><span class="lineCov">      54554 :     else if( fpL != nullptr )</span>
+<span class="lineNum">     273 </span>            :     {
+<span class="lineNum">     274 </span><span class="lineCov">      33062 :         bStatOK = TRUE;</span>
+<span class="lineNum">     275 </span>            :         int nBufSize =
+<span class="lineNum">     276 </span><span class="lineCov">      33062 :             atoi(CPLGetConfigOption(&quot;GDAL_INGESTED_BYTES_AT_OPEN&quot;, &quot;1024&quot;));</span>
+<span class="lineNum">     277 </span><span class="lineCov">      33061 :         if( nBufSize &lt; 1024 )</span>
+<span class="lineNum">     278 </span><span class="lineNoCov">          0 :             nBufSize = 1024;</span>
+<span class="lineNum">     279 </span><span class="lineCov">      33061 :         else if( nBufSize &gt; 10 * 1024 * 1024)</span>
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :             nBufSize = 10 * 1024 * 1024;</span>
+<span class="lineNum">     281 </span><span class="lineCov">      33061 :         pabyHeader = static_cast&lt;GByte *&gt;( CPLCalloc(nBufSize+1, 1) );</span>
+<span class="lineNum">     282 </span><span class="lineCov">      33061 :         nHeaderBytesTried = nBufSize;</span>
+<span class="lineNum">     283 </span>            :         nHeaderBytes = static_cast&lt;int&gt;(
+<span class="lineNum">     284 </span><span class="lineCov">      33061 :             VSIFReadL( pabyHeader, 1, nHeaderBytesTried, fpL ) );</span>
+<span class="lineNum">     285 </span><span class="lineCov">      32992 :         VSIRewindL( fpL );</span>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            :         /* If we cannot read anything, check if it is not a directory instead */
+<span class="lineNum">     288 </span>            :         VSIStatBufL sStat;
+<span class="lineNum">     289 </span><span class="lineCov">      66282 :         if( nHeaderBytes == 0 &amp;&amp;</span>
+<span class="lineNum">     290 </span>            :             VSIStatExL( pszFilename, &amp;sStat,
+<span class="lineNum">     291 </span><span class="lineCov">      33292 :                         VSI_STAT_EXISTS_FLAG | VSI_STAT_NATURE_FLAG ) == 0 &amp;&amp;</span>
+<span class="lineNum">     292 </span><span class="lineCov">        302 :             VSI_ISDIR( sStat.st_mode ) )</span>
+<span class="lineNum">     293 </span>            :         {
+<span class="lineNum">     294 </span><span class="lineCov">        241 :             CPL_IGNORE_RET_VAL(VSIFCloseL(fpL));</span>
+<span class="lineNum">     295 </span><span class="lineCov">        241 :             fpL = nullptr;</span>
+<span class="lineNum">     296 </span><span class="lineCov">        241 :             CPLFree(pabyHeader);</span>
+<span class="lineNum">     297 </span><span class="lineCov">        241 :             pabyHeader = nullptr;</span>
+<span class="lineNum">     298 </span><span class="lineCov">        241 :             bIsDirectory = TRUE;</span>
+<span class="lineNum">     299 </span>            :         }
+<span class="lineNum">     300 </span>            :     }
+<span class="lineNum">     301 </span><span class="lineCov">      21492 :     else if( !bStatOK )</span>
+<span class="lineNum">     302 </span>            :     {
+<span class="lineNum">     303 </span>            :         VSIStatBufL sStat;
+<span class="lineNum">     304 </span><span class="lineCov">      42923 :         if( !bPotentialDirectory &amp;&amp; VSIStatExL( pszFilename, &amp;sStat,</span>
+<span class="lineNum">     305 </span><span class="lineCov">      21459 :                         VSI_STAT_EXISTS_FLAG | VSI_STAT_NATURE_FLAG ) == 0 )</span>
+<span class="lineNum">     306 </span>            :         {
+<span class="lineNum">     307 </span><span class="lineCov">        366 :             bStatOK = TRUE;</span>
+<span class="lineNum">     308 </span><span class="lineCov">        366 :             if( VSI_ISDIR( sStat.st_mode ) )</span>
+<span class="lineNum">     309 </span><span class="lineCov">        366 :                 bIsDirectory = TRUE;</span>
+<span class="lineNum">     310 </span>            :         }
+<span class="lineNum">     311 </span>            : #ifdef HAVE_READLINK
+<span class="lineNum">     312 </span><span class="lineCov">      21098 :         else if ( !bHasRetried &amp;&amp; !STARTS_WITH(pszFilename, &quot;/vsi&quot;) )</span>
+<span class="lineNum">     313 </span>            :         {
+<span class="lineNum">     314 </span>            :             // If someone creates a file with &quot;ln -sf
+<span class="lineNum">     315 </span>            :             // /vsicurl/http://download.osgeo.org/gdal/data/gtiff/utm.tif
+<span class="lineNum">     316 </span>            :             // my_remote_utm.tif&quot; we will be able to open it by passing
+<span class="lineNum">     317 </span>            :             // my_remote_utm.tif.  This helps a lot for GDAL based readers that
+<span class="lineNum">     318 </span>            :             // only provide file explorers to open datasets.
+<span class="lineNum">     319 </span><span class="lineCov">      12951 :             const int nBufSize = 2048;</span>
+<span class="lineNum">     320 </span><span class="lineCov">      12951 :             std::vector&lt;char&gt; oFilename(nBufSize);</span>
+<span class="lineNum">     321 </span><span class="lineCov">      12949 :             char *szPointerFilename = &amp;oFilename[0];</span>
+<span class="lineNum">     322 </span>            :             int nBytes = static_cast&lt;int&gt;(
+<span class="lineNum">     323 </span><span class="lineCov">      12947 :                 readlink( pszFilename, szPointerFilename, nBufSize ) );</span>
+<span class="lineNum">     324 </span><span class="lineCov">      12949 :             if (nBytes != -1)</span>
+<span class="lineNum">     325 </span>            :             {
+<span class="lineNum">     326 </span><span class="lineCov">          2 :                 szPointerFilename[std::min(nBytes, nBufSize - 1)] = 0;</span>
+<span class="lineNum">     327 </span><span class="lineCov">          2 :                 CPLFree(pszFilename);</span>
+<span class="lineNum">     328 </span><span class="lineCov">          2 :                 pszFilename = CPLStrdup(szPointerFilename);</span>
+<span class="lineNum">     329 </span><span class="lineCov">          2 :                 papszSiblingsIn = nullptr;</span>
+<span class="lineNum">     330 </span><span class="lineCov">          2 :                 bHasRetried = true;</span>
+<span class="lineNum">     331 </span><span class="lineCov">          2 :                 goto retry;</span>
+<span class="lineNum">     332 </span><span class="lineCov">      12939 :             }</span>
+<span class="lineNum">     333 </span>            :         }
+<span class="lineNum">     334 </span>            : #endif  // HAVE_READLINK
+<span class="lineNum">     335 </span>            :     }
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     338 </span>            : /*      Capture sibling list either from passed in values, or by        */
+<span class="lineNum">     339 </span>            : /*      scanning for them only if requested through GetSiblingFiles().  */
+<span class="lineNum">     340 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     341 </span><span class="lineCov">      55634 :     if( papszSiblingsIn != nullptr )</span>
+<span class="lineNum">     342 </span>            :     {
+<span class="lineNum">     343 </span><span class="lineCov">        107 :         papszSiblingFiles = CSLDuplicate( papszSiblingsIn );</span>
+<span class="lineNum">     344 </span><span class="lineCov">        107 :         bHasGotSiblingFiles = true;</span>
+<span class="lineNum">     345 </span>            :     }
+<span class="lineNum">     346 </span><span class="lineCov">      55527 :     else if( bStatOK &amp;&amp; !bIsDirectory )</span>
+<span class="lineNum">     347 </span>            :     {
+<span class="lineNum">     348 </span>            :         const char* pszOptionVal =
+<span class="lineNum">     349 </span><span class="lineCov">      33808 :             CPLGetConfigOption( &quot;GDAL_DISABLE_READDIR_ON_OPEN&quot;, &quot;NO&quot; );</span>
+<span class="lineNum">     350 </span><span class="lineCov">      33858 :         if (EQUAL(pszOptionVal, &quot;EMPTY_DIR&quot;))</span>
+<span class="lineNum">     351 </span>            :         {
+<span class="lineNum">     352 </span>            :             papszSiblingFiles =
+<span class="lineNum">     353 </span><span class="lineCov">         31 :                 CSLAddString( nullptr, CPLGetFilename(pszFilename) );</span>
+<span class="lineNum">     354 </span><span class="lineCov">         31 :             bHasGotSiblingFiles = true;</span>
+<span class="lineNum">     355 </span>            :         }
+<span class="lineNum">     356 </span><span class="lineCov">      33827 :         else if( CPLTestBool(pszOptionVal) )</span>
+<span class="lineNum">     357 </span>            :         {
+<span class="lineNum">     358 </span>            :             /* skip reading the directory */
+<span class="lineNum">     359 </span><span class="lineCov">         18 :             papszSiblingFiles = nullptr;</span>
+<span class="lineNum">     360 </span><span class="lineCov">         18 :             bHasGotSiblingFiles = true;</span>
+<span class="lineNum">     361 </span>            :         }
+<span class="lineNum">     362 </span>            :         else
+<span class="lineNum">     363 </span>            :         {
+<span class="lineNum">     364 </span>            :             /* will be lazy loaded */
+<span class="lineNum">     365 </span><span class="lineCov">      33809 :             papszSiblingFiles = nullptr;</span>
+<span class="lineNum">     366 </span><span class="lineCov">      33809 :             bHasGotSiblingFiles = false;</span>
+<span class="lineNum">     367 </span><span class="lineCov">      33858 :         }</span>
+<span class="lineNum">     368 </span>            :     }
+<span class="lineNum">     369 </span>            :     else
+<span class="lineNum">     370 </span>            :     {
+<span class="lineNum">     371 </span><span class="lineCov">      21719 :         papszSiblingFiles = nullptr;</span>
+<span class="lineNum">     372 </span><span class="lineCov">      21719 :         bHasGotSiblingFiles = true;</span>
+<span class="lineNum">     373 </span>            :     }
+<span class="lineNum">     374 </span>            : }
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span>            : /************************************************************************/
+<span class="lineNum">     377 </span>            : /*                           ~GDALOpenInfo()                            */
+<a name="378"><span class="lineNum">     378 </span>            : /************************************************************************/</a>
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span><span class="lineCov">      55816 : GDALOpenInfo::~GDALOpenInfo()</span>
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span>            : {
+<span class="lineNum">     383 </span><span class="lineCov">      55816 :     VSIFree( pabyHeader );</span>
+<span class="lineNum">     384 </span><span class="lineCov">      55828 :     CPLFree( pszFilename );</span>
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span><span class="lineCov">      55828 :     if( fpL != nullptr )</span>
+<span class="lineNum">     387 </span><span class="lineCov">       9034 :         CPL_IGNORE_RET_VAL(VSIFCloseL( fpL ));</span>
+<span class="lineNum">     388 </span><span class="lineCov">      55828 :     CSLDestroy( papszSiblingFiles );</span>
+<span class="lineNum">     389 </span><span class="lineCov">      55828 : }</span>
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span>            : /************************************************************************/
+<span class="lineNum">     392 </span>            : /*                         GetSiblingFiles()                            */
+<span class="lineNum">     393 </span>            : /************************************************************************/
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            : /** Return sibling files.
+<a name="396"><span class="lineNum">     396 </span>            :  * @return sibling files. Ownership below to the object.</a>
+<span class="lineNum">     397 </span>            :  */
+<span class="lineNum">     398 </span><span class="lineCov">      28932 : char** GDALOpenInfo::GetSiblingFiles()</span>
+<span class="lineNum">     399 </span>            : {
+<span class="lineNum">     400 </span><span class="lineCov">      28932 :     if( bHasGotSiblingFiles )</span>
+<span class="lineNum">     401 </span><span class="lineCov">      17743 :         return papszSiblingFiles;</span>
+<span class="lineNum">     402 </span><span class="lineCov">      11189 :     bHasGotSiblingFiles = true;</span>
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span><span class="lineCov">      11189 :     CPLString osDir = CPLGetDirname( pszFilename );</span>
+<span class="lineNum">     405 </span>            :     const int nMaxFiles =
+<span class="lineNum">     406 </span><span class="lineCov">      11188 :         atoi(CPLGetConfigOption(&quot;GDAL_READDIR_LIMIT_ON_OPEN&quot;, &quot;1000&quot;));</span>
+<span class="lineNum">     407 </span><span class="lineCov">      11188 :     papszSiblingFiles = VSIReadDirEx( osDir, nMaxFiles );</span>
+<span class="lineNum">     408 </span><span class="lineCov">      11189 :     if( nMaxFiles &gt; 0 &amp;&amp; CSLCount(papszSiblingFiles) &gt; nMaxFiles )</span>
+<span class="lineNum">     409 </span>            :     {
+<span class="lineNum">     410 </span>            :         CPLDebug(&quot;GDAL&quot;, &quot;GDAL_READDIR_LIMIT_ON_OPEN reached on %s&quot;,
+<span class="lineNum">     411 </span><span class="lineCov">          1 :                  osDir.c_str());</span>
+<span class="lineNum">     412 </span><span class="lineCov">          1 :         CSLDestroy(papszSiblingFiles);</span>
+<span class="lineNum">     413 </span><span class="lineCov">          1 :         papszSiblingFiles = nullptr;</span>
+<span class="lineNum">     414 </span>            :     }
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span>            :     /* Small optimization to avoid unnecessary stat'ing from PAux or ENVI */
+<span class="lineNum">     417 </span>            :     /* drivers. The MBTiles driver needs no companion file. */
+<span class="lineNum">     418 </span><span class="lineCov">      22426 :     if( papszSiblingFiles == nullptr &amp;&amp;</span>
+<span class="lineNum">     419 </span><span class="lineCov">      11189 :         STARTS_WITH(pszFilename, &quot;/vsicurl/&quot;) &amp;&amp;</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :         EQUAL(CPLGetExtension( pszFilename ),&quot;mbtiles&quot;) )</span>
+<span class="lineNum">     421 </span>            :     {
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :         papszSiblingFiles = CSLAddString( nullptr, CPLGetFilename(pszFilename) );</span>
+<span class="lineNum">     423 </span>            :     }
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span><span class="lineCov">      11189 :     return papszSiblingFiles;</span>
+<span class="lineNum">     426 </span>            : }
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span>            : /************************************************************************/
+<span class="lineNum">     429 </span>            : /*                         StealSiblingFiles()                          */
+<span class="lineNum">     430 </span>            : /*                                                                      */
+<span class="lineNum">     431 </span>            : /*      Same as GetSiblingFiles() except that the list is stealed       */
+<span class="lineNum">     432 </span>            : /*      (ie ownership transferred to the caller) and the associated     */
+<span class="lineNum">     433 </span>            : /*      member variable is set to NULL.                                 */
+<span class="lineNum">     434 </span>            : /************************************************************************/
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span>            : /** Return sibling files and steal reference
+<a name="437"><span class="lineNum">     437 </span>            :  * @return sibling files. Ownership below to the caller (must be freed with CSLDestroy)</a>
+<span class="lineNum">     438 </span>            :  */
+<span class="lineNum">     439 </span><span class="lineCov">        763 : char** GDALOpenInfo::StealSiblingFiles()</span>
+<span class="lineNum">     440 </span>            : {
+<span class="lineNum">     441 </span><span class="lineCov">        763 :     char** papszRet = GetSiblingFiles();</span>
+<span class="lineNum">     442 </span><span class="lineCov">        763 :     papszSiblingFiles = nullptr;</span>
+<span class="lineNum">     443 </span><span class="lineCov">        763 :     return papszRet;</span>
+<span class="lineNum">     444 </span>            : }
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span>            : /************************************************************************/
+<span class="lineNum">     447 </span>            : /*                        AreSiblingFilesLoaded()                       */
+<span class="lineNum">     448 </span>            : /************************************************************************/
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span>            : /** Return whether sibling files have been loaded.
+<a name="451"><span class="lineNum">     451 </span>            :  * @return true or false.</a>
+<span class="lineNum">     452 </span>            :  */
+<span class="lineNum">     453 </span><span class="lineCov">      24392 : bool GDALOpenInfo::AreSiblingFilesLoaded() const</span>
+<span class="lineNum">     454 </span>            : {
+<span class="lineNum">     455 </span><span class="lineCov">      24392 :     return bHasGotSiblingFiles;</span>
+<span class="lineNum">     456 </span>            : }
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            : /************************************************************************/
+<span class="lineNum">     459 </span>            : /*                           TryToIngest()                              */
+<span class="lineNum">     460 </span>            : /************************************************************************/
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span>            : /** Ingest bytes from the file.
+<span class="lineNum">     463 </span>            :  * @param nBytes number of bytes to ingest.
+<a name="464"><span class="lineNum">     464 </span>            :  * @return TRUE if successful</a>
+<span class="lineNum">     465 </span>            :  */
+<span class="lineNum">     466 </span><span class="lineCov">      15463 : int GDALOpenInfo::TryToIngest(int nBytes)</span>
+<span class="lineNum">     467 </span>            : {
+<span class="lineNum">     468 </span><span class="lineCov">      15463 :     if( fpL == nullptr )</span>
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :         return FALSE;</span>
+<span class="lineNum">     470 </span><span class="lineCov">      15463 :     if( nHeaderBytes &lt; nHeaderBytesTried )</span>
+<span class="lineNum">     471 </span><span class="lineCov">       9975 :         return TRUE;</span>
+<span class="lineNum">     472 </span><span class="lineCov">       5488 :     pabyHeader = static_cast&lt;GByte *&gt;( CPLRealloc(pabyHeader, nBytes + 1) );</span>
+<span class="lineNum">     473 </span><span class="lineCov">       5488 :     memset(pabyHeader, 0, nBytes + 1);</span>
+<span class="lineNum">     474 </span><span class="lineCov">       5488 :     VSIRewindL(fpL);</span>
+<span class="lineNum">     475 </span><span class="lineCov">       5488 :     nHeaderBytesTried = nBytes;</span>
+<span class="lineNum">     476 </span><span class="lineCov">       5488 :     nHeaderBytes = static_cast&lt;int&gt;( VSIFReadL(pabyHeader, 1, nBytes, fpL) );</span>
+<span class="lineNum">     477 </span><span class="lineCov">       5488 :     VSIRewindL(fpL);</span>
+<span class="lineNum">     478 </span>            : 
+<span class="lineNum">     479 </span><span class="lineCov">       5488 :     return TRUE;</span>
+<span class="lineNum">     480 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

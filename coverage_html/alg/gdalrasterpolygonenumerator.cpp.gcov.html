@@ -1,0 +1,382 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - alg/gdalrasterpolygonenumerator.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">alg</a> - gdalrasterpolygonenumerator.cpp<span style="font-size: 80%;"> (source / <a href="gdalrasterpolygonenumerator.cpp.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">97</td>
+            <td class="headerCovTableEntry">100</td>
+            <td class="headerCovTableEntryHi">97.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2019-07-05</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<span class="lineNum">       2 </span>            :  *
+<span class="lineNum">       3 </span>            :  * Project:  GDAL
+<span class="lineNum">       4 </span>            :  * Purpose:  Raster Polygon Enumerator
+<span class="lineNum">       5 </span>            :  * Author:   Frank Warmerdam, warmerdam@pobox.com
+<span class="lineNum">       6 </span>            :  *
+<span class="lineNum">       7 </span>            :  ******************************************************************************
+<span class="lineNum">       8 </span>            :  * Copyright (c) 2008, Frank Warmerdam
+<span class="lineNum">       9 </span>            :  * Copyright (c) 2015, Even Rouault &lt;even.rouault at spatialys.com&gt;
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * Permission is hereby granted, free of charge, to any person obtaining a
+<span class="lineNum">      12 </span>            :  * copy of this software and associated documentation files (the &quot;Software&quot;),
+<span class="lineNum">      13 </span>            :  * to deal in the Software without restriction, including without limitation
+<span class="lineNum">      14 </span>            :  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+<span class="lineNum">      15 </span>            :  * and/or sell copies of the Software, and to permit persons to whom the
+<span class="lineNum">      16 </span>            :  * Software is furnished to do so, subject to the following conditions:
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * The above copyright notice and this permission notice shall be included
+<span class="lineNum">      19 </span>            :  * in all copies or substantial portions of the Software.
+<span class="lineNum">      20 </span>            :  *
+<span class="lineNum">      21 </span>            :  * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+<span class="lineNum">      22 </span>            :  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+<span class="lineNum">      23 </span>            :  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+<span class="lineNum">      24 </span>            :  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+<span class="lineNum">      25 </span>            :  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+<span class="lineNum">      26 </span>            :  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+<span class="lineNum">      27 </span>            :  * DEALINGS IN THE SOFTWARE.
+<span class="lineNum">      28 </span>            :  ****************************************************************************/
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;cpl_port.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;gdal_alg_priv.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &lt;cstddef&gt;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #include &quot;cpl_conv.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;cpl_error.h&quot;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : CPL_CVSID(&quot;$Id$&quot;)
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : /*! @cond Doxygen_Suppress */
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : /************************************************************************/
+<span class="lineNum">      43 </span>            : /*                    GDALRasterPolygonEnumeratorT()                    */
+<span class="lineNum">      44 </span>            : /************************************************************************/
+<a name="45"><span class="lineNum">      45 </span>            : </a>
+<span class="lineNum">      46 </span>            : template&lt;class DataType, class EqualityTest&gt;
+<span class="lineNum">      47 </span><span class="lineCov">         42 : GDALRasterPolygonEnumeratorT&lt;DataType,</span>
+<span class="lineNum">      48 </span>            :                              EqualityTest&gt;::GDALRasterPolygonEnumeratorT(
+<span class="lineNum">      49 </span>            :     int nConnectednessIn ) :
+<span class="lineNum">      50 </span><span class="lineCov">         42 :     nConnectedness( nConnectednessIn )</span>
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : {
+<span class="lineNum">      53 </span><span class="lineCov">         42 :     CPLAssert( nConnectedness == 4 || nConnectedness == 8 );</span>
+<span class="lineNum">      54 </span><span class="lineCov">         42 : }</span>
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : /************************************************************************/
+<span class="lineNum">      57 </span>            : /*                    ~GDALRasterPolygonEnumeratorT()                    */
+<span class="lineNum">      58 </span>            : /************************************************************************/
+<a name="59"><span class="lineNum">      59 </span>            : </a>
+<span class="lineNum">      60 </span>            : template&lt;class DataType, class EqualityTest&gt;
+<span class="lineNum">      61 </span><span class="lineCov">         42 : GDALRasterPolygonEnumeratorT&lt;DataType,</span>
+<span class="lineNum">      62 </span>            :                              EqualityTest&gt;::~GDALRasterPolygonEnumeratorT()
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : {
+<span class="lineNum">      65 </span><span class="lineCov">         42 :     Clear();</span>
+<span class="lineNum">      66 </span><span class="lineCov">         42 : }</span>
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            : /************************************************************************/
+<span class="lineNum">      69 </span>            : /*                               Clear()                                */
+<span class="lineNum">      70 </span>            : /************************************************************************/
+<a name="71"><span class="lineNum">      71 </span>            : </a>
+<span class="lineNum">      72 </span>            : template&lt;class DataType, class EqualityTest&gt;
+<span class="lineNum">      73 </span><span class="lineCov">         52 : void GDALRasterPolygonEnumeratorT&lt;DataType, EqualityTest&gt;::Clear()</span>
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            : {
+<span class="lineNum">      76 </span><span class="lineCov">         52 :     CPLFree( panPolyIdMap );</span>
+<span class="lineNum">      77 </span><span class="lineCov">         52 :     CPLFree( panPolyValue );</span>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineCov">         52 :     panPolyIdMap = nullptr;</span>
+<span class="lineNum">      80 </span><span class="lineCov">         52 :     panPolyValue = nullptr;</span>
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span><span class="lineCov">         52 :     nNextPolygonId = 0;</span>
+<span class="lineNum">      83 </span><span class="lineCov">         52 :     nPolyAlloc = 0;</span>
+<span class="lineNum">      84 </span><span class="lineCov">         52 : }</span>
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            : /************************************************************************/
+<span class="lineNum">      87 </span>            : /*                            MergePolygon()                            */
+<span class="lineNum">      88 </span>            : /*                                                                      */
+<span class="lineNum">      89 </span>            : /*      Update the polygon map to indicate the merger of two polygons.  */
+<span class="lineNum">      90 </span>            : /************************************************************************/
+<a name="91"><span class="lineNum">      91 </span>            : </a>
+<span class="lineNum">      92 </span>            : template&lt;class DataType, class EqualityTest&gt;
+<span class="lineNum">      93 </span><span class="lineCov">      10484 : void GDALRasterPolygonEnumeratorT&lt;DataType,</span>
+<span class="lineNum">      94 </span>            :                                   EqualityTest&gt;::MergePolygon( int nSrcId,
+<span class="lineNum">      95 </span>            :                                                                int nDstIdInit )
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            : {
+<span class="lineNum">      98 </span>            :     // Figure out the final dest id.
+<span class="lineNum">      99 </span><span class="lineCov">      10484 :     int nDstIdFinal = nDstIdInit;</span>
+<span class="lineNum">     100 </span><span class="lineCov">      20995 :     while( panPolyIdMap[nDstIdFinal] != nDstIdFinal )</span>
+<span class="lineNum">     101 </span><span class="lineCov">         27 :         nDstIdFinal = panPolyIdMap[nDstIdFinal];</span>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :     // Map the whole intermediate chain to it.
+<span class="lineNum">     104 </span><span class="lineCov">      10484 :     int nDstIdCur = nDstIdInit;</span>
+<span class="lineNum">     105 </span><span class="lineCov">      20995 :     while( panPolyIdMap[nDstIdCur] != nDstIdCur )</span>
+<span class="lineNum">     106 </span>            :     {
+<span class="lineNum">     107 </span><span class="lineCov">         27 :         int nNextDstId = panPolyIdMap[nDstIdCur];</span>
+<span class="lineNum">     108 </span><span class="lineCov">         27 :         panPolyIdMap[nDstIdCur] = nDstIdFinal;</span>
+<span class="lineNum">     109 </span><span class="lineCov">         27 :         nDstIdCur = nNextDstId;</span>
+<span class="lineNum">     110 </span>            :     }
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            :     // And map the whole source chain to it too (can be done in one pass).
+<span class="lineNum">     113 </span><span class="lineCov">      20970 :     while( panPolyIdMap[nSrcId] != nSrcId )</span>
+<span class="lineNum">     114 </span>            :     {
+<span class="lineNum">     115 </span><span class="lineCov">          2 :         int nNextSrcId = panPolyIdMap[nSrcId];</span>
+<span class="lineNum">     116 </span><span class="lineCov">          2 :         panPolyIdMap[nSrcId] = nDstIdFinal;</span>
+<span class="lineNum">     117 </span><span class="lineCov">          2 :         nSrcId = nNextSrcId;</span>
+<span class="lineNum">     118 </span>            :     }
+<span class="lineNum">     119 </span><span class="lineCov">      10484 :     panPolyIdMap[nSrcId] = nDstIdFinal;</span>
+<span class="lineNum">     120 </span><span class="lineCov">      10484 : }</span>
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            : /************************************************************************/
+<span class="lineNum">     123 </span>            : /*                             NewPolygon()                             */
+<span class="lineNum">     124 </span>            : /*                                                                      */
+<span class="lineNum">     125 </span>            : /*      Allocate a new polygon id, and reallocate the polygon maps      */
+<span class="lineNum">     126 </span>            : /*      if needed.                                                      */
+<span class="lineNum">     127 </span>            : /************************************************************************/
+<a name="128"><span class="lineNum">     128 </span>            : </a>
+<span class="lineNum">     129 </span>            : template&lt;class DataType, class EqualityTest&gt;
+<span class="lineNum">     130 </span><span class="lineCov">      21220 : int GDALRasterPolygonEnumeratorT&lt;DataType, EqualityTest&gt;::NewPolygon(</span>
+<span class="lineNum">     131 </span>            :     DataType nValue )
+<span class="lineNum">     132 </span>            : 
+<span class="lineNum">     133 </span>            : {
+<span class="lineNum">     134 </span><span class="lineCov">      21220 :     const int nPolyId = nNextPolygonId;</span>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineCov">      21220 :     if( nNextPolygonId &gt;= nPolyAlloc )</span>
+<span class="lineNum">     137 </span>            :     {
+<span class="lineNum">     138 </span><span class="lineCov">         83 :         nPolyAlloc = nPolyAlloc * 2 + 20;</span>
+<span class="lineNum">     139 </span><span class="lineCov">         83 :         panPolyIdMap = static_cast&lt;GInt32 *&gt;(</span>
+<span class="lineNum">     140 </span><span class="lineCov">         83 :             CPLRealloc(panPolyIdMap, nPolyAlloc*sizeof(GInt32)));</span>
+<span class="lineNum">     141 </span><span class="lineCov">         83 :         panPolyValue = static_cast&lt;DataType *&gt;(</span>
+<span class="lineNum">     142 </span><span class="lineCov">         83 :             CPLRealloc(panPolyValue, nPolyAlloc*sizeof(DataType)));</span>
+<span class="lineNum">     143 </span>            :     }
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span><span class="lineCov">      21220 :     nNextPolygonId++;</span>
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span><span class="lineCov">      21220 :     panPolyIdMap[nPolyId] = nPolyId;</span>
+<span class="lineNum">     148 </span><span class="lineCov">      21220 :     panPolyValue[nPolyId] = nValue;</span>
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span><span class="lineCov">      21220 :     return nPolyId;</span>
+<span class="lineNum">     151 </span>            : }
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span>            : /************************************************************************/
+<span class="lineNum">     154 </span>            : /*                           CompleteMerges()                           */
+<span class="lineNum">     155 </span>            : /*                                                                      */
+<span class="lineNum">     156 </span>            : /*      Make a pass through the maps, ensuring every polygon id         */
+<span class="lineNum">     157 </span>            : /*      points to the final id it should use, not an intermediate       */
+<span class="lineNum">     158 </span>            : /*      value.                                                          */
+<span class="lineNum">     159 </span>            : /************************************************************************/
+<a name="160"><span class="lineNum">     160 </span>            : </a>
+<span class="lineNum">     161 </span>            : template&lt;class DataType, class EqualityTest&gt;
+<span class="lineNum">     162 </span><span class="lineCov">         21 : void GDALRasterPolygonEnumeratorT&lt;DataType, EqualityTest&gt;::CompleteMerges()</span>
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            : {
+<span class="lineNum">     165 </span><span class="lineCov">         21 :     int nFinalPolyCount = 0;</span>
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span><span class="lineCov">       7180 :     for( int iPoly = 0; iPoly &lt; nNextPolygonId; iPoly++ )</span>
+<span class="lineNum">     168 </span>            :     {
+<span class="lineNum">     169 </span>            :         // Figure out the final id.
+<span class="lineNum">     170 </span><span class="lineCov">       7159 :         int nId = panPolyIdMap[iPoly];</span>
+<span class="lineNum">     171 </span><span class="lineCov">      17718 :         while( nId != panPolyIdMap[nId] )</span>
+<span class="lineNum">     172 </span>            :         {
+<span class="lineNum">     173 </span><span class="lineCov">       3400 :             nId = panPolyIdMap[nId];</span>
+<span class="lineNum">     174 </span>            :         }
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span>            :         // Then map the whole intermediate chain to it.
+<span class="lineNum">     177 </span><span class="lineCov">       7159 :         int nIdCur = panPolyIdMap[iPoly];</span>
+<span class="lineNum">     178 </span><span class="lineCov">       7159 :         panPolyIdMap[iPoly] = nId;</span>
+<span class="lineNum">     179 </span><span class="lineCov">      17718 :         while( nIdCur != panPolyIdMap[nIdCur] )</span>
+<span class="lineNum">     180 </span>            :         {
+<span class="lineNum">     181 </span><span class="lineCov">       3400 :             int nNextId = panPolyIdMap[nIdCur];</span>
+<span class="lineNum">     182 </span><span class="lineCov">       3400 :             panPolyIdMap[nIdCur] = nId;</span>
+<span class="lineNum">     183 </span><span class="lineCov">       3400 :             nIdCur = nNextId;</span>
+<span class="lineNum">     184 </span>            :         }
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span><span class="lineCov">       7159 :         if( panPolyIdMap[iPoly] == iPoly )</span>
+<span class="lineNum">     187 </span><span class="lineCov">       3659 :             nFinalPolyCount++;</span>
+<span class="lineNum">     188 </span>            :     }
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span><span class="lineCov">         21 :     CPLDebug( &quot;GDALRasterPolygonEnumerator&quot;,</span>
+<span class="lineNum">     191 </span>            :               &quot;Counted %d polygon fragments forming %d final polygons.&quot;,
+<span class="lineNum">     192 </span><span class="lineCov">         21 :               nNextPolygonId, nFinalPolyCount );</span>
+<span class="lineNum">     193 </span><span class="lineCov">         21 : }</span>
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            : /************************************************************************/
+<span class="lineNum">     196 </span>            : /*                            ProcessLine()                             */
+<span class="lineNum">     197 </span>            : /*                                                                      */
+<span class="lineNum">     198 </span>            : /*      Assign ids to polygons, one line at a time.                     */
+<span class="lineNum">     199 </span>            : /************************************************************************/
+<a name="200"><span class="lineNum">     200 </span>            : </a>
+<span class="lineNum">     201 </span>            : template&lt;class DataType, class EqualityTest&gt;
+<span class="lineNum">     202 </span><span class="lineCov">        879 : void GDALRasterPolygonEnumeratorT&lt;DataType, EqualityTest&gt;::ProcessLine(</span>
+<span class="lineNum">     203 </span>            :     DataType *panLastLineVal, DataType *panThisLineVal,
+<span class="lineNum">     204 </span>            :     GInt32 *panLastLineId,  GInt32 *panThisLineId,
+<span class="lineNum">     205 </span>            :     int nXSize )
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            : {
+<span class="lineNum">     208 </span>            :     EqualityTest eq;
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     211 </span>            : /*      Special case for the first line.                                */
+<span class="lineNum">     212 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     213 </span><span class="lineCov">        879 :     if( panLastLineVal == nullptr )</span>
+<span class="lineNum">     214 </span>            :     {
+<span class="lineNum">     215 </span><span class="lineCov">        870 :         for( int i = 0; i &lt; nXSize; i++ )</span>
+<span class="lineNum">     216 </span>            :         {
+<span class="lineNum">     217 </span><span class="lineCov">        818 :             if( panThisLineVal[i] == GP_NODATA_MARKER )</span>
+<span class="lineNum">     218 </span>            :             {
+<span class="lineNum">     219 </span><span class="lineCov">         33 :                 panThisLineId[i] = -1;</span>
+<span class="lineNum">     220 </span>            :             }
+<span class="lineNum">     221 </span><span class="lineCov">       1521 :             else if( i == 0 ||</span>
+<span class="lineNum">     222 </span><span class="lineCov">        736 :                      !(eq.operator()(panThisLineVal[i], panThisLineVal[i-1])) )</span>
+<span class="lineNum">     223 </span>            :             {
+<span class="lineNum">     224 </span><span class="lineCov">        357 :                 panThisLineId[i] = NewPolygon( panThisLineVal[i] );</span>
+<span class="lineNum">     225 </span>            :             }
+<span class="lineNum">     226 </span>            :             else
+<span class="lineNum">     227 </span>            :             {
+<span class="lineNum">     228 </span><span class="lineCov">        428 :                 panThisLineId[i] = panThisLineId[i-1];</span>
+<span class="lineNum">     229 </span>            :             }
+<span class="lineNum">     230 </span>            :         }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span><span class="lineCov">        104 :         return;</span>
+<span class="lineNum">     233 </span>            :     }
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     236 </span>            : /*      Process each pixel comparing to the previous pixel, and to      */
+<span class="lineNum">     237 </span>            : /*      the last line.                                                  */
+<span class="lineNum">     238 </span>            : /* -------------------------------------------------------------------- */
+<span class="lineNum">     239 </span><span class="lineCov">      42100 :     for( int i = 0; i &lt; nXSize; i++ )</span>
+<span class="lineNum">     240 </span>            :     {
+<span class="lineNum">     241 </span><span class="lineCov">      41273 :         if( panThisLineVal[i] == GP_NODATA_MARKER )</span>
+<span class="lineNum">     242 </span>            :         {
+<span class="lineNum">     243 </span><span class="lineCov">         63 :             panThisLineId[i] = -1;</span>
+<span class="lineNum">     244 </span>            :         }
+<span class="lineNum">     245 </span><span class="lineCov">     122012 :         else if( i &gt; 0 &amp;&amp;</span>
+<span class="lineNum">     246 </span><span class="lineCov">      80802 :                  eq.operator()(panThisLineVal[i], panThisLineVal[i-1]) )</span>
+<span class="lineNum">     247 </span>            :         {
+<span class="lineNum">     248 </span><span class="lineCov">      19183 :             panThisLineId[i] = panThisLineId[i-1];</span>
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span><span class="lineCov">      76029 :             if( eq.operator()(panLastLineVal[i], panThisLineVal[i])</span>
+<span class="lineNum">     251 </span><span class="lineCov">      38366 :                 &amp;&amp; (panPolyIdMap[panLastLineId[i]]</span>
+<span class="lineNum">     252 </span><span class="lineCov">      18480 :                     != panPolyIdMap[panThisLineId[i]]) )</span>
+<span class="lineNum">     253 </span>            :             {
+<span class="lineNum">     254 </span><span class="lineCov">      10479 :                 MergePolygon( panLastLineId[i], panThisLineId[i] );</span>
+<span class="lineNum">     255 </span>            :             }
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span><span class="lineCov">      19236 :             if( nConnectedness == 8</span>
+<span class="lineNum">     258 </span><span class="lineCov">         48 :                 &amp;&amp; eq.operator()(panLastLineVal[i-1], panThisLineVal[i])</span>
+<span class="lineNum">     259 </span>            :                 &amp;&amp; (panPolyIdMap[panLastLineId[i-1]]
+<span class="lineNum">     260 </span><span class="lineCov">          5 :                     != panPolyIdMap[panThisLineId[i]]) )</span>
+<span class="lineNum">     261 </span>            :             {
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :                 MergePolygon( panLastLineId[i-1], panThisLineId[i] );</span>
+<span class="lineNum">     263 </span>            :             }
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span><span class="lineCov">      19226 :             if( nConnectedness == 8 &amp;&amp; i &lt; nXSize-1</span>
+<span class="lineNum">     266 </span><span class="lineCov">         33 :                 &amp;&amp; eq.operator()(panLastLineVal[i+1], panThisLineVal[i])</span>
+<span class="lineNum">     267 </span>            :                 &amp;&amp; (panPolyIdMap[panLastLineId[i+1]]
+<span class="lineNum">     268 </span><span class="lineCov">         10 :                     != panPolyIdMap[panThisLineId[i]]) )</span>
+<span class="lineNum">     269 </span>            :             {
+<span class="lineNum">     270 </span><span class="lineCov">          5 :                 MergePolygon( panLastLineId[i+1], panThisLineId[i] );</span>
+<span class="lineNum">     271 </span>            :             }
+<span class="lineNum">     272 </span>            :         }
+<span class="lineNum">     273 </span><span class="lineCov">      22027 :         else if( eq.operator()(panLastLineVal[i], panThisLineVal[i]) )</span>
+<span class="lineNum">     274 </span>            :         {
+<span class="lineNum">     275 </span><span class="lineCov">       1154 :             panThisLineId[i] = panLastLineId[i];</span>
+<span class="lineNum">     276 </span>            :         }
+<span class="lineNum">     277 </span><span class="lineCov">      20997 :         else if( i &gt; 0 &amp;&amp; nConnectedness == 8</span>
+<span class="lineNum">     278 </span><span class="lineCov">        124 :                  &amp;&amp; eq.operator()(panLastLineVal[i-1], panThisLineVal[i]) )</span>
+<span class="lineNum">     279 </span>            :         {
+<span class="lineNum">     280 </span><span class="lineCov">          5 :             panThisLineId[i] = panLastLineId[i-1];</span>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineCov">         15 :             if( i &lt; nXSize-1 &amp;&amp;</span>
+<span class="lineNum">     283 </span><span class="lineCov">         10 :                 eq.operator()(panLastLineVal[i+1], panThisLineVal[i]) &amp;&amp;</span>
+<span class="lineNum">     284 </span>            :                 (panPolyIdMap[panLastLineId[i+1]]
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :                  != panPolyIdMap[panThisLineId[i]]) )</span>
+<span class="lineNum">     286 </span>            :             {
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :                 MergePolygon( panLastLineId[i+1], panThisLineId[i] );</span>
+<span class="lineNum">     288 </span>            :             }
+<span class="lineNum">     289 </span>            :         }
+<span class="lineNum">     290 </span><span class="lineCov">      20992 :         else if( i &lt; nXSize-1 &amp;&amp; nConnectedness == 8</span>
+<span class="lineNum">     291 </span><span class="lineCov">        124 :                  &amp;&amp; eq.operator()(panLastLineVal[i+1], panThisLineVal[i]) )</span>
+<span class="lineNum">     292 </span>            :         {
+<span class="lineNum">     293 </span><span class="lineCov">          5 :             panThisLineId[i] = panLastLineId[i+1];</span>
+<span class="lineNum">     294 </span>            :         }
+<span class="lineNum">     295 </span>            :         else
+<span class="lineNum">     296 </span>            :         {
+<span class="lineNum">     297 </span><span class="lineCov">      20863 :             panThisLineId[i] = NewPolygon(panThisLineVal[i]);</span>
+<span class="lineNum">     298 </span>            :         }
+<span class="lineNum">     299 </span>            :     }
+<span class="lineNum">     300 </span>            : }
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            : template class GDALRasterPolygonEnumeratorT&lt;GInt32, IntEqualityTest&gt;;
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            : template class GDALRasterPolygonEnumeratorT&lt;float, FloatEqualityTest&gt;;
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            : /*! @endcond */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>
