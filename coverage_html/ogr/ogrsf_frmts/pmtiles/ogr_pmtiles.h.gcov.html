@@ -1,0 +1,440 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/pmtiles/ogr_pmtiles.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/pmtiles</a> - ogr_pmtiles.h<span style="font-size: 80%;"> (source / <a href="ogr_pmtiles.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2026-02-22 22:25:11</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">13</td>
+            <td class="headerCovTableEntry">13</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<a name="2"><span class="lineNum">       2 </span>            :  *</a>
+<a name="3"><span class="lineNum">       3 </span>            :  * Project:  OpenGIS Simple Features Reference Implementation</a>
+<a name="4"><span class="lineNum">       4 </span>            :  * Purpose:  Implementation of PMTiles</a>
+<a name="5"><span class="lineNum">       5 </span>            :  * Author:   Even Rouault &lt;even.rouault at spatialys.com&gt;</a>
+<a name="6"><span class="lineNum">       6 </span>            :  *</a>
+<a name="7"><span class="lineNum">       7 </span>            :  ******************************************************************************</a>
+<a name="8"><span class="lineNum">       8 </span>            :  * Copyright (c) 2023, Planet Labs</a>
+<a name="9"><span class="lineNum">       9 </span>            :  *</a>
+<a name="10"><span class="lineNum">      10 </span>            :  * SPDX-License-Identifier: MIT</a>
+<a name="11"><span class="lineNum">      11 </span>            :  ****************************************************************************/</a>
+<a name="12"><span class="lineNum">      12 </span>            : </a>
+<a name="13"><span class="lineNum">      13 </span>            : #ifndef OGR_PMTILES_H_INCLUDED</a>
+<a name="14"><span class="lineNum">      14 </span>            : #define OGR_PMTILES_H_INCLUDED</a>
+<a name="15"><span class="lineNum">      15 </span>            : </a>
+<a name="16"><span class="lineNum">      16 </span>            : #include &quot;gdal_priv.h&quot;</a>
+<a name="17"><span class="lineNum">      17 </span>            : #include &quot;ogrsf_frmts.h&quot;</a>
+<a name="18"><span class="lineNum">      18 </span>            : </a>
+<a name="19"><span class="lineNum">      19 </span>            : #include &quot;cpl_compressor.h&quot;</a>
+<a name="20"><span class="lineNum">      20 </span>            : #include &quot;cpl_vsi_virtual.h&quot;</a>
+<a name="21"><span class="lineNum">      21 </span>            : </a>
+<a name="22"><span class="lineNum">      22 </span>            : #include &quot;include_pmtiles.h&quot;</a>
+<a name="23"><span class="lineNum">      23 </span>            : </a>
+<a name="24"><span class="lineNum">      24 </span>            : #include &lt;limits&gt;</a>
+<a name="25"><span class="lineNum">      25 </span>            : #include &lt;set&gt;</a>
+<a name="26"><span class="lineNum">      26 </span>            : #include &lt;stack&gt;</a>
+<a name="27"><span class="lineNum">      27 </span>            : </a>
+<a name="28"><span class="lineNum">      28 </span>            : // #define DEBUG_PMTILES</a>
+<a name="29"><span class="lineNum">      29 </span>            : </a>
+<a name="30"><span class="lineNum">      30 </span>            : #define SPHERICAL_RADIUS 6378137.0</a>
+<a name="31"><span class="lineNum">      31 </span>            : #define MAX_GM (SPHERICAL_RADIUS * M_PI)  // 20037508.342789244</a>
+<a name="32"><span class="lineNum">      32 </span>            : </a>
+<a name="33"><span class="lineNum">      33 </span>            : #if defined(HAVE_SQLITE) &amp;&amp; defined(HAVE_GEOS)</a>
+<a name="34"><span class="lineNum">      34 </span>            : // Needed by mvtutils.h</a>
+<a name="35"><span class="lineNum">      35 </span>            : #define HAVE_MVT_WRITE_SUPPORT</a>
+<a name="36"><span class="lineNum">      36 </span>            : #endif</a>
+<a name="37"><span class="lineNum">      37 </span>            : </a>
+<a name="38"><span class="lineNum">      38 </span>            : /************************************************************************/</a>
+<a name="39"><span class="lineNum">      39 </span>            : /*                          OGRPMTilesDataset                           */</a>
+<a name="40"><span class="lineNum">      40 </span>            : /************************************************************************/</a>
+<a name="41"><span class="lineNum">      41 </span>            : </a>
+<a name="42"><span class="lineNum">      42 </span>            : class OGRPMTilesDataset final : public GDALDataset</a>
+<a name="43"><span class="lineNum">      43 </span>            : {</a>
+<a name="44"><span class="lineNum">      44 </span>            :   public:</a>
+<a name="45"><span class="lineNum">      45 </span><span class="lineCov">         97 :     OGRPMTilesDataset() = default;</span></a>
+<a name="46"><span class="lineNum">      46 </span>            : </a>
+<a name="47"><span class="lineNum">      47 </span>            :     ~OGRPMTilesDataset() override;</a>
+<a name="48"><span class="lineNum">      48 </span>            : </a>
+<a name="49"><span class="lineNum">      49 </span>            :     bool Open(GDALOpenInfo *poOpenInfo);</a>
+<a name="50"><span class="lineNum">      50 </span>            : </a>
+<a name="51"><span class="lineNum">      51 </span><span class="lineCov">        230 :     int GetLayerCount() const override</span></a>
+<a name="52"><span class="lineNum">      52 </span>            :     {</a>
+<a name="53"><span class="lineNum">      53 </span><span class="lineCov">        230 :         return static_cast&lt;int&gt;(m_apoLayers.size());</span></a>
+<a name="54"><span class="lineNum">      54 </span>            :     }</a>
+<a name="55"><span class="lineNum">      55 </span>            : </a>
+<a name="56"><span class="lineNum">      56 </span>            :     const OGRLayer *GetLayer(int) const override;</a>
+<a name="57"><span class="lineNum">      57 </span>            : </a>
+<a name="58"><span class="lineNum">      58 </span><span class="lineCov">          3 :     inline int GetMinZoomLevel() const</span></a>
+<a name="59"><span class="lineNum">      59 </span>            :     {</a>
+<a name="60"><span class="lineNum">      60 </span><span class="lineCov">          3 :         return m_nMinZoomLevel;</span></a>
+<a name="61"><span class="lineNum">      61 </span>            :     }</a>
+<a name="62"><span class="lineNum">      62 </span>            : </a>
+<a name="63"><span class="lineNum">      63 </span><span class="lineCov">          8 :     inline int GetMaxZoomLevel() const</span></a>
+<a name="64"><span class="lineNum">      64 </span>            :     {</a>
+<a name="65"><span class="lineNum">      65 </span><span class="lineCov">          8 :         return m_nMaxZoomLevel;</span></a>
+<a name="66"><span class="lineNum">      66 </span>            :     }</a>
+<a name="67"><span class="lineNum">      67 </span>            : </a>
+<a name="68"><span class="lineNum">      68 </span><span class="lineCov">       1167 :     inline const pmtiles::headerv3 &amp;GetHeader() const</span></a>
+<a name="69"><span class="lineNum">      69 </span>            :     {</a>
+<a name="70"><span class="lineNum">      70 </span><span class="lineCov">       1167 :         return m_sHeader;</span></a>
+<a name="71"><span class="lineNum">      71 </span>            :     }</a>
+<a name="72"><span class="lineNum">      72 </span>            : </a>
+<a name="73"><span class="lineNum">      73 </span>            :     static const char *GetCompression(uint8_t nVal);</a>
+<a name="74"><span class="lineNum">      74 </span>            : </a>
+<a name="75"><span class="lineNum">      75 </span>            :     static const char *GetTileType(const pmtiles::headerv3 &amp;sHeader);</a>
+<a name="76"><span class="lineNum">      76 </span>            : </a>
+<a name="77"><span class="lineNum">      77 </span><span class="lineCov">          7 :     inline const std::string &amp;GetMetadataContent() const</span></a>
+<a name="78"><span class="lineNum">      78 </span>            :     {</a>
+<a name="79"><span class="lineNum">      79 </span><span class="lineCov">          7 :         return m_osMetadata;</span></a>
+<a name="80"><span class="lineNum">      80 </span>            :     }</a>
+<a name="81"><span class="lineNum">      81 </span>            : </a>
+<a name="82"><span class="lineNum">      82 </span><span class="lineCov">        687 :     inline const std::string &amp;GetMetadataFilename() const</span></a>
+<a name="83"><span class="lineNum">      83 </span>            :     {</a>
+<a name="84"><span class="lineNum">      84 </span><span class="lineCov">        687 :         return m_osMetadataFilename;</span></a>
+<a name="85"><span class="lineNum">      85 </span>            :     }</a>
+<a name="86"><span class="lineNum">      86 </span>            : </a>
+<a name="87"><span class="lineNum">      87 </span><span class="lineCov">        681 :     inline const std::string &amp;GetClipOpenOption() const</span></a>
+<a name="88"><span class="lineNum">      88 </span>            :     {</a>
+<a name="89"><span class="lineNum">      89 </span><span class="lineCov">        681 :         return m_osClipOpenOption;</span></a>
+<a name="90"><span class="lineNum">      90 </span>            :     }</a>
+<a name="91"><span class="lineNum">      91 </span>            : </a>
+<a name="92"><span class="lineNum">      92 </span>            :     /** Return a short-lived decompressed buffer for metadata or directory</a>
+<a name="93"><span class="lineNum">      93 </span>            :      * entries or nullptr in case of error.</a>
+<a name="94"><span class="lineNum">      94 </span>            :      */</a>
+<a name="95"><span class="lineNum">      95 </span>            :     const std::string *ReadInternal(uint64_t nOffset, uint64_t nSize,</a>
+<a name="96"><span class="lineNum">      96 </span>            :                                     const char *pszDataType);</a>
+<a name="97"><span class="lineNum">      97 </span>            : </a>
+<a name="98"><span class="lineNum">      98 </span>            :     /** Return a short-lived decompressed buffer for tile data.</a>
+<a name="99"><span class="lineNum">      99 </span>            :      *  or nullptr in case of error.</a>
+<a name="100"><span class="lineNum">     100 </span>            :      */</a>
+<a name="101"><span class="lineNum">     101 </span>            :     const std::string *ReadTileData(uint64_t nOffset, uint64_t nSize);</a>
+<a name="102"><span class="lineNum">     102 </span>            : </a>
+<a name="103"><span class="lineNum">     103 </span>            :   private:</a>
+<a name="104"><span class="lineNum">     104 </span>            :     VSIVirtualHandleUniquePtr m_poFile{};</a>
+<a name="105"><span class="lineNum">     105 </span>            : </a>
+<a name="106"><span class="lineNum">     106 </span>            :     //! PMTiles header</a>
+<a name="107"><span class="lineNum">     107 </span>            :     pmtiles::headerv3 m_sHeader{};</a>
+<a name="108"><span class="lineNum">     108 </span>            : </a>
+<a name="109"><span class="lineNum">     109 </span>            :     //! JSON serialized metadata</a>
+<a name="110"><span class="lineNum">     110 </span>            :     std::string m_osMetadata{};</a>
+<a name="111"><span class="lineNum">     111 </span>            : </a>
+<a name="112"><span class="lineNum">     112 </span>            :     //! /vsimem/ filename with the m_osMetadata content</a>
+<a name="113"><span class="lineNum">     113 </span>            :     std::string m_osMetadataFilename{};</a>
+<a name="114"><span class="lineNum">     114 </span>            : </a>
+<a name="115"><span class="lineNum">     115 </span>            :     //! Value of the CLIP open option</a>
+<a name="116"><span class="lineNum">     116 </span>            :     std::string m_osClipOpenOption{};</a>
+<a name="117"><span class="lineNum">     117 </span>            : </a>
+<a name="118"><span class="lineNum">     118 </span>            :     //! Decompressor for metadata and directories</a>
+<a name="119"><span class="lineNum">     119 </span>            :     const CPLCompressor *m_psInternalDecompressor = nullptr;</a>
+<a name="120"><span class="lineNum">     120 </span>            : </a>
+<a name="121"><span class="lineNum">     121 </span>            :     //! Decompressor for tile</a>
+<a name="122"><span class="lineNum">     122 </span>            :     const CPLCompressor *m_psTileDataDecompressor = nullptr;</a>
+<a name="123"><span class="lineNum">     123 </span>            : </a>
+<a name="124"><span class="lineNum">     124 </span>            :     //! Last raw data read by Read()</a>
+<a name="125"><span class="lineNum">     125 </span>            :     std::string m_osBuffer{};</a>
+<a name="126"><span class="lineNum">     126 </span>            : </a>
+<a name="127"><span class="lineNum">     127 </span>            :     //! Last uncompressed data read by Read(). Only used if compression</a>
+<a name="128"><span class="lineNum">     128 </span>            :     std::string m_osDecompressedBuffer{};</a>
+<a name="129"><span class="lineNum">     129 </span>            : </a>
+<a name="130"><span class="lineNum">     130 </span>            :     std::vector&lt;std::unique_ptr&lt;OGRLayer&gt;&gt; m_apoLayers{};</a>
+<a name="131"><span class="lineNum">     131 </span>            : </a>
+<a name="132"><span class="lineNum">     132 </span>            :     //! Minimum zoom level got from header</a>
+<a name="133"><span class="lineNum">     133 </span>            :     int m_nMinZoomLevel = 0;</a>
+<a name="134"><span class="lineNum">     134 </span>            : </a>
+<a name="135"><span class="lineNum">     135 </span>            :     //! Maximum zoom level got from header</a>
+<a name="136"><span class="lineNum">     136 </span>            :     int m_nMaxZoomLevel = 0;</a>
+<a name="137"><span class="lineNum">     137 </span>            : </a>
+<a name="138"><span class="lineNum">     138 </span>            :     /** Return a short-lived decompressed buffer, or nullptr in case of error</a>
+<a name="139"><span class="lineNum">     139 </span>            :      */</a>
+<a name="140"><span class="lineNum">     140 </span>            :     const std::string *Read(const CPLCompressor *psDecompressor,</a>
+<a name="141"><span class="lineNum">     141 </span>            :                             uint64_t nOffset, uint64_t nSize,</a>
+<a name="142"><span class="lineNum">     142 </span>            :                             const char *pszDataType);</a>
+<a name="143"><span class="lineNum">     143 </span>            : </a>
+<a name="144"><span class="lineNum">     144 </span>            :     CPL_DISALLOW_COPY_ASSIGN(OGRPMTilesDataset)</a>
+<a name="145"><span class="lineNum">     145 </span>            : };</a>
+<a name="146"><span class="lineNum">     146 </span>            : </a>
+<a name="147"><span class="lineNum">     147 </span>            : /************************************************************************/</a>
+<a name="148"><span class="lineNum">     148 </span>            : /*                        OGRPMTilesTileIterator                        */</a>
+<a name="149"><span class="lineNum">     149 </span>            : /************************************************************************/</a>
+<a name="150"><span class="lineNum">     150 </span>            : </a>
+<a name="151"><span class="lineNum">     151 </span>            : //! Iterator to browse through tiles</a>
+<a name="152"><span class="lineNum">     152 </span>            : class OGRPMTilesTileIterator</a>
+<a name="153"><span class="lineNum">     153 </span>            : {</a>
+<a name="154"><span class="lineNum">     154 </span>            :   public:</a>
+<a name="155"><span class="lineNum">     155 </span>            :     //! Constructor to iterate over all tiles (possibly limited to a zoom level</a>
+<a name="156"><span class="lineNum">     156 </span><span class="lineCov">         15 :     explicit OGRPMTilesTileIterator(OGRPMTilesDataset *poDS,</span></a>
+<a name="157"><span class="lineNum">     157 </span>            :                                     int nZoomLevel = -1)</a>
+<a name="158"><span class="lineNum">     158 </span><span class="lineCov">         15 :         : m_poDS(poDS), m_nZoomLevel(nZoomLevel)</span></a>
+<a name="159"><span class="lineNum">     159 </span>            :     {</a>
+<a name="160"><span class="lineNum">     160 </span><span class="lineCov">         15 :     }</span></a>
+<a name="161"><span class="lineNum">     161 </span>            : </a>
+<a name="162"><span class="lineNum">     162 </span>            :     //! Constructor with a window of interest in tile coordinates</a>
+<a name="163"><span class="lineNum">     163 </span><span class="lineCov">        245 :     OGRPMTilesTileIterator(OGRPMTilesDataset *poDS, int nZoomLevel, int nMinX,</span></a>
+<a name="164"><span class="lineNum">     164 </span>            :                            int nMinY, int nMaxX, int nMaxY)</a>
+<a name="165"><span class="lineNum">     165 </span><span class="lineCov">        245 :         : m_poDS(poDS), m_nZoomLevel(nZoomLevel), m_nMinX(nMinX),</span></a>
+<a name="166"><span class="lineNum">     166 </span><span class="lineCov">        245 :           m_nMinY(nMinY), m_nMaxX(nMaxX), m_nMaxY(nMaxY)</span></a>
+<a name="167"><span class="lineNum">     167 </span>            :     {</a>
+<a name="168"><span class="lineNum">     168 </span><span class="lineCov">        245 :     }</span></a>
+<a name="169"><span class="lineNum">     169 </span>            : </a>
+<a name="170"><span class="lineNum">     170 </span>            :     /** Return the (z, x, y, offset, length) of the next tile.</a>
+<a name="171"><span class="lineNum">     171 </span>            :      *</a>
+<a name="172"><span class="lineNum">     172 </span>            :      * If entry_zxy.offset == 0, the iteration has stopped.</a>
+<a name="173"><span class="lineNum">     173 </span>            :      */</a>
+<a name="174"><span class="lineNum">     174 </span>            :     pmtiles::entry_zxy GetNextTile(uint32_t *pnRunLength = nullptr);</a>
+<a name="175"><span class="lineNum">     175 </span>            : </a>
+<a name="176"><span class="lineNum">     176 </span>            :     void SkipRunLength();</a>
+<a name="177"><span class="lineNum">     177 </span>            : </a>
+<a name="178"><span class="lineNum">     178 </span>            : #ifdef DEBUG_PMTILES</a>
+<a name="179"><span class="lineNum">     179 </span>            :     void DumpTiles();</a>
+<a name="180"><span class="lineNum">     180 </span>            : #endif</a>
+<a name="181"><span class="lineNum">     181 </span>            : </a>
+<a name="182"><span class="lineNum">     182 </span>            :   private:</a>
+<a name="183"><span class="lineNum">     183 </span>            :     // Input parameters</a>
+<a name="184"><span class="lineNum">     184 </span>            :     OGRPMTilesDataset *m_poDS = nullptr;</a>
+<a name="185"><span class="lineNum">     185 </span>            :     int m_nZoomLevel = -1;</a>
+<a name="186"><span class="lineNum">     186 </span>            :     int m_nMinX = -1;</a>
+<a name="187"><span class="lineNum">     187 </span>            :     int m_nMinY = -1;</a>
+<a name="188"><span class="lineNum">     188 </span>            :     int m_nMaxX = -1;</a>
+<a name="189"><span class="lineNum">     189 </span>            :     int m_nMaxY = -1;</a>
+<a name="190"><span class="lineNum">     190 </span>            : </a>
+<a name="191"><span class="lineNum">     191 </span>            :     // Used when iterating over tile id is inefficient</a>
+<a name="192"><span class="lineNum">     192 </span>            :     int m_nCurX = -1;</a>
+<a name="193"><span class="lineNum">     193 </span>            :     int m_nCurY = -1;</a>
+<a name="194"><span class="lineNum">     194 </span>            : </a>
+<a name="195"><span class="lineNum">     195 </span>            :     // for sanity checks. Must be increasing when walking through entries</a>
+<a name="196"><span class="lineNum">     196 </span>            :     static constexpr uint64_t INVALID_LAST_TILE_ID =</a>
+<a name="197"><span class="lineNum">     197 </span>            :         std::numeric_limits&lt;uint64_t&gt;::max();</a>
+<a name="198"><span class="lineNum">     198 </span>            :     uint64_t m_nLastTileId = INVALID_LAST_TILE_ID;</a>
+<a name="199"><span class="lineNum">     199 </span>            : </a>
+<a name="200"><span class="lineNum">     200 </span>            :     // Computed values from zoom leven and min/max x/y</a>
+<a name="201"><span class="lineNum">     201 </span>            :     uint64_t m_nMinTileId = std::numeric_limits&lt;uint64_t&gt;::max();</a>
+<a name="202"><span class="lineNum">     202 </span>            :     uint64_t m_nMaxTileId = 0;</a>
+<a name="203"><span class="lineNum">     203 </span>            : </a>
+<a name="204"><span class="lineNum">     204 </span>            :     bool m_bEOF = false;</a>
+<a name="205"><span class="lineNum">     205 </span>            : </a>
+<a name="206"><span class="lineNum">     206 </span>            :     // State of exploration of a directory</a>
+<a name="207"><span class="lineNum">     207 </span>            :     struct DirectoryContext</a>
+<a name="208"><span class="lineNum">     208 </span>            :     {</a>
+<a name="209"><span class="lineNum">     209 </span>            :         // Entries, either tiles (sEntry.run_length &gt; 0) or subdiretories</a>
+<a name="210"><span class="lineNum">     210 </span>            :         // (sEntry.run_length == 0)</a>
+<a name="211"><span class="lineNum">     211 </span>            :         std::vector&lt;pmtiles::entryv3&gt; sEntries{};</a>
+<a name="212"><span class="lineNum">     212 </span>            : </a>
+<a name="213"><span class="lineNum">     213 </span>            :         // Next index of sEntries[] to explore</a>
+<a name="214"><span class="lineNum">     214 </span>            :         uint32_t nIdxInEntries = 0;</a>
+<a name="215"><span class="lineNum">     215 </span>            : </a>
+<a name="216"><span class="lineNum">     216 </span>            :         // For tiles, value between 0 and</a>
+<a name="217"><span class="lineNum">     217 </span>            :         // sEntries[nIdxInEntries].run_length - 1</a>
+<a name="218"><span class="lineNum">     218 </span>            :         uint32_t nIdxInRunLength = 0;</a>
+<a name="219"><span class="lineNum">     219 </span>            :     };</a>
+<a name="220"><span class="lineNum">     220 </span>            : </a>
+<a name="221"><span class="lineNum">     221 </span>            :     // Stack of directories: bottom is root directory, and then we</a>
+<a name="222"><span class="lineNum">     222 </span>            :     // push subdiretories we browse throw</a>
+<a name="223"><span class="lineNum">     223 </span>            :     std::stack&lt;DirectoryContext&gt; m_aoStack{};</a>
+<a name="224"><span class="lineNum">     224 </span>            : </a>
+<a name="225"><span class="lineNum">     225 </span>            :     bool LoadRootDirectory();</a>
+<a name="226"><span class="lineNum">     226 </span>            : </a>
+<a name="227"><span class="lineNum">     227 </span>            :     CPL_DISALLOW_COPY_ASSIGN(OGRPMTilesTileIterator)</a>
+<a name="228"><span class="lineNum">     228 </span>            : };</a>
+<a name="229"><span class="lineNum">     229 </span>            : </a>
+<a name="230"><span class="lineNum">     230 </span>            : /************************************************************************/</a>
+<a name="231"><span class="lineNum">     231 </span>            : /*                        OGRPMTilesVectorLayer                         */</a>
+<a name="232"><span class="lineNum">     232 </span>            : /************************************************************************/</a>
+<a name="233"><span class="lineNum">     233 </span>            : </a>
+<a name="234"><span class="lineNum">     234 </span>            : class OGRPMTilesVectorLayer final</a>
+<a name="235"><span class="lineNum">     235 </span>            :     : public OGRLayer,</a>
+<a name="236"><span class="lineNum">     236 </span>            :       public OGRGetNextFeatureThroughRaw&lt;OGRPMTilesVectorLayer&gt;</a>
+<a name="237"><span class="lineNum">     237 </span>            : {</a>
+<a name="238"><span class="lineNum">     238 </span>            :   public:</a>
+<a name="239"><span class="lineNum">     239 </span>            :     OGRPMTilesVectorLayer(OGRPMTilesDataset *poDS, const char *pszLayerName,</a>
+<a name="240"><span class="lineNum">     240 </span>            :                           const CPLJSONObject &amp;oFields,</a>
+<a name="241"><span class="lineNum">     241 </span>            :                           const CPLJSONArray &amp;oAttributesFromTileStats,</a>
+<a name="242"><span class="lineNum">     242 </span>            :                           bool bJsonField, double dfMinX, double dfMinY,</a>
+<a name="243"><span class="lineNum">     243 </span>            :                           double dfMaxX, double dfMaxY,</a>
+<a name="244"><span class="lineNum">     244 </span>            :                           OGRwkbGeometryType eGeomType, int nZoomLevel,</a>
+<a name="245"><span class="lineNum">     245 </span>            :                           bool bZoomLevelFromSpatialFilter);</a>
+<a name="246"><span class="lineNum">     246 </span>            :     ~OGRPMTilesVectorLayer() override;</a>
+<a name="247"><span class="lineNum">     247 </span>            : </a>
+<a name="248"><span class="lineNum">     248 </span>            :     void ResetReading() override;</a>
+<a name="249"><span class="lineNum">     249 </span>            : </a>
+<a name="250"><span class="lineNum">     250 </span>            :     OGRFeature *GetNextRawFeature();</a>
+<a name="251"><span class="lineNum">     251 </span><span class="lineCov">       1400 :     DEFINE_GET_NEXT_FEATURE_THROUGH_RAW(OGRPMTilesVectorLayer)</span></a>
+<a name="252"><span class="lineNum">     252 </span>            : </a>
+<a name="253"><span class="lineNum">     253 </span><span class="lineCov">       4903 :     const OGRFeatureDefn *GetLayerDefn() const override</span></a>
+<a name="254"><span class="lineNum">     254 </span>            :     {</a>
+<a name="255"><span class="lineNum">     255 </span><span class="lineCov">       4903 :         return m_poFeatureDefn;</span></a>
+<a name="256"><span class="lineNum">     256 </span>            :     }</a>
+<a name="257"><span class="lineNum">     257 </span>            : </a>
+<a name="258"><span class="lineNum">     258 </span>            :     int TestCapability(const char *) const override;</a>
+<a name="259"><span class="lineNum">     259 </span>            : </a>
+<a name="260"><span class="lineNum">     260 </span>            :     OGRErr IGetExtent(int iGeomField, OGREnvelope *psExtent,</a>
+<a name="261"><span class="lineNum">     261 </span>            :                       bool bForce) override;</a>
+<a name="262"><span class="lineNum">     262 </span>            : </a>
+<a name="263"><span class="lineNum">     263 </span>            :     OGRErr ISetSpatialFilter(int iGeomField,</a>
+<a name="264"><span class="lineNum">     264 </span>            :                              const OGRGeometry *poGeom) override;</a>
+<a name="265"><span class="lineNum">     265 </span>            : </a>
+<a name="266"><span class="lineNum">     266 </span>            :     GIntBig GetFeatureCount(int bForce) override;</a>
+<a name="267"><span class="lineNum">     267 </span>            : </a>
+<a name="268"><span class="lineNum">     268 </span>            :     OGRFeature *GetFeature(GIntBig nFID) override;</a>
+<a name="269"><span class="lineNum">     269 </span>            : </a>
+<a name="270"><span class="lineNum">     270 </span>            :     static OGRwkbGeometryType GuessGeometryType(OGRPMTilesDataset *poDS,</a>
+<a name="271"><span class="lineNum">     271 </span>            :                                                 const char *pszLayerName,</a>
+<a name="272"><span class="lineNum">     272 </span>            :                                                 int nZoomLevel);</a>
+<a name="273"><span class="lineNum">     273 </span>            : </a>
+<a name="274"><span class="lineNum">     274 </span>            :   private:</a>
+<a name="275"><span class="lineNum">     275 </span>            :     OGRPMTilesDataset *m_poDS = nullptr;</a>
+<a name="276"><span class="lineNum">     276 </span>            :     OGRFeatureDefn *m_poFeatureDefn = nullptr;</a>
+<a name="277"><span class="lineNum">     277 </span>            : </a>
+<a name="278"><span class="lineNum">     278 </span>            :     //! Iterator over tiles</a>
+<a name="279"><span class="lineNum">     279 </span>            :     std::unique_ptr&lt;OGRPMTilesTileIterator&gt; m_poTileIterator{};</a>
+<a name="280"><span class="lineNum">     280 </span>            : </a>
+<a name="281"><span class="lineNum">     281 </span>            :     //! Total feature count (may over-estimate due to not applying clipping)</a>
+<a name="282"><span class="lineNum">     282 </span>            :     GIntBig m_nFeatureCount = -1;</a>
+<a name="283"><span class="lineNum">     283 </span>            : </a>
+<a name="284"><span class="lineNum">     284 </span>            :     //! X tile value of currently opened tile</a>
+<a name="285"><span class="lineNum">     285 </span>            :     uint32_t m_nX = 0;</a>
+<a name="286"><span class="lineNum">     286 </span>            : </a>
+<a name="287"><span class="lineNum">     287 </span>            :     //! Y tile value of currently opened tile</a>
+<a name="288"><span class="lineNum">     288 </span>            :     uint32_t m_nY = 0;</a>
+<a name="289"><span class="lineNum">     289 </span>            : </a>
+<a name="290"><span class="lineNum">     290 </span>            :     //! Offset of the currently opened tile</a>
+<a name="291"><span class="lineNum">     291 </span>            :     uint64_t m_nLastTileOffset = 0;</a>
+<a name="292"><span class="lineNum">     292 </span>            : </a>
+<a name="293"><span class="lineNum">     293 </span>            :     //! Uncompressed MVT tile</a>
+<a name="294"><span class="lineNum">     294 </span>            :     std::string m_osTileData{};</a>
+<a name="295"><span class="lineNum">     295 </span>            : </a>
+<a name="296"><span class="lineNum">     296 </span>            :     //! In-memory MVT dataset of the currently opened tile</a>
+<a name="297"><span class="lineNum">     297 </span>            :     std::unique_ptr&lt;GDALDataset&gt; m_poTileDS{};</a>
+<a name="298"><span class="lineNum">     298 </span>            : </a>
+<a name="299"><span class="lineNum">     299 </span>            :     //! Layer of m_poTileDS</a>
+<a name="300"><span class="lineNum">     300 </span>            :     OGRLayer *m_poTileLayer = nullptr;</a>
+<a name="301"><span class="lineNum">     301 </span>            : </a>
+<a name="302"><span class="lineNum">     302 </span>            :     //! Layer extent</a>
+<a name="303"><span class="lineNum">     303 </span>            :     OGREnvelope m_sExtent{};</a>
+<a name="304"><span class="lineNum">     304 </span>            : </a>
+<a name="305"><span class="lineNum">     305 </span>            :     //! Minimum X tile value corresponding to m_sFilterEnvelope</a>
+<a name="306"><span class="lineNum">     306 </span>            :     int m_nFilterMinX = 0;</a>
+<a name="307"><span class="lineNum">     307 </span>            : </a>
+<a name="308"><span class="lineNum">     308 </span>            :     //! Minimum Y tile value corresponding to m_sFilterEnvelope</a>
+<a name="309"><span class="lineNum">     309 </span>            :     int m_nFilterMinY = 0;</a>
+<a name="310"><span class="lineNum">     310 </span>            : </a>
+<a name="311"><span class="lineNum">     311 </span>            :     //! Maximum X tile value corresponding to m_sFilterEnvelope</a>
+<a name="312"><span class="lineNum">     312 </span>            :     int m_nFilterMaxX = 0;</a>
+<a name="313"><span class="lineNum">     313 </span>            : </a>
+<a name="314"><span class="lineNum">     314 </span>            :     //! Maximum Y tile value corresponding to m_sFilterEnvelope</a>
+<a name="315"><span class="lineNum">     315 </span>            :     int m_nFilterMaxY = 0;</a>
+<a name="316"><span class="lineNum">     316 </span>            : </a>
+<a name="317"><span class="lineNum">     317 </span>            :     //! Currently used zoom level</a>
+<a name="318"><span class="lineNum">     318 </span>            :     int m_nZoomLevel = 0;</a>
+<a name="319"><span class="lineNum">     319 </span>            : </a>
+<a name="320"><span class="lineNum">     320 </span>            :     //! Whether we should auto-adapt m_nZoomLevel from the spatial filter extent</a>
+<a name="321"><span class="lineNum">     321 </span>            :     bool m_bZoomLevelAuto = false;</a>
+<a name="322"><span class="lineNum">     322 </span>            : </a>
+<a name="323"><span class="lineNum">     323 </span>            :     //! Whether we should expose the tile fields in a &quot;json&quot; field</a>
+<a name="324"><span class="lineNum">     324 </span>            :     bool m_bJsonField = false;</a>
+<a name="325"><span class="lineNum">     325 </span>            : </a>
+<a name="326"><span class="lineNum">     326 </span>            :     std::unique_ptr&lt;OGRFeature&gt; GetNextSrcFeature();</a>
+<a name="327"><span class="lineNum">     327 </span>            :     std::unique_ptr&lt;OGRFeature&gt; CreateFeatureFrom(OGRFeature *poSrcFeature);</a>
+<a name="328"><span class="lineNum">     328 </span>            :     GIntBig GetTotalFeatureCount() const;</a>
+<a name="329"><span class="lineNum">     329 </span>            :     void ExtentToTileExtent(const OGREnvelope &amp;sEnvelope, int &amp;nTileMinX,</a>
+<a name="330"><span class="lineNum">     330 </span>            :                             int &amp;nTileMinY, int &amp;nTileMaxX,</a>
+<a name="331"><span class="lineNum">     331 </span>            :                             int &amp;nTileMaxY) const;</a>
+<a name="332"><span class="lineNum">     332 </span>            : </a>
+<a name="333"><span class="lineNum">     333 </span>            :     CPL_DISALLOW_COPY_ASSIGN(OGRPMTilesVectorLayer)</a>
+<a name="334"><span class="lineNum">     334 </span>            : };</a>
+<a name="335"><span class="lineNum">     335 </span>            : </a>
+<a name="336"><span class="lineNum">     336 </span>            : #ifdef HAVE_MVT_WRITE_SUPPORT</a>
+<a name="337"><span class="lineNum">     337 </span>            : </a>
+<a name="338"><span class="lineNum">     338 </span>            : /************************************************************************/</a>
+<a name="339"><span class="lineNum">     339 </span>            : /*                       OGRPMTilesWriterDataset                        */</a>
+<a name="340"><span class="lineNum">     340 </span>            : /************************************************************************/</a>
+<a name="341"><span class="lineNum">     341 </span>            : </a>
+<a name="342"><span class="lineNum">     342 </span>            : class OGRPMTilesWriterDataset final : public GDALDataset</a>
+<a name="343"><span class="lineNum">     343 </span>            : {</a>
+<a name="344"><span class="lineNum">     344 </span>            :     std::unique_ptr&lt;GDALDataset&gt; m_poMBTilesWriterDataset{};</a>
+<a name="345"><span class="lineNum">     345 </span>            : </a>
+<a name="346"><span class="lineNum">     346 </span>            :   public:</a>
+<a name="347"><span class="lineNum">     347 </span><span class="lineCov">         34 :     OGRPMTilesWriterDataset() = default;</span></a>
+<a name="348"><span class="lineNum">     348 </span>            : </a>
+<a name="349"><span class="lineNum">     349 </span>            :     ~OGRPMTilesWriterDataset() override;</a>
+<a name="350"><span class="lineNum">     350 </span>            : </a>
+<a name="351"><span class="lineNum">     351 </span>            :     bool Create(const char *pszFilename, CSLConstList papszOptions);</a>
+<a name="352"><span class="lineNum">     352 </span>            : </a>
+<a name="353"><span class="lineNum">     353 </span>            :     CPLErr Close(GDALProgressFunc = nullptr, void * = nullptr) override;</a>
+<a name="354"><span class="lineNum">     354 </span>            : </a>
+<a name="355"><span class="lineNum">     355 </span>            :     OGRLayer *ICreateLayer(const char *pszName,</a>
+<a name="356"><span class="lineNum">     356 </span>            :                            const OGRGeomFieldDefn *poGeomFieldDefn,</a>
+<a name="357"><span class="lineNum">     357 </span>            :                            CSLConstList papszOptions) override;</a>
+<a name="358"><span class="lineNum">     358 </span>            : </a>
+<a name="359"><span class="lineNum">     359 </span>            :     int TestCapability(const char *) const override;</a>
+<a name="360"><span class="lineNum">     360 </span>            : };</a>
+<a name="361"><span class="lineNum">     361 </span>            : </a>
+<a name="362"><span class="lineNum">     362 </span>            : #endif  // HAVE_MVT_WRITE_SUPPORT</a>
+<a name="363"><span class="lineNum">     363 </span>            : </a>
+<a name="364"><span class="lineNum">     364 </span>            : #endif  // OGR_PMTILES_H_INCLUDED</a>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.14</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

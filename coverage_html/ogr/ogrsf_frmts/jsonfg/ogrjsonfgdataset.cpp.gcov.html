@@ -1,0 +1,1124 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - ogr/ogrsf_frmts/jsonfg/ogrjsonfgdataset.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">ogr/ogrsf_frmts/jsonfg</a> - ogrjsonfgdataset.cpp<span style="font-size: 80%;"> (source / <a href="ogrjsonfgdataset.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">403</td>
+            <td class="headerCovTableEntry">478</td>
+            <td class="headerCovTableEntryMed">84.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2026-02-22 22:25:11</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">20</td>
+            <td class="headerCovTableEntry">20</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<a name="2"><span class="lineNum">       2 </span>            :  *</a>
+<a name="3"><span class="lineNum">       3 </span>            :  * Project:  OpenGIS Simple Features Reference Implementation</a>
+<a name="4"><span class="lineNum">       4 </span>            :  * Purpose:  Implementation of OGC Features and Geometries JSON (JSON-FG)</a>
+<a name="5"><span class="lineNum">       5 </span>            :  * Author:   Even Rouault &lt;even.rouault at spatialys.com&gt;</a>
+<a name="6"><span class="lineNum">       6 </span>            :  *</a>
+<a name="7"><span class="lineNum">       7 </span>            :  ******************************************************************************</a>
+<a name="8"><span class="lineNum">       8 </span>            :  * Copyright (c) 2023, Even Rouault &lt;even.rouault at spatialys.com&gt;</a>
+<a name="9"><span class="lineNum">       9 </span>            :  *</a>
+<a name="10"><span class="lineNum">      10 </span>            :  * SPDX-License-Identifier: MIT</a>
+<a name="11"><span class="lineNum">      11 </span>            :  ****************************************************************************/</a>
+<a name="12"><span class="lineNum">      12 </span>            : </a>
+<a name="13"><span class="lineNum">      13 </span>            : #include &quot;ogr_jsonfg.h&quot;</a>
+<a name="14"><span class="lineNum">      14 </span>            : #include &quot;ogr_geojson.h&quot;</a>
+<a name="15"><span class="lineNum">      15 </span>            : </a>
+<a name="16"><span class="lineNum">      16 </span>            : #include &quot;cpl_http.h&quot;</a>
+<a name="17"><span class="lineNum">      17 </span>            : #include &quot;cpl_vsi_error.h&quot;</a>
+<a name="18"><span class="lineNum">      18 </span>            : #include &quot;cpl_vsi_virtual.h&quot;</a>
+<a name="19"><span class="lineNum">      19 </span>            : </a>
+<a name="20"><span class="lineNum">      20 </span>            : #include &lt;cmath&gt;</a>
+<a name="21"><span class="lineNum">      21 </span>            : </a>
+<a name="22"><span class="lineNum">      22 </span>            : constexpr const char *CONFORMANCE_CORE =</a>
+<a name="23"><span class="lineNum">      23 </span>            :     &quot;http://www.opengis.net/spec/json-fg-1/0.3/conf/core&quot;;</a>
+<a name="24"><span class="lineNum">      24 </span>            : constexpr const char *CONFORMANCE_FEATURE_TYPE =</a>
+<a name="25"><span class="lineNum">      25 </span>            :     &quot;http://www.opengis.net/spec/json-fg-1/0.3/conf/types-schemas&quot;;</a>
+<a name="26"><span class="lineNum">      26 </span>            : constexpr const char *CONFORMANCE_POLYHEDRA =</a>
+<a name="27"><span class="lineNum">      27 </span>            :     &quot;http://www.opengis.net/spec/json-fg-1/0.3/conf/polyhedra&quot;;</a>
+<a name="28"><span class="lineNum">      28 </span>            : constexpr const char *CONFORMANCE_CIRCULAR_ARCS =</a>
+<a name="29"><span class="lineNum">      29 </span>            :     &quot;http://www.opengis.net/spec/json-fg-1/0.3/conf/circular-arcs&quot;;</a>
+<a name="30"><span class="lineNum">      30 </span>            : constexpr const char *CONFORMANCE_MEASURES =</a>
+<a name="31"><span class="lineNum">      31 </span>            :     &quot;http://www.opengis.net/spec/json-fg-1/0.3/conf/measures&quot;;</a>
+<a name="32"><span class="lineNum">      32 </span>            : </a>
+<a name="33"><span class="lineNum">      33 </span>            : /************************************************************************/</a>
+<a name="34"><span class="lineNum">      34 </span>            : /*                OGRJSONFGDataset::~OGRJSONFGDataset()                 */</a>
+<a name="35"><span class="lineNum">      35 </span>            : /************************************************************************/</a>
+<a name="36"><span class="lineNum">      36 </span>            : </a>
+<a name="37"><span class="lineNum">      37 </span><span class="lineCov">        636 : OGRJSONFGDataset::~OGRJSONFGDataset()</span></a>
+<a name="38"><span class="lineNum">      38 </span>            : {</a>
+<a name="39"><span class="lineNum">      39 </span><span class="lineCov">        318 :     OGRJSONFGDataset::Close();</span></a>
+<a name="40"><span class="lineNum">      40 </span><span class="lineCov">        318 :     CPLFree(pszGeoData_);</span></a>
+<a name="41"><span class="lineNum">      41 </span><span class="lineCov">        636 : }</span></a>
+<a name="42"><span class="lineNum">      42 </span>            : </a>
+<a name="43"><span class="lineNum">      43 </span>            : /************************************************************************/</a>
+<a name="44"><span class="lineNum">      44 </span>            : /*                      OGRJSONFGDataset::Close()                       */</a>
+<a name="45"><span class="lineNum">      45 </span>            : /************************************************************************/</a>
+<a name="46"><span class="lineNum">      46 </span>            : </a>
+<a name="47"><span class="lineNum">      47 </span><span class="lineCov">        626 : CPLErr OGRJSONFGDataset::Close(GDALProgressFunc, void *)</span></a>
+<a name="48"><span class="lineNum">      48 </span>            : {</a>
+<a name="49"><span class="lineNum">      49 </span><span class="lineCov">        626 :     CPLErr eErr = CE_None;</span></a>
+<a name="50"><span class="lineNum">      50 </span><span class="lineCov">        626 :     if (nOpenFlags != OPEN_FLAGS_CLOSED)</span></a>
+<a name="51"><span class="lineNum">      51 </span>            :     {</a>
+<a name="52"><span class="lineNum">      52 </span><span class="lineCov">        318 :         if (fpOut_)</span></a>
+<a name="53"><span class="lineNum">      53 </span>            :         {</a>
+<a name="54"><span class="lineNum">      54 </span><span class="lineCov">        105 :             eErr = GDAL::Combine(eErr, FinishWriting());</span></a>
+<a name="55"><span class="lineNum">      55 </span>            : </a>
+<a name="56"><span class="lineNum">      56 </span><span class="lineCov">        105 :             eErr = GDAL::Combine(eErr, VSIFCloseL(fpOut_) == 0);</span></a>
+<a name="57"><span class="lineNum">      57 </span><span class="lineCov">        105 :             fpOut_ = nullptr;</span></a>
+<a name="58"><span class="lineNum">      58 </span>            :         }</a>
+<a name="59"><span class="lineNum">      59 </span>            : </a>
+<a name="60"><span class="lineNum">      60 </span><span class="lineCov">        318 :         apoLayers_.clear();</span></a>
+<a name="61"><span class="lineNum">      61 </span>            : </a>
+<a name="62"><span class="lineNum">      62 </span><span class="lineCov">        318 :         eErr = GDAL::Combine(eErr, GDALDataset::Close());</span></a>
+<a name="63"><span class="lineNum">      63 </span>            :     }</a>
+<a name="64"><span class="lineNum">      64 </span>            : </a>
+<a name="65"><span class="lineNum">      65 </span><span class="lineCov">        626 :     return eErr;</span></a>
+<a name="66"><span class="lineNum">      66 </span>            : }</a>
+<a name="67"><span class="lineNum">      67 </span>            : </a>
+<a name="68"><span class="lineNum">      68 </span>            : /************************************************************************/</a>
+<a name="69"><span class="lineNum">      69 </span>            : /*                           FinishWriting()                            */</a>
+<a name="70"><span class="lineNum">      70 </span>            : /************************************************************************/</a>
+<a name="71"><span class="lineNum">      71 </span>            : </a>
+<a name="72"><span class="lineNum">      72 </span><span class="lineCov">        109 : bool OGRJSONFGDataset::FinishWriting()</span></a>
+<a name="73"><span class="lineNum">      73 </span>            : {</a>
+<a name="74"><span class="lineNum">      74 </span><span class="lineCov">        109 :     bool ret = true;</span></a>
+<a name="75"><span class="lineNum">      75 </span><span class="lineCov">        109 :     if (m_nPositionBeforeFCClosed == 0)</span></a>
+<a name="76"><span class="lineNum">      76 </span>            :     {</a>
+<a name="77"><span class="lineNum">      77 </span><span class="lineCov">        106 :         m_nPositionBeforeFCClosed = fpOut_-&gt;Tell();</span></a>
+<a name="78"><span class="lineNum">      78 </span>            : </a>
+<a name="79"><span class="lineNum">      79 </span><span class="lineCov">        106 :         if (!EmitStartFeaturesIfNeededAndReturnIfFirstFeature())</span></a>
+<a name="80"><span class="lineNum">      80 </span><span class="lineCov">         90 :             ret &amp;= VSIFPrintfL(fpOut_, &quot;\n&quot;) != 0;</span></a>
+<a name="81"><span class="lineNum">      81 </span><span class="lineCov">        106 :         ret &amp;= VSIFPrintfL(fpOut_, &quot;]&quot;) != 0;</span></a>
+<a name="82"><span class="lineNum">      82 </span>            : </a>
+<a name="83"><span class="lineNum">      83 </span>            :         // When we didn't know if there was a single layer, we omitted writing</a>
+<a name="84"><span class="lineNum">      84 </span>            :         // the coordinate precision at ICreateLayer() time.</a>
+<a name="85"><span class="lineNum">      85 </span>            :         // Now we can check if there was a single layer, or several layers with</a>
+<a name="86"><span class="lineNum">      86 </span>            :         // same precision setting, and write it when possible.</a>
+<a name="87"><span class="lineNum">      87 </span><span class="lineCov">        197 :         if (!bSingleOutputLayer_ &amp;&amp; !apoLayers_.empty() &amp;&amp;</span></a>
+<a name="88"><span class="lineNum">      88 </span><span class="lineCov">         91 :             apoLayers_.front()-&gt;GetLayerDefn()-&gt;GetGeomFieldCount() &gt; 0)</span></a>
+<a name="89"><span class="lineNum">      89 </span>            :         {</a>
+<a name="90"><span class="lineNum">      90 </span><span class="lineCov">         80 :             const auto &amp;oCoordPrec = apoLayers_.front()</span></a>
+<a name="91"><span class="lineNum">      91 </span><span class="lineCov">         80 :                                          -&gt;GetLayerDefn()</span></a>
+<a name="92"><span class="lineNum">      92 </span><span class="lineCov">         80 :                                          -&gt;GetGeomFieldDefn(0)</span></a>
+<a name="93"><span class="lineNum">      93 </span><span class="lineCov">         80 :                                          -&gt;GetCoordinatePrecision();</span></a>
+<a name="94"><span class="lineNum">      94 </span><span class="lineCov">         80 :             bool bSameGeomCoordPrec =</span></a>
+<a name="95"><span class="lineNum">      95 </span><span class="lineCov">         80 :                 (oCoordPrec.dfXYResolution !=</span></a>
+<a name="96"><span class="lineNum">      96 </span><span class="lineCov">        159 :                      OGRGeomCoordinatePrecision::UNKNOWN ||</span></a>
+<a name="97"><span class="lineNum">      97 </span><span class="lineCov">         79 :                  oCoordPrec.dfZResolution !=</span></a>
+<a name="98"><span class="lineNum">      98 </span>            :                      OGRGeomCoordinatePrecision::UNKNOWN);</a>
+<a name="99"><span class="lineNum">      99 </span><span class="lineCov">         98 :             for (size_t i = 1; i &lt; apoLayers_.size(); ++i)</span></a>
+<a name="100"><span class="lineNum">     100 </span>            :             {</a>
+<a name="101"><span class="lineNum">     101 </span><span class="lineCov">         18 :                 if (apoLayers_[i]-&gt;GetLayerDefn()-&gt;GetGeomFieldCount() &gt; 0)</span></a>
+<a name="102"><span class="lineNum">     102 </span>            :                 {</a>
+<a name="103"><span class="lineNum">     103 </span>            :                     const auto &amp;oOtherCoordPrec =</a>
+<a name="104"><span class="lineNum">     104 </span><span class="lineCov">         18 :                         apoLayers_[i]</span></a>
+<a name="105"><span class="lineNum">     105 </span><span class="lineCov">         18 :                             -&gt;GetLayerDefn()</span></a>
+<a name="106"><span class="lineNum">     106 </span><span class="lineCov">         18 :                             -&gt;GetGeomFieldDefn(0)</span></a>
+<a name="107"><span class="lineNum">     107 </span><span class="lineCov">         18 :                             -&gt;GetCoordinatePrecision();</span></a>
+<a name="108"><span class="lineNum">     108 </span><span class="lineCov">         36 :                     bSameGeomCoordPrec &amp;= (oOtherCoordPrec.dfXYResolution ==</span></a>
+<a name="109"><span class="lineNum">     109 </span><span class="lineCov">         36 :                                                oCoordPrec.dfXYResolution &amp;&amp;</span></a>
+<a name="110"><span class="lineNum">     110 </span><span class="lineCov">         18 :                                            oOtherCoordPrec.dfZResolution ==</span></a>
+<a name="111"><span class="lineNum">     111 </span><span class="lineCov">         18 :                                                oCoordPrec.dfZResolution);</span></a>
+<a name="112"><span class="lineNum">     112 </span>            :                 }</a>
+<a name="113"><span class="lineNum">     113 </span>            :             }</a>
+<a name="114"><span class="lineNum">     114 </span><span class="lineCov">         80 :             if (bSameGeomCoordPrec)</span></a>
+<a name="115"><span class="lineNum">     115 </span>            :             {</a>
+<a name="116"><span class="lineNum">     116 </span><span class="lineCov">          1 :                 if (oCoordPrec.dfXYResolution !=</span></a>
+<a name="117"><span class="lineNum">     117 </span>            :                     OGRGeomCoordinatePrecision::UNKNOWN)</a>
+<a name="118"><span class="lineNum">     118 </span>            :                 {</a>
+<a name="119"><span class="lineNum">     119 </span><span class="lineCov">          1 :                     ret &amp;=</span></a>
+<a name="120"><span class="lineNum">     120 </span><span class="lineCov">          2 :                         VSIFPrintfL(fpOut_,</span></a>
+<a name="121"><span class="lineNum">     121 </span>            :                                     &quot;,\n\&quot;xy_coordinate_resolution_place\&quot;:%g&quot;,</a>
+<a name="122"><span class="lineNum">     122 </span><span class="lineCov">          1 :                                     oCoordPrec.dfXYResolution) != 0;</span></a>
+<a name="123"><span class="lineNum">     123 </span>            :                 }</a>
+<a name="124"><span class="lineNum">     124 </span><span class="lineCov">          1 :                 if (oCoordPrec.dfZResolution !=</span></a>
+<a name="125"><span class="lineNum">     125 </span>            :                     OGRGeomCoordinatePrecision::UNKNOWN)</a>
+<a name="126"><span class="lineNum">     126 </span>            :                 {</a>
+<a name="127"><span class="lineNum">     127 </span><span class="lineCov">          1 :                     ret &amp;=</span></a>
+<a name="128"><span class="lineNum">     128 </span><span class="lineCov">          2 :                         VSIFPrintfL(fpOut_,</span></a>
+<a name="129"><span class="lineNum">     129 </span>            :                                     &quot;,\n\&quot;z_coordinate_resolution_place\&quot;:%g&quot;,</a>
+<a name="130"><span class="lineNum">     130 </span><span class="lineCov">          1 :                                     oCoordPrec.dfZResolution) != 0;</span></a>
+<a name="131"><span class="lineNum">     131 </span>            :                 }</a>
+<a name="132"><span class="lineNum">     132 </span>            : </a>
+<a name="133"><span class="lineNum">     133 </span><span class="lineCov">          2 :                 OGRSpatialReference oSRSWGS84;</span></a>
+<a name="134"><span class="lineNum">     134 </span><span class="lineCov">          1 :                 oSRSWGS84.SetWellKnownGeogCS(&quot;WGS84&quot;);</span></a>
+<a name="135"><span class="lineNum">     135 </span>            :                 const auto oCoordPrecWGS84 = oCoordPrec.ConvertToOtherSRS(</a>
+<a name="136"><span class="lineNum">     136 </span><span class="lineCov">          2 :                     apoLayers_.front()-&gt;GetSpatialRef(), &amp;oSRSWGS84);</span></a>
+<a name="137"><span class="lineNum">     137 </span>            : </a>
+<a name="138"><span class="lineNum">     138 </span><span class="lineCov">          1 :                 if (oCoordPrecWGS84.dfXYResolution !=</span></a>
+<a name="139"><span class="lineNum">     139 </span>            :                     OGRGeomCoordinatePrecision::UNKNOWN)</a>
+<a name="140"><span class="lineNum">     140 </span>            :                 {</a>
+<a name="141"><span class="lineNum">     141 </span><span class="lineCov">          2 :                     ret &amp;= VSIFPrintfL(fpOut_,</span></a>
+<a name="142"><span class="lineNum">     142 </span>            :                                        &quot;,\n\&quot;xy_coordinate_resolution\&quot;:%g&quot;,</a>
+<a name="143"><span class="lineNum">     143 </span><span class="lineCov">          1 :                                        oCoordPrecWGS84.dfXYResolution) != 0;</span></a>
+<a name="144"><span class="lineNum">     144 </span>            :                 }</a>
+<a name="145"><span class="lineNum">     145 </span><span class="lineCov">          1 :                 if (oCoordPrecWGS84.dfZResolution !=</span></a>
+<a name="146"><span class="lineNum">     146 </span>            :                     OGRGeomCoordinatePrecision::UNKNOWN)</a>
+<a name="147"><span class="lineNum">     147 </span>            :                 {</a>
+<a name="148"><span class="lineNum">     148 </span><span class="lineCov">          1 :                     ret &amp;=</span></a>
+<a name="149"><span class="lineNum">     149 </span><span class="lineCov">          2 :                         VSIFPrintfL(fpOut_, &quot;,\n\&quot;z_coordinate_resolution\&quot;:%g&quot;,</span></a>
+<a name="150"><span class="lineNum">     150 </span><span class="lineCov">          1 :                                     oCoordPrecWGS84.dfZResolution) != 0;</span></a>
+<a name="151"><span class="lineNum">     151 </span>            :                 }</a>
+<a name="152"><span class="lineNum">     152 </span>            :             }</a>
+<a name="153"><span class="lineNum">     153 </span>            :         }</a>
+<a name="154"><span class="lineNum">     154 </span>            : </a>
+<a name="155"><span class="lineNum">     155 </span><span class="lineCov">        106 :         bool bPolyhedra = false;</span></a>
+<a name="156"><span class="lineNum">     156 </span><span class="lineCov">        106 :         bool bCurve = false;</span></a>
+<a name="157"><span class="lineNum">     157 </span><span class="lineCov">        106 :         bool bMeasure = false;</span></a>
+<a name="158"><span class="lineNum">     158 </span><span class="lineCov">        231 :         for (auto &amp;poLayer : apoLayers_)</span></a>
+<a name="159"><span class="lineNum">     159 </span>            :         {</a>
+<a name="160"><span class="lineNum">     160 </span>            :             auto poWriteLayer =</a>
+<a name="161"><span class="lineNum">     161 </span><span class="lineCov">        125 :                 dynamic_cast&lt;OGRJSONFGWriteLayer *&gt;(poLayer.get());</span></a>
+<a name="162"><span class="lineNum">     162 </span><span class="lineCov">        125 :             if (poWriteLayer)</span></a>
+<a name="163"><span class="lineNum">     163 </span>            :             {</a>
+<a name="164"><span class="lineNum">     164 </span><span class="lineCov">        125 :                 bPolyhedra |= poWriteLayer-&gt;HasPolyhedra();</span></a>
+<a name="165"><span class="lineNum">     165 </span><span class="lineCov">        125 :                 bCurve |= poWriteLayer-&gt;HasCurve();</span></a>
+<a name="166"><span class="lineNum">     166 </span><span class="lineCov">        125 :                 bMeasure |= poWriteLayer-&gt;HasMeasure();</span></a>
+<a name="167"><span class="lineNum">     167 </span>            :             }</a>
+<a name="168"><span class="lineNum">     168 </span>            :         }</a>
+<a name="169"><span class="lineNum">     169 </span><span class="lineCov">        106 :         if (bPolyhedra || bCurve || bMeasure ||</span></a>
+<a name="170"><span class="lineNum">     170 </span><span class="lineCov">         75 :             m_nPositionBeforeConformsTo == 0)</span></a>
+<a name="171"><span class="lineNum">     171 </span>            :         {</a>
+<a name="172"><span class="lineNum">     172 </span><span class="lineCov">         31 :             if (m_nPositionBeforeConformsTo &gt; 0)</span></a>
+<a name="173"><span class="lineNum">     173 </span>            :             {</a>
+<a name="174"><span class="lineNum">     174 </span><span class="lineCov">         30 :                 ret &amp;= VSIFSeekL(fpOut_, m_nPositionBeforeConformsTo,</span></a>
+<a name="175"><span class="lineNum">     175 </span><span class="lineCov">         30 :                                  SEEK_SET) == 0;</span></a>
+<a name="176"><span class="lineNum">     176 </span>            :             }</a>
+<a name="177"><span class="lineNum">     177 </span>            :             else</a>
+<a name="178"><span class="lineNum">     178 </span>            :             {</a>
+<a name="179"><span class="lineNum">     179 </span><span class="lineCov">          1 :                 ret &amp;= VSIFPrintfL(fpOut_, &quot;,\n&quot;) != 0;</span></a>
+<a name="180"><span class="lineNum">     180 </span>            :             }</a>
+<a name="181"><span class="lineNum">     181 </span><span class="lineCov">         31 :             ret &amp;= VSIFPrintfL(fpOut_,</span></a>
+<a name="182"><span class="lineNum">     182 </span>            :                                &quot;\&quot;conformsTo\&quot;: [\n&quot;</a>
+<a name="183"><span class="lineNum">     183 </span>            :                                &quot;  \&quot;%s\&quot;,\n  \&quot;%s\&quot;&quot;,</a>
+<a name="184"><span class="lineNum">     184 </span><span class="lineCov">         31 :                                CONFORMANCE_CORE, CONFORMANCE_FEATURE_TYPE) != 0;</span></a>
+<a name="185"><span class="lineNum">     185 </span><span class="lineCov">         31 :             if (bPolyhedra)</span></a>
+<a name="186"><span class="lineNum">     186 </span><span class="lineCov">          3 :                 ret &amp;= VSIFPrintfL(fpOut_, &quot;,\n  \&quot;%s\&quot;&quot;,</span></a>
+<a name="187"><span class="lineNum">     187 </span><span class="lineCov">          3 :                                    CONFORMANCE_POLYHEDRA) != 0;</span></a>
+<a name="188"><span class="lineNum">     188 </span><span class="lineCov">         31 :             if (bCurve)</span></a>
+<a name="189"><span class="lineNum">     189 </span><span class="lineCov">         22 :                 ret &amp;= VSIFPrintfL(fpOut_, &quot;,\n  \&quot;%s\&quot;&quot;,</span></a>
+<a name="190"><span class="lineNum">     190 </span><span class="lineCov">         22 :                                    CONFORMANCE_CIRCULAR_ARCS) != 0;</span></a>
+<a name="191"><span class="lineNum">     191 </span><span class="lineCov">         31 :             if (bMeasure)</span></a>
+<a name="192"><span class="lineNum">     192 </span><span class="lineCov">         17 :                 ret &amp;= VSIFPrintfL(fpOut_, &quot;,\n  \&quot;%s\&quot;&quot;,</span></a>
+<a name="193"><span class="lineNum">     193 </span><span class="lineCov">         17 :                                    CONFORMANCE_MEASURES) != 0;</span></a>
+<a name="194"><span class="lineNum">     194 </span><span class="lineCov">         31 :             if (m_nPositionBeforeConformsTo &gt; 0)</span></a>
+<a name="195"><span class="lineNum">     195 </span>            :             {</a>
+<a name="196"><span class="lineNum">     196 </span><span class="lineCov">         30 :                 ret &amp;= VSIFPrintfL(fpOut_, &quot;\n],&quot;) != 0;</span></a>
+<a name="197"><span class="lineNum">     197 </span><span class="lineCov">         30 :                 ret &amp;= VSIFPrintfL(</span></a>
+<a name="198"><span class="lineNum">     198 </span>            :                            fpOut_, &quot;%s\n&quot;,</a>
+<a name="199"><span class="lineNum">     199 </span><span class="lineCov">         60 :                            std::string(static_cast&lt;size_t&gt;(</span></a>
+<a name="200"><span class="lineNum">     200 </span><span class="lineCov">         30 :                                            m_nPositionAfterConformsTo -</span></a>
+<a name="201"><span class="lineNum">     201 </span><span class="lineCov">         30 :                                            strlen(&quot;,&quot;) - VSIFTellL(fpOut_)),</span></a>
+<a name="202"><span class="lineNum">     202 </span>            :                                        ' ')</a>
+<a name="203"><span class="lineNum">     203 </span><span class="lineCov">         30 :                                .c_str()) != 0;</span></a>
+<a name="204"><span class="lineNum">     204 </span>            : </a>
+<a name="205"><span class="lineNum">     205 </span><span class="lineCov">         30 :                 ret &amp;= VSIFSeekL(fpOut_, 0, SEEK_END) == 0;</span></a>
+<a name="206"><span class="lineNum">     206 </span>            :             }</a>
+<a name="207"><span class="lineNum">     207 </span>            :             else</a>
+<a name="208"><span class="lineNum">     208 </span>            :             {</a>
+<a name="209"><span class="lineNum">     209 </span><span class="lineCov">          1 :                 ret &amp;= VSIFPrintfL(fpOut_, &quot;\n]&quot;) != 0;</span></a>
+<a name="210"><span class="lineNum">     210 </span>            :             }</a>
+<a name="211"><span class="lineNum">     211 </span>            :         }</a>
+<a name="212"><span class="lineNum">     212 </span>            : </a>
+<a name="213"><span class="lineNum">     213 </span><span class="lineCov">        106 :         ret &amp;= VSIFPrintfL(fpOut_, &quot;\n}\n&quot;) != 0;</span></a>
+<a name="214"><span class="lineNum">     214 </span>            : </a>
+<a name="215"><span class="lineNum">     215 </span><span class="lineCov">        106 :         ret &amp;= fpOut_-&gt;Flush() == 0;</span></a>
+<a name="216"><span class="lineNum">     216 </span>            :     }</a>
+<a name="217"><span class="lineNum">     217 </span><span class="lineCov">        109 :     return ret;</span></a>
+<a name="218"><span class="lineNum">     218 </span>            : }</a>
+<a name="219"><span class="lineNum">     219 </span>            : </a>
+<a name="220"><span class="lineNum">     220 </span>            : /************************************************************************/</a>
+<a name="221"><span class="lineNum">     221 </span>            : /*                         SyncToDiskInternal()                         */</a>
+<a name="222"><span class="lineNum">     222 </span>            : /************************************************************************/</a>
+<a name="223"><span class="lineNum">     223 </span>            : </a>
+<a name="224"><span class="lineNum">     224 </span><span class="lineCov">          6 : OGRErr OGRJSONFGDataset::SyncToDiskInternal()</span></a>
+<a name="225"><span class="lineNum">     225 </span>            : {</a>
+<a name="226"><span class="lineNum">     226 </span><span class="lineCov">          6 :     if (m_nPositionBeforeFCClosed == 0 &amp;&amp; GetFpOutputIsSeekable())</span></a>
+<a name="227"><span class="lineNum">     227 </span>            :     {</a>
+<a name="228"><span class="lineNum">     228 </span><span class="lineCov">          4 :         FinishWriting();</span></a>
+<a name="229"><span class="lineNum">     229 </span>            :     }</a>
+<a name="230"><span class="lineNum">     230 </span>            : </a>
+<a name="231"><span class="lineNum">     231 </span><span class="lineCov">          6 :     return OGRERR_NONE;</span></a>
+<a name="232"><span class="lineNum">     232 </span>            : }</a>
+<a name="233"><span class="lineNum">     233 </span>            : </a>
+<a name="234"><span class="lineNum">     234 </span>            : /************************************************************************/</a>
+<a name="235"><span class="lineNum">     235 </span>            : /*                        BeforeCreateFeature()                         */</a>
+<a name="236"><span class="lineNum">     236 </span>            : /************************************************************************/</a>
+<a name="237"><span class="lineNum">     237 </span>            : </a>
+<a name="238"><span class="lineNum">     238 </span><span class="lineCov">        173 : void OGRJSONFGDataset::BeforeCreateFeature()</span></a>
+<a name="239"><span class="lineNum">     239 </span>            : {</a>
+<a name="240"><span class="lineNum">     240 </span><span class="lineCov">        173 :     if (m_nPositionBeforeFCClosed)</span></a>
+<a name="241"><span class="lineNum">     241 </span>            :     {</a>
+<a name="242"><span class="lineNum">     242 </span>            :         // If we had called SyncToDisk() previously, undo its effects</a>
+<a name="243"><span class="lineNum">     243 </span><span class="lineCov">          1 :         fpOut_-&gt;Seek(m_nPositionBeforeFCClosed, SEEK_SET);</span></a>
+<a name="244"><span class="lineNum">     244 </span><span class="lineCov">          1 :         m_nPositionBeforeFCClosed = 0;</span></a>
+<a name="245"><span class="lineNum">     245 </span>            :     }</a>
+<a name="246"><span class="lineNum">     246 </span>            : </a>
+<a name="247"><span class="lineNum">     247 </span><span class="lineCov">        173 :     if (!EmitStartFeaturesIfNeededAndReturnIfFirstFeature())</span></a>
+<a name="248"><span class="lineNum">     248 </span>            :     {</a>
+<a name="249"><span class="lineNum">     249 </span><span class="lineCov">         84 :         VSIFPrintfL(fpOut_, &quot;,\n&quot;);</span></a>
+<a name="250"><span class="lineNum">     250 </span>            :     }</a>
+<a name="251"><span class="lineNum">     251 </span><span class="lineCov">        173 : }</span></a>
+<a name="252"><span class="lineNum">     252 </span>            : </a>
+<a name="253"><span class="lineNum">     253 </span>            : /************************************************************************/</a>
+<a name="254"><span class="lineNum">     254 </span>            : /*                                Open()                                */</a>
+<a name="255"><span class="lineNum">     255 </span>            : /************************************************************************/</a>
+<a name="256"><span class="lineNum">     256 </span>            : </a>
+<a name="257"><span class="lineNum">     257 </span><span class="lineCov">        212 : bool OGRJSONFGDataset::Open(GDALOpenInfo *poOpenInfo,</span></a>
+<a name="258"><span class="lineNum">     258 </span>            :                             GeoJSONSourceType nSrcType)</a>
+<a name="259"><span class="lineNum">     259 </span>            : {</a>
+<a name="260"><span class="lineNum">     260 </span><span class="lineCov">        212 :     const char *pszUnprefixed = poOpenInfo-&gt;pszFilename;</span></a>
+<a name="261"><span class="lineNum">     261 </span><span class="lineCov">        212 :     if (STARTS_WITH_CI(pszUnprefixed, &quot;JSONFG:&quot;))</span></a>
+<a name="262"><span class="lineNum">     262 </span>            :     {</a>
+<a name="263"><span class="lineNum">     263 </span><span class="lineNoCov">          0 :         pszUnprefixed += strlen(&quot;JSONFG:&quot;);</span></a>
+<a name="264"><span class="lineNum">     264 </span>            :     }</a>
+<a name="265"><span class="lineNum">     265 </span>            : </a>
+<a name="266"><span class="lineNum">     266 </span><span class="lineCov">        424 :     std::string osDefaultLayerName;</span></a>
+<a name="267"><span class="lineNum">     267 </span>            : </a>
+<a name="268"><span class="lineNum">     268 </span><span class="lineCov">        212 :     VSIVirtualHandleUniquePtr fp;</span></a>
+<a name="269"><span class="lineNum">     269 </span><span class="lineCov">        212 :     if (nSrcType == eGeoJSONSourceService)</span></a>
+<a name="270"><span class="lineNum">     270 </span>            :     {</a>
+<a name="271"><span class="lineNum">     271 </span><span class="lineCov">          9 :         if (!ReadFromService(poOpenInfo, pszUnprefixed))</span></a>
+<a name="272"><span class="lineNum">     272 </span><span class="lineCov">          9 :             return false;</span></a>
+<a name="273"><span class="lineNum">     273 </span><span class="lineNoCov">          0 :         if (poOpenInfo-&gt;eAccess == GA_Update)</span></a>
+<a name="274"><span class="lineNum">     274 </span>            :         {</a>
+<a name="275"><span class="lineNum">     275 </span><span class="lineNoCov">          0 :             CPLError(CE_Failure, CPLE_NotSupported,</span></a>
+<a name="276"><span class="lineNum">     276 </span>            :                      &quot;Update from remote service not supported&quot;);</a>
+<a name="277"><span class="lineNum">     277 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="278"><span class="lineNum">     278 </span>            :         }</a>
+<a name="279"><span class="lineNum">     279 </span>            :     }</a>
+<a name="280"><span class="lineNum">     280 </span><span class="lineCov">        203 :     else if (nSrcType == eGeoJSONSourceText)</span></a>
+<a name="281"><span class="lineNum">     281 </span>            :     {</a>
+<a name="282"><span class="lineNum">     282 </span><span class="lineCov">         47 :         if (poOpenInfo-&gt;eAccess == GA_Update)</span></a>
+<a name="283"><span class="lineNum">     283 </span>            :         {</a>
+<a name="284"><span class="lineNum">     284 </span><span class="lineNoCov">          0 :             CPLError(CE_Failure, CPLE_NotSupported,</span></a>
+<a name="285"><span class="lineNum">     285 </span>            :                      &quot;Update from inline definition not supported&quot;);</a>
+<a name="286"><span class="lineNum">     286 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="287"><span class="lineNum">     287 </span>            :         }</a>
+<a name="288"><span class="lineNum">     288 </span><span class="lineCov">         47 :         pszGeoData_ = CPLStrdup(pszUnprefixed);</span></a>
+<a name="289"><span class="lineNum">     289 </span>            :     }</a>
+<a name="290"><span class="lineNum">     290 </span><span class="lineCov">        156 :     else if (nSrcType == eGeoJSONSourceFile)</span></a>
+<a name="291"><span class="lineNum">     291 </span>            :     {</a>
+<a name="292"><span class="lineNum">     292 </span><span class="lineCov">        156 :         if (poOpenInfo-&gt;eAccess == GA_Update)</span></a>
+<a name="293"><span class="lineNum">     293 </span>            :         {</a>
+<a name="294"><span class="lineNum">     294 </span><span class="lineNoCov">          0 :             CPLError(CE_Failure, CPLE_NotSupported, &quot;Update not supported&quot;);</span></a>
+<a name="295"><span class="lineNum">     295 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="296"><span class="lineNum">     296 </span>            :         }</a>
+<a name="297"><span class="lineNum">     297 </span><span class="lineCov">        156 :         SetDescription(pszUnprefixed);</span></a>
+<a name="298"><span class="lineNum">     298 </span><span class="lineCov">        156 :         osDefaultLayerName = CPLGetBasenameSafe(pszUnprefixed);</span></a>
+<a name="299"><span class="lineNum">     299 </span><span class="lineCov">        156 :         eAccess = poOpenInfo-&gt;eAccess;</span></a>
+<a name="300"><span class="lineNum">     300 </span>            : </a>
+<a name="301"><span class="lineNum">     301 </span>            :         // Ingests the first bytes of the file in pszGeoData_</a>
+<a name="302"><span class="lineNum">     302 </span><span class="lineCov">        156 :         if (!EQUAL(pszUnprefixed, poOpenInfo-&gt;pszFilename))</span></a>
+<a name="303"><span class="lineNum">     303 </span>            :         {</a>
+<a name="304"><span class="lineNum">     304 </span><span class="lineNoCov">          0 :             GDALOpenInfo oOpenInfo(pszUnprefixed, GA_ReadOnly);</span></a>
+<a name="305"><span class="lineNum">     305 </span><span class="lineNoCov">          0 :             if (oOpenInfo.fpL == nullptr || oOpenInfo.pabyHeader == nullptr)</span></a>
+<a name="306"><span class="lineNum">     306 </span><span class="lineNoCov">          0 :                 return false;</span></a>
+<a name="307"><span class="lineNum">     307 </span><span class="lineNoCov">          0 :             pszGeoData_ =</span></a>
+<a name="308"><span class="lineNum">     308 </span><span class="lineNoCov">          0 :                 CPLStrdup(reinterpret_cast&lt;const char *&gt;(oOpenInfo.pabyHeader));</span></a>
+<a name="309"><span class="lineNum">     309 </span><span class="lineNoCov">          0 :             fp.reset(oOpenInfo.fpL);</span></a>
+<a name="310"><span class="lineNum">     310 </span><span class="lineNoCov">          0 :             oOpenInfo.fpL = nullptr;</span></a>
+<a name="311"><span class="lineNum">     311 </span>            :         }</a>
+<a name="312"><span class="lineNum">     312 </span><span class="lineCov">        156 :         else if (poOpenInfo-&gt;fpL == nullptr)</span></a>
+<a name="313"><span class="lineNum">     313 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="314"><span class="lineNum">     314 </span>            :         else</a>
+<a name="315"><span class="lineNum">     315 </span>            :         {</a>
+<a name="316"><span class="lineNum">     316 </span><span class="lineCov">        156 :             fp.reset(poOpenInfo-&gt;fpL);</span></a>
+<a name="317"><span class="lineNum">     317 </span><span class="lineCov">        156 :             poOpenInfo-&gt;fpL = nullptr;</span></a>
+<a name="318"><span class="lineNum">     318 </span><span class="lineCov">        156 :             pszGeoData_ = CPLStrdup(</span></a>
+<a name="319"><span class="lineNum">     319 </span><span class="lineCov">        156 :                 reinterpret_cast&lt;const char *&gt;(poOpenInfo-&gt;pabyHeader));</span></a>
+<a name="320"><span class="lineNum">     320 </span>            :         }</a>
+<a name="321"><span class="lineNum">     321 </span>            :     }</a>
+<a name="322"><span class="lineNum">     322 </span>            :     else</a>
+<a name="323"><span class="lineNum">     323 </span>            :     {</a>
+<a name="324"><span class="lineNum">     324 </span><span class="lineNoCov">          0 :         return false;</span></a>
+<a name="325"><span class="lineNum">     325 </span>            :     }</a>
+<a name="326"><span class="lineNum">     326 </span>            : </a>
+<a name="327"><span class="lineNum">     327 </span><span class="lineCov">        203 :     if (osDefaultLayerName.empty())</span></a>
+<a name="328"><span class="lineNum">     328 </span><span class="lineCov">         47 :         osDefaultLayerName = &quot;features&quot;;</span></a>
+<a name="329"><span class="lineNum">     329 </span>            : </a>
+<a name="330"><span class="lineNum">     330 </span><span class="lineCov">        233 :     const auto SetReaderOptions = [poOpenInfo](OGRJSONFGReader &amp;oReader)</span></a>
+<a name="331"><span class="lineNum">     331 </span>            :     {</a>
+<a name="332"><span class="lineNum">     332 </span><span class="lineCov">        466 :         const char *pszGeometryElement = CSLFetchNameValueDef(</span></a>
+<a name="333"><span class="lineNum">     333 </span><span class="lineCov">        233 :             poOpenInfo-&gt;papszOpenOptions, &quot;GEOMETRY_ELEMENT&quot;, &quot;AUTO&quot;);</span></a>
+<a name="334"><span class="lineNum">     334 </span><span class="lineCov">        233 :         if (EQUAL(pszGeometryElement, &quot;PLACE&quot;))</span></a>
+<a name="335"><span class="lineNum">     335 </span><span class="lineCov">          3 :             oReader.SetGeometryElement(OGRJSONFGReader::GeometryElement::PLACE);</span></a>
+<a name="336"><span class="lineNum">     336 </span><span class="lineCov">        230 :         else if (EQUAL(pszGeometryElement, &quot;GEOMETRY&quot;))</span></a>
+<a name="337"><span class="lineNum">     337 </span><span class="lineCov">          3 :             oReader.SetGeometryElement(</span></a>
+<a name="338"><span class="lineNum">     338 </span>            :                 OGRJSONFGReader::GeometryElement::GEOMETRY);</a>
+<a name="339"><span class="lineNum">     339 </span><span class="lineCov">        436 :     };</span></a>
+<a name="340"><span class="lineNum">     340 </span>            : </a>
+<a name="341"><span class="lineNum">     341 </span><span class="lineCov">        203 :     if (nSrcType == eGeoJSONSourceFile)</span></a>
+<a name="342"><span class="lineNum">     342 </span>            :     {</a>
+<a name="343"><span class="lineNum">     343 </span><span class="lineCov">        156 :         auto poReader = std::make_unique&lt;OGRJSONFGReader&gt;();</span></a>
+<a name="344"><span class="lineNum">     344 </span><span class="lineCov">        156 :         SetReaderOptions(*(poReader.get()));</span></a>
+<a name="345"><span class="lineNum">     345 </span>            : </a>
+<a name="346"><span class="lineNum">     346 </span>            :         // Try to use a streaming parser if the content of the file seems</a>
+<a name="347"><span class="lineNum">     347 </span>            :         // to be FeatureCollection</a>
+<a name="348"><span class="lineNum">     348 </span><span class="lineCov">        156 :         bool bUseStreamingInterface = false;</span></a>
+<a name="349"><span class="lineNum">     349 </span><span class="lineCov">        156 :         const char *pszStr = strstr(pszGeoData_, &quot;\&quot;features\&quot;&quot;);</span></a>
+<a name="350"><span class="lineNum">     350 </span><span class="lineCov">        156 :         if (pszStr)</span></a>
+<a name="351"><span class="lineNum">     351 </span>            :         {</a>
+<a name="352"><span class="lineNum">     352 </span><span class="lineCov">        126 :             pszStr += strlen(&quot;\&quot;features\&quot;&quot;);</span></a>
+<a name="353"><span class="lineNum">     353 </span><span class="lineCov">        223 :             while (*pszStr &amp;&amp; isspace(static_cast&lt;unsigned char&gt;(*pszStr)))</span></a>
+<a name="354"><span class="lineNum">     354 </span><span class="lineCov">         97 :                 pszStr++;</span></a>
+<a name="355"><span class="lineNum">     355 </span><span class="lineCov">        126 :             if (*pszStr == ':')</span></a>
+<a name="356"><span class="lineNum">     356 </span>            :             {</a>
+<a name="357"><span class="lineNum">     357 </span><span class="lineCov">        126 :                 pszStr++;</span></a>
+<a name="358"><span class="lineNum">     358 </span><span class="lineCov">        252 :                 while (*pszStr &amp;&amp; isspace(static_cast&lt;unsigned char&gt;(*pszStr)))</span></a>
+<a name="359"><span class="lineNum">     359 </span><span class="lineCov">        126 :                     pszStr++;</span></a>
+<a name="360"><span class="lineNum">     360 </span><span class="lineCov">        126 :                 if (*pszStr == '[')</span></a>
+<a name="361"><span class="lineNum">     361 </span>            :                 {</a>
+<a name="362"><span class="lineNum">     362 </span><span class="lineCov">        126 :                     bUseStreamingInterface = true;</span></a>
+<a name="363"><span class="lineNum">     363 </span>            :                 }</a>
+<a name="364"><span class="lineNum">     364 </span>            :             }</a>
+<a name="365"><span class="lineNum">     365 </span>            :         }</a>
+<a name="366"><span class="lineNum">     366 </span><span class="lineCov">        156 :         if (bUseStreamingInterface)</span></a>
+<a name="367"><span class="lineNum">     367 </span>            :         {</a>
+<a name="368"><span class="lineNum">     368 </span><span class="lineCov">        126 :             bool bCanTryWithNonStreamingParserOut = true;</span></a>
+<a name="369"><span class="lineNum">     369 </span><span class="lineCov">        126 :             bool bHasTopLevelMeasures = false;</span></a>
+<a name="370"><span class="lineNum">     370 </span><span class="lineCov">        126 :             if (poReader-&gt;AnalyzeWithStreamingParser(</span></a>
+<a name="371"><span class="lineNum">     371 </span>            :                     this, fp.get(), osDefaultLayerName,</a>
+<a name="372"><span class="lineNum">     372 </span>            :                     bCanTryWithNonStreamingParserOut, bHasTopLevelMeasures))</a>
+<a name="373"><span class="lineNum">     373 </span>            :             {</a>
+<a name="374"><span class="lineNum">     374 </span><span class="lineCov">        126 :                 if (!apoLayers_.empty())</span></a>
+<a name="375"><span class="lineNum">     375 </span>            :                 {</a>
+<a name="376"><span class="lineNum">     376 </span><span class="lineCov">        110 :                     auto poLayer = cpl::down_cast&lt;OGRJSONFGStreamedLayer *&gt;(</span></a>
+<a name="377"><span class="lineNum">     377 </span><span class="lineCov">        110 :                         apoLayers_[0].get());</span></a>
+<a name="378"><span class="lineNum">     378 </span><span class="lineCov">        110 :                     poLayer-&gt;SetFile(std::move(fp));</span></a>
+<a name="379"><span class="lineNum">     379 </span>            :                     auto poParser = std::make_unique&lt;OGRJSONFGStreamingParser&gt;(</a>
+<a name="380"><span class="lineNum">     380 </span><span class="lineCov">        220 :                         *(poReader.get()), false, bHasTopLevelMeasures);</span></a>
+<a name="381"><span class="lineNum">     381 </span><span class="lineCov">        110 :                     poLayer-&gt;SetStreamingParser(std::move(poParser));</span></a>
+<a name="382"><span class="lineNum">     382 </span>            :                 }</a>
+<a name="383"><span class="lineNum">     383 </span>            : </a>
+<a name="384"><span class="lineNum">     384 </span><span class="lineCov">        146 :                 for (size_t i = 1; i &lt; apoLayers_.size(); ++i)</span></a>
+<a name="385"><span class="lineNum">     385 </span>            :                 {</a>
+<a name="386"><span class="lineNum">     386 </span><span class="lineCov">         20 :                     auto poLayer = cpl::down_cast&lt;OGRJSONFGStreamedLayer *&gt;(</span></a>
+<a name="387"><span class="lineNum">     387 </span><span class="lineCov">         20 :                         apoLayers_[i].get());</span></a>
+<a name="388"><span class="lineNum">     388 </span>            : </a>
+<a name="389"><span class="lineNum">     389 </span>            :                     auto fpNew = VSIVirtualHandleUniquePtr(</a>
+<a name="390"><span class="lineNum">     390 </span><span class="lineCov">         20 :                         VSIFOpenL(pszUnprefixed, &quot;rb&quot;));</span></a>
+<a name="391"><span class="lineNum">     391 </span><span class="lineCov">         20 :                     if (!fpNew)</span></a>
+<a name="392"><span class="lineNum">     392 </span>            :                     {</a>
+<a name="393"><span class="lineNum">     393 </span><span class="lineNoCov">          0 :                         CPLError(CE_Failure, CPLE_FileIO,</span></a>
+<a name="394"><span class="lineNum">     394 </span>            :                                  &quot;Cannot open %s again&quot;, pszUnprefixed);</a>
+<a name="395"><span class="lineNum">     395 </span><span class="lineNoCov">          0 :                         return false;</span></a>
+<a name="396"><span class="lineNum">     396 </span>            :                     }</a>
+<a name="397"><span class="lineNum">     397 </span><span class="lineCov">         20 :                     poLayer-&gt;SetFile(std::move(fpNew));</span></a>
+<a name="398"><span class="lineNum">     398 </span>            : </a>
+<a name="399"><span class="lineNum">     399 </span>            :                     auto poParser = std::make_unique&lt;OGRJSONFGStreamingParser&gt;(</a>
+<a name="400"><span class="lineNum">     400 </span><span class="lineCov">         40 :                         *(poReader.get()), false, bHasTopLevelMeasures);</span></a>
+<a name="401"><span class="lineNum">     401 </span><span class="lineCov">         20 :                     poLayer-&gt;SetStreamingParser(std::move(poParser));</span></a>
+<a name="402"><span class="lineNum">     402 </span>            :                 }</a>
+<a name="403"><span class="lineNum">     403 </span><span class="lineCov">        126 :                 poReader_ = std::move(poReader);</span></a>
+<a name="404"><span class="lineNum">     404 </span><span class="lineCov">        126 :                 return true;</span></a>
+<a name="405"><span class="lineNum">     405 </span>            :             }</a>
+<a name="406"><span class="lineNum">     406 </span><span class="lineNoCov">          0 :             if (!bCanTryWithNonStreamingParserOut)</span></a>
+<a name="407"><span class="lineNum">     407 </span><span class="lineNoCov">          0 :                 return false;</span></a>
+<a name="408"><span class="lineNum">     408 </span>            :         }</a>
+<a name="409"><span class="lineNum">     409 </span>            : </a>
+<a name="410"><span class="lineNum">     410 </span>            :         // Fallback to in-memory ingestion</a>
+<a name="411"><span class="lineNum">     411 </span><span class="lineCov">         30 :         CPLAssert(poOpenInfo-&gt;fpL == nullptr);</span></a>
+<a name="412"><span class="lineNum">     412 </span><span class="lineCov">         30 :         poOpenInfo-&gt;fpL = fp.release();</span></a>
+<a name="413"><span class="lineNum">     413 </span><span class="lineCov">         30 :         if (!ReadFromFile(poOpenInfo, pszUnprefixed))</span></a>
+<a name="414"><span class="lineNum">     414 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="415"><span class="lineNum">     415 </span>            :     }</a>
+<a name="416"><span class="lineNum">     416 </span>            : </a>
+<a name="417"><span class="lineNum">     417 </span>            :     // In-memory ingestion of the file</a>
+<a name="418"><span class="lineNum">     418 </span><span class="lineCov">         77 :     OGRJSONFGReader oReader;</span></a>
+<a name="419"><span class="lineNum">     419 </span><span class="lineCov">         77 :     SetReaderOptions(oReader);</span></a>
+<a name="420"><span class="lineNum">     420 </span><span class="lineCov">         77 :     const bool bRet = oReader.Load(this, pszGeoData_, osDefaultLayerName);</span></a>
+<a name="421"><span class="lineNum">     421 </span><span class="lineCov">         77 :     CPLFree(pszGeoData_);</span></a>
+<a name="422"><span class="lineNum">     422 </span><span class="lineCov">         77 :     pszGeoData_ = nullptr;</span></a>
+<a name="423"><span class="lineNum">     423 </span><span class="lineCov">         77 :     return bRet;</span></a>
+<a name="424"><span class="lineNum">     424 </span>            : }</a>
+<a name="425"><span class="lineNum">     425 </span>            : </a>
+<a name="426"><span class="lineNum">     426 </span>            : /************************************************************************/</a>
+<a name="427"><span class="lineNum">     427 </span>            : /*                     OGRJSONFGDataset::GetLayer()                     */</a>
+<a name="428"><span class="lineNum">     428 </span>            : /************************************************************************/</a>
+<a name="429"><span class="lineNum">     429 </span>            : </a>
+<a name="430"><span class="lineNum">     430 </span><span class="lineCov">        202 : const OGRLayer *OGRJSONFGDataset::GetLayer(int i) const</span></a>
+<a name="431"><span class="lineNum">     431 </span>            : {</a>
+<a name="432"><span class="lineNum">     432 </span><span class="lineCov">        202 :     if (i &lt; 0 || i &gt;= static_cast&lt;int&gt;(apoLayers_.size()))</span></a>
+<a name="433"><span class="lineNum">     433 </span><span class="lineCov">          2 :         return nullptr;</span></a>
+<a name="434"><span class="lineNum">     434 </span><span class="lineCov">        200 :     return apoLayers_[i].get();</span></a>
+<a name="435"><span class="lineNum">     435 </span>            : }</a>
+<a name="436"><span class="lineNum">     436 </span>            : </a>
+<a name="437"><span class="lineNum">     437 </span>            : /************************************************************************/</a>
+<a name="438"><span class="lineNum">     438 </span>            : /*                     OGRJSONFGDataset::AddLayer()                     */</a>
+<a name="439"><span class="lineNum">     439 </span>            : /************************************************************************/</a>
+<a name="440"><span class="lineNum">     440 </span>            : </a>
+<a name="441"><span class="lineNum">     441 </span>            : OGRJSONFGMemLayer *</a>
+<a name="442"><span class="lineNum">     442 </span><span class="lineCov">         77 : OGRJSONFGDataset::AddLayer(std::unique_ptr&lt;OGRJSONFGMemLayer&gt; &amp;&amp;poLayer)</span></a>
+<a name="443"><span class="lineNum">     443 </span>            : {</a>
+<a name="444"><span class="lineNum">     444 </span><span class="lineCov">         77 :     apoLayers_.emplace_back(std::move(poLayer));</span></a>
+<a name="445"><span class="lineNum">     445 </span><span class="lineCov">         77 :     return static_cast&lt;OGRJSONFGMemLayer *&gt;(apoLayers_.back().get());</span></a>
+<a name="446"><span class="lineNum">     446 </span>            : }</a>
+<a name="447"><span class="lineNum">     447 </span>            : </a>
+<a name="448"><span class="lineNum">     448 </span>            : /************************************************************************/</a>
+<a name="449"><span class="lineNum">     449 </span>            : /*                     OGRJSONFGDataset::AddLayer()                     */</a>
+<a name="450"><span class="lineNum">     450 </span>            : /************************************************************************/</a>
+<a name="451"><span class="lineNum">     451 </span>            : </a>
+<a name="452"><span class="lineNum">     452 </span>            : OGRJSONFGStreamedLayer *</a>
+<a name="453"><span class="lineNum">     453 </span><span class="lineCov">        130 : OGRJSONFGDataset::AddLayer(std::unique_ptr&lt;OGRJSONFGStreamedLayer&gt; &amp;&amp;poLayer)</span></a>
+<a name="454"><span class="lineNum">     454 </span>            : {</a>
+<a name="455"><span class="lineNum">     455 </span><span class="lineCov">        130 :     apoLayers_.emplace_back(std::move(poLayer));</span></a>
+<a name="456"><span class="lineNum">     456 </span><span class="lineCov">        130 :     return static_cast&lt;OGRJSONFGStreamedLayer *&gt;(apoLayers_.back().get());</span></a>
+<a name="457"><span class="lineNum">     457 </span>            : }</a>
+<a name="458"><span class="lineNum">     458 </span>            : </a>
+<a name="459"><span class="lineNum">     459 </span>            : /************************************************************************/</a>
+<a name="460"><span class="lineNum">     460 </span>            : /*                            ReadFromFile()                            */</a>
+<a name="461"><span class="lineNum">     461 </span>            : /************************************************************************/</a>
+<a name="462"><span class="lineNum">     462 </span>            : </a>
+<a name="463"><span class="lineNum">     463 </span><span class="lineCov">         30 : bool OGRJSONFGDataset::ReadFromFile(GDALOpenInfo *poOpenInfo,</span></a>
+<a name="464"><span class="lineNum">     464 </span>            :                                     const char *pszUnprefixed)</a>
+<a name="465"><span class="lineNum">     465 </span>            : {</a>
+<a name="466"><span class="lineNum">     466 </span><span class="lineCov">         30 :     GByte *pabyOut = nullptr;</span></a>
+<a name="467"><span class="lineNum">     467 </span><span class="lineCov">         30 :     if (!EQUAL(poOpenInfo-&gt;pszFilename, pszUnprefixed))</span></a>
+<a name="468"><span class="lineNum">     468 </span>            :     {</a>
+<a name="469"><span class="lineNum">     469 </span><span class="lineNoCov">          0 :         GDALOpenInfo oOpenInfo(pszUnprefixed, GA_ReadOnly);</span></a>
+<a name="470"><span class="lineNum">     470 </span><span class="lineNoCov">          0 :         if (oOpenInfo.fpL == nullptr || oOpenInfo.pabyHeader == nullptr)</span></a>
+<a name="471"><span class="lineNum">     471 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="472"><span class="lineNum">     472 </span><span class="lineNoCov">          0 :         VSIFSeekL(oOpenInfo.fpL, 0, SEEK_SET);</span></a>
+<a name="473"><span class="lineNum">     473 </span><span class="lineNoCov">          0 :         if (!VSIIngestFile(oOpenInfo.fpL, pszUnprefixed, &amp;pabyOut, nullptr, -1))</span></a>
+<a name="474"><span class="lineNum">     474 </span>            :         {</a>
+<a name="475"><span class="lineNum">     475 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="476"><span class="lineNum">     476 </span>            :         }</a>
+<a name="477"><span class="lineNum">     477 </span>            :     }</a>
+<a name="478"><span class="lineNum">     478 </span>            :     else</a>
+<a name="479"><span class="lineNum">     479 </span>            :     {</a>
+<a name="480"><span class="lineNum">     480 </span><span class="lineCov">         30 :         if (poOpenInfo-&gt;fpL == nullptr)</span></a>
+<a name="481"><span class="lineNum">     481 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="482"><span class="lineNum">     482 </span><span class="lineCov">         30 :         VSIFSeekL(poOpenInfo-&gt;fpL, 0, SEEK_SET);</span></a>
+<a name="483"><span class="lineNum">     483 </span><span class="lineCov">         30 :         if (!VSIIngestFile(poOpenInfo-&gt;fpL, poOpenInfo-&gt;pszFilename, &amp;pabyOut,</span></a>
+<a name="484"><span class="lineNum">     484 </span>            :                            nullptr, -1))</a>
+<a name="485"><span class="lineNum">     485 </span>            :         {</a>
+<a name="486"><span class="lineNum">     486 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="487"><span class="lineNum">     487 </span>            :         }</a>
+<a name="488"><span class="lineNum">     488 </span>            : </a>
+<a name="489"><span class="lineNum">     489 </span><span class="lineCov">         30 :         VSIFCloseL(poOpenInfo-&gt;fpL);</span></a>
+<a name="490"><span class="lineNum">     490 </span><span class="lineCov">         30 :         poOpenInfo-&gt;fpL = nullptr;</span></a>
+<a name="491"><span class="lineNum">     491 </span>            :     }</a>
+<a name="492"><span class="lineNum">     492 </span>            : </a>
+<a name="493"><span class="lineNum">     493 </span><span class="lineCov">         30 :     CPLFree(pszGeoData_);</span></a>
+<a name="494"><span class="lineNum">     494 </span><span class="lineCov">         30 :     pszGeoData_ = reinterpret_cast&lt;char *&gt;(pabyOut);</span></a>
+<a name="495"><span class="lineNum">     495 </span>            : </a>
+<a name="496"><span class="lineNum">     496 </span><span class="lineCov">         30 :     CPLAssert(nullptr != pszGeoData_);</span></a>
+<a name="497"><span class="lineNum">     497 </span>            : </a>
+<a name="498"><span class="lineNum">     498 </span><span class="lineCov">         30 :     return true;</span></a>
+<a name="499"><span class="lineNum">     499 </span>            : }</a>
+<a name="500"><span class="lineNum">     500 </span>            : </a>
+<a name="501"><span class="lineNum">     501 </span>            : /************************************************************************/</a>
+<a name="502"><span class="lineNum">     502 </span>            : /*                          ReadFromService()                           */</a>
+<a name="503"><span class="lineNum">     503 </span>            : /************************************************************************/</a>
+<a name="504"><span class="lineNum">     504 </span>            : </a>
+<a name="505"><span class="lineNum">     505 </span><span class="lineCov">          9 : bool OGRJSONFGDataset::ReadFromService(GDALOpenInfo *poOpenInfo,</span></a>
+<a name="506"><span class="lineNum">     506 </span>            :                                        const char *pszSource)</a>
+<a name="507"><span class="lineNum">     507 </span>            : {</a>
+<a name="508"><span class="lineNum">     508 </span><span class="lineCov">          9 :     CPLAssert(nullptr == pszGeoData_);</span></a>
+<a name="509"><span class="lineNum">     509 </span><span class="lineCov">          9 :     CPLAssert(nullptr != pszSource);</span></a>
+<a name="510"><span class="lineNum">     510 </span>            : </a>
+<a name="511"><span class="lineNum">     511 </span><span class="lineCov">          9 :     CPLErrorReset();</span></a>
+<a name="512"><span class="lineNum">     512 </span>            : </a>
+<a name="513"><span class="lineNum">     513 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="514"><span class="lineNum">     514 </span>            :     /*      Look if we already cached the content.                          */</a>
+<a name="515"><span class="lineNum">     515 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="516"><span class="lineNum">     516 </span><span class="lineCov">          9 :     char *pszStoredContent = OGRGeoJSONDriverStealStoredContent(pszSource);</span></a>
+<a name="517"><span class="lineNum">     517 </span><span class="lineCov">          9 :     if (pszStoredContent != nullptr)</span></a>
+<a name="518"><span class="lineNum">     518 </span>            :     {</a>
+<a name="519"><span class="lineNum">     519 </span><span class="lineCov">          9 :         if (JSONFGIsObject(pszStoredContent, poOpenInfo))</span></a>
+<a name="520"><span class="lineNum">     520 </span>            :         {</a>
+<a name="521"><span class="lineNum">     521 </span><span class="lineNoCov">          0 :             pszGeoData_ = pszStoredContent;</span></a>
+<a name="522"><span class="lineNum">     522 </span><span class="lineNoCov">          0 :             nGeoDataLen_ = strlen(pszGeoData_);</span></a>
+<a name="523"><span class="lineNum">     523 </span>            : </a>
+<a name="524"><span class="lineNum">     524 </span><span class="lineNoCov">          0 :             SetDescription(pszSource);</span></a>
+<a name="525"><span class="lineNum">     525 </span><span class="lineNoCov">          0 :             return true;</span></a>
+<a name="526"><span class="lineNum">     526 </span>            :         }</a>
+<a name="527"><span class="lineNum">     527 </span>            : </a>
+<a name="528"><span class="lineNum">     528 </span><span class="lineCov">          9 :         OGRGeoJSONDriverStoreContent(pszSource, pszStoredContent);</span></a>
+<a name="529"><span class="lineNum">     529 </span><span class="lineCov">          9 :         return false;</span></a>
+<a name="530"><span class="lineNum">     530 </span>            :     }</a>
+<a name="531"><span class="lineNum">     531 </span>            : </a>
+<a name="532"><span class="lineNum">     532 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="533"><span class="lineNum">     533 </span>            :     /*      Fetch the result.                                               */</a>
+<a name="534"><span class="lineNum">     534 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="535"><span class="lineNum">     535 </span><span class="lineNoCov">          0 :     char *papsOptions[] = {</span></a>
+<a name="536"><span class="lineNum">     536 </span>            :         const_cast&lt;char *&gt;(&quot;HEADERS=Accept: text/plain, application/json&quot;),</a>
+<a name="537"><span class="lineNum">     537 </span>            :         nullptr};</a>
+<a name="538"><span class="lineNum">     538 </span>            : </a>
+<a name="539"><span class="lineNum">     539 </span><span class="lineNoCov">          0 :     CPLHTTPResult *pResult = CPLHTTPFetch(pszSource, papsOptions);</span></a>
+<a name="540"><span class="lineNum">     540 </span>            : </a>
+<a name="541"><span class="lineNum">     541 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="542"><span class="lineNum">     542 </span>            :     /*      Try to handle CURL/HTTP errors.                                 */</a>
+<a name="543"><span class="lineNum">     543 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="544"><span class="lineNum">     544 </span><span class="lineNoCov">          0 :     if (nullptr == pResult || 0 == pResult-&gt;nDataLen ||</span></a>
+<a name="545"><span class="lineNum">     545 </span><span class="lineNoCov">          0 :         0 != CPLGetLastErrorNo())</span></a>
+<a name="546"><span class="lineNum">     546 </span>            :     {</a>
+<a name="547"><span class="lineNum">     547 </span><span class="lineNoCov">          0 :         CPLHTTPDestroyResult(pResult);</span></a>
+<a name="548"><span class="lineNum">     548 </span><span class="lineNoCov">          0 :         return false;</span></a>
+<a name="549"><span class="lineNum">     549 </span>            :     }</a>
+<a name="550"><span class="lineNum">     550 </span>            : </a>
+<a name="551"><span class="lineNum">     551 </span><span class="lineNoCov">          0 :     if (0 != pResult-&gt;nStatus)</span></a>
+<a name="552"><span class="lineNum">     552 </span>            :     {</a>
+<a name="553"><span class="lineNum">     553 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_AppDefined, &quot;Curl reports error: %d: %s&quot;,</span></a>
+<a name="554"><span class="lineNum">     554 </span>            :                  pResult-&gt;nStatus, pResult-&gt;pszErrBuf);</a>
+<a name="555"><span class="lineNum">     555 </span><span class="lineNoCov">          0 :         CPLHTTPDestroyResult(pResult);</span></a>
+<a name="556"><span class="lineNum">     556 </span><span class="lineNoCov">          0 :         return false;</span></a>
+<a name="557"><span class="lineNum">     557 </span>            :     }</a>
+<a name="558"><span class="lineNum">     558 </span>            : </a>
+<a name="559"><span class="lineNum">     559 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="560"><span class="lineNum">     560 </span>            :     /*      Copy returned GeoJSON data to text buffer.                      */</a>
+<a name="561"><span class="lineNum">     561 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="562"><span class="lineNum">     562 </span><span class="lineNoCov">          0 :     char *pszData = reinterpret_cast&lt;char *&gt;(pResult-&gt;pabyData);</span></a>
+<a name="563"><span class="lineNum">     563 </span>            : </a>
+<a name="564"><span class="lineNum">     564 </span>            :     // Directly assign CPLHTTPResult::pabyData to pszGeoData_.</a>
+<a name="565"><span class="lineNum">     565 </span><span class="lineNoCov">          0 :     pszGeoData_ = pszData;</span></a>
+<a name="566"><span class="lineNum">     566 </span><span class="lineNoCov">          0 :     nGeoDataLen_ = pResult-&gt;nDataLen;</span></a>
+<a name="567"><span class="lineNum">     567 </span><span class="lineNoCov">          0 :     pResult-&gt;pabyData = nullptr;</span></a>
+<a name="568"><span class="lineNum">     568 </span><span class="lineNoCov">          0 :     pResult-&gt;nDataLen = 0;</span></a>
+<a name="569"><span class="lineNum">     569 </span>            : </a>
+<a name="570"><span class="lineNum">     570 </span><span class="lineNoCov">          0 :     SetDescription(pszSource);</span></a>
+<a name="571"><span class="lineNum">     571 </span>            : </a>
+<a name="572"><span class="lineNum">     572 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="573"><span class="lineNum">     573 </span>            :     /*      Cleanup HTTP resources.                                         */</a>
+<a name="574"><span class="lineNum">     574 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="575"><span class="lineNum">     575 </span><span class="lineNoCov">          0 :     CPLHTTPDestroyResult(pResult);</span></a>
+<a name="576"><span class="lineNum">     576 </span>            : </a>
+<a name="577"><span class="lineNum">     577 </span><span class="lineNoCov">          0 :     CPLAssert(nullptr != pszGeoData_);</span></a>
+<a name="578"><span class="lineNum">     578 </span>            : </a>
+<a name="579"><span class="lineNum">     579 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="580"><span class="lineNum">     580 </span>            :     /*      Cache the content if it is not handled by this driver, but      */</a>
+<a name="581"><span class="lineNum">     581 </span>            :     /*      another related one.                                            */</a>
+<a name="582"><span class="lineNum">     582 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="583"><span class="lineNum">     583 </span><span class="lineNoCov">          0 :     if (EQUAL(pszSource, poOpenInfo-&gt;pszFilename))</span></a>
+<a name="584"><span class="lineNum">     584 </span>            :     {</a>
+<a name="585"><span class="lineNum">     585 </span><span class="lineNoCov">          0 :         if (!JSONFGIsObject(pszGeoData_, poOpenInfo))</span></a>
+<a name="586"><span class="lineNum">     586 </span>            :         {</a>
+<a name="587"><span class="lineNum">     587 </span><span class="lineNoCov">          0 :             OGRGeoJSONDriverStoreContent(pszSource, pszGeoData_);</span></a>
+<a name="588"><span class="lineNum">     588 </span><span class="lineNoCov">          0 :             pszGeoData_ = nullptr;</span></a>
+<a name="589"><span class="lineNum">     589 </span><span class="lineNoCov">          0 :             nGeoDataLen_ = 0;</span></a>
+<a name="590"><span class="lineNum">     590 </span><span class="lineNoCov">          0 :             return false;</span></a>
+<a name="591"><span class="lineNum">     591 </span>            :         }</a>
+<a name="592"><span class="lineNum">     592 </span>            :     }</a>
+<a name="593"><span class="lineNum">     593 </span>            : </a>
+<a name="594"><span class="lineNum">     594 </span><span class="lineNoCov">          0 :     return true;</span></a>
+<a name="595"><span class="lineNum">     595 </span>            : }</a>
+<a name="596"><span class="lineNum">     596 </span>            : </a>
+<a name="597"><span class="lineNum">     597 </span>            : /************************************************************************/</a>
+<a name="598"><span class="lineNum">     598 </span>            : /*                               Create()                               */</a>
+<a name="599"><span class="lineNum">     599 </span>            : /************************************************************************/</a>
+<a name="600"><span class="lineNum">     600 </span>            : </a>
+<a name="601"><span class="lineNum">     601 </span><span class="lineCov">        106 : bool OGRJSONFGDataset::Create(const char *pszName, CSLConstList papszOptions)</span></a>
+<a name="602"><span class="lineNum">     602 </span>            : {</a>
+<a name="603"><span class="lineNum">     603 </span><span class="lineCov">        106 :     CPLAssert(nullptr == fpOut_);</span></a>
+<a name="604"><span class="lineNum">     604 </span><span class="lineCov">        106 :     bSingleOutputLayer_ =</span></a>
+<a name="605"><span class="lineNum">     605 </span><span class="lineCov">        106 :         CPLTestBool(CSLFetchNameValueDef(papszOptions, &quot;SINGLE_LAYER&quot;, &quot;NO&quot;));</span></a>
+<a name="606"><span class="lineNum">     606 </span>            : </a>
+<a name="607"><span class="lineNum">     607 </span><span class="lineCov">        211 :     bFpOutputIsSeekable_ = !(strcmp(pszName, &quot;/vsistdout/&quot;) == 0 ||</span></a>
+<a name="608"><span class="lineNum">     608 </span><span class="lineCov">        105 :                              STARTS_WITH(pszName, &quot;/vsigzip/&quot;) ||</span></a>
+<a name="609"><span class="lineNum">     609 </span><span class="lineCov">        105 :                              STARTS_WITH(pszName, &quot;/vsizip/&quot;));</span></a>
+<a name="610"><span class="lineNum">     610 </span>            : </a>
+<a name="611"><span class="lineNum">     611 </span><span class="lineCov">        106 :     if (strcmp(pszName, &quot;/dev/stdout&quot;) == 0)</span></a>
+<a name="612"><span class="lineNum">     612 </span><span class="lineNoCov">          0 :         pszName = &quot;/vsistdout/&quot;;</span></a>
+<a name="613"><span class="lineNum">     613 </span>            : </a>
+<a name="614"><span class="lineNum">     614 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="615"><span class="lineNum">     615 </span>            :     /*     File overwrite not supported.                                    */</a>
+<a name="616"><span class="lineNum">     616 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="617"><span class="lineNum">     617 </span>            :     VSIStatBufL sStatBuf;</a>
+<a name="618"><span class="lineNum">     618 </span><span class="lineCov">        106 :     if (0 == VSIStatL(pszName, &amp;sStatBuf))</span></a>
+<a name="619"><span class="lineNum">     619 </span>            :     {</a>
+<a name="620"><span class="lineNum">     620 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_NotSupported,</span></a>
+<a name="621"><span class="lineNum">     621 </span>            :                  &quot;The JSONFG driver does not overwrite existing files.&quot;);</a>
+<a name="622"><span class="lineNum">     622 </span><span class="lineNoCov">          0 :         return false;</span></a>
+<a name="623"><span class="lineNum">     623 </span>            :     }</a>
+<a name="624"><span class="lineNum">     624 </span>            : </a>
+<a name="625"><span class="lineNum">     625 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="626"><span class="lineNum">     626 </span>            :     /*      Create the output file.                                         */</a>
+<a name="627"><span class="lineNum">     627 </span>            :     /* -------------------------------------------------------------------- */</a>
+<a name="628"><span class="lineNum">     628 </span><span class="lineCov">        106 :     fpOut_ = VSIFOpenExL(pszName, &quot;w&quot;, true);</span></a>
+<a name="629"><span class="lineNum">     629 </span><span class="lineCov">        106 :     if (nullptr == fpOut_)</span></a>
+<a name="630"><span class="lineNum">     630 </span>            :     {</a>
+<a name="631"><span class="lineNum">     631 </span><span class="lineCov">          1 :         CPLError(CE_Failure, CPLE_OpenFailed,</span></a>
+<a name="632"><span class="lineNum">     632 </span>            :                  &quot;Failed to create JSONFG dataset: %s: %s&quot;, pszName,</a>
+<a name="633"><span class="lineNum">     633 </span>            :                  VSIGetLastErrorMsg());</a>
+<a name="634"><span class="lineNum">     634 </span><span class="lineCov">          1 :         return false;</span></a>
+<a name="635"><span class="lineNum">     635 </span>            :     }</a>
+<a name="636"><span class="lineNum">     636 </span>            : </a>
+<a name="637"><span class="lineNum">     637 </span><span class="lineCov">        105 :     SetDescription(pszName);</span></a>
+<a name="638"><span class="lineNum">     638 </span>            : </a>
+<a name="639"><span class="lineNum">     639 </span><span class="lineCov">        105 :     VSIFPrintfL(fpOut_, &quot;{\n\&quot;type\&quot;: \&quot;FeatureCollection\&quot;,\n&quot;);</span></a>
+<a name="640"><span class="lineNum">     640 </span><span class="lineCov">        105 :     if (bFpOutputIsSeekable_)</span></a>
+<a name="641"><span class="lineNum">     641 </span>            :     {</a>
+<a name="642"><span class="lineNum">     642 </span><span class="lineCov">        104 :         m_nPositionBeforeConformsTo = VSIFTellL(fpOut_);</span></a>
+<a name="643"><span class="lineNum">     643 </span><span class="lineCov">        104 :         VSIFPrintfL(fpOut_,</span></a>
+<a name="644"><span class="lineNum">     644 </span>            :                     &quot;\&quot;conformsTo\&quot;: [\n&quot;</a>
+<a name="645"><span class="lineNum">     645 </span>            :                     &quot;  \&quot;%s\&quot;,\n&quot;</a>
+<a name="646"><span class="lineNum">     646 </span>            :                     &quot;  \&quot;%s\&quot;\n&quot;</a>
+<a name="647"><span class="lineNum">     647 </span>            :                     &quot;],\n&quot;,</a>
+<a name="648"><span class="lineNum">     648 </span>            :                     CONFORMANCE_CORE, CONFORMANCE_FEATURE_TYPE);</a>
+<a name="649"><span class="lineNum">     649 </span><span class="lineCov">        104 :         VSIFPrintfL(</span></a>
+<a name="650"><span class="lineNum">     650 </span>            :             fpOut_, &quot;%s&quot;,</a>
+<a name="651"><span class="lineNum">     651 </span><span class="lineCov">        208 :             std::string(</span></a>
+<a name="652"><span class="lineNum">     652 </span>            :                 strlen(&quot;,&quot;) + strlen(&quot;  \&quot;\&quot;,\n&quot;) +</a>
+<a name="653"><span class="lineNum">     653 </span>            :                     strlen(CONFORMANCE_POLYHEDRA) + strlen(&quot;  \&quot;\&quot;,\n&quot;) +</a>
+<a name="654"><span class="lineNum">     654 </span>            :                     strlen(CONFORMANCE_CIRCULAR_ARCS) + strlen(&quot;  \&quot;\&quot;,\n&quot;) +</a>
+<a name="655"><span class="lineNum">     655 </span>            :                     strlen(CONFORMANCE_MEASURES) + strlen(&quot;\&quot;,\n&quot;),</a>
+<a name="656"><span class="lineNum">     656 </span>            :                 ' ')</a>
+<a name="657"><span class="lineNum">     657 </span>            :                 .c_str());</a>
+<a name="658"><span class="lineNum">     658 </span><span class="lineCov">        104 :         m_nPositionAfterConformsTo = VSIFTellL(fpOut_);</span></a>
+<a name="659"><span class="lineNum">     659 </span>            :     }</a>
+<a name="660"><span class="lineNum">     660 </span>            : </a>
+<a name="661"><span class="lineNum">     661 </span><span class="lineCov">        105 :     return true;</span></a>
+<a name="662"><span class="lineNum">     662 </span>            : }</a>
+<a name="663"><span class="lineNum">     663 </span>            : </a>
+<a name="664"><span class="lineNum">     664 </span>            : /************************************************************************/</a>
+<a name="665"><span class="lineNum">     665 </span>            : /*                     EmitStartFeaturesIfNeeded()                      */</a>
+<a name="666"><span class="lineNum">     666 </span>            : /************************************************************************/</a>
+<a name="667"><span class="lineNum">     667 </span>            : </a>
+<a name="668"><span class="lineNum">     668 </span><span class="lineCov">        279 : bool OGRJSONFGDataset::EmitStartFeaturesIfNeededAndReturnIfFirstFeature()</span></a>
+<a name="669"><span class="lineNum">     669 </span>            : {</a>
+<a name="670"><span class="lineNum">     670 </span><span class="lineCov">        279 :     if (!bHasEmittedFeatures_)</span></a>
+<a name="671"><span class="lineNum">     671 </span>            :     {</a>
+<a name="672"><span class="lineNum">     672 </span><span class="lineCov">        105 :         bHasEmittedFeatures_ = true;</span></a>
+<a name="673"><span class="lineNum">     673 </span><span class="lineCov">        105 :         VSIFPrintfL(fpOut_, &quot;\&quot;features\&quot; : [\n&quot;);</span></a>
+<a name="674"><span class="lineNum">     674 </span><span class="lineCov">        105 :         return true;</span></a>
+<a name="675"><span class="lineNum">     675 </span>            :     }</a>
+<a name="676"><span class="lineNum">     676 </span><span class="lineCov">        174 :     return false;</span></a>
+<a name="677"><span class="lineNum">     677 </span>            : }</a>
+<a name="678"><span class="lineNum">     678 </span>            : </a>
+<a name="679"><span class="lineNum">     679 </span>            : /************************************************************************/</a>
+<a name="680"><span class="lineNum">     680 </span>            : /*                            ICreateLayer()                            */</a>
+<a name="681"><span class="lineNum">     681 </span>            : /************************************************************************/</a>
+<a name="682"><span class="lineNum">     682 </span>            : </a>
+<a name="683"><span class="lineNum">     683 </span>            : OGRLayer *</a>
+<a name="684"><span class="lineNum">     684 </span><span class="lineCov">        123 : OGRJSONFGDataset::ICreateLayer(const char *pszNameIn,</span></a>
+<a name="685"><span class="lineNum">     685 </span>            :                                const OGRGeomFieldDefn *poSrcGeomFieldDefn,</a>
+<a name="686"><span class="lineNum">     686 </span>            :                                CSLConstList papszOptions)</a>
+<a name="687"><span class="lineNum">     687 </span>            : {</a>
+<a name="688"><span class="lineNum">     688 </span><span class="lineCov">        123 :     if (nullptr == fpOut_)</span></a>
+<a name="689"><span class="lineNum">     689 </span>            :     {</a>
+<a name="690"><span class="lineNum">     690 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_NotSupported,</span></a>
+<a name="691"><span class="lineNum">     691 </span>            :                  &quot;JSONFG driver doesn't support creating a layer &quot;</a>
+<a name="692"><span class="lineNum">     692 </span>            :                  &quot;on a read-only datasource&quot;);</a>
+<a name="693"><span class="lineNum">     693 </span><span class="lineNoCov">          0 :         return nullptr;</span></a>
+<a name="694"><span class="lineNum">     694 </span>            :     }</a>
+<a name="695"><span class="lineNum">     695 </span>            : </a>
+<a name="696"><span class="lineNum">     696 </span><span class="lineCov">        123 :     if (bSingleOutputLayer_ &amp;&amp; !apoLayers_.empty())</span></a>
+<a name="697"><span class="lineNum">     697 </span>            :     {</a>
+<a name="698"><span class="lineNum">     698 </span><span class="lineNoCov">          0 :         CPLError(CE_Failure, CPLE_AppDefined,</span></a>
+<a name="699"><span class="lineNum">     699 </span>            :                  &quot;Only one layer can be created since SINGLE_LAYER=YES &quot;</a>
+<a name="700"><span class="lineNum">     700 </span>            :                  &quot;creation option has been used&quot;);</a>
+<a name="701"><span class="lineNum">     701 </span><span class="lineNoCov">          0 :         return nullptr;</span></a>
+<a name="702"><span class="lineNum">     702 </span>            :     }</a>
+<a name="703"><span class="lineNum">     703 </span>            : </a>
+<a name="704"><span class="lineNum">     704 </span>            :     const auto eGType =</a>
+<a name="705"><span class="lineNum">     705 </span><span class="lineCov">        123 :         poSrcGeomFieldDefn ? poSrcGeomFieldDefn-&gt;GetType() : wkbNone;</span></a>
+<a name="706"><span class="lineNum">     706 </span>            :     const OGRSpatialReference *poSRS =</a>
+<a name="707"><span class="lineNum">     707 </span><span class="lineCov">        123 :         poSrcGeomFieldDefn ? poSrcGeomFieldDefn-&gt;GetSpatialRef() : nullptr;</span></a>
+<a name="708"><span class="lineNum">     708 </span>            : </a>
+<a name="709"><span class="lineNum">     709 </span><span class="lineCov">        246 :     std::string osCoordRefSys;</span></a>
+<a name="710"><span class="lineNum">     710 </span><span class="lineCov">        123 :     std::unique_ptr&lt;OGRCoordinateTransformation&gt; poCTToWGS84;</span></a>
+<a name="711"><span class="lineNum">     711 </span><span class="lineCov">        123 :     std::unique_ptr&lt;OGRSpatialReference&gt; poSRSTmp;  // keep in this scope</span></a>
+<a name="712"><span class="lineNum">     712 </span><span class="lineCov">        123 :     if (poSRS)</span></a>
+<a name="713"><span class="lineNum">     713 </span>            :     {</a>
+<a name="714"><span class="lineNum">     714 </span><span class="lineCov">         69 :         const auto GetURI = [](const char *pszAuthName, const char *pszAuthCode)</span></a>
+<a name="715"><span class="lineNum">     715 </span>            :         {</a>
+<a name="716"><span class="lineNum">     716 </span><span class="lineCov">         69 :             std::string osRet = &quot;http://www.opengis.net/def/crs/&quot;;</span></a>
+<a name="717"><span class="lineNum">     717 </span><span class="lineCov">         69 :             if (STARTS_WITH(pszAuthName, &quot;IAU_&quot;))</span></a>
+<a name="718"><span class="lineNum">     718 </span>            :             {</a>
+<a name="719"><span class="lineNum">     719 </span><span class="lineNoCov">          0 :                 osRet += &quot;IAU/&quot;;</span></a>
+<a name="720"><span class="lineNum">     720 </span><span class="lineNoCov">          0 :                 osRet += pszAuthName + strlen(&quot;IAU_&quot;);</span></a>
+<a name="721"><span class="lineNum">     721 </span><span class="lineNoCov">          0 :                 osRet += '/';</span></a>
+<a name="722"><span class="lineNum">     722 </span>            :             }</a>
+<a name="723"><span class="lineNum">     723 </span>            :             else</a>
+<a name="724"><span class="lineNum">     724 </span>            :             {</a>
+<a name="725"><span class="lineNum">     725 </span><span class="lineCov">         69 :                 osRet += pszAuthName;</span></a>
+<a name="726"><span class="lineNum">     726 </span><span class="lineCov">         69 :                 osRet += &quot;/0/&quot;;</span></a>
+<a name="727"><span class="lineNum">     727 </span>            :             }</a>
+<a name="728"><span class="lineNum">     728 </span><span class="lineCov">         69 :             osRet += pszAuthCode;</span></a>
+<a name="729"><span class="lineNum">     729 </span><span class="lineCov">         69 :             return osRet;</span></a>
+<a name="730"><span class="lineNum">     730 </span>            :         };</a>
+<a name="731"><span class="lineNum">     731 </span>            : </a>
+<a name="732"><span class="lineNum">     732 </span><span class="lineCov">         69 :         const auto GetCoordRefSys = [GetURI](const char *pszAuthName,</span></a>
+<a name="733"><span class="lineNum">     733 </span>            :                                              const char *pszAuthCode,</a>
+<a name="734"><span class="lineNum">     734 </span>            :                                              double dfCoordEpoch = 0)</a>
+<a name="735"><span class="lineNum">     735 </span>            :         {</a>
+<a name="736"><span class="lineNum">     736 </span><span class="lineCov">         69 :             if (dfCoordEpoch &gt; 0)</span></a>
+<a name="737"><span class="lineNum">     737 </span>            :             {</a>
+<a name="738"><span class="lineNum">     738 </span><span class="lineCov">          2 :                 json_object *poObj = json_object_new_object();</span></a>
+<a name="739"><span class="lineNum">     739 </span><span class="lineCov">          2 :                 json_object_object_add(poObj, &quot;type&quot;,</span></a>
+<a name="740"><span class="lineNum">     740 </span>            :                                        json_object_new_string(&quot;Reference&quot;));</a>
+<a name="741"><span class="lineNum">     741 </span><span class="lineCov">          2 :                 json_object_object_add(</span></a>
+<a name="742"><span class="lineNum">     742 </span>            :                     poObj, &quot;href&quot;,</a>
+<a name="743"><span class="lineNum">     743 </span>            :                     json_object_new_string(</a>
+<a name="744"><span class="lineNum">     744 </span><span class="lineCov">          4 :                         GetURI(pszAuthName, pszAuthCode).c_str()));</span></a>
+<a name="745"><span class="lineNum">     745 </span><span class="lineCov">          2 :                 json_object_object_add(poObj, &quot;epoch&quot;,</span></a>
+<a name="746"><span class="lineNum">     746 </span>            :                                        json_object_new_double(dfCoordEpoch));</a>
+<a name="747"><span class="lineNum">     747 </span><span class="lineCov">          2 :                 return poObj;</span></a>
+<a name="748"><span class="lineNum">     748 </span>            :             }</a>
+<a name="749"><span class="lineNum">     749 </span>            :             else</a>
+<a name="750"><span class="lineNum">     750 </span>            :             {</a>
+<a name="751"><span class="lineNum">     751 </span><span class="lineCov">         67 :                 return json_object_new_string(</span></a>
+<a name="752"><span class="lineNum">     752 </span><span class="lineCov">        134 :                     GetURI(pszAuthName, pszAuthCode).c_str());</span></a>
+<a name="753"><span class="lineNum">     753 </span>            :             }</a>
+<a name="754"><span class="lineNum">     754 </span>            :         };</a>
+<a name="755"><span class="lineNum">     755 </span>            : </a>
+<a name="756"><span class="lineNum">     756 </span><span class="lineCov">         66 :         const double dfCoordEpoch = poSRS-&gt;GetCoordinateEpoch();</span></a>
+<a name="757"><span class="lineNum">     757 </span><span class="lineCov">         66 :         const char *pszAuthName = poSRS-&gt;GetAuthorityName(nullptr);</span></a>
+<a name="758"><span class="lineNum">     758 </span><span class="lineCov">         66 :         if (!pszAuthName)</span></a>
+<a name="759"><span class="lineNum">     759 </span>            :         {</a>
+<a name="760"><span class="lineNum">     760 </span><span class="lineCov">          6 :             auto poBestMatch = poSRS-&gt;FindBestMatch();</span></a>
+<a name="761"><span class="lineNum">     761 </span><span class="lineCov">          6 :             if (poBestMatch)</span></a>
+<a name="762"><span class="lineNum">     762 </span>            :             {</a>
+<a name="763"><span class="lineNum">     763 </span><span class="lineCov">          1 :                 poSRSTmp.reset(poBestMatch);</span></a>
+<a name="764"><span class="lineNum">     764 </span><span class="lineCov">          1 :                 if (dfCoordEpoch &gt; 0)</span></a>
+<a name="765"><span class="lineNum">     765 </span><span class="lineNoCov">          0 :                     poSRSTmp-&gt;SetCoordinateEpoch(dfCoordEpoch);</span></a>
+<a name="766"><span class="lineNum">     766 </span><span class="lineCov">          1 :                 poSRSTmp-&gt;SetDataAxisToSRSAxisMapping(</span></a>
+<a name="767"><span class="lineNum">     767 </span>            :                     poSRS-&gt;GetDataAxisToSRSAxisMapping());</a>
+<a name="768"><span class="lineNum">     768 </span><span class="lineCov">          1 :                 poSRS = poSRSTmp.get();</span></a>
+<a name="769"><span class="lineNum">     769 </span><span class="lineCov">          1 :                 pszAuthName = poSRS-&gt;GetAuthorityName(nullptr);</span></a>
+<a name="770"><span class="lineNum">     770 </span>            :             }</a>
+<a name="771"><span class="lineNum">     771 </span>            :         }</a>
+<a name="772"><span class="lineNum">     772 </span><span class="lineCov">         66 :         const char *pszAuthCode = poSRS-&gt;GetAuthorityCode(nullptr);</span></a>
+<a name="773"><span class="lineNum">     773 </span><span class="lineCov">         66 :         json_object *poObj = nullptr;</span></a>
+<a name="774"><span class="lineNum">     774 </span><span class="lineCov">         66 :         if (pszAuthName &amp;&amp; pszAuthCode)</span></a>
+<a name="775"><span class="lineNum">     775 </span>            :         {</a>
+<a name="776"><span class="lineNum">     776 </span><span class="lineCov">         61 :             poObj = GetCoordRefSys(pszAuthName, pszAuthCode, dfCoordEpoch);</span></a>
+<a name="777"><span class="lineNum">     777 </span>            :         }</a>
+<a name="778"><span class="lineNum">     778 </span><span class="lineCov">          5 :         else if (poSRS-&gt;IsCompound())</span></a>
+<a name="779"><span class="lineNum">     779 </span>            :         {</a>
+<a name="780"><span class="lineNum">     780 </span><span class="lineCov">          4 :             const char *pszAuthNameHoriz = poSRS-&gt;GetAuthorityName(&quot;HORIZCRS&quot;);</span></a>
+<a name="781"><span class="lineNum">     781 </span><span class="lineCov">          4 :             const char *pszAuthCodeHoriz = poSRS-&gt;GetAuthorityCode(&quot;HORIZCRS&quot;);</span></a>
+<a name="782"><span class="lineNum">     782 </span><span class="lineCov">          4 :             const char *pszAuthNameVert = poSRS-&gt;GetAuthorityName(&quot;VERTCRS&quot;);</span></a>
+<a name="783"><span class="lineNum">     783 </span><span class="lineCov">          4 :             const char *pszAuthCodeVert = poSRS-&gt;GetAuthorityCode(&quot;VERTCRS&quot;);</span></a>
+<a name="784"><span class="lineNum">     784 </span><span class="lineCov">          4 :             if (pszAuthNameHoriz &amp;&amp; pszAuthCodeHoriz &amp;&amp; pszAuthNameVert &amp;&amp;</span></a>
+<a name="785"><span class="lineNum">     785 </span>            :                 pszAuthCodeVert)</a>
+<a name="786"><span class="lineNum">     786 </span>            :             {</a>
+<a name="787"><span class="lineNum">     787 </span><span class="lineCov">          4 :                 poObj = json_object_new_array();</span></a>
+<a name="788"><span class="lineNum">     788 </span><span class="lineCov">          4 :                 json_object_array_add(poObj, GetCoordRefSys(pszAuthNameHoriz,</span></a>
+<a name="789"><span class="lineNum">     789 </span>            :                                                             pszAuthCodeHoriz,</a>
+<a name="790"><span class="lineNum">     790 </span>            :                                                             dfCoordEpoch));</a>
+<a name="791"><span class="lineNum">     791 </span><span class="lineCov">          4 :                 json_object_array_add(</span></a>
+<a name="792"><span class="lineNum">     792 </span>            :                     poObj, GetCoordRefSys(pszAuthNameVert, pszAuthCodeVert));</a>
+<a name="793"><span class="lineNum">     793 </span>            :             }</a>
+<a name="794"><span class="lineNum">     794 </span>            :         }</a>
+<a name="795"><span class="lineNum">     795 </span>            :         else</a>
+<a name="796"><span class="lineNum">     796 </span>            :         {</a>
+<a name="797"><span class="lineNum">     797 </span><span class="lineCov">          1 :             char *pszPROJJSON = nullptr;</span></a>
+<a name="798"><span class="lineNum">     798 </span><span class="lineCov">          1 :             if (poSRS-&gt;exportToPROJJSON(&amp;pszPROJJSON, nullptr) == OGRERR_NONE)</span></a>
+<a name="799"><span class="lineNum">     799 </span>            :             {</a>
+<a name="800"><span class="lineNum">     800 </span><span class="lineCov">          2 :                 CPLJSONDocument oDoc;</span></a>
+<a name="801"><span class="lineNum">     801 </span><span class="lineCov">          1 :                 if (oDoc.LoadMemory(pszPROJJSON))</span></a>
+<a name="802"><span class="lineNum">     802 </span>            :                 {</a>
+<a name="803"><span class="lineNum">     803 </span><span class="lineCov">          1 :                     poObj = json_object_new_object();</span></a>
+<a name="804"><span class="lineNum">     804 </span><span class="lineCov">          1 :                     json_object_object_add(poObj, &quot;type&quot;,</span></a>
+<a name="805"><span class="lineNum">     805 </span>            :                                            json_object_new_string(&quot;PROJJSON&quot;));</a>
+<a name="806"><span class="lineNum">     806 </span>            :                     auto poPROJJSON = reinterpret_cast&lt;json_object *&gt;(</a>
+<a name="807"><span class="lineNum">     807 </span><span class="lineCov">          1 :                         oDoc.GetRoot().GetInternalHandle());</span></a>
+<a name="808"><span class="lineNum">     808 </span><span class="lineCov">          1 :                     json_object_get(poPROJJSON);</span></a>
+<a name="809"><span class="lineNum">     809 </span><span class="lineCov">          1 :                     json_object_object_add(poObj, &quot;value&quot;, poPROJJSON);</span></a>
+<a name="810"><span class="lineNum">     810 </span><span class="lineCov">          1 :                     if (dfCoordEpoch &gt; 0)</span></a>
+<a name="811"><span class="lineNum">     811 </span>            :                     {</a>
+<a name="812"><span class="lineNum">     812 </span><span class="lineNoCov">          0 :                         json_object_object_add(</span></a>
+<a name="813"><span class="lineNum">     813 </span>            :                             poObj, &quot;epoch&quot;,</a>
+<a name="814"><span class="lineNum">     814 </span>            :                             json_object_new_double(dfCoordEpoch));</a>
+<a name="815"><span class="lineNum">     815 </span>            :                     }</a>
+<a name="816"><span class="lineNum">     816 </span>            :                 }</a>
+<a name="817"><span class="lineNum">     817 </span>            :             }</a>
+<a name="818"><span class="lineNum">     818 </span><span class="lineCov">          1 :             CPLFree(pszPROJJSON);</span></a>
+<a name="819"><span class="lineNum">     819 </span>            :         }</a>
+<a name="820"><span class="lineNum">     820 </span>            : </a>
+<a name="821"><span class="lineNum">     821 </span><span class="lineCov">         66 :         if (poObj)</span></a>
+<a name="822"><span class="lineNum">     822 </span>            :         {</a>
+<a name="823"><span class="lineNum">     823 </span><span class="lineCov">         66 :             osCoordRefSys = CPLString(json_object_to_json_string_ext(</span></a>
+<a name="824"><span class="lineNum">     824 </span>            :                                           poObj, JSON_C_TO_STRING_SPACED))</a>
+<a name="825"><span class="lineNum">     825 </span><span class="lineCov">         66 :                                 .replaceAll(&quot;\\/&quot;, '/');</span></a>
+<a name="826"><span class="lineNum">     826 </span><span class="lineCov">         66 :             json_object_put(poObj);</span></a>
+<a name="827"><span class="lineNum">     827 </span>            :         }</a>
+<a name="828"><span class="lineNum">     828 </span>            :         else</a>
+<a name="829"><span class="lineNum">     829 </span>            :         {</a>
+<a name="830"><span class="lineNum">     830 </span><span class="lineNoCov">          0 :             CPLError(CE_Failure, CPLE_NotSupported,</span></a>
+<a name="831"><span class="lineNum">     831 </span>            :                      &quot;Input CRS %s cannot be expressed as a reference (ie &quot;</a>
+<a name="832"><span class="lineNum">     832 </span>            :                      &quot;well-known CRS by code). &quot;</a>
+<a name="833"><span class="lineNum">     833 </span>            :                      &quot;Retry be reprojecting to a known CRS first&quot;,</a>
+<a name="834"><span class="lineNum">     834 </span>            :                      poSRS-&gt;GetName());</a>
+<a name="835"><span class="lineNum">     835 </span><span class="lineNoCov">          0 :             return nullptr;</span></a>
+<a name="836"><span class="lineNum">     836 </span>            :         }</a>
+<a name="837"><span class="lineNum">     837 </span>            : </a>
+<a name="838"><span class="lineNum">     838 </span><span class="lineCov">         66 :         if (!strstr(osCoordRefSys.c_str(),</span></a>
+<a name="839"><span class="lineNum">     839 </span>            :                     &quot;http://www.opengis.net/def/crs/IAU/&quot;))</a>
+<a name="840"><span class="lineNum">     840 </span>            :         {</a>
+<a name="841"><span class="lineNum">     841 </span><span class="lineCov">        132 :             OGRSpatialReference oSRSWGS84;</span></a>
+<a name="842"><span class="lineNum">     842 </span><span class="lineCov">         66 :             oSRSWGS84.SetWellKnownGeogCS(&quot;WGS84&quot;);</span></a>
+<a name="843"><span class="lineNum">     843 </span><span class="lineCov">         66 :             oSRSWGS84.SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);</span></a>
+<a name="844"><span class="lineNum">     844 </span><span class="lineCov">         66 :             poCTToWGS84.reset(</span></a>
+<a name="845"><span class="lineNum">     845 </span>            :                 OGRCreateCoordinateTransformation(poSRS, &amp;oSRSWGS84));</a>
+<a name="846"><span class="lineNum">     846 </span>            :         }</a>
+<a name="847"><span class="lineNum">     847 </span>            :     }</a>
+<a name="848"><span class="lineNum">     848 </span><span class="lineCov">         57 :     else if (eGType != wkbNone)</span></a>
+<a name="849"><span class="lineNum">     849 </span>            :     {</a>
+<a name="850"><span class="lineNum">     850 </span><span class="lineCov">         45 :         if (OGR_GT_HasZ(eGType))</span></a>
+<a name="851"><span class="lineNum">     851 </span><span class="lineCov">         21 :             osCoordRefSys = &quot;http://www.opengis.net/def/crs/OGC/0/CRS84h&quot;;</span></a>
+<a name="852"><span class="lineNum">     852 </span>            :         else</a>
+<a name="853"><span class="lineNum">     853 </span><span class="lineCov">         24 :             osCoordRefSys = &quot;http://www.opengis.net/def/crs/OGC/0/CRS84&quot;;</span></a>
+<a name="854"><span class="lineNum">     854 </span><span class="lineCov">         45 :         CPLError(CE_Warning, CPLE_AppDefined,</span></a>
+<a name="855"><span class="lineNum">     855 </span>            :                  &quot;No SRS set on layer. Assuming it is long/lat on WGS84 &quot;</a>
+<a name="856"><span class="lineNum">     856 </span>            :                  &quot;ellipsoid&quot;);</a>
+<a name="857"><span class="lineNum">     857 </span>            :     }</a>
+<a name="858"><span class="lineNum">     858 </span>            : </a>
+<a name="859"><span class="lineNum">     859 </span><span class="lineCov">        246 :     CPLStringList aosOptions(papszOptions);</span></a>
+<a name="860"><span class="lineNum">     860 </span>            : </a>
+<a name="861"><span class="lineNum">     861 </span><span class="lineCov">        123 :     if (const char *pszCoordPrecisionGeom =</span></a>
+<a name="862"><span class="lineNum">     862 </span><span class="lineCov">        123 :             CSLFetchNameValue(papszOptions, &quot;COORDINATE_PRECISION_GEOMETRY&quot;))</span></a>
+<a name="863"><span class="lineNum">     863 </span>            :     {</a>
+<a name="864"><span class="lineNum">     864 </span>            :         double dfXYResolutionGeometry =</a>
+<a name="865"><span class="lineNum">     865 </span><span class="lineCov">          1 :             std::pow(10.0, -CPLAtof(pszCoordPrecisionGeom));</span></a>
+<a name="866"><span class="lineNum">     866 </span><span class="lineCov">          1 :         double dfZResolutionGeometry = dfXYResolutionGeometry;</span></a>
+<a name="867"><span class="lineNum">     867 </span>            :         aosOptions.SetNameValue(&quot;XY_COORD_PRECISION_GEOMETRY&quot;,</a>
+<a name="868"><span class="lineNum">     868 </span><span class="lineCov">          1 :                                 pszCoordPrecisionGeom);</span></a>
+<a name="869"><span class="lineNum">     869 </span>            :         aosOptions.SetNameValue(&quot;Z_COORD_PRECISION_GEOMETRY&quot;,</a>
+<a name="870"><span class="lineNum">     870 </span><span class="lineCov">          1 :                                 pszCoordPrecisionGeom);</span></a>
+<a name="871"><span class="lineNum">     871 </span><span class="lineCov">          1 :         if (IsSingleOutputLayer())</span></a>
+<a name="872"><span class="lineNum">     872 </span>            :         {</a>
+<a name="873"><span class="lineNum">     873 </span><span class="lineCov">          1 :             VSIFPrintfL(fpOut_, &quot;\&quot;xy_coordinate_resolution\&quot;: %g,\n&quot;,</span></a>
+<a name="874"><span class="lineNum">     874 </span>            :                         dfXYResolutionGeometry);</a>
+<a name="875"><span class="lineNum">     875 </span><span class="lineCov">          1 :             if (poSRS &amp;&amp; poSRS-&gt;GetAxesCount() == 3)</span></a>
+<a name="876"><span class="lineNum">     876 </span>            :             {</a>
+<a name="877"><span class="lineNum">     877 </span><span class="lineNoCov">          0 :                 VSIFPrintfL(fpOut_, &quot;\&quot;z_coordinate_resolution\&quot;: %g,\n&quot;,</span></a>
+<a name="878"><span class="lineNum">     878 </span>            :                             dfZResolutionGeometry);</a>
+<a name="879"><span class="lineNum">     879 </span>            :             }</a>
+<a name="880"><span class="lineNum">     880 </span>            :         }</a>
+<a name="881"><span class="lineNum">     881 </span>            :     }</a>
+<a name="882"><span class="lineNum">     882 </span><span class="lineCov">        232 :     else if (poSrcGeomFieldDefn &amp;&amp;</span></a>
+<a name="883"><span class="lineNum">     883 </span><span class="lineCov">        110 :              poSrcGeomFieldDefn-&gt;GetCoordinatePrecision().dfXYResolution ==</span></a>
+<a name="884"><span class="lineNum">     884 </span><span class="lineCov">        232 :                  OGRGeomCoordinatePrecision::UNKNOWN &amp;&amp;</span></a>
+<a name="885"><span class="lineNum">     885 </span><span class="lineCov">        108 :              CSLFetchNameValue(papszOptions, &quot;SIGNIFICANT_FIGURES&quot;) == nullptr)</span></a>
+<a name="886"><span class="lineNum">     886 </span>            :     {</a>
+<a name="887"><span class="lineNum">     887 </span><span class="lineCov">        108 :         const int nXYPrecisionGeometry = 7;</span></a>
+<a name="888"><span class="lineNum">     888 </span><span class="lineCov">        108 :         const int nZPrecisionGeometry = 3;</span></a>
+<a name="889"><span class="lineNum">     889 </span>            :         aosOptions.SetNameValue(&quot;XY_COORD_PRECISION_GEOMETRY&quot;,</a>
+<a name="890"><span class="lineNum">     890 </span><span class="lineCov">        108 :                                 CPLSPrintf(&quot;%d&quot;, nXYPrecisionGeometry));</span></a>
+<a name="891"><span class="lineNum">     891 </span>            :         aosOptions.SetNameValue(&quot;Z_COORD_PRECISION_GEOMETRY&quot;,</a>
+<a name="892"><span class="lineNum">     892 </span><span class="lineCov">        108 :                                 CPLSPrintf(&quot;%d&quot;, nZPrecisionGeometry));</span></a>
+<a name="893"><span class="lineNum">     893 </span>            :     }</a>
+<a name="894"><span class="lineNum">     894 </span>            : </a>
+<a name="895"><span class="lineNum">     895 </span><span class="lineCov">        123 :     double dfXYResolution = OGRGeomCoordinatePrecision::UNKNOWN;</span></a>
+<a name="896"><span class="lineNum">     896 </span><span class="lineCov">        123 :     double dfZResolution = OGRGeomCoordinatePrecision::UNKNOWN;</span></a>
+<a name="897"><span class="lineNum">     897 </span>            : </a>
+<a name="898"><span class="lineNum">     898 </span><span class="lineCov">        123 :     if (const char *pszCoordPrecisionPlace =</span></a>
+<a name="899"><span class="lineNum">     899 </span><span class="lineCov">        123 :             CSLFetchNameValue(papszOptions, &quot;COORDINATE_PRECISION_PLACE&quot;))</span></a>
+<a name="900"><span class="lineNum">     900 </span>            :     {</a>
+<a name="901"><span class="lineNum">     901 </span><span class="lineCov">          1 :         dfXYResolution = std::pow(10.0, -CPLAtof(pszCoordPrecisionPlace));</span></a>
+<a name="902"><span class="lineNum">     902 </span><span class="lineCov">          1 :         dfZResolution = dfXYResolution;</span></a>
+<a name="903"><span class="lineNum">     903 </span><span class="lineCov">          1 :         if (IsSingleOutputLayer())</span></a>
+<a name="904"><span class="lineNum">     904 </span>            :         {</a>
+<a name="905"><span class="lineNum">     905 </span><span class="lineCov">          1 :             VSIFPrintfL(fpOut_, &quot;\&quot;xy_coordinate_resolution_place\&quot;: %g,\n&quot;,</span></a>
+<a name="906"><span class="lineNum">     906 </span>            :                         dfXYResolution);</a>
+<a name="907"><span class="lineNum">     907 </span><span class="lineCov">          1 :             if (poSRS &amp;&amp; poSRS-&gt;GetAxesCount() == 3)</span></a>
+<a name="908"><span class="lineNum">     908 </span>            :             {</a>
+<a name="909"><span class="lineNum">     909 </span><span class="lineNoCov">          0 :                 VSIFPrintfL(fpOut_, &quot;\&quot;z_coordinate_resolution_place\&quot;: %g,\n&quot;,</span></a>
+<a name="910"><span class="lineNum">     910 </span>            :                             dfZResolution);</a>
+<a name="911"><span class="lineNum">     911 </span>            :             }</a>
+<a name="912"><span class="lineNum">     912 </span>            :         }</a>
+<a name="913"><span class="lineNum">     913 </span>            :     }</a>
+<a name="914"><span class="lineNum">     914 </span><span class="lineCov">        232 :     else if (poSrcGeomFieldDefn &amp;&amp;</span></a>
+<a name="915"><span class="lineNum">     915 </span><span class="lineCov">        110 :              CSLFetchNameValue(papszOptions, &quot;COORDINATE_PRECISION_PLACE&quot;) ==</span></a>
+<a name="916"><span class="lineNum">     916 </span><span class="lineCov">        232 :                  nullptr &amp;&amp;</span></a>
+<a name="917"><span class="lineNum">     917 </span><span class="lineCov">        110 :              CSLFetchNameValue(papszOptions, &quot;SIGNIFICANT_FIGURES&quot;) == nullptr)</span></a>
+<a name="918"><span class="lineNum">     918 </span>            :     {</a>
+<a name="919"><span class="lineNum">     919 </span><span class="lineCov">        110 :         const auto &amp;oCoordPrec = poSrcGeomFieldDefn-&gt;GetCoordinatePrecision();</span></a>
+<a name="920"><span class="lineNum">     920 </span><span class="lineCov">        220 :         OGRSpatialReference oSRSWGS84;</span></a>
+<a name="921"><span class="lineNum">     921 </span><span class="lineCov">        110 :         oSRSWGS84.SetWellKnownGeogCS(&quot;WGS84&quot;);</span></a>
+<a name="922"><span class="lineNum">     922 </span>            :         const auto oCoordPrecWGS84 =</a>
+<a name="923"><span class="lineNum">     923 </span><span class="lineCov">        220 :             oCoordPrec.ConvertToOtherSRS(poSRS, &amp;oSRSWGS84);</span></a>
+<a name="924"><span class="lineNum">     924 </span>            : </a>
+<a name="925"><span class="lineNum">     925 </span><span class="lineCov">        110 :         if (oCoordPrec.dfXYResolution != OGRGeomCoordinatePrecision::UNKNOWN)</span></a>
+<a name="926"><span class="lineNum">     926 </span>            :         {</a>
+<a name="927"><span class="lineNum">     927 </span><span class="lineCov">          2 :             dfXYResolution = oCoordPrec.dfXYResolution;</span></a>
+<a name="928"><span class="lineNum">     928 </span>            :             aosOptions.SetNameValue(</a>
+<a name="929"><span class="lineNum">     929 </span>            :                 &quot;XY_COORD_PRECISION_PLACE&quot;,</a>
+<a name="930"><span class="lineNum">     930 </span>            :                 CPLSPrintf(&quot;%d&quot;,</a>
+<a name="931"><span class="lineNum">     931 </span>            :                            OGRGeomCoordinatePrecision::ResolutionToPrecision(</a>
+<a name="932"><span class="lineNum">     932 </span><span class="lineCov">          2 :                                oCoordPrec.dfXYResolution)));</span></a>
+<a name="933"><span class="lineNum">     933 </span><span class="lineCov">          2 :             if (IsSingleOutputLayer())</span></a>
+<a name="934"><span class="lineNum">     934 </span>            :             {</a>
+<a name="935"><span class="lineNum">     935 </span><span class="lineCov">          1 :                 VSIFPrintfL(fpOut_, &quot;\&quot;xy_coordinate_resolution_place\&quot;: %g,\n&quot;,</span></a>
+<a name="936"><span class="lineNum">     936 </span><span class="lineCov">          1 :                             oCoordPrec.dfXYResolution);</span></a>
+<a name="937"><span class="lineNum">     937 </span>            :             }</a>
+<a name="938"><span class="lineNum">     938 </span>            : </a>
+<a name="939"><span class="lineNum">     939 </span><span class="lineCov">          2 :             if (CSLFetchNameValue(papszOptions,</span></a>
+<a name="940"><span class="lineNum">     940 </span><span class="lineCov">          2 :                                   &quot;COORDINATE_PRECISION_GEOMETRY&quot;) == nullptr)</span></a>
+<a name="941"><span class="lineNum">     941 </span>            :             {</a>
+<a name="942"><span class="lineNum">     942 </span><span class="lineCov">          2 :                 const double dfXYResolutionGeometry =</span></a>
+<a name="943"><span class="lineNum">     943 </span>            :                     oCoordPrecWGS84.dfXYResolution;</a>
+<a name="944"><span class="lineNum">     944 </span>            : </a>
+<a name="945"><span class="lineNum">     945 </span>            :                 aosOptions.SetNameValue(</a>
+<a name="946"><span class="lineNum">     946 </span>            :                     &quot;XY_COORD_PRECISION_GEOMETRY&quot;,</a>
+<a name="947"><span class="lineNum">     947 </span>            :                     CPLSPrintf(</a>
+<a name="948"><span class="lineNum">     948 </span>            :                         &quot;%d&quot;, OGRGeomCoordinatePrecision::ResolutionToPrecision(</a>
+<a name="949"><span class="lineNum">     949 </span><span class="lineCov">          2 :                                   dfXYResolutionGeometry)));</span></a>
+<a name="950"><span class="lineNum">     950 </span><span class="lineCov">          2 :                 if (IsSingleOutputLayer())</span></a>
+<a name="951"><span class="lineNum">     951 </span>            :                 {</a>
+<a name="952"><span class="lineNum">     952 </span><span class="lineCov">          1 :                     VSIFPrintfL(fpOut_, &quot;\&quot;xy_coordinate_resolution\&quot;: %g,\n&quot;,</span></a>
+<a name="953"><span class="lineNum">     953 </span>            :                                 dfXYResolutionGeometry);</a>
+<a name="954"><span class="lineNum">     954 </span>            :                 }</a>
+<a name="955"><span class="lineNum">     955 </span>            :             }</a>
+<a name="956"><span class="lineNum">     956 </span>            :         }</a>
+<a name="957"><span class="lineNum">     957 </span>            : </a>
+<a name="958"><span class="lineNum">     958 </span><span class="lineCov">        110 :         if (oCoordPrec.dfZResolution != OGRGeomCoordinatePrecision::UNKNOWN)</span></a>
+<a name="959"><span class="lineNum">     959 </span>            :         {</a>
+<a name="960"><span class="lineNum">     960 </span><span class="lineCov">          2 :             dfZResolution = oCoordPrec.dfZResolution;</span></a>
+<a name="961"><span class="lineNum">     961 </span>            :             aosOptions.SetNameValue(</a>
+<a name="962"><span class="lineNum">     962 </span>            :                 &quot;Z_COORD_PRECISION_PLACE&quot;,</a>
+<a name="963"><span class="lineNum">     963 </span>            :                 CPLSPrintf(&quot;%d&quot;,</a>
+<a name="964"><span class="lineNum">     964 </span>            :                            OGRGeomCoordinatePrecision::ResolutionToPrecision(</a>
+<a name="965"><span class="lineNum">     965 </span><span class="lineCov">          2 :                                dfZResolution)));</span></a>
+<a name="966"><span class="lineNum">     966 </span><span class="lineCov">          2 :             if (IsSingleOutputLayer())</span></a>
+<a name="967"><span class="lineNum">     967 </span>            :             {</a>
+<a name="968"><span class="lineNum">     968 </span><span class="lineCov">          1 :                 VSIFPrintfL(fpOut_, &quot;\&quot;z_coordinate_resolution_place\&quot;: %g,\n&quot;,</span></a>
+<a name="969"><span class="lineNum">     969 </span>            :                             dfZResolution);</a>
+<a name="970"><span class="lineNum">     970 </span>            :             }</a>
+<a name="971"><span class="lineNum">     971 </span>            : </a>
+<a name="972"><span class="lineNum">     972 </span><span class="lineCov">          2 :             if (CSLFetchNameValue(papszOptions,</span></a>
+<a name="973"><span class="lineNum">     973 </span><span class="lineCov">          2 :                                   &quot;COORDINATE_PRECISION_GEOMETRY&quot;) == nullptr)</span></a>
+<a name="974"><span class="lineNum">     974 </span>            :             {</a>
+<a name="975"><span class="lineNum">     975 </span><span class="lineCov">          2 :                 const double dfZResolutionGeometry =</span></a>
+<a name="976"><span class="lineNum">     976 </span>            :                     oCoordPrecWGS84.dfZResolution;</a>
+<a name="977"><span class="lineNum">     977 </span>            : </a>
+<a name="978"><span class="lineNum">     978 </span>            :                 aosOptions.SetNameValue(</a>
+<a name="979"><span class="lineNum">     979 </span>            :                     &quot;Z_COORD_PRECISION_GEOMETRY&quot;,</a>
+<a name="980"><span class="lineNum">     980 </span>            :                     CPLSPrintf(</a>
+<a name="981"><span class="lineNum">     981 </span>            :                         &quot;%d&quot;, OGRGeomCoordinatePrecision::ResolutionToPrecision(</a>
+<a name="982"><span class="lineNum">     982 </span><span class="lineCov">          2 :                                   dfZResolutionGeometry)));</span></a>
+<a name="983"><span class="lineNum">     983 </span><span class="lineCov">          2 :                 if (IsSingleOutputLayer())</span></a>
+<a name="984"><span class="lineNum">     984 </span>            :                 {</a>
+<a name="985"><span class="lineNum">     985 </span><span class="lineCov">          1 :                     VSIFPrintfL(fpOut_, &quot;\&quot;z_coordinate_resolution\&quot;: %g,\n&quot;,</span></a>
+<a name="986"><span class="lineNum">     986 </span>            :                                 dfZResolutionGeometry);</a>
+<a name="987"><span class="lineNum">     987 </span>            :                 }</a>
+<a name="988"><span class="lineNum">     988 </span>            :             }</a>
+<a name="989"><span class="lineNum">     989 </span>            :         }</a>
+<a name="990"><span class="lineNum">     990 </span>            :     }</a>
+<a name="991"><span class="lineNum">     991 </span>            : </a>
+<a name="992"><span class="lineNum">     992 </span>            :     auto poLayer = std::make_unique&lt;OGRJSONFGWriteLayer&gt;(</a>
+<a name="993"><span class="lineNum">     993 </span><span class="lineCov">        123 :         pszNameIn, poSRS, std::move(poCTToWGS84), osCoordRefSys, eGType,</span></a>
+<a name="994"><span class="lineNum">     994 </span><span class="lineCov">        123 :         aosOptions.List(), this);</span></a>
+<a name="995"><span class="lineNum">     995 </span><span class="lineCov">        123 :     apoLayers_.emplace_back(std::move(poLayer));</span></a>
+<a name="996"><span class="lineNum">     996 </span>            : </a>
+<a name="997"><span class="lineNum">     997 </span><span class="lineCov">        123 :     auto poLayerAdded = apoLayers_.back().get();</span></a>
+<a name="998"><span class="lineNum">     998 </span><span class="lineCov">        123 :     if (eGType != wkbNone &amp;&amp;</span></a>
+<a name="999"><span class="lineNum">     999 </span>            :         dfXYResolution != OGRGeomCoordinatePrecision::UNKNOWN)</a>
+<a name="1000"><span class="lineNum">    1000 </span>            :     {</a>
+<a name="1001"><span class="lineNum">    1001 </span>            :         auto poGeomFieldDefn =</a>
+<a name="1002"><span class="lineNum">    1002 </span><span class="lineCov">          3 :             poLayerAdded-&gt;GetLayerDefn()-&gt;GetGeomFieldDefn(0);</span></a>
+<a name="1003"><span class="lineNum">    1003 </span>            :         OGRGeomCoordinatePrecision oCoordPrec(</a>
+<a name="1004"><span class="lineNum">    1004 </span><span class="lineCov">          6 :             poGeomFieldDefn-&gt;GetCoordinatePrecision());</span></a>
+<a name="1005"><span class="lineNum">    1005 </span><span class="lineCov">          3 :         oCoordPrec.dfXYResolution = dfXYResolution;</span></a>
+<a name="1006"><span class="lineNum">    1006 </span><span class="lineCov">          3 :         poGeomFieldDefn-&gt;SetCoordinatePrecision(oCoordPrec);</span></a>
+<a name="1007"><span class="lineNum">    1007 </span>            :     }</a>
+<a name="1008"><span class="lineNum">    1008 </span>            : </a>
+<a name="1009"><span class="lineNum">    1009 </span><span class="lineCov">        123 :     if (eGType != wkbNone &amp;&amp;</span></a>
+<a name="1010"><span class="lineNum">    1010 </span>            :         dfZResolution != OGRGeomCoordinatePrecision::UNKNOWN)</a>
+<a name="1011"><span class="lineNum">    1011 </span>            :     {</a>
+<a name="1012"><span class="lineNum">    1012 </span>            :         auto poGeomFieldDefn =</a>
+<a name="1013"><span class="lineNum">    1013 </span><span class="lineCov">          3 :             poLayerAdded-&gt;GetLayerDefn()-&gt;GetGeomFieldDefn(0);</span></a>
+<a name="1014"><span class="lineNum">    1014 </span>            :         OGRGeomCoordinatePrecision oCoordPrec(</a>
+<a name="1015"><span class="lineNum">    1015 </span><span class="lineCov">          6 :             poGeomFieldDefn-&gt;GetCoordinatePrecision());</span></a>
+<a name="1016"><span class="lineNum">    1016 </span><span class="lineCov">          3 :         oCoordPrec.dfZResolution = dfZResolution;</span></a>
+<a name="1017"><span class="lineNum">    1017 </span><span class="lineCov">          3 :         poGeomFieldDefn-&gt;SetCoordinatePrecision(oCoordPrec);</span></a>
+<a name="1018"><span class="lineNum">    1018 </span>            :     }</a>
+<a name="1019"><span class="lineNum">    1019 </span>            : </a>
+<a name="1020"><span class="lineNum">    1020 </span><span class="lineCov">        123 :     return poLayerAdded;</span></a>
+<a name="1021"><span class="lineNum">    1021 </span>            : }</a>
+<a name="1022"><span class="lineNum">    1022 </span>            : </a>
+<a name="1023"><span class="lineNum">    1023 </span>            : /************************************************************************/</a>
+<a name="1024"><span class="lineNum">    1024 </span>            : /*                           TestCapability()                           */</a>
+<a name="1025"><span class="lineNum">    1025 </span>            : /************************************************************************/</a>
+<a name="1026"><span class="lineNum">    1026 </span>            : </a>
+<a name="1027"><span class="lineNum">    1027 </span><span class="lineCov">         73 : int OGRJSONFGDataset::TestCapability(const char *pszCap) const</span></a>
+<a name="1028"><span class="lineNum">    1028 </span>            : {</a>
+<a name="1029"><span class="lineNum">    1029 </span><span class="lineCov">         73 :     if (EQUAL(pszCap, ODsCCreateLayer))</span></a>
+<a name="1030"><span class="lineNum">    1030 </span><span class="lineCov">         73 :         return fpOut_ != nullptr &amp;&amp;</span></a>
+<a name="1031"><span class="lineNum">    1031 </span><span class="lineCov">         73 :                (!bSingleOutputLayer_ || apoLayers_.empty());</span></a>
+<a name="1032"><span class="lineNum">    1032 </span><span class="lineCov">         36 :     else if (EQUAL(pszCap, ODsCZGeometries) ||</span></a>
+<a name="1033"><span class="lineNum">    1033 </span><span class="lineCov">         34 :              EQUAL(pszCap, ODsCMeasuredGeometries) ||</span></a>
+<a name="1034"><span class="lineNum">    1034 </span><span class="lineCov">         32 :              EQUAL(pszCap, ODsCCurveGeometries))</span></a>
+<a name="1035"><span class="lineNum">    1035 </span><span class="lineCov">          7 :         return TRUE;</span></a>
+<a name="1036"><span class="lineNum">    1036 </span>            : </a>
+<a name="1037"><span class="lineNum">    1037 </span><span class="lineCov">         29 :     return FALSE;</span></a>
+<a name="1038"><span class="lineNum">    1038 </span>            : }</a>
+<a name="1039"><span class="lineNum">    1039 </span>            : </a>
+<a name="1040"><span class="lineNum">    1040 </span>            : /************************************************************************/</a>
+<a name="1041"><span class="lineNum">    1041 </span>            : /*                        OGRJSONFGMustSwapXY()                         */</a>
+<a name="1042"><span class="lineNum">    1042 </span>            : /************************************************************************/</a>
+<a name="1043"><span class="lineNum">    1043 </span>            : </a>
+<a name="1044"><span class="lineNum">    1044 </span><span class="lineCov">        181 : bool OGRJSONFGMustSwapXY(const OGRSpatialReference *poSRS)</span></a>
+<a name="1045"><span class="lineNum">    1045 </span>            : {</a>
+<a name="1046"><span class="lineNum">    1046 </span><span class="lineCov">        524 :     return poSRS-&gt;GetDataAxisToSRSAxisMapping() == std::vector&lt;int&gt;{2, 1} ||</span></a>
+<a name="1047"><span class="lineNum">    1047 </span><span class="lineCov">        524 :            poSRS-&gt;GetDataAxisToSRSAxisMapping() == std::vector&lt;int&gt;{2, 1, 3};</span></a>
+<a name="1048"><span class="lineNum">    1048 </span>            : }</a>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.14</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>
