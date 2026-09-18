@@ -1,0 +1,483 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - gdal_filtered.info - alg/marching_squares/polygon_ring_appender.h</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">alg/marching_squares</a> - polygon_ring_appender.h<span style="font-size: 80%;"> (source / <a href="polygon_ring_appender.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">gdal_filtered.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">152</td>
+            <td class="headerCovTableEntry">164</td>
+            <td class="headerCovTableEntryHi">92.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2026-09-18 14:54:48</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">28</td>
+            <td class="headerCovTableEntry">38</td>
+            <td class="headerCovTableEntryLo">73.7 %</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /******************************************************************************</a>
+<a name="2"><span class="lineNum">       2 </span>            :  *</a>
+<a name="3"><span class="lineNum">       3 </span>            :  * Project:  Marching square algorithm</a>
+<a name="4"><span class="lineNum">       4 </span>            :  * Purpose:  Core algorithm implementation for contour line generation.</a>
+<a name="5"><span class="lineNum">       5 </span>            :  * Author:   Oslandia &lt;infos at oslandia dot com&gt;</a>
+<a name="6"><span class="lineNum">       6 </span>            :  *</a>
+<a name="7"><span class="lineNum">       7 </span>            :  ******************************************************************************</a>
+<a name="8"><span class="lineNum">       8 </span>            :  * Copyright (c) 2018, Oslandia &lt;infos at oslandia dot com&gt;</a>
+<a name="9"><span class="lineNum">       9 </span>            :  *</a>
+<a name="10"><span class="lineNum">      10 </span>            :  * SPDX-License-Identifier: MIT</a>
+<a name="11"><span class="lineNum">      11 </span>            :  ****************************************************************************/</a>
+<a name="12"><span class="lineNum">      12 </span>            : #ifndef MARCHING_SQUARE_POLYGON_RING_APPENDER_H</a>
+<a name="13"><span class="lineNum">      13 </span>            : #define MARCHING_SQUARE_POLYGON_RING_APPENDER_H</a>
+<a name="14"><span class="lineNum">      14 </span>            : </a>
+<a name="15"><span class="lineNum">      15 </span>            : #include &lt;vector&gt;</a>
+<a name="16"><span class="lineNum">      16 </span>            : #include &lt;list&gt;</a>
+<a name="17"><span class="lineNum">      17 </span>            : #include &lt;map&gt;</a>
+<a name="18"><span class="lineNum">      18 </span>            : #include &lt;deque&gt;</a>
+<a name="19"><span class="lineNum">      19 </span>            : #include &lt;cassert&gt;</a>
+<a name="20"><span class="lineNum">      20 </span>            : #include &lt;iterator&gt;</a>
+<a name="21"><span class="lineNum">      21 </span>            : #include &lt;memory&gt;</a>
+<a name="22"><span class="lineNum">      22 </span>            : #include &lt;algorithm&gt;</a>
+<a name="23"><span class="lineNum">      23 </span>            : </a>
+<a name="24"><span class="lineNum">      24 </span>            : #include &quot;cpl_quad_tree.h&quot;</a>
+<a name="25"><span class="lineNum">      25 </span>            : </a>
+<a name="26"><span class="lineNum">      26 </span>            : #include &quot;point.h&quot;</a>
+<a name="27"><span class="lineNum">      27 </span>            : #include &quot;ogr_api.h&quot;</a>
+<a name="28"><span class="lineNum">      28 </span>            : #include &quot;ogr_geometry.h&quot;</a>
+<a name="29"><span class="lineNum">      29 </span>            : </a>
+<a name="30"><span class="lineNum">      30 </span>            : namespace marching_squares</a>
+<a name="31"><span class="lineNum">      31 </span>            : {</a>
+<a name="32"><span class="lineNum">      32 </span>            : </a>
+<a name="33"><span class="lineNum">      33 </span>            : // Receive rings of different levels and organize them</a>
+<a name="34"><span class="lineNum">      34 </span>            : // into multi-polygons with possible interior rings when requested.</a>
+<a name="35"><span class="lineNum">      35 </span>            : template &lt;typename PolygonWriter&gt; class PolygonRingAppender</a>
+<a name="36"><span class="lineNum">      36 </span>            : {</a>
+<a name="37"><span class="lineNum">      37 </span>            :   private:</a>
+<a name="38"><span class="lineNum">      38 </span><span class="lineNoCov">          0 :     struct Ring</span></a>
+<a name="39"><span class="lineNum">      39 </span>            :     {</a>
+<a name="40"><span class="lineNum">      40 </span><span class="lineCov">        847 :         Ring() : points(), bbox(), interiorRings()</span></a>
+<a name="41"><span class="lineNum">      41 </span>            :         {</a>
+<a name="42"><span class="lineNum">      42 </span><span class="lineCov">        847 :         }</span></a>
+<a name="43"><span class="lineNum">      43 </span>            : </a>
+<a name="44"><span class="lineNum">      44 </span><span class="lineCov">       1753 :         Ring(const Ring &amp;other) = default;</span></a>
+<a name="45"><span class="lineNum">      45 </span>            :         Ring &amp;operator=(const Ring &amp;other) = default;</a>
+<a name="46"><span class="lineNum">      46 </span>            :         // Declaring the copy operations above suppresses the</a>
+<a name="47"><span class="lineNum">      47 </span>            :         // implicit move operations, so vector reshuffles and reallocations</a>
+<a name="48"><span class="lineNum">      48 </span>            :         // deep-copied entire ring subtrees. Restore them.</a>
+<a name="49"><span class="lineNum">      49 </span><span class="lineCov">       1686 :         Ring(Ring &amp;&amp;other) = default;</span></a>
+<a name="50"><span class="lineNum">      50 </span>            :         Ring &amp;operator=(Ring &amp;&amp;other) = default;</a>
+<a name="51"><span class="lineNum">      51 </span>            : </a>
+<a name="52"><span class="lineNum">      52 </span>            :         LineString points;</a>
+<a name="53"><span class="lineNum">      53 </span>            : </a>
+<a name="54"><span class="lineNum">      54 </span>            :         // Bounding box, computed once when the ring is complete;</a>
+<a name="55"><span class="lineNum">      55 </span>            :         // gives isIn() an O(1) reject so parent search stops being</a>
+<a name="56"><span class="lineNum">      56 </span>            :         // O(rings * vertices) per insertion.</a>
+<a name="57"><span class="lineNum">      57 </span>            :         OGREnvelope bbox;</a>
+<a name="58"><span class="lineNum">      58 </span>            : </a>
+<a name="59"><span class="lineNum">      59 </span><span class="lineCov">        847 :         void computeBBox()</span></a>
+<a name="60"><span class="lineNum">      60 </span>            :         {</a>
+<a name="61"><span class="lineNum">      61 </span><span class="lineCov">        847 :             bbox = OGREnvelope();</span></a>
+<a name="62"><span class="lineNum">      62 </span><span class="lineCov">     489934 :             for (const auto &amp;pt : points)</span></a>
+<a name="63"><span class="lineNum">      63 </span><span class="lineCov">     489087 :                 bbox.Merge(pt.x, pt.y);</span></a>
+<a name="64"><span class="lineNum">      64 </span><span class="lineCov">        847 :         }</span></a>
+<a name="65"><span class="lineNum">      65 </span>            : </a>
+<a name="66"><span class="lineNum">      66 </span>            :         mutable std::vector&lt;Ring&gt; interiorRings;</a>
+<a name="67"><span class="lineNum">      67 </span>            : </a>
+<a name="68"><span class="lineNum">      68 </span>            :         const Ring *closestExterior = nullptr;</a>
+<a name="69"><span class="lineNum">      69 </span>            : </a>
+<a name="70"><span class="lineNum">      70 </span><span class="lineCov">        411 :         bool isIn(const Ring &amp;other) const</span></a>
+<a name="71"><span class="lineNum">      71 </span>            :         {</a>
+<a name="72"><span class="lineNum">      72 </span>            :             // Check if this is inside other using the winding number algorithm</a>
+<a name="73"><span class="lineNum">      73 </span><span class="lineCov">        411 :             auto checkPoint = this-&gt;points.front();</span></a>
+<a name="74"><span class="lineNum">      74 </span>            :             // A point outside the candidate ring's bounding box</a>
+<a name="75"><span class="lineNum">      75 </span>            :             // cannot be inside the ring.</a>
+<a name="76"><span class="lineNum">      76 </span><span class="lineCov">        411 :             if (checkPoint.x &lt; other.bbox.MinX ||</span></a>
+<a name="77"><span class="lineNum">      77 </span><span class="lineCov">        411 :                 checkPoint.x &gt; other.bbox.MaxX ||</span></a>
+<a name="78"><span class="lineNum">      78 </span><span class="lineCov">        411 :                 checkPoint.y &lt; other.bbox.MinY ||</span></a>
+<a name="79"><span class="lineNum">      79 </span><span class="lineCov">        411 :                 checkPoint.y &gt; other.bbox.MaxY)</span></a>
+<a name="80"><span class="lineNum">      80 </span>            :             {</a>
+<a name="81"><span class="lineNum">      81 </span><span class="lineNoCov">          0 :                 return false;</span></a>
+<a name="82"><span class="lineNum">      82 </span>            :             }</a>
+<a name="83"><span class="lineNum">      83 </span><span class="lineCov">        411 :             int windingNum = 0;</span></a>
+<a name="84"><span class="lineNum">      84 </span><span class="lineCov">        411 :             auto otherIter = other.points.begin();</span></a>
+<a name="85"><span class="lineNum">      85 </span>            :             // p1 and p2 define each segment of the ring other that will be</a>
+<a name="86"><span class="lineNum">      86 </span>            :             // tested</a>
+<a name="87"><span class="lineNum">      87 </span><span class="lineCov">        411 :             auto p1 = *otherIter;</span></a>
+<a name="88"><span class="lineNum">      88 </span><span class="lineCov">    6138680 :             while (true)</span></a>
+<a name="89"><span class="lineNum">      89 </span>            :             {</a>
+<a name="90"><span class="lineNum">      90 </span><span class="lineCov">    6139093 :                 otherIter++;</span></a>
+<a name="91"><span class="lineNum">      91 </span><span class="lineCov">    6139093 :                 if (otherIter == other.points.end())</span></a>
+<a name="92"><span class="lineNum">      92 </span>            :                 {</a>
+<a name="93"><span class="lineNum">      93 </span><span class="lineCov">        411 :                     break;</span></a>
+<a name="94"><span class="lineNum">      94 </span>            :                 }</a>
+<a name="95"><span class="lineNum">      95 </span><span class="lineCov">    6138680 :                 auto p2 = *otherIter;</span></a>
+<a name="96"><span class="lineNum">      96 </span><span class="lineCov">    6138680 :                 if (p1.y &lt;= checkPoint.y)</span></a>
+<a name="97"><span class="lineNum">      97 </span>            :                 {</a>
+<a name="98"><span class="lineNum">      98 </span><span class="lineCov">    5396957 :                     if (p2.y &gt; checkPoint.y)</span></a>
+<a name="99"><span class="lineNum">      99 </span>            :                     {</a>
+<a name="100"><span class="lineNum">     100 </span><span class="lineCov">        623 :                         if (isLeft(p1, p2, checkPoint))</span></a>
+<a name="101"><span class="lineNum">     101 </span>            :                         {</a>
+<a name="102"><span class="lineNum">     102 </span><span class="lineCov">        253 :                             ++windingNum;</span></a>
+<a name="103"><span class="lineNum">     103 </span>            :                         }</a>
+<a name="104"><span class="lineNum">     104 </span>            :                     }</a>
+<a name="105"><span class="lineNum">     105 </span>            :                 }</a>
+<a name="106"><span class="lineNum">     106 </span>            :                 else</a>
+<a name="107"><span class="lineNum">     107 </span>            :                 {</a>
+<a name="108"><span class="lineNum">     108 </span><span class="lineCov">     741725 :                     if (p2.y &lt;= checkPoint.y)</span></a>
+<a name="109"><span class="lineNum">     109 </span>            :                     {</a>
+<a name="110"><span class="lineNum">     110 </span><span class="lineCov">        623 :                         if (!isLeft(p1, p2, checkPoint))</span></a>
+<a name="111"><span class="lineNum">     111 </span>            :                         {</a>
+<a name="112"><span class="lineNum">     112 </span><span class="lineCov">        434 :                             --windingNum;</span></a>
+<a name="113"><span class="lineNum">     113 </span>            :                         }</a>
+<a name="114"><span class="lineNum">     114 </span>            :                     }</a>
+<a name="115"><span class="lineNum">     115 </span>            :                 }</a>
+<a name="116"><span class="lineNum">     116 </span><span class="lineCov">    6138680 :                 p1 = p2;</span></a>
+<a name="117"><span class="lineNum">     117 </span>            :             }</a>
+<a name="118"><span class="lineNum">     118 </span><span class="lineCov">        411 :             return windingNum != 0;</span></a>
+<a name="119"><span class="lineNum">     119 </span>            :         }</a>
+<a name="120"><span class="lineNum">     120 </span>            : </a>
+<a name="121"><span class="lineNum">     121 </span>            : #ifdef DEBUG</a>
+<a name="122"><span class="lineNum">     122 </span>            :         size_t id() const</a>
+<a name="123"><span class="lineNum">     123 </span>            :         {</a>
+<a name="124"><span class="lineNum">     124 </span>            :             return size_t(static_cast&lt;const void *&gt;(this)) &amp; 0xffff;</a>
+<a name="125"><span class="lineNum">     125 </span>            :         }</a>
+<a name="126"><span class="lineNum">     126 </span>            : </a>
+<a name="127"><span class="lineNum">     127 </span>            :         void print(std::ostream &amp;ostr) const</a>
+<a name="128"><span class="lineNum">     128 </span>            :         {</a>
+<a name="129"><span class="lineNum">     129 </span>            :             ostr &lt;&lt; id() &lt;&lt; &quot;:&quot;;</a>
+<a name="130"><span class="lineNum">     130 </span>            :             for (const auto &amp;pt : points)</a>
+<a name="131"><span class="lineNum">     131 </span>            :             {</a>
+<a name="132"><span class="lineNum">     132 </span>            :                 ostr &lt;&lt; pt.x &lt;&lt; &quot;,&quot; &lt;&lt; pt.y &lt;&lt; &quot; &quot;;</a>
+<a name="133"><span class="lineNum">     133 </span>            :             }</a>
+<a name="134"><span class="lineNum">     134 </span>            :         }</a>
+<a name="135"><span class="lineNum">     135 </span>            : #endif</a>
+<a name="136"><span class="lineNum">     136 </span>            :     };</a>
+<a name="137"><span class="lineNum">     137 </span>            : </a>
+<a name="138"><span class="lineNum">     138 </span><span class="lineCov">        976 :     void processTree(const std::vector&lt;Ring&gt; &amp;tree, int level)</span></a>
+<a name="139"><span class="lineNum">     139 </span>            :     {</a>
+<a name="140"><span class="lineNum">     140 </span><span class="lineCov">        976 :         if (level % 2 == 0)</span></a>
+<a name="141"><span class="lineNum">     141 </span>            :         {</a>
+<a name="142"><span class="lineNum">     142 </span><span class="lineCov">        976 :             for (auto &amp;r : tree)</span></a>
+<a name="143"><span class="lineNum">     143 </span>            :             {</a>
+<a name="144"><span class="lineNum">     144 </span><span class="lineCov">        466 :                 writer_.addPart(r.points);</span></a>
+<a name="145"><span class="lineNum">     145 </span><span class="lineCov">        847 :                 for (auto &amp;innerRing : r.interiorRings)</span></a>
+<a name="146"><span class="lineNum">     146 </span>            :                 {</a>
+<a name="147"><span class="lineNum">     147 </span><span class="lineCov">        381 :                     writer_.addInteriorRing(innerRing.points);</span></a>
+<a name="148"><span class="lineNum">     148 </span>            :                 }</a>
+<a name="149"><span class="lineNum">     149 </span>            :             }</a>
+<a name="150"><span class="lineNum">     150 </span>            :         }</a>
+<a name="151"><span class="lineNum">     151 </span><span class="lineCov">       1823 :         for (auto &amp;r : tree)</span></a>
+<a name="152"><span class="lineNum">     152 </span>            :         {</a>
+<a name="153"><span class="lineNum">     153 </span><span class="lineCov">        847 :             processTree(r.interiorRings, level + 1);</span></a>
+<a name="154"><span class="lineNum">     154 </span>            :         }</a>
+<a name="155"><span class="lineNum">     155 </span><span class="lineCov">        976 :     }</span></a>
+<a name="156"><span class="lineNum">     156 </span>            : </a>
+<a name="157"><span class="lineNum">     157 </span>            :     // level -&gt; rings</a>
+<a name="158"><span class="lineNum">     158 </span>            :     std::map&lt;double, std::vector&lt;Ring&gt;&gt; rings_;</a>
+<a name="159"><span class="lineNum">     159 </span>            : </a>
+<a name="160"><span class="lineNum">     160 </span>            :     // Point-in-polygon accelerator for one target ring: an</a>
+<a name="161"><span class="lineNum">     161 </span>            :     // OGRPreparedGeometry (GEOS indexed point-in-area locator) over the</a>
+<a name="162"><span class="lineNum">     162 </span>            :     // ring, built lazily when a ring turns out to capture many candidates.</a>
+<a name="163"><span class="lineNum">     163 </span>            :     // The pathological case is a domain-spanning ring with millions of</a>
+<a name="164"><span class="lineNum">     164 </span>            :     // vertices capturing tens of thousands of earlier rings; testing each</a>
+<a name="165"><span class="lineNum">     165 </span>            :     // candidate against the raw ring is O(candidates * vertices). In builds</a>
+<a name="166"><span class="lineNum">     166 </span>            :     // without GEOS support the capture step falls back to the linear</a>
+<a name="167"><span class="lineNum">     167 </span>            :     // winding test.</a>
+<a name="168"><span class="lineNum">     168 </span>            :     struct PreparedRing</a>
+<a name="169"><span class="lineNum">     169 </span>            :     {</a>
+<a name="170"><span class="lineNum">     170 </span><span class="lineCov">        839 :         PreparedRing() : poly(), prep()</span></a>
+<a name="171"><span class="lineNum">     171 </span>            :         {</a>
+<a name="172"><span class="lineNum">     172 </span><span class="lineCov">        839 :         }</span></a>
+<a name="173"><span class="lineNum">     173 </span>            : </a>
+<a name="174"><span class="lineNum">     174 </span>            :         OGRPolygon poly;</a>
+<a name="175"><span class="lineNum">     175 </span>            :         OGRPreparedGeometryUniquePtr prep;</a>
+<a name="176"><span class="lineNum">     176 </span>            : </a>
+<a name="177"><span class="lineNum">     177 </span><span class="lineCov">         12 :         bool build(const Ring &amp;r)</span></a>
+<a name="178"><span class="lineNum">     178 </span>            :         {</a>
+<a name="179"><span class="lineNum">     179 </span><span class="lineCov">         12 :             poly.empty();</span></a>
+<a name="180"><span class="lineNum">     180 </span><span class="lineCov">         12 :             prep.reset();</span></a>
+<a name="181"><span class="lineNum">     181 </span><span class="lineCov">         24 :             auto ring = std::make_unique&lt;OGRLinearRing&gt;();</span></a>
+<a name="182"><span class="lineNum">     182 </span><span class="lineCov">         12 :             ring-&gt;setNumPoints(static_cast&lt;int&gt;(r.points.size()));</span></a>
+<a name="183"><span class="lineNum">     183 </span><span class="lineCov">         12 :             int i = 0;</span></a>
+<a name="184"><span class="lineNum">     184 </span><span class="lineCov">     371468 :             for (const auto &amp;pt : r.points)</span></a>
+<a name="185"><span class="lineNum">     185 </span><span class="lineCov">     371456 :                 ring-&gt;setPoint(i++, pt.x, pt.y);</span></a>
+<a name="186"><span class="lineNum">     186 </span><span class="lineCov">         12 :             poly.addRingDirectly(ring.release());</span></a>
+<a name="187"><span class="lineNum">     187 </span><span class="lineCov">         12 :             poly.closeRings();</span></a>
+<a name="188"><span class="lineNum">     188 </span><span class="lineCov">         12 :             prep.reset(OGRCreatePreparedGeometry(OGRGeometry::ToHandle(&amp;poly)));</span></a>
+<a name="189"><span class="lineNum">     189 </span><span class="lineCov">         24 :             return prep != nullptr;</span></a>
+<a name="190"><span class="lineNum">     190 </span>            :         }</a>
+<a name="191"><span class="lineNum">     191 </span>            : </a>
+<a name="192"><span class="lineNum">     192 </span><span class="lineCov">        252 :         bool contains(const Point &amp;p) const</span></a>
+<a name="193"><span class="lineNum">     193 </span>            :         {</a>
+<a name="194"><span class="lineNum">     194 </span><span class="lineCov">        504 :             OGRPoint pt(p.x, p.y);</span></a>
+<a name="195"><span class="lineNum">     195 </span><span class="lineCov">        252 :             return CPL_TO_BOOL(OGRPreparedGeometryContains(</span></a>
+<a name="196"><span class="lineNum">     196 </span><span class="lineCov">        504 :                 prep.get(), OGRGeometry::ToHandle(&amp;pt)));</span></a>
+<a name="197"><span class="lineNum">     197 </span>            :         }</a>
+<a name="198"><span class="lineNum">     198 </span>            :     };</a>
+<a name="199"><span class="lineNum">     199 </span>            : </a>
+<a name="200"><span class="lineNum">     200 </span>            :     // Per-level spatial index over TOP-LEVEL rings: a CPLQuadTree over ring</a>
+<a name="201"><span class="lineNum">     201 </span>            :     // bounding boxes. Each stored feature points at the ring's slot index in</a>
+<a name="202"><span class="lineNum">     202 </span>            :     // the level's ring vector, held in a std::deque so the pointer survives</a>
+<a name="203"><span class="lineNum">     203 </span>            :     // growth; vector reallocation of the rings themselves is harmless. Rings</a>
+<a name="204"><span class="lineNum">     204 </span>            :     // captured as interior rings of a later ring are removed from the tree</a>
+<a name="205"><span class="lineNum">     205 </span>            :     // and their slot tombstoned (points cleared) rather than erased, keeping</a>
+<a name="206"><span class="lineNum">     206 </span>            :     // the remaining indices stable.</a>
+<a name="207"><span class="lineNum">     207 </span>            :     struct QuadTreeDestroyer</a>
+<a name="208"><span class="lineNum">     208 </span>            :     {</a>
+<a name="209"><span class="lineNum">     209 </span><span class="lineCov">        129 :         void operator()(CPLQuadTree *t) const</span></a>
+<a name="210"><span class="lineNum">     210 </span>            :         {</a>
+<a name="211"><span class="lineNum">     211 </span><span class="lineCov">        129 :             CPLQuadTreeDestroy(t);</span></a>
+<a name="212"><span class="lineNum">     212 </span><span class="lineCov">        129 :         }</span></a>
+<a name="213"><span class="lineNum">     213 </span>            :     };</a>
+<a name="214"><span class="lineNum">     214 </span>            : </a>
+<a name="215"><span class="lineNum">     215 </span>            :     std::map&lt;double, std::unique_ptr&lt;CPLQuadTree, QuadTreeDestroyer&gt;&gt; index_;</a>
+<a name="216"><span class="lineNum">     216 </span>            :     std::map&lt;double, std::deque&lt;std::size_t&gt;&gt; slots_;</a>
+<a name="217"><span class="lineNum">     217 </span>            :     CPLRectObj domain_;</a>
+<a name="218"><span class="lineNum">     218 </span>            : </a>
+<a name="219"><span class="lineNum">     219 </span><span class="lineCov">        699 :     static std::size_t featureSlot(const void *f)</span></a>
+<a name="220"><span class="lineNum">     220 </span>            :     {</a>
+<a name="221"><span class="lineNum">     221 </span><span class="lineCov">        699 :         return *static_cast&lt;const std::size_t *&gt;(f);</span></a>
+<a name="222"><span class="lineNum">     222 </span>            :     }</a>
+<a name="223"><span class="lineNum">     223 </span>            : </a>
+<a name="224"><span class="lineNum">     224 </span><span class="lineCov">       2149 :     static CPLRectObj ringRect(const Ring &amp;r)</span></a>
+<a name="225"><span class="lineNum">     225 </span>            :     {</a>
+<a name="226"><span class="lineNum">     226 </span><span class="lineCov">       2149 :         return CPLRectObj{r.bbox.MinX, r.bbox.MinY, r.bbox.MaxX, r.bbox.MaxY};</span></a>
+<a name="227"><span class="lineNum">     227 </span>            :     }</a>
+<a name="228"><span class="lineNum">     228 </span>            : </a>
+<a name="229"><span class="lineNum">     229 </span>            :     PolygonWriter &amp;writer_;</a>
+<a name="230"><span class="lineNum">     230 </span>            : </a>
+<a name="231"><span class="lineNum">     231 </span>            :   public:</a>
+<a name="232"><span class="lineNum">     232 </span>            :     const bool polygonize = true;</a>
+<a name="233"><span class="lineNum">     233 </span>            : </a>
+<a name="234"><span class="lineNum">     234 </span><span class="lineCov">         37 :     PolygonRingAppender(PolygonWriter &amp;writer, double minX, double minY,</span></a>
+<a name="235"><span class="lineNum">     235 </span>            :                         double maxX, double maxY)</a>
+<a name="236"><span class="lineNum">     236 </span>            :         : rings_(), index_(), slots_(), domain_{minX, minY, maxX, maxY},</a>
+<a name="237"><span class="lineNum">     237 </span><span class="lineCov">         37 :           writer_(writer)</span></a>
+<a name="238"><span class="lineNum">     238 </span>            :     {</a>
+<a name="239"><span class="lineNum">     239 </span><span class="lineCov">         37 :     }</span></a>
+<a name="240"><span class="lineNum">     240 </span>            : </a>
+<a name="241"><span class="lineNum">     241 </span><span class="lineCov">        879 :     void addLine(double level, LineString &amp;ls, bool)</span></a>
+<a name="242"><span class="lineNum">     242 </span>            :     {</a>
+<a name="243"><span class="lineNum">     243 </span><span class="lineCov">        879 :         auto &amp;levelRings = rings_[level];</span></a>
+<a name="244"><span class="lineNum">     244 </span><span class="lineCov">        879 :         auto &amp;levelTree = index_[level];</span></a>
+<a name="245"><span class="lineNum">     245 </span><span class="lineCov">        879 :         auto &amp;levelSlots = slots_[level];</span></a>
+<a name="246"><span class="lineNum">     246 </span><span class="lineCov">        879 :         if (!levelTree)</span></a>
+<a name="247"><span class="lineNum">     247 </span><span class="lineCov">        129 :             levelTree.reset(CPLQuadTreeCreate(&amp;domain_, nullptr));</span></a>
+<a name="248"><span class="lineNum">     248 </span><span class="lineCov">        879 :         if (ls.empty())</span></a>
+<a name="249"><span class="lineNum">     249 </span>            :         {</a>
+<a name="250"><span class="lineNum">     250 </span><span class="lineCov">         32 :             return;</span></a>
+<a name="251"><span class="lineNum">     251 </span>            :         }</a>
+<a name="252"><span class="lineNum">     252 </span>            :         // Create a new ring from the LineString</a>
+<a name="253"><span class="lineNum">     253 </span><span class="lineCov">       1694 :         Ring newRing;</span></a>
+<a name="254"><span class="lineNum">     254 </span><span class="lineCov">        847 :         newRing.points.swap(ls);</span></a>
+<a name="255"><span class="lineNum">     255 </span><span class="lineCov">        847 :         newRing.computeBBox();</span></a>
+<a name="256"><span class="lineNum">     256 </span>            :         // Find the top-level parent (if any) through the index instead of</a>
+<a name="257"><span class="lineNum">     257 </span>            :         // scanning every top-level ring, then descend the (short) nested</a>
+<a name="258"><span class="lineNum">     258 </span>            :         // sibling lists exactly as before.</a>
+<a name="259"><span class="lineNum">     259 </span><span class="lineCov">        847 :         Ring *parentRing = nullptr;</span></a>
+<a name="260"><span class="lineNum">     260 </span>            :         {</a>
+<a name="261"><span class="lineNum">     261 </span><span class="lineCov">        847 :             Ring *top = nullptr;</span></a>
+<a name="262"><span class="lineNum">     262 </span><span class="lineCov">        847 :             const auto &amp;fp0 = newRing.points.front();</span></a>
+<a name="263"><span class="lineNum">     263 </span><span class="lineCov">        847 :             CPLRectObj aoi{fp0.x, fp0.y, fp0.x, fp0.y};</span></a>
+<a name="264"><span class="lineNum">     264 </span><span class="lineCov">        847 :             int nHits = 0;</span></a>
+<a name="265"><span class="lineNum">     265 </span><span class="lineCov">        847 :             void **hits = CPLQuadTreeSearch(levelTree.get(), &amp;aoi, &amp;nHits);</span></a>
+<a name="266"><span class="lineNum">     266 </span><span class="lineCov">        867 :             for (int h = 0; h &lt; nHits &amp;&amp; top == nullptr; h++)</span></a>
+<a name="267"><span class="lineNum">     267 </span>            :             {</a>
+<a name="268"><span class="lineNum">     268 </span><span class="lineCov">         20 :                 Ring &amp;cand = levelRings[featureSlot(hits[h])];</span></a>
+<a name="269"><span class="lineNum">     269 </span><span class="lineCov">         20 :                 if (!cand.points.empty() &amp;&amp; newRing.isIn(cand))</span></a>
+<a name="270"><span class="lineNum">     270 </span><span class="lineCov">          8 :                     top = &amp;cand;</span></a>
+<a name="271"><span class="lineNum">     271 </span>            :             }</a>
+<a name="272"><span class="lineNum">     272 </span><span class="lineCov">        847 :             CPLFree(hits);</span></a>
+<a name="273"><span class="lineNum">     273 </span><span class="lineCov">        847 :             if (top != nullptr)</span></a>
+<a name="274"><span class="lineNum">     274 </span>            :             {</a>
+<a name="275"><span class="lineNum">     275 </span><span class="lineCov">          8 :                 parentRing = top;</span></a>
+<a name="276"><span class="lineNum">     276 </span>            :                 // This queue holds the rings to be checked</a>
+<a name="277"><span class="lineNum">     277 </span><span class="lineCov">         16 :                 std::deque&lt;Ring *&gt; queue;</span></a>
+<a name="278"><span class="lineNum">     278 </span><span class="lineCov">          8 :                 std::transform(</span></a>
+<a name="279"><span class="lineNum">     279 </span>            :                     top-&gt;interiorRings.begin(), top-&gt;interiorRings.end(),</a>
+<a name="280"><span class="lineNum">     280 </span><span class="lineNoCov">          0 :                     std::back_inserter(queue), [](Ring &amp;r) { return &amp;r; });</span></a>
+<a name="281"><span class="lineNum">     281 </span><span class="lineCov">          8 :                 while (!queue.empty())</span></a>
+<a name="282"><span class="lineNum">     282 </span>            :                 {</a>
+<a name="283"><span class="lineNum">     283 </span><span class="lineNoCov">          0 :                     Ring *curRing = queue.front();</span></a>
+<a name="284"><span class="lineNum">     284 </span><span class="lineNoCov">          0 :                     queue.pop_front();</span></a>
+<a name="285"><span class="lineNum">     285 </span><span class="lineNoCov">          0 :                     if (newRing.isIn(*curRing))</span></a>
+<a name="286"><span class="lineNum">     286 </span>            :                     {</a>
+<a name="287"><span class="lineNum">     287 </span>            :                         // We know that there should only be one ring per</a>
+<a name="288"><span class="lineNum">     288 </span>            :                         // level that we should fit in, so we can discard the</a>
+<a name="289"><span class="lineNum">     289 </span>            :                         // rest of the queue and try again with the children</a>
+<a name="290"><span class="lineNum">     290 </span>            :                         // of this ring</a>
+<a name="291"><span class="lineNum">     291 </span><span class="lineNoCov">          0 :                         parentRing = curRing;</span></a>
+<a name="292"><span class="lineNum">     292 </span><span class="lineNoCov">          0 :                         queue.clear();</span></a>
+<a name="293"><span class="lineNum">     293 </span><span class="lineNoCov">          0 :                         std::transform(curRing-&gt;interiorRings.begin(),</span></a>
+<a name="294"><span class="lineNum">     294 </span>            :                                        curRing-&gt;interiorRings.end(),</a>
+<a name="295"><span class="lineNum">     295 </span>            :                                        std::back_inserter(queue),</a>
+<a name="296"><span class="lineNum">     296 </span><span class="lineNoCov">          0 :                                        [](Ring &amp;r) { return &amp;r; });</span></a>
+<a name="297"><span class="lineNum">     297 </span>            :                     }</a>
+<a name="298"><span class="lineNum">     298 </span>            :                 }</a>
+<a name="299"><span class="lineNum">     299 </span>            :             }</a>
+<a name="300"><span class="lineNum">     300 </span>            :         }</a>
+<a name="301"><span class="lineNum">     301 </span><span class="lineCov">        847 :         if (parentRing == nullptr)</span></a>
+<a name="302"><span class="lineNum">     302 </span>            :         {</a>
+<a name="303"><span class="lineNum">     303 </span>            :             // Top-level insertion: capture existing top-level rings that lie</a>
+<a name="304"><span class="lineNum">     304 </span>            :             // inside the new ring, via the index. Build a per-target PIP</a>
+<a name="305"><span class="lineNum">     305 </span>            :             // index lazily so a huge ring capturing many candidates costs</a>
+<a name="306"><span class="lineNum">     306 </span>            :             // O(V + R * V/B), not O(R * V).</a>
+<a name="307"><span class="lineNum">     307 </span><span class="lineCov">       1678 :             std::vector&lt;std::size_t&gt; captured;</span></a>
+<a name="308"><span class="lineNum">     308 </span><span class="lineCov">       1678 :             PreparedRing pip;</span></a>
+<a name="309"><span class="lineNum">     309 </span><span class="lineCov">        839 :             bool pipTried = false;</span></a>
+<a name="310"><span class="lineNum">     310 </span><span class="lineCov">        839 :             bool pipBuilt = false;</span></a>
+<a name="311"><span class="lineNum">     311 </span><span class="lineCov">        839 :             std::size_t nCandidates = 0;</span></a>
+<a name="312"><span class="lineNum">     312 </span>            :             {</a>
+<a name="313"><span class="lineNum">     313 </span><span class="lineCov">        839 :                 CPLRectObj aoi = ringRect(newRing);</span></a>
+<a name="314"><span class="lineNum">     314 </span><span class="lineCov">        839 :                 int nHits = 0;</span></a>
+<a name="315"><span class="lineNum">     315 </span><span class="lineCov">        839 :                 void **hits = CPLQuadTreeSearch(levelTree.get(), &amp;aoi, &amp;nHits);</span></a>
+<a name="316"><span class="lineNum">     316 </span><span class="lineCov">       1518 :                 for (int h = 0; h &lt; nHits; h++)</span></a>
+<a name="317"><span class="lineNum">     317 </span>            :                 {</a>
+<a name="318"><span class="lineNum">     318 </span><span class="lineCov">        679 :                     const std::size_t idx = featureSlot(hits[h]);</span></a>
+<a name="319"><span class="lineNum">     319 </span><span class="lineCov">        679 :                     Ring &amp;cand = levelRings[idx];</span></a>
+<a name="320"><span class="lineNum">     320 </span><span class="lineCov">        679 :                     if (cand.points.empty())</span></a>
+<a name="321"><span class="lineNum">     321 </span><span class="lineCov">         36 :                         continue;</span></a>
+<a name="322"><span class="lineNum">     322 </span><span class="lineCov">        679 :                     const auto &amp;fp = cand.points.front();</span></a>
+<a name="323"><span class="lineNum">     323 </span><span class="lineCov">        679 :                     if (fp.x &lt; newRing.bbox.MinX || fp.x &gt; newRing.bbox.MaxX ||</span></a>
+<a name="324"><span class="lineNum">     324 </span><span class="lineCov">        643 :                         fp.y &lt; newRing.bbox.MinY || fp.y &gt; newRing.bbox.MaxY)</span></a>
+<a name="325"><span class="lineNum">     325 </span><span class="lineCov">         36 :                         continue;</span></a>
+<a name="326"><span class="lineNum">     326 </span><span class="lineCov">        655 :                     if (!pipTried &amp;&amp; ++nCandidates &gt; 16 &amp;&amp;</span></a>
+<a name="327"><span class="lineNum">     327 </span><span class="lineCov">         12 :                         newRing.points.size() &gt; 512)</span></a>
+<a name="328"><span class="lineNum">     328 </span>            :                     {</a>
+<a name="329"><span class="lineNum">     329 </span><span class="lineCov">         12 :                         pipTried = true;</span></a>
+<a name="330"><span class="lineNum">     330 </span><span class="lineCov">         12 :                         pipBuilt = pip.build(newRing);</span></a>
+<a name="331"><span class="lineNum">     331 </span>            :                     }</a>
+<a name="332"><span class="lineNum">     332 </span><span class="lineCov">        643 :                     const bool inside =</span></a>
+<a name="333"><span class="lineNum">     333 </span><span class="lineCov">        643 :                         pipBuilt ? pip.contains(fp) : cand.isIn(newRing);</span></a>
+<a name="334"><span class="lineNum">     334 </span><span class="lineCov">        643 :                     if (inside)</span></a>
+<a name="335"><span class="lineNum">     335 </span><span class="lineCov">        471 :                         captured.push_back(idx);</span></a>
+<a name="336"><span class="lineNum">     336 </span>            :                 }</a>
+<a name="337"><span class="lineNum">     337 </span><span class="lineCov">        839 :                 CPLFree(hits);</span></a>
+<a name="338"><span class="lineNum">     338 </span>            :             }</a>
+<a name="339"><span class="lineNum">     339 </span>            :             // Sorting by slot restores insertion order, so captured rings</a>
+<a name="340"><span class="lineNum">     340 </span>            :             // nest in the same order the original linear scan produced.</a>
+<a name="341"><span class="lineNum">     341 </span><span class="lineCov">        839 :             std::sort(captured.begin(), captured.end());</span></a>
+<a name="342"><span class="lineNum">     342 </span><span class="lineCov">        839 :             captured.erase(std::unique(captured.begin(), captured.end()),</span></a>
+<a name="343"><span class="lineNum">     343 </span><span class="lineCov">        839 :                            captured.end());</span></a>
+<a name="344"><span class="lineNum">     344 </span><span class="lineCov">       1310 :             for (std::size_t idx : captured)</span></a>
+<a name="345"><span class="lineNum">     345 </span>            :             {</a>
+<a name="346"><span class="lineNum">     346 </span><span class="lineCov">        471 :                 CPLRectObj rb = ringRect(levelRings[idx]);</span></a>
+<a name="347"><span class="lineNum">     347 </span><span class="lineCov">        471 :                 CPLQuadTreeRemove(levelTree.get(), &amp;levelSlots[idx], &amp;rb);</span></a>
+<a name="348"><span class="lineNum">     348 </span><span class="lineCov">        471 :                 newRing.interiorRings.push_back(std::move(levelRings[idx]));</span></a>
+<a name="349"><span class="lineNum">     349 </span><span class="lineCov">        471 :                 levelRings[idx].points.clear();  // tombstone the slot</span></a>
+<a name="350"><span class="lineNum">     350 </span>            :             }</a>
+<a name="351"><span class="lineNum">     351 </span><span class="lineCov">        839 :             levelRings.push_back(std::move(newRing));</span></a>
+<a name="352"><span class="lineNum">     352 </span><span class="lineCov">        839 :             levelSlots.push_back(levelRings.size() - 1);</span></a>
+<a name="353"><span class="lineNum">     353 </span><span class="lineCov">        839 :             CPLRectObj nb = ringRect(levelRings.back());</span></a>
+<a name="354"><span class="lineNum">     354 </span><span class="lineCov">        839 :             CPLQuadTreeInsertWithBounds(levelTree.get(), &amp;levelSlots.back(),</span></a>
+<a name="355"><span class="lineNum">     355 </span>            :                                         &amp;nb);</a>
+<a name="356"><span class="lineNum">     356 </span>            :         }</a>
+<a name="357"><span class="lineNum">     357 </span>            :         else</a>
+<a name="358"><span class="lineNum">     358 </span>            :         {</a>
+<a name="359"><span class="lineNum">     359 </span>            :             // Get a pointer to the list we need to check for rings to include</a>
+<a name="360"><span class="lineNum">     360 </span>            :             // in this ring</a>
+<a name="361"><span class="lineNum">     361 </span><span class="lineCov">          8 :             std::vector&lt;Ring&gt; *parentRingList = &amp;(parentRing-&gt;interiorRings);</span></a>
+<a name="362"><span class="lineNum">     362 </span>            :             // We found a valid parent, so we need to:</a>
+<a name="363"><span class="lineNum">     363 </span>            :             // 1. Find all the inner rings of the parent that are inside the new</a>
+<a name="364"><span class="lineNum">     364 </span>            :             // ring</a>
+<a name="365"><span class="lineNum">     365 </span><span class="lineCov">          8 :             auto trueGroupIt = std::partition(</span></a>
+<a name="366"><span class="lineNum">     366 </span>            :                 parentRingList-&gt;begin(), parentRingList-&gt;end(),</a>
+<a name="367"><span class="lineNum">     367 </span><span class="lineNoCov">          0 :                 [&amp;newRing](Ring &amp;pRing) { return !pRing.isIn(newRing); });</span></a>
+<a name="368"><span class="lineNum">     368 </span>            :             // 2. Move those rings out of the parent and into the new ring's</a>
+<a name="369"><span class="lineNum">     369 </span>            :             // interior rings</a>
+<a name="370"><span class="lineNum">     370 </span><span class="lineCov">          8 :             std::move(trueGroupIt, parentRingList-&gt;end(),</span></a>
+<a name="371"><span class="lineNum">     371 </span>            :                       std::back_inserter(newRing.interiorRings));</a>
+<a name="372"><span class="lineNum">     372 </span>            :             // 3. Get rid of the moved-from elements in the parent's interior</a>
+<a name="373"><span class="lineNum">     373 </span>            :             // rings</a>
+<a name="374"><span class="lineNum">     374 </span><span class="lineCov">          8 :             parentRingList-&gt;erase(trueGroupIt, parentRingList-&gt;end());</span></a>
+<a name="375"><span class="lineNum">     375 </span>            :             // 4. Add the new ring to the parent's interior rings</a>
+<a name="376"><span class="lineNum">     376 </span><span class="lineCov">          8 :             parentRingList-&gt;push_back(std::move(newRing));</span></a>
+<a name="377"><span class="lineNum">     377 </span>            :         }</a>
+<a name="378"><span class="lineNum">     378 </span>            :     }</a>
+<a name="379"><span class="lineNum">     379 </span>            : </a>
+<a name="380"><span class="lineNum">     380 </span><span class="lineCov">         37 :     ~PolygonRingAppender()</span></a>
+<a name="381"><span class="lineNum">     381 </span>            :     {</a>
+<a name="382"><span class="lineNum">     382 </span>            :         // If there's no rings, nothing to do here</a>
+<a name="383"><span class="lineNum">     383 </span><span class="lineCov">         37 :         if (rings_.size() == 0)</span></a>
+<a name="384"><span class="lineNum">     384 </span><span class="lineNoCov">          0 :             return;</span></a>
+<a name="385"><span class="lineNum">     385 </span>            : </a>
+<a name="386"><span class="lineNum">     386 </span>            :         // Traverse tree of rings</a>
+<a name="387"><span class="lineNum">     387 </span><span class="lineCov">        166 :         for (auto &amp;r : rings_)</span></a>
+<a name="388"><span class="lineNum">     388 </span>            :         {</a>
+<a name="389"><span class="lineNum">     389 </span>            :             // Drop tombstoned slots (rings captured as interior</a>
+<a name="390"><span class="lineNum">     390 </span>            :             // rings of later-arriving parents) before traversal.</a>
+<a name="391"><span class="lineNum">     391 </span><span class="lineCov">        258 :             std::vector&lt;Ring&gt; live;</span></a>
+<a name="392"><span class="lineNum">     392 </span><span class="lineCov">        129 :             live.reserve(r.second.size());</span></a>
+<a name="393"><span class="lineNum">     393 </span><span class="lineCov">        968 :             for (auto &amp;ring : r.second)</span></a>
+<a name="394"><span class="lineNum">     394 </span><span class="lineCov">        839 :                 if (!ring.points.empty())</span></a>
+<a name="395"><span class="lineNum">     395 </span><span class="lineCov">        368 :                     live.push_back(std::move(ring));</span></a>
+<a name="396"><span class="lineNum">     396 </span>            :             // For each level, create a multipolygon by traversing the tree of</a>
+<a name="397"><span class="lineNum">     397 </span>            :             // rings and adding a part for every other level</a>
+<a name="398"><span class="lineNum">     398 </span><span class="lineCov">        129 :             writer_.startPolygon(r.first);</span></a>
+<a name="399"><span class="lineNum">     399 </span><span class="lineCov">        129 :             processTree(live, 0);</span></a>
+<a name="400"><span class="lineNum">     400 </span><span class="lineCov">        129 :             writer_.endPolygon();</span></a>
+<a name="401"><span class="lineNum">     401 </span>            :         }</a>
+<a name="402"><span class="lineNum">     402 </span><span class="lineCov">         37 :     }</span></a>
+<a name="403"><span class="lineNum">     403 </span>            : };</a>
+<a name="404"><span class="lineNum">     404 </span>            : </a>
+<a name="405"><span class="lineNum">     405 </span>            : }  // namespace marching_squares</a>
+<a name="406"><span class="lineNum">     406 </span>            : </a>
+<a name="407"><span class="lineNum">     407 </span>            : #endif</a>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.14</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>
